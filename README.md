@@ -47,8 +47,3 @@ Une application web complète de gestion commerciale développée avec Spring Bo
 - Graphiques interactifs avec Chart.js
 - Rapports détaillés par période
 
-### ⚙️ Paramétrage
-- Configuration TVA et numérotation automatique
-- Gestion des séries de documents
-- Personnalisation de l'interface
-- Paramètres d'entreprise
