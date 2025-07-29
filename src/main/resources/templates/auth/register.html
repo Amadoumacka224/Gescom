@@ -1,0 +1,392 @@
+<!-- src/main/resources/templates/auth/register.html -->
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${appName != null ? 'Inscription - ' + appName : 'Inscription'}">Inscription</title>
+
+    <!-- CSS -->
+    <link th:href="@{/webjars/bootstrap/5.3.0/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/webjars/font-awesome/6.4.0/css/all.min.css}" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .register-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .register-header {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+        .form-control:focus {
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }
+        .btn-register {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-register:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        .form-floating {
+            margin-bottom: 1rem;
+        }
+        .invalid-feedback {
+            display: block;
+        }
+        .password-strength {
+            margin-top: 0.5rem;
+        }
+        .strength-bar {
+            height: 4px;
+            background: #dee2e6;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .strength-fill {
+            height: 100%;
+            transition: all 0.3s ease;
+            width: 0%;
+        }
+        .strength-weak { background: #dc3545; width: 33%; }
+        .strength-medium { background: #ffc107; width: 66%; }
+        .strength-strong { background: #28a745; width: 100%; }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center py-4">
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="register-card">
+                <!-- En-tête -->
+                <div class="register-header">
+                    <i class="fas fa-user-plus fa-3x mb-3"></i>
+                    <h2 th:text="${appName ?: 'Application Commerciale'}">Application Commerciale</h2>
+                    <p class="mb-0">Créez votre compte gratuitement</p>
+                </div>
+
+                <!-- Corps du formulaire -->
+                <div class="p-4">
+                    <h4 class="text-center mb-4 text-dark">Inscription</h4>
+
+                    <!-- Messages d'erreur globaux -->
+                    <div class="alert alert-danger d-flex align-items-center" role="alert" th:if="${errorMessage}">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
+                    <!-- Formulaire d'inscription -->
+                    <form th:action="@{/register}" method="post" th:object="${userDto}" novalidate>
+                        <div class="row">
+                            <!-- Prénom -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text"
+                                           class="form-control"
+                                           th:class="${#fields.hasErrors('firstName')} ? 'form-control is-invalid' : 'form-control'"
+                                           id="firstName"
+                                           th:field="*{firstName}"
+                                           placeholder="Prénom"
+                                           required>
+                                    <label for="firstName">
+                                        <i class="fas fa-user me-2"></i>Prénom
+                                    </label>
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('firstName')}" th:errors="*{firstName}">
+                                        Erreur prénom
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Nom -->
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text"
+                                           class="form-control"
+                                           th:class="${#fields.hasErrors('lastName')} ? 'form-control is-invalid' : 'form-control'"
+                                           id="lastName"
+                                           th:field="*{lastName}"
+                                           placeholder="Nom"
+                                           required>
+                                    <label for="lastName">
+                                        <i class="fas fa-user me-2"></i>Nom
+                                    </label>
+                                    <div class="invalid-feedback" th:if="${#fields.hasErrors('lastName')}" th:errors="*{lastName}">
+                                        Erreur nom
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Email -->
+                        <div class="form-floating">
+                            <input type="email"
+                                   class="form-control"
+                                   th:class="${#fields.hasErrors('email')} ? 'form-control is-invalid' : 'form-control'"
+                                   id="email"
+                                   th:field="*{email}"
+                                   placeholder="Email"
+                                   required>
+                            <label for="email">
+                                <i class="fas fa-envelope me-2"></i>Adresse email
+                            </label>
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('email')}" th:errors="*{email}">
+                                Erreur email
+                            </div>
+                        </div>
+
+                        <!-- Nom d'utilisateur -->
+                        <div class="form-floating">
+                            <input type="text"
+                                   class="form-control"
+                                   th:class="${#fields.hasErrors('username')} ? 'form-control is-invalid' : 'form-control'"
+                                   id="username"
+                                   th:field="*{username}"
+                                   placeholder="Nom d'utilisateur"
+                                   required>
+                            <label for="username">
+                                <i class="fas fa-at me-2"></i>Nom d'utilisateur
+                            </label>
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('username')}" th:errors="*{username}">
+                                Erreur nom d'utilisateur
+                            </div>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Minimum 3 caractères, uniquement lettres, chiffres et tirets
+                            </div>
+                        </div>
+
+                        <!-- Mot de passe -->
+                        <div class="form-floating">
+                            <input type="password"
+                                   class="form-control"
+                                   th:class="${#fields.hasErrors('password')} ? 'form-control is-invalid' : 'form-control'"
+                                   id="password"
+                                   th:field="*{password}"
+                                   placeholder="Mot de passe"
+                                   required>
+                            <label for="password">
+                                <i class="fas fa-lock me-2"></i>Mot de passe
+                            </label>
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">
+                                Erreur mot de passe
+                            </div>
+                            <div class="password-strength">
+                                <div class="strength-bar">
+                                    <div class="strength-fill" id="strengthBar"></div>
+                                </div>
+                                <small class="text-muted" id="strengthText">
+                                    Saisissez un mot de passe fort
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Confirmation mot de passe -->
+                        <div class="form-floating">
+                            <input type="password"
+                                   class="form-control"
+                                   th:class="${#fields.hasErrors('confirmPassword')} ? 'form-control is-invalid' : 'form-control'"
+                                   id="confirmPassword"
+                                   th:field="*{confirmPassword}"
+                                   placeholder="Confirmer le mot de passe"
+                                   required>
+                            <label for="confirmPassword">
+                                <i class="fas fa-lock me-2"></i>Confirmer le mot de passe
+                            </label>
+                            <div class="invalid-feedback" th:if="${#fields.hasErrors('confirmPassword')}" th:errors="*{confirmPassword}">
+                                Erreur confirmation
+                            </div>
+                            <div class="form-text" id="passwordMatch">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Les mots de passe doivent être identiques
+                            </div>
+                        </div>
+
+                        <!-- Conditions d'utilisation -->
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="terms" required>
+                            <label class="form-check-label" for="terms">
+                                J'accepte les <a href="#" class="text-decoration-none">conditions d'utilisation</a>
+                                et la <a href="#" class="text-decoration-none">politique de confidentialité</a>
+                            </label>
+                        </div>
+
+                        <!-- Newsletter -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="newsletter" checked>
+                            <label class="form-check-label" for="newsletter">
+                                Je souhaite recevoir des informations sur les nouveautés
+                            </label>
+                        </div>
+
+                        <!-- Bouton inscription -->
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg btn-register">
+                                <i class="fas fa-user-plus me-2"></i>Créer mon compte
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Liens -->
+                    <div class="text-center mt-4">
+                        <p class="mb-0">
+                            Vous avez déjà un compte ?
+                            <a th:href="@{/login}" class="text-decoration-none fw-bold">
+                                <i class="fas fa-sign-in-alt me-1"></i>Se connecter
+                            </a>
+                        </p>
+                    </div>
+
+                    <!-- Séparateur -->
+                    <div class="d-flex align-items-center my-4">
+                        <hr class="flex-grow-1">
+                        <span class="px-3 text-muted">ou</span>
+                        <hr class="flex-grow-1">
+                    </div>
+
+                    <!-- Retour à l'accueil -->
+                    <div class="text-center">
+                        <a th:href="@{/}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-2"></i>Retour à l'accueil
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center mt-4">
+                <small class="text-white-50">
+                    © <span th:text="${#dates.year(#dates.createNow())}">2024</span>
+                    Application Commerciale - Inscription sécurisée
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script th:src="@{/webjars/bootstrap/5.3.0/js/bootstrap.bundle.min.js}"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const strengthBar = document.getElementById('strengthBar');
+        const strengthText = document.getElementById('strengthText');
+        const passwordMatch = document.getElementById('passwordMatch');
+
+        // Vérification de la force du mot de passe
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+            let strengthClass = '';
+            let strengthMessage = '';
+
+            if (password.length >= 6) strength++;
+            if (password.match(/[a-z]/)) strength++;
+            if (password.match(/[A-Z]/)) strength++;
+            if (password.match(/[0-9]/)) strength++;
+            if (password.match(/[^a-zA-Z0-9]/)) strength++;
+
+            strengthBar.className = 'strength-fill';
+
+            switch (true) {
+                case (strength <= 2):
+                    strengthClass = 'strength-weak';
+                    strengthMessage = 'Mot de passe faible';
+                    break;
+                case (strength <= 3):
+                    strengthClass = 'strength-medium';
+                    strengthMessage = 'Mot de passe moyen';
+                    break;
+                case (strength >= 4):
+                    strengthClass = 'strength-strong';
+                    strengthMessage = 'Mot de passe fort';
+                    break;
+            }
+
+            if (password.length > 0) {
+                strengthBar.classList.add(strengthClass);
+                strengthText.textContent = strengthMessage;
+            } else {
+                strengthText.textContent = 'Saisissez un mot de passe fort';
+            }
+
+            // Vérifier la correspondance des mots de passe
+            checkPasswordMatch();
+        });
+
+        // Vérification de la correspondance des mots de passe
+        confirmPasswordInput.addEventListener('input', checkPasswordMatch);
+
+        function checkPasswordMatch() {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+
+            if (confirmPassword.length === 0) {
+                passwordMatch.innerHTML = '<i class="fas fa-info-circle me-1"></i>Les mots de passe doivent être identiques';
+                passwordMatch.className = 'form-text';
+            } else if (password === confirmPassword) {
+                passwordMatch.innerHTML = '<i class="fas fa-check-circle me-1"></i>Les mots de passe correspondent';
+                passwordMatch.className = 'form-text text-success';
+            } else {
+                passwordMatch.innerHTML = '<i class="fas fa-times-circle me-1"></i>Les mots de passe ne correspondent pas';
+                passwordMatch.className = 'form-text text-danger';
+            }
+        }
+
+        // Validation du formulaire
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(e) {
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            const terms = document.getElementById('terms').checked;
+
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Les mots de passe ne correspondent pas.');
+                return false;
+            }
+
+            if (!terms) {
+                e.preventDefault();
+                alert('Vous devez accepter les conditions d\'utilisation.');
+                return false;
+            }
+
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('Le mot de passe doit contenir au moins 6 caractères.');
+                return false;
+            }
+        });
+
+        // Animation d'entrée
+        const card = document.querySelector('.register-card');
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(30px)';
+
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 100);
+    });
+</script>
+</body>
+</html>

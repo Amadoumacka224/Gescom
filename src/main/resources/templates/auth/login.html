@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${appName != null ? 'Connexion - ' + appName : 'Connexion'}">Connexion</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary-color: #0ea5e9;
+            --accent-color: #8b5cf6;
+            --light-bg: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-dark: #1e293b;
+            --text-muted: #64748b;
+            --border-radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 50%, #ede9fe 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            color: var(--text-dark);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .login-illustration {
+            flex: 1;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: white;
+            padding: 4rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-illustration::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
+            transform: rotate(30deg);
+        }
+
+        .login-illustration h1 {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 800;
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .login-illustration p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            position: relative;
+            max-width: 90%;
+        }
+
+        .features-list {
+            position: relative;
+        }
+
+        .features-list li {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .features-list i {
+            margin-right: 0.75rem;
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .login-form-section {
+            flex: 1;
+            background: var(--card-bg);
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .brand-header i {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .brand-header h2 {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            font-size: 1.8rem;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .brand-header p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .login-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .login-title {
+            font-weight: 700;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-dark);
+            text-align: center;
+        }
+
+        .alert {
+            border-radius: 10px;
+            border: none;
+            padding: 1rem 1.25rem;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .alert i {
+            font-size: 1.1rem;
+            margin-right: 0.8rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-label i {
+            margin-right: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--primary-color);
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .input-group-text {
+            background: var(--light-bg);
+            border: 1px solid #d1d5db;
+            border-right: none;
+            border-radius: 10px 0 0 10px;
+            color: var(--text-muted);
+            padding: 0.75rem 1rem;
+            transition: var(--transition);
+        }
+
+        .form-control {
+            border: 1px solid #d1d5db;
+            border-left: none;
+            border-radius: 0 10px 10px 0;
+            padding: 0.75rem 1rem;
+            height: calc(2.8rem + 2px);
+            transition: var(--transition);
+            font-size: 1rem;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+            outline: none;
+        }
+
+        .input-group:focus-within .input-group-text {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .form-check {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-check-input {
+            width: 1.25rem;
+            height: 1.25rem;
+            margin-top: 0.1rem;
+            border: 1px solid #d1d5db;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .form-check-label {
+            margin-left: 0.7rem;
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .btn-login {
+            background: linear-gradient(120deg, var(--primary-color), var(--primary-dark));
+            border: none;
+            padding: 0.9rem 1.5rem;
+            font-weight: 600;
+            font-size: 1.05rem;
+            letter-spacing: 0.3px;
+            border-radius: 10px;
+            transition: var(--transition);
+            box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login::after {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -60%;
+            width: 20px;
+            height: 200%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(25deg);
+            transition: all 0.6s;
+        }
+
+        .btn-login:hover::after {
+            left: 120%;
+        }
+
+        .links-section {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .links-section a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .links-section a:hover {
+            color: var(--primary-color);
+            transform: translateX(3px);
+        }
+
+        .links-section i {
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+        }
+
+        .home-link {
+            text-align: center;
+        }
+
+        .home-link .btn {
+            border-radius: 8px;
+            font-size: 0.9rem;
+            padding: 0.5rem 1.2rem;
+            transition: var(--transition);
+            border: 1px solid #d1d5db;
+            color: var(--text-muted);
+        }
+
+        .home-link .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            color: var(--text-dark);
+        }
+
+        .demo-section {
+            background-color: var(--light-bg);
+            border-radius: 12px;
+            padding: 1.2rem;
+            margin-top: 1.5rem;
+            border: 1px solid rgba(0, 0, 0, 0.03);
+        }
+
+        .demo-section h6 {
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .demo-section h6 i {
+            margin-right: 0.6rem;
+            font-size: 1rem;
+        }
+
+        .demo-section small {
+            color: var(--text-muted);
+            line-height: 1.5;
+            font-size: 0.85rem;
+        }
+
+        .demo-section strong {
+            color: var(--text-dark);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: rgba(0, 0, 0, 0.6);
+            font-size: 0.85rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .login-container {
+                flex-direction: column;
+            }
+
+            .login-illustration {
+                padding: 2rem;
+            }
+
+            .login-illustration h1 {
+                font-size: 2rem;
+            }
+
+            .login-form-section {
+                padding: 2rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .login-form-section {
+                padding: 1.5rem;
+            }
+
+            .login-card {
+                padding: 1.5rem;
+            }
+
+            .brand-header {
+                margin-bottom: 1.5rem;
+            }
+
+            .links-section {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .links-section a {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="login-container">
+    <!-- Section Illustration -->
+    <div class="login-illustration">
+        <h1>Gestion Commerciale Pro</h1>
+        <p>Une solution complète pour gérer vos clients, commandes, factures et stocks en toute simplicité.</p>
+
+        <ul class="features-list">
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    <strong>Gestion centralisée</strong>
+                    <br>
+                    <small>Tous vos outils commerciaux au même endroit</small>
+                </div>
+            </li>
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    <strong>Analyses en temps réel</strong>
+                    <br>
+                    <small>Tableaux de bord interactifs et rapports détaillés</small>
+                </div>
+            </li>
+            <li>
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    <strong>Sécurité renforcée</strong>
+                    <br>
+                    <small>Protection de vos données professionnelles</small>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Section Formulaire -->
+    <div class="login-form-section">
+        <div class="brand-header">
+            <i class="fas fa-chart-line"></i>
+            <h2 th:text="${appName ?: 'Application Commerciale'}">Application Commerciale</h2>
+            <p th:text="${companyName ?: 'Connectez-vous à votre espace professionnel'}">Connectez-vous à votre espace professionnel</p>
+        </div>
+
+        <div class="login-card">
+            <h3 class="login-title">Accédez à votre compte</h3>
+
+            <!-- Messages -->
+            <div class="alert alert-danger d-flex align-items-center" role="alert" th:if="${errorMessage}">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span th:text="${errorMessage}"></span>
+            </div>
+
+            <div class="alert alert-success d-flex align-items-center" role="alert" th:if="${successMessage}">
+                <i class="fas fa-check-circle"></i>
+                <span th:text="${successMessage}"></span>
+            </div>
+
+            <div class="alert alert-warning d-flex align-items-center" role="alert" th:if="${warningMessage}">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span th:text="${warningMessage}"></span>
+            </div>
+
+            <!-- Formulaire de connexion -->
+            <form th:action="@{/login}" method="post">
+                <div class="form-group">
+                    <label for="username" class="form-label">
+                        <i class="fas fa-user"></i>Nom d'utilisateur
+                    </label>
+                    <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-user"></i>
+                            </span>
+                        <input type="text"
+                               class="form-control"
+                               id="username"
+                               name="username"
+                               required
+                               autofocus
+                               th:value="${registeredUsername}"
+                               placeholder="Entrez votre nom d'utilisateur">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">
+                        <i class="fas fa-lock"></i>Mot de passe
+                    </label>
+                    <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                        <input type="password"
+                               class="form-control"
+                               id="password"
+                               name="password"
+                               required
+                               placeholder="Entrez votre mot de passe">
+                    </div>
+                </div>
+
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="remember-me" name="remember-me">
+                    <label class="form-check-label" for="remember-me">
+                        Se souvenir de moi
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-login">
+                    <i class="fas fa-sign-in-alt me-2"></i>Se connecter
+                </button>
+            </form>
+
+            <!-- Liens supplémentaires -->
+            <div class="links-section">
+                <a th:href="@{/forgot-password}">
+                    <i class="fas fa-key"></i>Mot de passe oublié ?
+                </a>
+                <a th:href="@{/register}">
+                    <i class="fas fa-user-plus"></i>Créer un compte
+                </a>
+            </div>
+
+            <!-- Retour à l'accueil -->
+            <div class="home-link">
+                <a th:href="@{/}" class="btn btn-outline-secondary">
+                    <i class="fas fa-home me-2"></i>Retour à l'accueil
+                </a>
+            </div>
+
+            <!-- Comptes de démonstration -->
+            <div class="demo-section">
+                <h6 class="text-muted mb-2"><i class="fas fa-info-circle"></i>Comptes de démonstration</h6>
+                <small class="text-muted d-block">
+                    <strong>Administrateur:</strong> admin / admin123<br>
+                    <strong>Manager:</strong> manager / manager123<br>
+                    <strong>Utilisateur:</strong> user / user123
+                </small>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <small>
+                © <span th:text="${#dates.year(#dates.createNow())}">2024</span>
+                <span th:text="${companyName ?: 'Votre Entreprise'}">Votre Entreprise</span>
+                - Tous droits réservés
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

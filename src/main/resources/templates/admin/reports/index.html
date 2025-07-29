@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Administration - Rapports</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête avec contrôles de période -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-chart-bar me-2"></i>Rapports d'Administration</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/admin}">Administration</a></li>
+                    <li class="breadcrumb-item active">Rapports</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                <i class="fas fa-download me-2"></i>Exporter
+            </button>
+        </div>
+    </div>
+
+    <!-- Contrôles de période -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form th:action="@{/admin/reports}" method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Période prédéfinie</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="period" id="period7" value="7" th:checked="${period == 7}">
+                        <label class="btn btn-outline-primary" for="period7">7j</label>
+
+                        <input type="radio" class="btn-check" name="period" id="period30" value="30" th:checked="${period == 30}">
+                        <label class="btn btn-outline-primary" for="period30">30j</label>
+
+                        <input type="radio" class="btn-check" name="period" id="period90" value="90" th:checked="${period == 90}">
+                        <label class="btn btn-outline-primary" for="period90">90j</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label for="dateFrom" class="form-label">Date de début</label>
+                    <input type="date" class="form-control" id="dateFrom" name="dateFrom" th:value="${dateFrom}">
+                </div>
+                <div class="col-md-3">
+                    <label for="dateTo" class="form-label">Date de fin</label>
+                    <input type="date" class="form-control" id="dateTo" name="dateTo" th:value="${dateTo}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-sync me-2"></i>Actualiser
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Période d'analyse -->
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-calendar me-2"></i>
+        <strong>Période d'analyse:</strong> du <span th:text="${startDate}">01/01/2024</span> au <span th:text="${endDate}">31/01/2024</span>
+    </div>
+
+    <!-- Rapport de Ventes -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Rapport de Ventes</h5>
+                    <a th:href="@{/admin/reports/sales(period=${period}, dateFrom=${dateFrom}, dateTo=${dateTo})}"
+                       class="btn btn-sm btn-outline-primary">Détails</a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${#numbers.formatCurrency(salesReport.totalRevenue)}" class="text-primary">€0</h3>
+                                <small class="text-muted">Chiffre d'Affaires</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${salesReport.totalOrders}" class="text-success">0</h3>
+                                <small class="text-muted">Commandes</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${#numbers.formatCurrency(salesReport.averageBasket)}" class="text-info">€0</h3>
+                                <small class="text-muted">Panier Moyen</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <canvas id="salesTrendChart" width="100" height="60"></canvas>
+                                <small class="text-muted">Tendance</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top 3 des meilleurs jours -->
+                    <div class="mt-3" th:if="${salesReport.topDays}">
+                        <h6>Meilleurs jours:</h6>
+                        <div class="row">
+                            <div th:each="day, iterStat : ${salesReport.topDays}"
+                                 th:if="${iterStat.index < 3}"
+                                 class="col-md-4">
+                                <div class="d-flex justify-content-between">
+                                    <span th:text="${day.key}">Date</span>
+                                    <strong th:text="${#numbers.formatCurrency(day.value)}">€0</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rapport Commercial -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>Rapport Commercial</h5>
+                    <a th:href="@{/admin/reports/commercial(period=${period}, dateFrom=${dateFrom}, dateTo=${dateTo})}"
+                       class="btn btn-sm btn-outline-primary">Détails</a>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>Top 3 Commerciaux:</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                    <tr>
+                                        <th>Commercial</th>
+                                        <th>CA</th>
+                                        <th>Commandes</th>
+                                        <th>Panier Moyen</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="commercial, iterStat : ${commercialReport.topCommercials}">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white me-2"
+                                                     style="width: 30px; height: 30px; font-size: 12px;"
+                                                     th:text="${#strings.substring(commercial.commercial.firstName, 0, 1) + #strings.substring(commercial.commercial.lastName, 0, 1)}">
+                                                    AB
+                                                </div>
+                                                <span th:text="${commercial.commercial.fullName}">Commercial</span>
+                                            </div>
+                                        </td>
+                                        <td th:text="${#numbers.formatCurrency(commercial.revenue)}">€0</td>
+                                        <td th:text="${commercial.orders}">0</td>
+                                        <td th:text="${#numbers.formatCurrency(commercial.averageBasket)}">€0</td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <canvas id="commercialChart" width="150" height="150"></canvas>
+                                <small class="text-muted">Répartition CA</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rapports Financier et Clients -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-euro-sign me-2"></i>Rapport Financier</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h4 th:text="${#numbers.formatCurrency(financialReport.totalInvoiced)}" class="text-primary">€0</h4>
+                            <small class="text-muted">Facturé</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 th:text="${#numbers.formatCurrency(financialReport.totalPaid)}" class="text-success">€0</h4>
+                            <small class="text-muted">Encaissé</small>
+                        </div>
+                    </div>
+
+                    <div class="progress mt-3">
+                        <div class="progress-bar bg-success"
+                             th:style="|width: ${financialReport.collectionRate}%|"
+                             th:title="${financialReport.collectionRate + '% encaissé'}">
+                        </div>
+                    </div>
+                    <small class="text-muted">Taux d'encaissement: <span th:text="${#numbers.formatDecimal(financialReport.collectionRate, 1, 1)} + '%'">0%</span></small>
+
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between">
+                            <span>En attente:</span>
+                            <strong th:text="${#numbers.formatCurrency(financialReport.totalOutstanding)}" class="text-warning">€0</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Factures en retard:</span>
+                            <strong th:text="${financialReport.overdueInvoices}" class="text-danger">0</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-address-book me-2"></i>Rapport Clients</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h4 th:text="${clientReport.totalClients}" class="text-primary">0</h4>
+                            <small class="text-muted">Total Clients</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 th:text="${clientReport.newClients}" class="text-success">0</h4>
+                            <small class="text-muted">Nouveaux</small>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <canvas id="clientTypeChart" width="200" height="100"></canvas>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Entreprises:</span>
+                            <strong th:text="${clientReport.companies}">0</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Particuliers:</span>
+                            <strong th:text="${clientReport.individuals}">0</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Prospects:</span>
+                            <strong th:text="${clientReport.prospects}" class="text-warning">0</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rapport Produits -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-box me-2"></i>Rapport Produits</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${productReport.totalProducts}" class="text-primary">0</h3>
+                                <small class="text-muted">Total Produits</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${productReport.activeProducts}" class="text-success">0</h3>
+                                <small class="text-muted">Actifs</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${productReport.lowStockCount}" class="text-warning">0</h3>
+                                <small class="text-muted">Stock Bas</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 th:text="${#numbers.formatCurrency(productReport.totalStockValue)}" class="text-info">€0</h3>
+                                <small class="text-muted">Valeur Stock</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alertes stock bas -->
+                    <div class="mt-3" th:if="${productReport.lowStockCount > 0}">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Attention:</strong> <span th:text="${productReport.lowStockCount}">0</span> produit(s) en stock bas nécessitent un réapprovisionnement.
+                        </div>
+
+                        <h6>Produits en stock bas:</h6>
+                        <div class="row">
+                            <div th:each="product, iterStat : ${productReport.lowStockProducts}"
+                                 th:if="${iterStat.index < 6}"
+                                 class="col-md-4 mb-2">
+                                <div class="d-flex justify-content-between">
+                                    <span th:text="${product.name}">Produit</span>
+                                    <span class="badge bg-warning" th:text="${product.stock}">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal d'export -->
+    <div class="modal fade" id="exportModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Exporter les rapports</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Choisissez le format d'export:</p>
+                    <div class="d-grid gap-2">
+                        <a th:href="@{/admin/reports/export/pdf(period=${period}, dateFrom=${dateFrom}, dateTo=${dateTo})}"
+                           class="btn btn-outline-danger">
+                            <i class="fas fa-file-pdf me-2"></i>Export PDF
+                        </a>
+                        <a th:href="@{/admin/reports/export/excel(period=${period}, dateFrom=${dateFrom}, dateTo=${dateTo})}"
+                           class="btn btn-outline-success">
+                            <i class="fas fa-file-excel me-2"></i>Export Excel
+                        </a>
+                        <a th:href="@{/admin/reports/export/csv(period=${period}, dateFrom=${dateFrom}, dateTo=${dateTo})}"
+                           class="btn btn-outline-info">
+                            <i class="fas fa-file-csv me-2"></i>Export CSV
+                        </a>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts pour les graphiques -->
+<th:block th:fragment="js_assets">
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        // Données des rapports
+        const salesData = /*[[${salesReport.dailyRevenue}]]*/ {};
+        const commercialData = /*[[${commercialReport.topCommercials}]]*/ [];
+
+        // Graphique de tendance des ventes
+        const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');
+        new Chart(salesTrendCtx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(salesData),
+                datasets: [{
+                    data: Object.values(salesData),
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { display: false }
+                }
+            }
+        });
+
+        // Graphique commercial
+        const commercialCtx = document.getElementById('commercialChart').getContext('2d');
+        new Chart(commercialCtx, {
+            type: 'doughnut',
+            data: {
+                labels: commercialData.map(c => c.commercial.firstName),
+                datasets: [{
+                    data: commercialData.map(c => c.revenue),
+                    backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1']
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+
+        // Graphique type de clients
+        const clientTypeCtx = document.getElementById('clientTypeChart').getContext('2d');
+        new Chart(clientTypeCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Entreprises', 'Particuliers'],
+                datasets: [{
+                    data: [/*[[${clientReport.companies}]]*/ 0, /*[[${clientReport.individuals}]]*/ 0],
+                    backgroundColor: ['#17a2b8', '#6c757d']
+                }]
+            },
+            options: {
+                responsive: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    });
+</script>
+</th:block>
+</body>
+</html>

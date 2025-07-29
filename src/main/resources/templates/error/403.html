@@ -1,0 +1,404 @@
+<!-- src/main/resources/templates/error/403.html -->
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accès refusé - 403</title>
+
+    <!-- CSS -->
+    <link th:href="@{/webjars/bootstrap/5.3.0/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/webjars/font-awesome/6.4.0/css/all.min.css}" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .error-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .error-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .error-icon {
+            font-size: 6rem;
+            color: #dc3545;
+            margin-bottom: 1rem;
+        }
+        .error-code {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #dc3545;
+            margin-bottom: 1rem;
+        }
+        .btn-back {
+            padding: 12px 30px;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-card">
+        <i class="fas fa-ban error-icon"></i>
+        <div class="error-code">403</div>
+        <h2 class="mb-3">Accès refusé</h2>
+        <p class="lead mb-4">
+            Désolé, vous n'avez pas les permissions nécessaires pour accéder à cette page.
+            Contactez votre administrateur si vous pensez qu'il s'agit d'une erreur.
+        </p>
+        <div class="d-flex flex-wrap justify-content-center">
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-back">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a th:href="@{/templates/dashboard}" class="btn btn-primary btn-back">
+                <i class="fas fa-home me-2"></i>Tableau de bord
+            </a>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+<!-- ========================================= -->
+<!-- src/main/resources/templates/error/404.html -->
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page non trouvée - 404</title>
+
+    <!-- CSS -->
+    <link th:href="@{/webjars/bootstrap/5.3.0/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/webjars/font-awesome/6.4.0/css/all.min.css}" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .error-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .error-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .error-icon {
+            font-size: 6rem;
+            color: #6c757d;
+            margin-bottom: 1rem;
+        }
+        .error-code {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #6c757d;
+            margin-bottom: 1rem;
+        }
+        .btn-back {
+            padding: 12px 30px;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        .floating-elements {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+        .floating-elements::before {
+            content: '404';
+            position: absolute;
+            top: 20%;
+            left: 10%;
+            font-size: 10rem;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.1);
+            transform: rotate(-15deg);
+        }
+        .floating-elements::after {
+            content: '404';
+            position: absolute;
+            bottom: 20%;
+            right: 10%;
+            font-size: 8rem;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.05);
+            transform: rotate(15deg);
+        }
+    </style>
+</head>
+<body>
+<div class="floating-elements"></div>
+<div class="error-container">
+    <div class="error-card">
+        <i class="fas fa-search error-icon"></i>
+        <div class="error-code">404</div>
+        <h2 class="mb-3">Page non trouvée</h2>
+        <p class="lead mb-4">
+            Oups ! La page que vous recherchez n'existe pas ou a été déplacée.
+            Vérifiez l'URL ou retournez à la page d'accueil.
+        </p>
+        <div class="mb-4">
+            <p class="text-muted">
+                <i class="fas fa-lightbulb me-2"></i>
+                Suggestions : Vérifiez l'orthographe de l'URL ou utilisez la navigation du site.
+            </p>
+        </div>
+        <div class="d-flex flex-wrap justify-content-center">
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-back">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a th:href="@{/static}" class="btn btn-primary btn-back">
+                <i class="fas fa-home me-2"></i>Accueil
+            </a>
+            <a th:href="@{/templates/dashboard}" class="btn btn-success btn-back">
+                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+<!-- ========================================= -->
+<!-- src/main/resources/templates/error/500.html -->
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erreur interne - 500</title>
+
+    <!-- CSS -->
+    <link th:href="@{/webjars/bootstrap/5.3.0/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/webjars/font-awesome/6.4.0/css/all.min.css}" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .error-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .error-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .error-icon {
+            font-size: 6rem;
+            color: #fd7e14;
+            margin-bottom: 1rem;
+            animation: shake 2s infinite;
+        }
+        .error-code {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #fd7e14;
+            margin-bottom: 1rem;
+        }
+        .btn-back {
+            padding: 12px 30px;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            10% { transform: rotate(-1deg); }
+            20% { transform: rotate(1deg); }
+            30% { transform: rotate(0deg); }
+            40% { transform: rotate(1deg); }
+            50% { transform: rotate(-1deg); }
+            60% { transform: rotate(0deg); }
+            70% { transform: rotate(-1deg); }
+            80% { transform: rotate(1deg); }
+            90% { transform: rotate(0deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-card">
+        <i class="fas fa-exclamation-triangle error-icon"></i>
+        <div class="error-code">500</div>
+        <h2 class="mb-3">Erreur interne du serveur</h2>
+        <p class="lead mb-4">
+            Une erreur inattendue s'est produite sur le serveur.
+            Nos équipes techniques ont été automatiquement notifiées.
+        </p>
+        <div class="mb-4 p-3 bg-light rounded">
+            <h6><i class="fas fa-info-circle me-2"></i>Que pouvez-vous faire ?</h6>
+            <ul class="list-unstyled mb-0 text-start">
+                <li><i class="fas fa-refresh me-2 text-primary"></i>Rafraîchir la page</li>
+                <li><i class="fas fa-clock me-2 text-primary"></i>Réessayer dans quelques minutes</li>
+                <li><i class="fas fa-envelope me-2 text-primary"></i>Contacter le support si le problème persiste</li>
+            </ul>
+        </div>
+        <div class="d-flex flex-wrap justify-content-center">
+            <button onclick="location.reload()" class="btn btn-outline-primary btn-back">
+                <i class="fas fa-refresh me-2"></i>Rafraîchir
+            </button>
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-back">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a th:href="@{/templates/dashboard}" class="btn btn-primary btn-back">
+                <i class="fas fa-home me-2"></i>Accueil
+            </a>
+        </div>
+        <div class="mt-4">
+            <small class="text-muted">
+                <i class="fas fa-envelope me-1"></i>
+                Support : support@commercial.com |
+                <i class="fas fa-phone me-1"></i>
+                +33 1 23 45 67 89
+            </small>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-reload après 30 secondes
+    setTimeout(() => {
+        if (confirm('Voulez-vous rafraîchir la page automatiquement ?')) {
+            location.reload();
+        }
+    }, 30000);
+</script>
+</body>
+</html>
+
+<!-- ========================================= -->
+<!-- src/main/resources/templates/error/error.html (Page d'erreur générale) -->
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${errorTitle != null ? errorTitle : 'Erreur'}">Erreur</title>
+
+    <!-- CSS -->
+    <link th:href="@{/webjars/bootstrap/5.3.0/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/webjars/font-awesome/6.4.0/css/all.min.css}" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .error-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .error-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .error-icon {
+            font-size: 6rem;
+            color: #6f42c1;
+            margin-bottom: 1rem;
+        }
+        .btn-back {
+            padding: 12px 30px;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-card">
+        <i class="fas fa-bug error-icon"></i>
+        <h2 class="mb-3" th:text="${errorTitle != null ? errorTitle : 'Une erreur s\'est produite'}">
+            Une erreur s'est produite
+        </h2>
+        <p class="lead mb-4" th:text="${errorMessage != null ? errorMessage : 'Désolé, quelque chose ne s\'est pas passé comme prévu.'}">
+            Désolé, quelque chose ne s'est pas passé comme prévu.
+        </p>
+        <div class="d-flex flex-wrap justify-content-center">
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-back">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a th:href="@{/static}" class="btn btn-primary btn-back">
+                <i class="fas fa-home me-2"></i>Accueil
+            </a>
+        </div>
+    </div>
+</div>
+</body>
+</html>

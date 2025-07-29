@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{js_assets})}">
+<head>
+    <title th:text="${isEdit} ? 'Modifier le Produit' : 'Nouveau Produit'">Formulaire Produit</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>
+                <i class="fas fa-box me-2" th:unless="${isEdit}"></i>
+                <i class="fas fa-edit me-2" th:if="${isEdit}"></i>
+                <span th:text="${isEdit} ? 'Modifier le Produit' : 'Nouveau Produit'">Formulaire Produit</span>
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/products}">Produits</a></li>
+                    <li class="breadcrumb-item active" th:text="${isEdit} ? 'Modifier' : 'Nouveau'">Formulaire</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a th:href="@{/products}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulaire -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Informations du Produit</h5>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/products}" th:object="${product}" method="post" novalidate>
+                        <!-- ID caché pour modification -->
+                        <input type="hidden" th:field="*{id}">
+
+                        <!-- Informations générales -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-info-circle me-2"></i>Informations Générales
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="name" class="form-label">Nom du produit <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="name" th:field="*{name}"
+                                       th:classappend="${#fields.hasErrors('name')} ? 'is-invalid'"
+                                       placeholder="Nom du produit" required maxlength="100">
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">
+                                    Erreur nom
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="reference" class="form-label">Référence <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="reference" th:field="*{reference}"
+                                       th:classappend="${#fields.hasErrors('reference')} ? 'is-invalid'"
+                                       placeholder="REF-001" required maxlength="50">
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('reference')}" th:errors="*{reference}">
+                                    Erreur référence
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="category" class="form-label">Catégorie <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="category" th:field="*{category}"
+                                       th:classappend="${#fields.hasErrors('category')} ? 'is-invalid'"
+                                       placeholder="Électronique, Textile, etc." required maxlength="50">
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('category')}" th:errors="*{category}">
+                                    Erreur catégorie
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="brand" class="form-label">Marque</label>
+                                <input type="text" class="form-control" id="brand" th:field="*{brand}"
+                                       placeholder="Nom de la marque" maxlength="50">
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" th:field="*{description}" rows="3"
+                                          placeholder="Description détaillée du produit..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Prix et Stock -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-euro-sign me-2"></i>Prix et Stock
+                                </h6>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="unitPrice" class="form-label">Prix unitaire (€) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="unitPrice" th:field="*{unitPrice}"
+                                       th:classappend="${#fields.hasErrors('unitPrice')} ? 'is-invalid'"
+                                       step="0.01" min="0.01" placeholder="0.00" required>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('unitPrice')}" th:errors="*{unitPrice}">
+                                    Erreur prix unitaire
+                                </div>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="purchasePrice" class="form-label">Prix d'achat (€)</label>
+                                <input type="number" class="form-control" id="purchasePrice" th:field="*{purchasePrice}"
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label for="vatRate" class="form-label">Taux TVA (%)</label>
+                                <select class="form-select" id="vatRate" th:field="*{vatRate}">
+                                    <option value="0">0% (Exonéré)</option>
+                                    <option value="5">5.5% (Réduit)</option>
+                                    <option value="10">10% (Intermédiaire)</option>
+                                    <option value="18" selected>18% (Normal)</option>
+                                    <option value="20">20% (Normal UE)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="stock" class="form-label">Stock actuel <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="stock" th:field="*{stock}"
+                                       th:classappend="${#fields.hasErrors('stock')} ? 'is-invalid'"
+                                       min="0" placeholder="0" required>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('stock')}" th:errors="*{stock}">
+                                    Erreur stock
+                                </div>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="minStock" class="form-label">Stock minimum</label>
+                                <input type="number" class="form-control" id="minStock" th:field="*{minStock}"
+                                       min="0" placeholder="0">
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="maxStock" class="form-label">Stock maximum</label>
+                                <input type="number" class="form-control" id="maxStock" th:field="*{maxStock}"
+                                       min="0" placeholder="1000">
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label for="unit" class="form-label">Unité</label>
+                                <select class="form-select" id="unit" th:field="*{unit}">
+                                    <option value="pièce">Pièce</option>
+                                    <option value="kg">Kilogramme</option>
+                                    <option value="litre">Litre</option>
+                                    <option value="mètre">Mètre</option>
+                                    <option value="boîte">Boîte</option>
+                                    <option value="pack">Pack</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Caractéristiques -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-cogs me-2"></i>Caractéristiques
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="barCode" class="form-label">Code-barres</label>
+                                <input type="text" class="form-control" id="barCode" th:field="*{barCode}"
+                                       placeholder="1234567890123" maxlength="50">
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="weight" class="form-label">Poids (kg)</label>
+                                <input type="number" class="form-control" id="weight" th:field="*{weight}"
+                                       step="0.001" min="0" placeholder="0.000">
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Image du produit</label>
+
+                                <!-- Zone de glisser-déposer -->
+                                <div class="image-upload-area" id="imageUploadArea">
+                                    <div class="upload-zone" id="uploadZone">
+                                        <div class="upload-content" id="uploadContent">
+                                            <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                            <h5 class="mb-2">Glissez votre image ici</h5>
+                                            <p class="text-muted mb-3">ou cliquez pour parcourir</p>
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="browseBtn">
+                                                <i class="fas fa-folder-open me-2"></i>Parcourir les fichiers
+                                            </button>
+                                            <div class="mt-3">
+                                                <small class="text-muted">Formats acceptés: JPG, PNG, WebP, GIF (max 5MB)</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- Aperçu de l'image -->
+                                        <div class="image-preview" id="imagePreviewContainer" style="display: none;">
+                                            <img id="imagePreviewImg" src="" alt="Aperçu" class="preview-image">
+                                            <div class="image-overlay">
+                                                <button type="button" class="btn btn-sm btn-outline-light" id="changeImageBtn">
+                                                    <i class="fas fa-edit me-1"></i>Changer
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" id="removeImageBtn">
+                                                    <i class="fas fa-trash me-1"></i>Supprimer
+                                                </button>
+                                            </div>
+                                            <div class="image-info" id="imageInfo">
+                                                <small class="text-muted">Nom: <span id="imageName"></span></small><br>
+                                                <small class="text-muted">Taille: <span id="imageSize"></span></small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Barre de progression -->
+                                    <div class="upload-progress" id="uploadProgress" style="display: none;">
+                                        <div class="progress mb-2">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                                 id="progressBar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <small class="text-muted" id="progressText">Téléchargement en cours...</small>
+                                    </div>
+                                </div>
+
+                                <!-- Input file caché -->
+                                <input type="file" id="imageFile" accept="image/*" style="display: none;">
+
+                                <!-- Champ URL alternatif -->
+                                <div class="mt-3">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <hr class="flex-grow-1">
+                                        <span class="px-3 text-muted small">OU</span>
+                                        <hr class="flex-grow-1">
+                                    </div>
+                                    <label for="imageUrl" class="form-label small">URL de l'image</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-link"></i></span>
+                                        <input type="url" class="form-control" id="imageUrl" th:field="*{imageUrl}"
+                                               placeholder="https://example.com/image.jpg" maxlength="200">
+                                        <button type="button" class="btn btn-outline-secondary" id="loadUrlBtn">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                    </div>
+                                    <div class="form-text">Collez l'URL d'une image en ligne</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gestion -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-tools me-2"></i>Gestion
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isActive" th:field="*{isActive}">
+                                    <label class="form-check-label" for="isActive">
+                                        Produit actif
+                                    </label>
+                                    <div class="form-text">Le produit est disponible à la vente</div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isFeatured" th:field="*{isFeatured}">
+                                    <label class="form-check-label" for="isFeatured">
+                                        Produit mis en avant
+                                    </label>
+                                    <div class="form-text">Le produit apparaît dans les suggestions</div>
+                                </div>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label for="notes" class="form-label">Notes</label>
+                                <textarea class="form-control" id="notes" th:field="*{notes}" rows="3"
+                                          placeholder="Notes internes sur le produit..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Informations calculées (lecture seule en mode édition) -->
+                        <div class="row mb-4" th:if="${isEdit}">
+                            <div class="col-12">
+                                <h6 class="text-info border-bottom pb-2 mb-3">
+                                    <i class="fas fa-calculator me-2"></i>Informations Calculées
+                                </h6>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Prix TTC (€)</label>
+                                <input type="text" class="form-control" readonly
+                                       th:value="${product.priceIncludingVat}" />
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">État du stock</label>
+                                <input type="text" class="form-control" readonly
+                                       th:value="${product.outOfStock} ? 'Rupture de stock' : (${product.lowStock} ? 'Stock faible' : 'Stock correct')"
+                                       th:class="'form-control ' + (${product.outOfStock} ? 'text-danger' : (${product.lowStock} ? 'text-warning' : 'text-success'))" />
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Marge (€)</label>
+                                <input type="text" class="form-control" readonly
+                                       th:value="${product.purchasePrice != null} ? ${product.unitPrice - product.purchasePrice} : 'N/A'" />
+                            </div>
+                        </div>
+
+                        <!-- Boutons -->
+                        <div class="row">
+                            <div class="col-12">
+                                <hr>
+                                <div class="d-flex justify-content-between">
+                                    <a th:href="@{/products}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times me-2"></i>Annuler
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>
+                                        <span th:text="${isEdit} ? 'Modifier' : 'Créer'">Enregistrer</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel d'aide -->
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Aide</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Champs obligatoires :</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-danger me-2">*</span> Nom du produit</li>
+                        <li><span class="badge bg-danger me-2">*</span> Référence unique</li>
+                        <li><span class="badge bg-danger me-2">*</span> Catégorie</li>
+                        <li><span class="badge bg-danger me-2">*</span> Prix unitaire</li>
+                        <li><span class="badge bg-danger me-2">*</span> Stock initial</li>
+                    </ul>
+
+                    <h6 class="mt-3">Gestion du stock :</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-success me-2">Correct</span> Stock > Stock min</li>
+                        <li><span class="badge bg-warning me-2">Faible</span> Stock ≤ Stock min</li>
+                        <li><span class="badge bg-danger me-2">Rupture</span> Stock = 0</li>
+                    </ul>
+
+                    <h6 class="mt-3">Images :</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-info me-2">📁</span> Glissez-déposez vos fichiers</li>
+                        <li><span class="badge bg-info me-2">🔗</span> Ou utilisez une URL</li>
+                        <li><span class="badge bg-warning me-2">⚠️</span> Max 5MB par image</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-3">
+                        <small>
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>Conseil :</strong> Une bonne image augmente les ventes de 30% !
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informations sur les formats d'image -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-image me-2"></i>Formats d'images</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-2">
+                            <span class="badge bg-success w-100">JPG</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="badge bg-success w-100">PNG</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="badge bg-success w-100">WebP</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="badge bg-success w-100">GIF</span>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Recommandé: 800x600px minimum
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript pour la gestion du formulaire -->
+<th:block th:fragment="js_assets">
+    <script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const stockInput = document.getElementById('stock');
+        const minStockInput = document.getElementById('minStock');
+        const maxStockInput = document.getElementById('maxStock');
+        const unitPriceInput = document.getElementById('unitPrice');
+        const purchasePriceInput = document.getElementById('purchasePrice');
+        const vatRateSelect = document.getElementById('vatRate');
+        const imageUrlInput = document.getElementById('imageUrl');
+
+        // Éléments pour la gestion des images
+        const imageUploadArea = document.getElementById('imageUploadArea');
+        const uploadZone = document.getElementById('uploadZone');
+        const uploadContent = document.getElementById('uploadContent');
+        const imageFile = document.getElementById('imageFile');
+        const browseBtn = document.getElementById('browseBtn');
+        const loadUrlBtn = document.getElementById('loadUrlBtn');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const imagePreviewImg = document.getElementById('imagePreviewImg');
+        const changeImageBtn = document.getElementById('changeImageBtn');
+        const removeImageBtn = document.getElementById('removeImageBtn');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const imageName = document.getElementById('imageName');
+        const imageSize = document.getElementById('imageSize');
+
+        // Configuration
+        const maxFileSize = 5 * 1024 * 1024; // 5MB
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+
+        // Validation du stock
+        function validateStock() {
+            const stock = parseInt(stockInput.value) || 0;
+            const minStock = parseInt(minStockInput.value) || 0;
+            const maxStock = parseInt(maxStockInput.value) || 0;
+
+            stockInput.classList.remove('border-success', 'border-warning', 'border-danger');
+
+            if (stock === 0) {
+                stockInput.classList.add('border-danger');
+            } else if (stock <= minStock) {
+                stockInput.classList.add('border-warning');
+            } else {
+                stockInput.classList.add('border-success');
+            }
+
+            if (maxStock > 0 && stock > maxStock) {
+                maxStockInput.setCustomValidity('Le stock maximum doit être supérieur au stock actuel');
+            } else {
+                maxStockInput.setCustomValidity('');
+            }
+        }
+
+        // Calculer le prix TTC et la marge
+        function calculatePrices() {
+            const unitPrice = parseFloat(unitPriceInput.value) || 0;
+            const purchasePrice = parseFloat(purchasePriceInput.value) || 0;
+            const vatRate = parseFloat(vatRateSelect.value) || 0;
+
+            const priceIncludingVat = unitPrice * (1 + vatRate / 100);
+            const margin = unitPrice - purchasePrice;
+
+            console.log('Prix HT:', unitPrice, '€');
+            console.log('Prix TTC:', priceIncludingVat.toFixed(2), '€');
+            console.log('Marge:', margin.toFixed(2), '€');
+        }
+
+        // Gestion des images - Drag & Drop
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        }
+
+        function handleFileSelect(file) {
+            // Validation du type de fichier
+            if (!allowedTypes.includes(file.type)) {
+                showNotification('Type de fichier non supporté. Utilisez JPG, PNG, WebP ou GIF.', 'error');
+                return;
+            }
+
+            // Validation de la taille
+            if (file.size > maxFileSize) {
+                showNotification('Le fichier est trop volumineux. Taille maximum: 5MB.', 'error');
+                return;
+            }
+
+            // Afficher les informations du fichier
+            imageName.textContent = file.name;
+            imageSize.textContent = formatFileSize(file.size);
+
+            // Simuler un upload avec barre de progression
+            showUploadProgress();
+
+            // Lire le fichier et afficher l'aperçu
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                setTimeout(() => {
+                    hideUploadProgress();
+                    showImagePreview(e.target.result);
+                    imageUrlInput.value = ''; // Vider l'URL si un fichier est uploadé
+                    showNotification('Image téléchargée avec succès !', 'success');
+                }, 1500); // Simulation du temps d'upload
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showImagePreview(src) {
+            imagePreviewImg.src = src;
+            uploadContent.style.display = 'none';
+            imagePreviewContainer.style.display = 'block';
+            uploadZone.classList.add('has-image');
+        }
+
+        function hideImagePreview() {
+            imagePreviewImg.src = '';
+            uploadContent.style.display = 'block';
+            imagePreviewContainer.style.display = 'none';
+            uploadZone.classList.remove('has-image');
+            imageName.textContent = '';
+            imageSize.textContent = '';
+        }
+
+        function showUploadProgress() {
+            uploadProgress.style.display = 'block';
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 30;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                }
+                progressBar.style.width = progress + '%';
+                progressText.textContent = `Téléchargement... ${Math.round(progress)}%`;
+            }, 100);
+        }
+
+        function hideUploadProgress() {
+            uploadProgress.style.display = 'none';
+            progressBar.style.width = '0%';
+        }
+
+        function loadImageFromUrl() {
+            const url = imageUrlInput.value.trim();
+            if (!url) {
+                showNotification('Veuillez entrer une URL valide.', 'warning');
+                return;
+            }
+
+            showUploadProgress();
+            progressText.textContent = 'Chargement de l\'image...';
+
+            // Créer une image temporaire pour tester le chargement
+            const tempImg = new Image();
+            tempImg.onload = function() {
+                setTimeout(() => {
+                    hideUploadProgress();
+                    showImagePreview(url);
+                    imageName.textContent = url.split('/').pop() || 'Image depuis URL';
+                    imageSize.textContent = 'URL externe';
+                    showNotification('Image chargée depuis l\'URL !', 'success');
+                }, 1000);
+            };
+            tempImg.onerror = function() {
+                hideUploadProgress();
+                showNotification('Impossible de charger l\'image depuis cette URL.', 'error');
+            };
+            tempImg.src = url;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showNotification(message, type = 'info') {
+            // Créer une notification toast
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+
+        // Event listeners pour les images
+        uploadZone.addEventListener('dragover', handleDragOver);
+        uploadZone.addEventListener('dragleave', handleDragLeave);
+        uploadZone.addEventListener('drop', handleDrop);
+
+        browseBtn.addEventListener('click', () => imageFile.click());
+        console.log(browseBtn)
+        changeImageBtn.addEventListener('click', () => imageFile.click());
+
+        imageFile.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        removeImageBtn.addEventListener('click', () => {
+            hideImagePreview();
+            imageUrlInput.value = '';
+            imageFile.value = '';
+            showNotification('Image supprimée.', 'info');
+        });
+
+        loadUrlBtn.addEventListener('click', loadImageFromUrl);
+
+        // Charger l'image au changement d'URL
+        imageUrlInput.addEventListener('blur', () => {
+            if (imageUrlInput.value.trim() && !imagePreviewContainer.style.display !== 'none') {
+                loadImageFromUrl();
+            }
+        });
+
+        // Event listeners existants
+        stockInput.addEventListener('input', validateStock);
+        minStockInput.addEventListener('input', validateStock);
+        maxStockInput.addEventListener('input', validateStock);
+        unitPriceInput.addEventListener('input', calculatePrices);
+        purchasePriceInput.addEventListener('input', calculatePrices);
+        vatRateSelect.addEventListener('change', calculatePrices);
+
+        // Auto-génération de référence
+        const nameInput = document.getElementById('name');
+        const categoryInput = document.getElementById('category');
+        const referenceInput = document.getElementById('reference');
+
+        function generateReference() {
+            if (!referenceInput.value && nameInput.value && categoryInput.value) {
+                const nameCode = nameInput.value.substring(0, 3).toUpperCase();
+                const categoryCode = categoryInput.value.substring(0, 3).toUpperCase();
+                const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+                referenceInput.value = `${categoryCode}-${nameCode}-${randomNum}`;
+            }
+        }
+
+        nameInput.addEventListener('blur', generateReference);
+        categoryInput.addEventListener('blur', generateReference);
+
+        // Validation du formulaire
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const unitPrice = parseFloat(unitPriceInput.value);
+            const stock = parseInt(stockInput.value);
+
+            if (unitPrice <= 0) {
+                event.preventDefault();
+                unitPriceInput.classList.add('is-invalid');
+                showNotification('Le prix unitaire doit être supérieur à 0.', 'error');
+                return false;
+            }
+
+            if (stock < 0) {
+                event.preventDefault();
+                stockInput.classList.add('is-invalid');
+                showNotification('Le stock ne peut pas être négatif.', 'error');
+                return false;
+            }
+
+            return true;
+        });
+
+        // Initialisation
+        validateStock();
+        calculatePrices();
+
+        // Formatage automatique des prix
+        unitPriceInput.addEventListener('blur', function() {
+            const value = parseFloat(this.value);
+            if (!isNaN(value)) {
+                this.value = value.toFixed(2);
+            }
+        });
+
+        purchasePriceInput.addEventListener('blur', function() {
+            const value = parseFloat(this.value);
+            if (!isNaN(value)) {
+                this.value = value.toFixed(2);
+            }
+        });
+
+        // Charger l'image existante si en mode édition
+        if (imageUrlInput.value.trim()) {
+            loadImageFromUrl();
+        }
+    });
+</script>
+</th:block>>
+<!-- Styles CSS pour la zone de drag & drop -->

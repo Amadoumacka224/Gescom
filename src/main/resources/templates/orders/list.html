@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<head>
+    <title>Gestion des Commandes</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête avec boutons d'action -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-shopping-cart me-2"></i>Gestion des Commandes</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Commandes</li>
+                </ol>
+            </nav>
+        </div>
+        <div th:if="${canCreate}">
+            <a th:href="@{/orders/new}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nouvelle Commande
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary">Total Commandes</h5>
+                    <h2 th:text="${totalOrders}" class="text-primary">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-warning">Brouillons</h5>
+                    <h2 th:text="${draftOrders}" class="text-warning">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-info">Confirmées</h5>
+                    <h2 th:text="${confirmedOrders}" class="text-info">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-success">Montant Total</h5>
+                    <h2 th:text="${#numbers.formatCurrency(totalAmount)}" class="text-success">€0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form th:action="@{/orders}" method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="search" class="form-label">Rechercher</label>
+                    <input type="text" class="form-control" id="search" name="search"
+                           th:value="${search}" placeholder="N° commande, client...">
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Statut</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Tous les statuts</option>
+                        <option value="DRAFT" th:selected="${selectedStatus == 'DRAFT'}">Brouillon</option>
+                        <option value="CONFIRMED" th:selected="${selectedStatus == 'CONFIRMED'}">Confirmée</option>
+                        <option value="PROCESSING" th:selected="${selectedStatus == 'PROCESSING'}">En cours</option>
+                        <option value="SHIPPED" th:selected="${selectedStatus == 'SHIPPED'}">Expédiée</option>
+                        <option value="DELIVERED" th:selected="${selectedStatus == 'DELIVERED'}">Livrée</option>
+                        <option value="CANCELLED" th:selected="${selectedStatus == 'CANCELLED'}">Annulée</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="dateFrom" class="form-label">Du</label>
+                    <input type="date" class="form-control" id="dateFrom" name="dateFrom" th:value="${dateFrom}">
+                </div>
+                <div class="col-md-2">
+                    <label for="dateTo" class="form-label">Au</label>
+                    <input type="date" class="form-control" id="dateTo" name="dateTo" th:value="${dateTo}">
+                </div>
+                <div class="col-md-1">
+                    <label for="size" class="form-label">Par page</label>
+                    <select class="form-select" id="size" name="size">
+                        <option value="10" th:selected="${size == 10}">10</option>
+                        <option value="25" th:selected="${size == 25}">25</option>
+                        <option value="50" th:selected="${size == 50}">50</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-search me-1"></i>Filtrer
+                    </button>
+                    <a th:href="@{/orders}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Reset
+                    </a>
+                </div>
+                <!-- Champs cachés pour maintenir le tri -->
+                <input type="hidden" name="sortBy" th:value="${sortBy}">
+                <input type="hidden" name="sortDir" th:value="${sortDir}">
+            </form>
+        </div>
+    </div>
+
+    <!-- Table des commandes -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Liste des Commandes</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                    <tr>
+                        <th>
+                            <a th:href="@{/orders(sortBy='orderNumber', sortDir=${sortBy == 'orderNumber' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, size=${size})}"
+                               class="text-decoration-none">
+                                N° Commande
+                                <i th:if="${sortBy == 'orderNumber'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'orderNumber'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a th:href="@{/orders(sortBy='orderDate', sortDir=${sortBy == 'orderDate' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, size=${size})}"
+                               class="text-decoration-none">
+                                Date
+                                <i th:if="${sortBy == 'orderDate'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'orderDate'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a th:href="@{/orders(sortBy='client', sortDir=${sortBy == 'client' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, size=${size})}"
+                               class="text-decoration-none">
+                                Client
+                                <i th:if="${sortBy == 'client'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'client'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>Commercial</th>
+                        <th>
+                            <a th:href="@{/orders(sortBy='amount', sortDir=${sortBy == 'amount' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, size=${size})}"
+                               class="text-decoration-none">
+                                Montant
+                                <i th:if="${sortBy == 'amount'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'amount'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="order : ${orders}">
+                        <td>
+                            <strong th:text="${order.orderNumber}">CMD-001</strong>
+                        </td>
+                        <td th:text="${#temporals.format(order.orderDate, 'dd/MM/yyyy HH:mm')}">01/01/2024 10:00</td>
+                        <td>
+                            <div>
+                                <strong th:text="${order.client.name}">Client Name</strong>
+                                <br>
+                                <small th:if="${order.client.companyName}"
+                                       th:text="${order.client.companyName}"
+                                       class="text-muted">Entreprise</small>
+                            </div>
+                        </td>
+                        <td th:text="${order.user.fullName}">Commercial</td>
+                        <td>
+                            <strong th:text="${#numbers.formatCurrency(order.totalAmount ?: 0 ) }">€0.00</strong>
+                            <br>
+                            <small th:if="${order.totalAmountHT}"
+                                   th:text="'HT: ' + ${#numbers.formatCurrency(order.totalAmountHT)}"
+                                   class="text-muted">HT</small>
+                        </td>
+                        <td>
+                                <span th:switch="${order.status}">
+                                    <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
+                                    <span th:case="'CONFIRMED'" class="badge bg-primary">Confirmée</span>
+                                    <span th:case="'PROCESSING'" class="badge bg-info">En cours</span>
+                                    <span th:case="'SHIPPED'" class="badge bg-warning">Expédiée</span>
+                                    <span th:case="'DELIVERED'" class="badge bg-success">Livrée</span>
+                                    <span th:case="'CANCELLED'" class="badge bg-danger">Annulée</span>
+                                </span>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a th:href="@{/orders/{id}(id=${order.id})}"
+                                   class="btn btn-sm btn-outline-info" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a th:if="${canEdit and (order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT or order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED)}"
+                                   th:href="@{/orders/{id}/edit(id=${order.id})}"
+                                   class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button th:if="${canEdit}"
+                                        type="button"
+                                        class="btn btn-sm btn-outline-success"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#statusModal' + ${order.id}"
+                                        title="Changer statut">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-warning"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#duplicateModal' + ${order.id}"
+                                        title="Dupliquer">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button th:if="${canDelete and order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT}"
+                                        type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#deleteModal' + ${order.id}"
+                                        title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(orders)}">
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="fas fa-shopping-cart fa-3x mb-3"></i>
+                            <br>Aucune commande trouvée
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <nav th:if="${totalPages > 1}" aria-label="Navigation commandes">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/orders(page=${currentPage - 1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo})}">
+                            Précédent
+                        </a>
+                    </li>
+
+                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+                        class="page-item"
+                        th:classappend="${i == currentPage} ? 'active'">
+                        <a class="page-link"
+                           th:text="${i+1}"
+                           th:href="@{/orders(page=${i}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo})}">1</a>
+                    </li>
+
+                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/orders(page=${currentPage+1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo})}">
+                            Suivant
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Modals de changement de statut -->
+    <div th:each="order : ${orders}"
+         th:id="'statusModal' + ${order.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Changer le statut</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form th:action="@{/orders/{id}/update-status(id=${order.id})}" method="post">
+                    <div class="modal-body">
+                        <p>Commande: <strong th:text="${order.orderNumber}">CMD-001</strong></p>
+                        <p>Statut actuel:
+                            <span th:switch="${order.status}">
+                                <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
+                                <span th:case="'CONFIRMED'" class="badge bg-primary">Confirmée</span>
+                                <span th:case="'PROCESSING'" class="badge bg-info">En cours</span>
+                                <span th:case="'SHIPPED'" class="badge bg-warning">Expédiée</span>
+                                <span th:case="'DELIVERED'" class="badge bg-success">Livrée</span>
+                                <span th:case="'CANCELLED'" class="badge bg-danger">Annulée</span>
+                            </span>
+                        </p>
+
+                        <div class="mb-3">
+                            <label for="newStatus" class="form-label">Nouveau statut</label>
+                            <select name="newStatus" class="form-select" id="newStatus" required>
+                                <option value="">Sélectionner un statut</option>
+                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT}"
+                                        value="CONFIRMED">Confirmée</option>
+                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED}"
+                                        value="PROCESSING">En cours</option>
+                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).PROCESSING}"
+                                        value="SHIPPED">Expédiée</option>
+                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).SHIPPED}"
+                                        value="DELIVERED">Livrée</option>
+                                <option th:if="${order.status != T(com.gescom.entity.Order.OrderStatus).DELIVERED and order.status != T(com.gescom.entity.Order.OrderStatus).CANCELLED}"
+                                        value="CANCELLED">Annulée</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Changer le statut</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals de duplication -->
+    <div th:each="order : ${orders}"
+         th:id="'duplicateModal' + ${order.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dupliquer la commande</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Voulez-vous créer une copie de la commande <strong th:text="${order.orderNumber}">CMD-001</strong> ?</p>
+                    <p class="text-info"><small>Une nouvelle commande en brouillon sera créée avec les mêmes éléments.</small></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <form th:action="@{/orders/{id}/duplicate(id=${order.id})}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-warning">Dupliquer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals de suppression -->
+    <div th:each="order : ${orders}"
+         th:id="'deleteModal' + ${order.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmer la suppression</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Êtes-vous sûr de vouloir supprimer la commande <strong th:text="${order.orderNumber}">CMD-001</strong> ?</p>
+                    <p class="text-danger"><small>Cette action est irréversible. Seules les commandes en brouillon peuvent être supprimées.</small></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <form th:action="@{/orders/{id}/delete(id=${order.id})}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-danger">Supprimer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

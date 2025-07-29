@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS clients (
+                                       id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                                       name VARCHAR(100),
+    email VARCHAR(150),
+    phone VARCHAR(50),
+    fax VARCHAR(50),
+    address VARCHAR(255),
+    city VARCHAR(100),
+    postal_code VARCHAR(20),
+    country VARCHAR(100),
+    siret VARCHAR(20),
+    vat_number VARCHAR(20),
+    active BOOLEAN,
+    client_type VARCHAR(50),
+    credit_limit DECIMAL(10,2),
+    payment_terms INT,
+    notes TEXT,
+    created_date DATETIME,
+    last_modified_date DATETIME
+    );
