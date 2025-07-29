@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title th:text="${isEdit} ? 'Modifier la Commande' : 'Nouvelle Commande'">Formulaire Commande</title>
+</head>
+<body>
+<style>
+    .sticky-top {
+        position: sticky;
+        top: 20px;
+        z-index: 1020;
+    }
+
+    .table td {
+        vertical-align: middle;
+    }
+
+    .table input.form-control-sm {
+        width: 100%;
+        min-width: 80px;
+    }
+
+    #productModal .table-responsive {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+
+    .card-header h5, .card-header h6 {
+        color: #495057;
+    }
+
+    .text-primary.fw-bold {
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .sticky-top {
+            position: relative;
+            top: auto;
+        }
+    }
+</style>
+<div th:fragment="content">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>
+                <i class="fas fa-shopping-cart me-2" th:unless="${isEdit}"></i>
+                <i class="fas fa-edit me-2" th:if="${isEdit}"></i>
+                <span th:text="${isEdit} ? 'Modifier la Commande' : 'Nouvelle Commande'">Formulaire Commande</span>
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/orders}">Commandes</a></li>
+                    <li class="breadcrumb-item active" th:text="${isEdit} ? 'Modifier' : 'Nouvelle'">Formulaire</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="btn-group">
+            <a th:href="@{/orders}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+            </a>
+            <button type="button" class="btn btn-outline-info" onclick="saveAsDraft()">
+                <i class="fas fa-save me-2"></i>Sauvegarder brouillon
+            </button>
+        </div>
+    </div>
+
+    <!-- Formulaire -->
+    <form th:action="@{/orders}" th:object="${order}" method="post" id="orderForm" novalidate>
+        <input type="hidden" th:field="*{id}">
+
+        <div class="row">
+            <!-- Colonne principale -->
+            <div class="col-lg-8">
+                <!-- Informations générales -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="orderNumber" class="form-label">Numéro de commande</label>
+                                <input type="text" class="form-control" id="orderNumber" th:field="*{orderNumber}"
+                                       placeholder="Auto-généré" readonly>
+                                <div class="form-text">Généré automatiquement lors de la sauvegarde</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="status" class="form-label">Statut <span class="text-danger">*</span></label>
+                                <select class="form-select" id="status" th:field="*{status}" required>
+                                    <option value="">Sélectionner le statut</option>
+                                    <option th:each="status : ${T(com.gescom.entity.Order.OrderStatus).values()}"
+                                            th:value="${status}"
+                                            th:text="${status.displayName}">Statut</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="client" class="form-label">Client <span class="text-danger">*</span></label>
+                                <select class="form-select" id="client" th:field="*{client}" required>
+                                    <option value="">Sélectionner un client</option>
+                                    <option th:each="client : ${clients}"
+                                            th:value="${client.id}"
+                                            th:text="${client.name} + ' (' + ${client.email} + ')'">Client</option>
+                                </select>
+                                <div class="form-text">
+                                    <a href="#" onclick="openClientModal()" class="text-decoration-none">
+                                        <i class="fas fa-plus me-1"></i>Ajouter un nouveau client
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="orderDate" class="form-label">Date de commande <span class="text-danger">*</span></label>
+                                <input type="datetime-local" class="form-control" id="orderDate" th:field="*{orderDate}" required>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="expectedDeliveryDate" class="form-label">Date de livraison prévue</label>
+                                <input type="datetime-local" class="form-control" id="expectedDeliveryDate" th:field="*{expectedDeliveryDate}">
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="paymentStatus" class="form-label">Statut du paiement</label>
+                                <select class="form-select" id="paymentStatus" th:field="*{paymentStatus}">
+                                    <option th:each="status : ${T(com.gescom.entity.Order.PaymentStatus).values()}"
+                                            th:value="${status}"
+                                            th:text="${status.displayName}">Statut paiement</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Produits de la commande -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-box me-2"></i>Produits de la commande</h5>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="addProduct()">
+                            <i class="fas fa-plus me-2"></i>Ajouter un produit
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table" id="orderItemsTable">
+                                <thead>
+                                <tr>
+                                    <th style="width: 40%;">Produit</th>
+                                    <th style="width: 10%;">Qté</th>
+                                    <th style="width: 15%;">Prix unitaire</th>
+                                    <th style="width: 10%;">Remise %</th>
+                                    <th style="width: 15%;">Total HT</th>
+                                    <th style="width: 10%;">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="orderItemsBody">
+                                <!-- Les lignes seront ajoutées dynamiquement -->
+                                <tr id="emptyRow">
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-shopping-basket fa-2x mb-2"></i><br>
+                                        Aucun produit ajouté.<br>
+                                        <small>Cliquez sur "Ajouter un produit" pour commencer.</small>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Adresses -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Adresses</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="billingAddress" class="form-label">Adresse de facturation</label>
+                                <textarea class="form-control" id="billingAddress" th:field="*{billingAddress}"
+                                          rows="4" placeholder="Adresse complète de facturation..."></textarea>
+                                <div class="form-text">
+                                    <a href="#" onclick="copyFromClient('billing')" class="text-decoration-none">
+                                        <i class="fas fa-copy me-1"></i>Copier depuis le client
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="shippingAddress" class="form-label">Adresse de livraison</label>
+                                <textarea class="form-control" id="shippingAddress" th:field="*{shippingAddress}"
+                                          rows="4" placeholder="Adresse complète de livraison..."></textarea>
+                                <div class="form-text">
+                                    <a href="#" onclick="copyFromBilling()" class="text-decoration-none">
+                                        <i class="fas fa-copy me-1"></i>Identique à la facturation
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="notes" class="form-label">Notes client (visibles)</label>
+                                <textarea class="form-control" id="notes" th:field="*{notes}"
+                                          rows="3" placeholder="Notes visibles par le client..."></textarea>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="internalNotes" class="form-label">Notes internes</label>
+                                <textarea class="form-control" id="internalNotes" th:field="*{internalNotes}"
+                                          rows="3" placeholder="Notes internes non visibles..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne latérale - Résumé -->
+            <div class="col-lg-4">
+                <!-- Résumé de la commande -->
+                <div class="card mb-4 sticky-top" style="top: 20px;">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Résumé de la commande</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Remise globale -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label for="discountRate" class="form-label small">Remise %</label>
+                                <input type="number" class="form-control form-control-sm" id="discountRate"
+                                       th:field="*{discountRate}" step="0.01" min="0" max="100"
+                                       placeholder="0.00" onchange="calculateTotals()">
+                            </div>
+                            <div class="col-6">
+                                <label for="shippingCost" class="form-label small">Frais de port €</label>
+                                <input type="number" class="form-control form-control-sm" id="shippingCost"
+                                       th:field="*{shippingCost}" step="0.01" min="0"
+                                       placeholder="0.00" onchange="calculateTotals()">
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Totaux -->
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Sous-total HT :</span>
+                            <span id="subtotalHT" class="fw-bold">0,00 €</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-2" id="discountRow" style="display: none;">
+                            <span class="text-muted">Remise :</span>
+                            <span id="discountDisplay" class="text-danger">-0,00 €</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Total HT :</span>
+                            <span id="totalHT" class="fw-bold">0,00 €</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">TVA :</span>
+                            <span id="totalVAT">0,00 €</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-2" id="shippingRow" style="display: none;">
+                            <span class="text-muted">Frais de port :</span>
+                            <span id="shippingDisplay">0,00 €</span>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="h6 mb-0">Total TTC :</span>
+                            <span id="totalTTC" class="h5 mb-0 text-primary fw-bold">0,00 €</span>
+                        </div>
+
+                        <!-- Informations supplémentaires -->
+                        <div class="bg-light p-2 rounded">
+                            <small class="text-muted">
+                                <div>Articles : <span id="totalItems">0</span></div>
+                                <div>Quantité totale : <span id="totalQuantity">0</span></div>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions rapides -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary" name="action" value="save">
+                                <i class="fas fa-save me-2"></i>Enregistrer
+                            </button>
+                            <button type="submit" class="btn btn-success" name="action" value="confirm">
+                                <i class="fas fa-check me-2"></i>Confirmer la commande
+                            </button>
+                            <button type="button" class="btn btn-outline-info" onclick="previewOrder()">
+                                <i class="fas fa-eye me-2"></i>Aperçu
+                            </button>
+                            <hr>
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearOrder()">
+                                <i class="fas fa-trash me-2"></i>Vider la commande
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Modal d'ajout de produit -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un produit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label">Rechercher un produit</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" id="productSearch"
+                                   placeholder="Nom, référence ou code-barres...">
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Catégorie</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">Toutes les catégories</option>
+                            <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">Catégorie</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Produit</th>
+                            <th>Prix</th>
+                            <th>Stock</th>
+                            <th>Action</th>
+                        </tr>
+                        </thead>
+                        <tbody id="productList">
+                        <!-- Produits chargés dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Input hidden pour les order items -->
+<div id="orderItemsInputs"></div>
+<th:block th:fragment="js_assets">
+    <!-- JavaScript -->
+    <script  th:inline="javascript">
+        // Variables globales
+        let orderItems = [];
+        let itemCounter = 0;
+        let allProducts = [];
+
+        // Définir toutes les fonctions dans le scope global
+        window.addProduct = function() {
+            const productModal = new bootstrap.Modal(document.getElementById('productModal'));
+            productModal.show();
+        };
+
+        window.selectProduct = function(productId) {
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) return;
+
+            // Vérifier si le produit n'est pas déjà dans la commande
+            const existingItem = orderItems.find(item => item.productId === productId);
+            if (existingItem) {
+                alert('Ce produit est déjà dans la commande. Modifiez la quantité directement.');
+                return;
+            }
+
+            const orderItem = {
+                id: ++itemCounter,
+                productId: product.id,
+                productName: product.name,
+                productReference: product.reference,
+                quantity: 1,
+                unitPrice: product.price,
+                discountRate: 0,
+                discountAmount: 0,
+                vatRate: 20, // TVA par défaut
+                totalPriceHT: product.price,
+                totalVatAmount: product.price * 0.2,
+                totalPrice: product.price * 1.2
+            };
+
+            orderItems.push(orderItem);
+            updateOrderItemsTable();
+            calculateTotals();
+
+            // Fermer la modal
+            bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+        };
+
+        window.updateQuantity = function(itemId, quantity) {
+            const item = orderItems.find(i => i.id === itemId);
+            if (item) {
+                item.quantity = parseInt(quantity) || 1;
+                calculateItemTotals(item);
+                updateOrderItemsTable();
+                calculateTotals();
+            }
+        };
+
+        window.updateUnitPrice = function(itemId, price) {
+            const item = orderItems.find(i => i.id === itemId);
+            if (item) {
+                item.unitPrice = parseFloat(price) || 0;
+                calculateItemTotals(item);
+                updateOrderItemsTable();
+                calculateTotals();
+            }
+        };
+
+        window.updateDiscountRate = function(itemId, discountRate) {
+            const item = orderItems.find(i => i.id === itemId);
+            if (item) {
+                item.discountRate = parseFloat(discountRate) || 0;
+                calculateItemTotals(item);
+                updateOrderItemsTable();
+                calculateTotals();
+            }
+        };
+
+        window.removeOrderItem = function(itemId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cet article ?')) {
+                orderItems = orderItems.filter(item => item.id !== itemId);
+                updateOrderItemsTable();
+                calculateTotals();
+            }
+        };
+
+        window.calculateTotals = function() {
+            let subtotalHT = 0;
+            let totalVAT = 0;
+            let totalItems = orderItems.length;
+            let totalQuantity = 0;
+
+            orderItems.forEach(item => {
+                subtotalHT += item.totalPriceHT;
+                totalVAT += item.totalVatAmount;
+                totalQuantity += item.quantity;
+            });
+
+            const discountRate = parseFloat(document.getElementById('discountRate').value) || 0;
+            const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+
+            const discountAmount = subtotalHT * (discountRate / 100);
+            const totalHT = subtotalHT - discountAmount;
+            const totalTTC = totalHT + totalVAT + shippingCost;
+
+            // Mettre à jour l'affichage
+            document.getElementById('subtotalHT').textContent = subtotalHT.toFixed(2) + ' €';
+            document.getElementById('totalHT').textContent = totalHT.toFixed(2) + ' €';
+            document.getElementById('totalVAT').textContent = totalVAT.toFixed(2) + ' €';
+            document.getElementById('totalTTC').textContent = totalTTC.toFixed(2) + ' €';
+            document.getElementById('totalItems').textContent = totalItems;
+            document.getElementById('totalQuantity').textContent = totalQuantity;
+
+            // Afficher/masquer les lignes conditionnelles
+            const discountRow = document.getElementById('discountRow');
+            const discountDisplay = document.getElementById('discountDisplay');
+            if (discountAmount > 0) {
+                discountRow.style.display = 'flex';
+                discountDisplay.textContent = '-' + discountAmount.toFixed(2) + ' €';
+            } else {
+                discountRow.style.display = 'none';
+            }
+
+            const shippingRow = document.getElementById('shippingRow');
+            const shippingDisplay = document.getElementById('shippingDisplay');
+            if (shippingCost > 0) {
+                shippingRow.style.display = 'flex';
+                shippingDisplay.textContent = shippingCost.toFixed(2) + ' €';
+            } else {
+                shippingRow.style.display = 'none';
+            }
+        };
+
+        window.saveAsDraft = function() {
+            document.getElementById('status').value = 'DRAFT';
+            document.getElementById('orderForm').submit();
+        };
+
+        window.clearOrder = function() {
+            if (confirm('Êtes-vous sûr de vouloir vider la commande ?')) {
+                orderItems = [];
+                updateOrderItemsTable();
+                calculateTotals();
+                document.getElementById('orderForm').reset();
+                // Réinitialiser la date
+                const now = new Date();
+                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                document.getElementById('orderDate').value = now.toISOString().slice(0, 16);
+            }
+        };
+
+        window.previewOrder = function() {
+            // Ouvrir une fenêtre d'aperçu (à implémenter)
+            window.open('/orders/preview', '_blank');
+        };
+
+        window.copyFromClient = function(type) {
+            // Récupérer l'adresse du client sélectionné (à implémenter avec AJAX)
+            alert('Fonctionnalité à implémenter : copie de l\'adresse client');
+        };
+
+        window.copyFromBilling = function() {
+            const billingAddress = document.getElementById('billingAddress').value;
+            document.getElementById('shippingAddress').value = billingAddress;
+        };
+
+        window.openClientModal = function() {
+            // Ouvrir une modal pour ajouter un client (à implémenter)
+            alert('Fonctionnalité à implémenter : ajout de client');
+        };
+
+        // Fonctions internes
+        function loadProducts() {
+            function loadProducts() {
+                // Simuler le chargement des produits (à remplacer par un appel AJAX)
+                allProducts = [
+                    {id: 1, name: 'Smartphone XYZ', reference: 'REF-001', price: 299.99, stock: 50, category: 'Électronique'},
+                    {id: 2, name: 'Casque Audio', reference: 'REF-002', price: 79.99, stock: 25, category: 'Électronique'},
+                    {id: 3, name: 'T-Shirt Coton', reference: 'REF-003', price: 19.99, stock: 100, category: 'Textile'},
+                    {id: 4, name: 'Ordinateur Portable', reference: 'REF-004', price: 899.99, stock: 15, category: 'Électronique'},
+                    {id: 5, name: 'Souris Bluetooth', reference: 'REF-005', price: 29.99, stock: 75, category: 'Électronique'},
+                    {id: 6, name: 'Jean Slim', reference: 'REF-006', price: 49.99, stock: 60, category: 'Textile'},
+                ];
+                displayProducts(allProducts);
+            }
+
+            function displayProducts(products) {
+                const productList = document.getElementById('productList');
+                productList.innerHTML = '';
+
+                if (products.length === 0) {
+                    productList.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-3">
+                        <i class="fas fa-search fa-2x mb-2"></i><br>
+                        Aucun produit trouvé
+                    </td>
+                </tr>
+            `;
+                    return;
+                }
+
+                products.forEach(product => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                                 style="width: 40px; height: 40px;">
+                                <i class="fas fa-box text-secondary"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <strong>${product.name}</strong><br>
+                            <small class="text-muted">Réf: ${product.reference}</small>
+                        </div>
+                    </div>
+                </td>
+                <td><strong>${product.price.toFixed(2)} €</strong></td>
+                <td>
+                    <span class="badge ${product.stock > 10 ? 'bg-success' : product.stock > 0 ? 'bg-warning' : 'bg-danger'}">
+                        ${product.stock} ${product.stock <= 1 ? 'unité' : 'unités'}
+                    </span>
+                </td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="selectProduct(${product.id})"
+                            ${product.stock === 0 ? 'disabled' : ''} title="${product.stock === 0 ? 'Stock épuisé' : 'Ajouter à la commande'}">
+                        <i class="fas fa-plus me-1"></i>Ajouter
+                    </button>
+                </td>
+            `;
+                    productList.appendChild(row);
+                });
+            }
+
+            function filterProducts() {
+                const search = document.getElementById('productSearch').value.toLowerCase();
+                const category = document.getElementById('categoryFilter').value;
+
+                const filteredProducts = allProducts.filter(product => {
+                    const matchesSearch = !search ||
+                        product.name.toLowerCase().includes(search) ||
+                        product.reference.toLowerCase().includes(search);
+                    const matchesCategory = !category || product.category === category;
+                    return matchesSearch && matchesCategory;
+                });
+
+                displayProducts(filteredProducts);
+            }
+
+            function updateOrderItemsTable() {
+                const tbody = document.getElementById('orderItemsBody');
+                const emptyRow = document.getElementById('emptyRow');
+
+                // Nettoyer le tableau
+                tbody.innerHTML = '';
+                tbody.appendChild(emptyRow);
+
+                if (orderItems.length === 0) {
+                    emptyRow.style.display = '';
+                    return;
+                }
+
+                emptyRow.style.display = 'none';
+
+                orderItems.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="me-2">
+                            <div class="bg-primary bg-opacity-10 rounded d-flex align-items-center justify-content-center"
+                                 style="width: 32px; height: 32px;">
+                                <i class="fas fa-box text-primary small"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <strong>${item.productName}</strong><br>
+                            <small class="text-muted">Réf: ${item.productReference}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm text-center"
+                           value="${item.quantity}" min="1" max="999"
+                           onchange="updateQuantity(${item.id}, this.value)"
+                           style="width: 80px;">
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <input type="number" class="form-control text-end"
+                               value="${item.unitPrice.toFixed(2)}" step="0.01" min="0"
+                               onchange="updateUnitPrice(${item.id}, this.value)">
+                        <span class="input-group-text">€</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="input-group input-group-sm">
+                        <input type="number" class="form-control text-end"
+                               value="${item.discountRate.toFixed(2)}" step="0.01" min="0" max="100"
+                               onchange="updateDiscountRate(${item.id}, this.value)">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </td>
+                <td class="fw-bold text-end">${item.totalPriceHT.toFixed(2)} €</td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            onclick="removeOrderItem(${item.id})" title="Supprimer cet article">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+                    tbody.insertBefore(row, emptyRow);
+                });
+
+                updateHiddenInputs();
+            }
+
+            function calculateItemTotals(item) {
+                const subtotal = item.unitPrice * item.quantity;
+                item.discountAmount = subtotal * (item.discountRate / 100);
+                item.totalPriceHT = subtotal - item.discountAmount;
+                item.totalVatAmount = item.totalPriceHT * (item.vatRate / 100);
+                item.totalPrice = item.totalPriceHT + item.totalVatAmount;
+            }
+
+            function updateHiddenInputs() {
+                const container = document.getElementById('orderItemsInputs');
+                container.innerHTML = '';
+
+                orderItems.forEach((item, index) => {
+                    const fields = [
+                        'productId', 'quantity', 'unitPrice', 'discountRate',
+                        'discountAmount', 'vatRate', 'totalPriceHT', 'totalVatAmount', 'totalPrice'
+                    ];
+
+                    fields.forEach(field => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = `orderItems[${index}].${field}`;
+                        input.value = item[field];
+                        container.appendChild(input);
+                    });
+                });
+            }
+
+            // Initialisation au chargement de la page
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Initialisation de la page de commande...');
+
+                // Initialiser la date de commande à maintenant
+                const now = new Date();
+                now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                document.getElementById('orderDate').value = now.toISOString().slice(0, 16);
+
+                // Charger les produits
+                loadProducts();
+
+                // Event listeners pour la recherche
+                const productSearch = document.getElementById('productSearch');
+                const categoryFilter = document.getElementById('categoryFilter');
+
+                if (productSearch) {
+                    productSearch.addEventListener('input', filterProducts);
+                }
+
+                if (categoryFilter) {
+                    categoryFilter.addEventListener('change', filterProducts);
+                }
+
+                // Event listeners pour les totaux
+                const discountRate = document.getElementById('discountRate');
+                const shippingCost = document.getElementById('shippingCost');
+
+                if (discountRate) {
+                    discountRate.addEventListener('input', calculateTotals);
+                }
+
+                if (shippingCost) {
+                    shippingCost.addEventListener('input', calculateTotals);
+                }
+
+                // Initialiser les totaux
+                calculateTotals();
+
+                console.log('Page de commande initialisée avec succès');
+            })}
+    </script >
+</th:block>
+
+
+
+</body>
+</html>

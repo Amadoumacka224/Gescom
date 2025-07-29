@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<!-- Déclaration HTML5 -->
+
+<!-- Déclaration de l'élément HTML avec namespace Thymeleaf et langue française -->
+<html xmlns:th="http://www.thymeleaf.org" lang="fr" >
+
+<head>
+    <!-- Titre de la page -->
+    <title>Gestion des Factures</title>
+
+    <!-- Définition de l'encodage des caractères -->
+    <meta charset="UTF-8">
+
+    <!-- Configuration pour le responsive design -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<!-- Corps de la page -->
+<body>
+
+<!-- Fragment Thymeleaf - Cette div sera insérée dans le layout principal -->
+<div th:fragment="content">
+
+    <!-- === EN-TÊTE DE LA PAGE === -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <!-- Titre principal avec icône FontAwesome -->
+            <h1><i class="fas fa-file-invoice me-2"></i>Gestion des Factures</h1>
+
+            <!-- Fil d'Ariane (breadcrumb) pour la navigation -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <!-- Lien vers le dashboard -->
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <!-- Page actuelle (non cliquable) -->
+                    <li class="breadcrumb-item active">Factures</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <!-- === STATISTIQUES RAPIDES === -->
+    <div class="row mb-4">
+
+        <!-- Carte 1: Total des factures -->
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary">Total Factures</h5>
+                    <!-- Affichage du nombre total de factures depuis le contrôleur -->
+                    <h2 th:text="${totalInvoices}" class="text-primary">0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Carte 2: Factures payées -->
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-success">Payées</h5>
+                    <!-- Affichage du nombre de factures payées depuis le contrôleur -->
+                    <h2 th:text="${paidInvoices}" class="text-success">0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Carte 3: Factures en retard -->
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-warning">En Retard</h5>
+                    <!-- Affichage du nombre de factures en retard depuis le contrôleur -->
+                    <h2 th:text="${overdueInvoices}" class="text-warning">0</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- Carte 4: Montant impayé -->
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-info">Impayés</h5>
+                    <!-- Formatage du montant en devise avec l'utilitaire Thymeleaf -->
+                    <h2 th:text="${#numbers.formatCurrency(outstandingAmount)}" class="text-info">€0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === RÉSUMÉ FINANCIER AVEC BARRE DE PROGRESSION === -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+
+                    <!-- Ligne avec les 3 montants principaux -->
+                    <div class="row text-center">
+
+                        <!-- Montant total -->
+                        <div class="col-md-4">
+                            <h6 class="text-muted">Montant Total</h6>
+                            <!-- Formatage en devise du montant total -->
+                            <h4 th:text="${#numbers.formatCurrency(totalAmount)}" class="text-primary">€0</h4>
+                        </div>
+
+                        <!-- Montant encaissé -->
+                        <div class="col-md-4">
+                            <h6 class="text-muted">Montant Encaissé</h6>
+                            <!-- Formatage en devise du montant payé -->
+                            <h4 th:text="${#numbers.formatCurrency(paidAmount)}" class="text-success">€0</h4>
+                        </div>
+
+                        <!-- Reste à encaisser -->
+                        <div class="col-md-4">
+                            <h6 class="text-muted">Reste à Encaisser</h6>
+                            <!-- Formatage en devise du montant restant -->
+                            <h4 th:text="${#numbers.formatCurrency(outstandingAmount)}" class="text-warning">€0</h4>
+                        </div>
+                    </div>
+
+                    <!-- BARRE DE PROGRESSION - PROBLÈME RÉSOLU ICI -->
+                    <div class="progress-bar bg-success"
+                         th:style="|width: ${paymentPercentage}%|"
+                         role="progressbar"
+                         th:attr="aria-valuenow=${paymentPercentage}"
+                         aria-valuemin="0"
+                         aria-valuemax="100">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === FORMULAIRE DE FILTRES ET RECHERCHE === -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <!-- Formulaire GET qui soumet vers /invoices -->
+            <form th:action="@{/invoices}" method="get" class="row g-3">
+
+                <!-- Champ de recherche textuelle -->
+                <div class="col-md-3">
+                    <label for="search" class="form-label">Rechercher</label>
+                    <input type="text" class="form-control" id="search" name="search"
+                           th:value="${search}" placeholder="N° facture, client...">
+                    <!-- th:value="${search}" : Conserve la valeur saisie après soumission -->
+                </div>
+
+                <!-- Filtre par statut -->
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Statut</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Tous les statuts</option>
+                        <!-- th:selected="${selectedStatus == 'DRAFT'}" : Sélectionne l'option si c'est le statut actuel -->
+                        <option value="DRAFT" th:selected="${selectedStatus == 'DRAFT'}">Brouillon</option>
+                        <option value="SENT" th:selected="${selectedStatus == 'SENT'}">Envoyée</option>
+                        <option value="PAID" th:selected="${selectedStatus == 'PAID'}">Payée</option>
+                        <option value="PARTIALLY_PAID" th:selected="${selectedStatus == 'PARTIALLY_PAID'}">Partiellement payée</option>
+                        <option value="OVERDUE" th:selected="${selectedStatus == 'OVERDUE'}">En retard</option>
+                        <option value="CANCELLED" th:selected="${selectedStatus == 'CANCELLED'}">Annulée</option>
+                    </select>
+                </div>
+
+                <!-- Filtre par date de début -->
+                <div class="col-md-2">
+                    <label for="dateFrom" class="form-label">Du</label>
+                    <!-- Input de type date, conserve la valeur avec th:value -->
+                    <input type="date" class="form-control" id="dateFrom" name="dateFrom" th:value="${dateFrom}">
+                </div>
+
+                <!-- Filtre par date de fin -->
+                <div class="col-md-2">
+                    <label for="dateTo" class="form-label">Au</label>
+                    <input type="date" class="form-control" id="dateTo" name="dateTo" th:value="${dateTo}">
+                </div>
+
+                <!-- Checkbox pour les factures en retard -->
+                <div class="col-md-1">
+                    <label class="form-label">Filtres</label>
+                    <div class="form-check">
+                        <!-- th:checked="${overdueFilter}" : Coche la case si le filtre est actif -->
+                        <input class="form-check-input" type="checkbox" id="overdue" name="overdue" value="true" th:checked="${overdueFilter}">
+                        <label class="form-check-label" for="overdue">
+                            En retard
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div class="col-md-2 d-flex align-items-end">
+                    <!-- Bouton pour appliquer les filtres -->
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-search me-1"></i>Filtrer
+                    </button>
+                    <!-- Lien pour réinitialiser tous les filtres -->
+                    <a th:href="@{/invoices}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Reset
+                    </a>
+                </div>
+
+                <!-- Champs cachés pour conserver les paramètres de pagination et tri -->
+                <input type="hidden" name="page" th:value="${currentPage}">
+                <input type="hidden" name="size" th:value="${size}">
+                <input type="hidden" name="sortBy" th:value="${sortBy}">
+                <input type="hidden" name="sortDir" th:value="${sortDir}">
+            </form>
+        </div>
+    </div>
+
+    <!-- === TABLE DES FACTURES === -->
+    <div class="card">
+
+        <!-- En-tête de la carte -->
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Liste des Factures</h5>
+        </div>
+
+        <div class="card-body">
+            <!-- Table responsive pour mobile -->
+            <div class="table-responsive">
+                <table class="table table-hover">
+
+                    <!-- En-tête du tableau avec liens de tri -->
+                    <thead>
+                    <tr>
+                        <!-- Colonne N° Facture avec tri -->
+                        <th>
+                            <!--
+                            Lien de tri complexe :
+                            - Conserve tous les paramètres de filtre
+                            - Change sortBy à 'invoiceNumber'
+                            - Inverse sortDir si on clique sur la même colonne
+                            -->
+                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='invoiceNumber', sortDir=${sortBy == 'invoiceNumber' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
+                               class="text-decoration-none">
+                                N° Facture
+                                <!-- Icône de tri - s'affiche seulement si on trie par cette colonne -->
+                                <i th:if="${sortBy == 'invoiceNumber'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                            </a>
+                        </th>
+
+                        <!-- Colonne Date avec tri -->
+                        <th>
+                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='invoiceDate', sortDir=${sortBy == 'invoiceDate' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
+                               class="text-decoration-none">
+                                Date
+                                <i th:if="${sortBy == 'invoiceDate'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                            </a>
+                        </th>
+
+                        <!-- Colonne Client avec tri -->
+                        <th>
+                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='client', sortDir=${sortBy == 'client' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
+                               class="text-decoration-none">
+                                Client
+                                <i th:if="${sortBy == 'client'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                            </a>
+                        </th>
+
+                        <!-- Colonne Montant avec tri -->
+                        <th>
+                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='amount', sortDir=${sortBy == 'amount' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
+                               class="text-decoration-none">
+                                Montant
+                                <i th:if="${sortBy == 'amount'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                            </a>
+                        </th>
+
+                        <!-- Colonne Échéance avec tri -->
+                        <th>
+                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='dueDate', sortDir=${sortBy == 'dueDate' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
+                               class="text-decoration-none">
+                                Échéance
+                                <i th:if="${sortBy == 'dueDate'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                            </a>
+                        </th>
+
+                        <!-- Colonnes sans tri -->
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+
+                    <!-- Corps du tableau -->
+                    <tbody>
+
+                    <!--
+                    Boucle Thymeleaf : th:each="invoice : ${invoices}"
+                    Pour chaque facture dans la liste ${invoices}, on créé une ligne
+                    La variable ${invoice} est disponible dans cette ligne
+                    -->
+                    <tr th:each="invoice : ${invoices}">
+
+                        <!-- Colonne N° Facture + N° Commande -->
+                        <td>
+                            <!-- Affichage du numéro de facture en gras -->
+                            <strong th:text="${invoice.invoiceNumber}">FACT-001</strong>
+                            <br>
+                            <!-- Affichage conditionnel du numéro de commande -->
+                            <small th:if="${invoice.order}"
+                                   th:text="'Cmd: ' + ${invoice.order.orderNumber}"
+                                   class="text-muted">Commande</small>
+                        </td>
+
+                        <!-- Colonne Date -->
+                        <td>
+                            <!-- Formatage de la date avec l'utilitaire Thymeleaf -->
+                            <span th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</span>
+                        </td>
+
+                        <!-- Colonne Client -->
+                        <td>
+                            <!-- Affichage conditionnel si la commande existe -->
+                            <div th:if="${invoice.order}">
+                                <!-- Nom du client en gras -->
+                                <strong th:text="${invoice.order.client.name}">Client</strong>
+                                <br>
+                                <!-- Nom de l'entreprise si elle existe -->
+                                <small th:if="${invoice.order.client.companyName}"
+                                       th:text="${invoice.order.client.companyName}"
+                                       class="text-muted">Entreprise</small>
+                            </div>
+                        </td>
+
+                        <!-- Colonne Montant -->
+                        <td>
+                            <div>
+                                <!-- Montant total formaté en devise -->
+                                <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€0.00</strong>
+                                <br>
+                                <!--
+                                Affichage conditionnel du montant payé
+                                CORRECTION: Utilisation de T(java.math.BigDecimal).ZERO au lieu de java.math.BigDecimal.ZERO
+                                -->
+                                <small th:if="${invoice.paidAmount != null and invoice.paidAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}"
+                                       th:text="'Payé: ' + ${#numbers.formatCurrency(invoice.paidAmount)}"
+                                       class="text-success">Payé</small>
+                            </div>
+                        </td>
+
+                        <!-- Colonne Échéance -->
+                        <td>
+                            <!--
+                            Affichage conditionnel de la date d'échéance
+                            CORRECTION: Vérification que dueDate n'est pas null
+                            -->
+                            <span th:if="${invoice.dueDate != null}"
+                                  th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}"
+                                  th:class="${invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID} ? 'text-danger fw-bold' : ''">01/01/2024</span>
+
+                            <!-- Affichage si pas de date d'échéance -->
+                            <span th:unless="${invoice.dueDate != null}" class="text-muted">Non définie</span>
+                            <br>
+
+                            <!-- Message "En retard" si conditions remplies -->
+                            <small th:if="${invoice.dueDate != null and invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID}"
+                                   class="text-danger">
+                                <i class="fas fa-exclamation-triangle"></i> En retard
+                            </small>
+                        </td>
+
+                        <!-- Colonne Statut -->
+                        <td>
+                            <!--
+                            Switch Thymeleaf pour afficher le bon badge selon le statut
+                            th:switch="${invoice.status}" : Valeur à comparer
+                            th:case="'DRAFT'" : Cas pour chaque statut
+                            -->
+                            <span th:switch="${invoice.status}">
+                                <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
+                                <span th:case="'SENT'" class="badge bg-primary">Envoyée</span>
+                                <span th:case="'PAID'" class="badge bg-success">Payée</span>
+                                <span th:case="'PARTIALLY_PAID'" class="badge bg-warning text-dark">Partiellement payée</span>
+                                <span th:case="'OVERDUE'" class="badge bg-danger">En retard</span>
+                                <span th:case="'CANCELLED'" class="badge bg-dark">Annulée</span>
+                            </span>
+                        </td>
+
+                        <!-- Colonne Actions -->
+                        <td>
+                            <!-- Groupe de boutons d'action -->
+                            <div class="btn-group btn-group-sm" role="group">
+
+                                <!-- Bouton Voir -->
+                                <a th:href="@{/invoices/{id}(id=${invoice.id})}"
+                                   class="btn btn-outline-info" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+
+                                <!-- Bouton PDF -->
+                                <a th:href="@{/invoices/{id}/pdf(id=${invoice.id})}"
+                                   class="btn btn-outline-primary" title="PDF">
+                                    <i class="fas fa-file-pdf"></i>
+                                </a>
+
+                                <!-- Bouton Envoyer (seulement si statut = DRAFT) -->
+                                <button th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).DRAFT}"
+                                        type="button"
+                                        class="btn btn-outline-success"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#sendModal' + ${invoice.id}"
+                                        title="Envoyer">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+
+                                <!-- Bouton Encaisser (si pas payée et pas annulée) -->
+                                <button th:if="${invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).CANCELLED}"
+                                        type="button"
+                                        class="btn btn-outline-warning"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#paymentModal' + ${invoice.id}"
+                                        title="Encaisser">
+                                    <i class="fas fa-euro-sign"></i>
+                                </button>
+
+                                <!-- Bouton Relancer (si envoyée ou en retard) -->
+                                <button th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).SENT or invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).OVERDUE}"
+                                        type="button"
+                                        class="btn btn-outline-info"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#remindModal' + ${invoice.id}"
+                                        title="Relancer">
+                                    <i class="fas fa-bell"></i>
+                                </button>
+
+                                <!-- Bouton Annuler (si droit de modification et pas payée) -->
+                                <button th:if="${canEdit and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID}"
+                                        type="button"
+                                        class="btn btn-outline-danger"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#cancelModal' + ${invoice.id}"
+                                        title="Annuler">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Ligne affichée si aucune facture trouvée -->
+                    <tr th:if="${#lists.isEmpty(invoices)}">
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="fas fa-file-invoice fa-3x mb-3 opacity-50"></i>
+                            <br>Aucune facture trouvée
+                        </td>
+                    </tr>
+
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- === PAGINATION === -->
+            <!-- Affichage seulement s'il y a plus d'une page -->
+            <nav th:if="${totalPages > 1}" aria-label="Navigation factures">
+                <ul class="pagination justify-content-center mb-0">
+
+                    <!-- Bouton Précédent -->
+                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/invoices(
+                           page=${currentPage - 1},
+                           size=${size},
+                           sortBy=${sortBy},
+                           sortDir=${sortDir},
+                           search=${search},
+                           status=${selectedStatus},
+                           dateFrom=${dateFrom},
+                           dateTo=${dateTo},
+                           overdue=${overdueFilter})}">
+                            Précédent
+                        </a>
+                    </li>
+
+                    <!-- Numéros de page -->
+                    <!-- th:each="i : ${#numbers.sequence(0, totalPages - 1)}" : Boucle de 0 à totalPages-1 -->
+                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+                        class="page-item"
+                        th:classappend="${i == currentPage} ? 'active'">
+                        <a class="page-link"
+                           th:text="${i+1}"
+                           th:href="@{/invoices(
+                           page=${i},
+                           size=${size},
+                           sortBy=${sortBy},
+                           sortDir=${sortDir},
+                           search=${search},
+                           status=${selectedStatus},
+                           dateFrom=${dateFrom},
+                           dateTo=${dateTo},
+                           overdue=${overdueFilter})}">1</a>
+                    </li>
+
+                    <!-- Bouton Suivant -->
+                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/invoices(
+                           page=${currentPage+1},
+                           size=${size},
+                           sortBy=${sortBy},
+                           sortDir=${sortDir},
+                           search=${search},
+                           status=${selectedStatus},
+                           dateFrom=${dateFrom},
+                           dateTo=${dateTo},
+                           overdue=${overdueFilter})}">
+                            Suivant
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- === MODALS (FENÊTRES POPUP) === -->
+    <!-- Une modal pour chaque facture -->
+    <div th:each="invoice : ${invoices}">
+
+        <!-- === MODAL D'ENVOI === -->
+        <div th:id="'sendModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+
+                    <!-- En-tête de la modal -->
+                    <div class="modal-header">
+                        <h5 class="modal-title">Envoyer la facture</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+
+                    <!-- Corps de la modal -->
+                    <div class="modal-body">
+                        <p>Envoyer la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
+                    </div>
+
+                    <!-- Pied de la modal -->
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <!-- Formulaire POST pour envoyer la facture -->
+                        <form th:action="@{/invoices/{id}/send(id=${invoice.id})}" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-success">Envoyer</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === MODAL DE PAIEMENT === -->
+        <div th:id="'paymentModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">Enregistrer un paiement</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+
+                    <!-- Formulaire POST pour enregistrer le paiement -->
+                    <form th:action="@{/invoices/{id}/mark-paid(id=${invoice.id})}" method="post">
+                        <div class="modal-body">
+
+                            <!-- Informations sur la facture -->
+                            <p>Facture: <strong th:text="${invoice.invoiceNumber}">FACT-001</strong></p>
+                            <p>Montant total: <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€0</strong></p>
+
+                            <!-- Champ montant payé -->
+                            <div class="mb-3">
+                                <!-- CORRECTION: ID unique pour chaque modal -->
+                                <label th:for="'paidAmount' + ${invoice.id}" class="form-label">Montant payé</label>
+                                <input type="number" step="0.01" class="form-control"
+                                       th:id="'paidAmount' + ${invoice.id}"
+                                       name="paidAmount"
+                                       th:value="${invoice.totalAmount}" required>
+                            </div>
+
+                            <!-- Champ date de paiement -->
+                            <div class="mb-3">
+                                <!-- CORRECTION: ID unique pour chaque modal -->
+                                <label th:for="'paymentDate' + ${invoice.id}" class="form-label">Date de paiement</label>
+                                <input type="date" class="form-control"
+                                       th:id="'paymentDate' + ${invoice.id}"
+                                       name="paymentDate"
+                                       th:value="${#temporals.format(T(java.time.LocalDate).now(), 'yyyy-MM-dd')}" required>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-success">Enregistrer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- === MODAL DE RELANCE === -->
+        <div th:id="'remindModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">Envoyer une relance</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <p>Envoyer une relance pour la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <!-- Formulaire POST pour envoyer une relance -->
+                        <form th:action="@{/invoices/{id}/remind(id=${invoice.id})}" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-warning">Envoyer relance</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- === MODAL D'ANNULATION === -->
+        <div th:id="'cancelModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">Annuler la facture</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <p>Êtes-vous sûr de vouloir annuler la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
+                        <p class="text-danger"><small>Cette action est irréversible.</small></p>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <!-- Formulaire POST pour annuler la facture -->
+                        <form th:action="@{/invoices/{id}/cancel(id=${invoice.id})}" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-danger">Confirmer l'annulation</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<!-- Fin du fragment 'content' -->
+
+</body>
+</html>

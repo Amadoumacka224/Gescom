@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<head>
+    <title>Gestion des Clients</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête avec boutons d'action -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-users me-2"></i>Gestion des Clients</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Clients</li>
+                </ol>
+            </nav>
+        </div>
+        <div th:if="${canCreate}">
+            <a th:href="@{/clients/new}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nouveau Client
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary">Total Clients</h5>
+                    <h2 th:text="${totalClients}" class="text-primary">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-success">Clients Actifs</h5>
+                    <h2 th:text="${activeClients}" class="text-success">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-warning">Prospects</h5>
+                    <h2 th:text="${prospects}" class="text-warning">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-info">Entreprises</h5>
+                    <h2 th:text="${companies}" class="text-info">0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form th:action="@{/clients}" method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Rechercher</label>
+                    <input type="text" class="form-control" id="search" name="search"
+                           th:value="${search}" placeholder="Nom, email, entreprise...">
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Statut</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Tous les statuts</option>
+                        <option value="ACTIVE" th:selected="${selectedStatus == 'ACTIVE'}">Actif</option>
+                        <option value="INACTIVE" th:selected="${selectedStatus == 'INACTIVE'}">Inactif</option>
+                        <option value="PROSPECT" th:selected="${selectedStatus == 'PROSPECT'}">Prospect</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="size" class="form-label">Par page</label>
+                    <select class="form-select" id="size" name="size">
+                        <option value="10" th:selected="${size == 10}">10</option>
+                        <option value="25" th:selected="${size == 25}">25</option>
+                        <option value="50" th:selected="${size == 50}">50</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-search me-1"></i>Filtrer
+                    </button>
+                    <a th:href="@{/clients}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Reset
+                    </a>
+                </div>
+                <!-- Champs cachés pour maintenir le tri -->
+                <input type="hidden" name="sortBy" th:value="${sortBy}">
+                <input type="hidden" name="sortDir" th:value="${sortDir}">
+            </form>
+        </div>
+    </div>
+
+    <!-- Table des clients -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Liste des Clients</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                    <tr>
+                        <th>
+                            <a th:href="@{/clients(sortBy='name', sortDir=${sortBy == 'name' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, size=${size})}"
+                               class="text-decoration-none">
+                                Nom
+                                <i th:if="${sortBy == 'name'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'name'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>Email</th>
+                        <th>Téléphone</th>
+                        <th>Type</th>
+                        <th>Statut</th>
+                        <th>Commercial</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="client : ${clients}">
+                        <td>
+                            <div>
+                                <strong th:text="${client.name}">Nom Client</strong>
+                                <br>
+                                <small th:if="${client.companyName}"
+                                       th:text="${client.companyName}"
+                                       class="text-muted">Entreprise</small>
+                            </div>
+                        </td>
+                        <td th:text="${client.email}">email@example.com</td>
+                        <td th:text="${client.phoneNumber}">+33 1 23 45 67 89</td>
+                        <td>
+                                <span th:if="${client.clientType == T(com.gescom.entity.Client.ClientType).COMPANY}"
+                                      class="badge bg-info">Entreprise</span>
+                            <span th:if="${client.clientType == T(com.gescom.entity.Client.ClientType).INDIVIDUAL}"
+                                  class="badge bg-secondary">Particulier</span>
+                        </td>
+                        <td>
+                                <span th:if="${client.status == T(com.gescom.entity.Client.ClientStatus).ACTIVE}"
+                                      class="badge bg-success">Actif</span>
+                            <span th:if="${client.status == T(com.gescom.entity.Client.ClientStatus).INACTIVE}"
+                                  class="badge bg-secondary">Inactif</span>
+                            <span th:if="${client.status == T(com.gescom.entity.Client.ClientStatus).PROSPECT}"
+                                  class="badge bg-warning">Prospect</span>
+                        </td>
+                        <td>
+                                <span th:if="${client.assignedUser}"
+                                      th:text="${client.assignedUser.fullName}">Commercial</span>
+                            <span th:unless="${client.assignedUser}"
+                                  class="text-muted">Non assigné</span>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a th:href="@{/clients/{id}(id=${client.id})}"
+                                   class="btn btn-sm btn-outline-info" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a th:if="${canEdit}"
+                                   th:href="@{/clients/{id}/edit(id=${client.id})}"
+                                   class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button th:if="${canEdit}"
+                                        type="button"
+                                        class="btn btn-sm btn-outline-warning"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#assignModal' + ${client.id}"
+                                        title="Assigner">
+                                    <i class="fas fa-user-plus"></i>
+                                </button>
+                                <button th:if="${canDelete}"
+                                        type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#deleteModal' + ${client.id}"
+                                        title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(clients)}">
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="fas fa-users fa-3x mb-3"></i>
+                            <br>Aucun client trouvé
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <nav th:if="${totalPages > 1}" aria-label="Navigation clients">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/clients(page=${currentPage - 1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus})}">
+                            Précédent
+                        </a>
+                    </li>
+
+                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+                        class="page-item"
+                        th:classappend="${i == currentPage} ? 'active'">
+                        <a class="page-link"
+                           th:text="${i+1}"
+                           th:href="@{/clients(page=${i}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus})}">1</a>
+                    </li>
+
+                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/clients(page=${currentPage+1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus})}">
+                            Suivant
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Modals d'assignation -->
+    <div th:each="client : ${clients}"
+         th:id="'assignModal' + ${client.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assigner un commercial</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form th:action="@{/clients/{id}/assign(id=${client.id})}" method="post">
+                    <div class="modal-body">
+                        <p>Assigner le client <strong th:text="${client.name}">Client</strong> à :</p>
+                        <label>
+                            <select name="userId" class="form-select" required>
+                                <option value="">Sélectionner un commercial</option>
+                                <option th:each="commercial : ${commercials}"
+                                        th:value="${commercial.id}"
+                                        th:text="${commercial.fullName}"
+                                        th:selected="${client.assignedUser != null and client.assignedUser.id == commercial.id}">
+                                    Commercial
+                                </option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Assigner</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals de suppression -->
+    <div th:each="client : ${clients}"
+         th:id="'deleteModal' + ${client.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmer la suppression</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Êtes-vous sûr de vouloir supprimer le client <strong th:text="${client.name}">Client</strong> ?</p>
+                    <p class="text-danger"><small>Cette action est irréversible.</small></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <form th:action="@{/clients/{id}/delete(id=${client.id})}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-danger">Supprimer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

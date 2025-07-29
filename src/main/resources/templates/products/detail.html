@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{js_assets})}">
+<head>
+    <title th:text="'Détails - ' + ${product?.name ?: 'Produit'}">Détails du Produit</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- Vérification que le produit existe -->
+    <div th:if="${product == null}" class="alert alert-danger">
+        <h4><i class="fas fa-exclamation-triangle me-2"></i>Produit introuvable</h4>
+        <p>Le produit demandé n'existe pas ou a été supprimé.</p>
+        <a th:href="@{/products}" class="btn btn-primary">Retour à la liste des produits</a>
+    </div>
+
+    <!-- Contenu principal si le produit existe -->
+    <div th:if="${product != null}">
+        <!-- En-tête -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1>
+                    <i class="fas fa-box me-2"></i>
+                    <span th:text="${product.name ?: 'Nom non défini'}">Nom du Produit</span>
+                    <span class="badge ms-2"
+                          th:class="'badge ' + (${product.isActive != null && product.isActive} ? 'bg-success' : 'bg-secondary')"
+                          th:text="${product.isActive != null && product.isActive} ? 'Actif' : 'Inactif'">Statut</span>
+                    <span class="badge bg-primary ms-1" th:if="${product.isFeatured != null && product.isFeatured}">
+                        <i class="fas fa-star me-1"></i>Mis en avant
+                    </span>
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/products}">Produits</a></li>
+                        <li class="breadcrumb-item active" th:text="${product.reference ?: 'Sans référence'}">Référence</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="btn-group">
+                <a th:href="@{/products}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+                </a>
+                <a th:href="@{'/products/edit/' + ${product.id}}" class="btn btn-primary">
+                    <i class="fas fa-edit me-2"></i>Modifier
+                </a>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" th:href="@{'/products/duplicate/' + ${product.id}}">
+                            <i class="fas fa-copy me-2"></i>Dupliquer
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="printProduct()">
+                            <i class="fas fa-print me-2"></i>Imprimer
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportProduct()">
+                            <i class="fas fa-download me-2"></i>Exporter
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteProduct()">
+                            <i class="fas fa-trash me-2"></i>Supprimer
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Colonne principale -->
+            <div class="col-lg-8">
+                <!-- Informations générales -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Référence</label>
+                                <p class="mb-0" th:text="${product.reference ?: 'Non définie'}">REF-001</p>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Catégorie</label>
+                                <p class="mb-0">
+                                    <span class="badge bg-light text-dark" th:text="${product.category ?: 'Non définie'}">Électronique</span>
+                                </p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${product.brand != null and #strings.length(product.brand) > 0}">
+                                <label class="fw-bold text-muted">Marque</label>
+                                <p class="mb-0" th:text="${product.brand}">Samsung</p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${product.barCode != null and #strings.length(product.barCode) > 0}">
+                                <label class="fw-bold text-muted">Code-barres</label>
+                                <p class="mb-0 font-monospace" th:text="${product.barCode}">1234567890123</p>
+                            </div>
+                            <div class="col-12" th:if="${product.description != null and #strings.length(product.description) > 0}">
+                                <label class="fw-bold text-muted">Description</label>
+                                <p class="mb-0" th:text="${product.description}">Description du produit...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prix et Stock -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-euro-sign me-2"></i>Prix et Stock</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h4 class="text-primary mb-1" th:text="${product.unitPrice != null ? (#numbers.formatDecimal(product.unitPrice, 1, 2) + ' €') : 'N/A'}">99.99 €</h4>
+                                    <small class="text-muted">Prix unitaire HT</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h4 class="text-success mb-1" th:text="${product.priceIncludingVat != null ? (#numbers.formatDecimal(product.priceIncludingVat, 1, 2) + ' €') : 'N/A'}">119.99 €</h4>
+                                    <small class="text-muted">Prix TTC</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3" th:if="${product.purchasePrice != null}">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h4 class="text-info mb-1" th:text="${#numbers.formatDecimal(product.purchasePrice, 1, 2)} + ' €'">79.99 €</h4>
+                                    <small class="text-muted">Prix d'achat</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-3" th:if="${product.purchasePrice != null and product.unitPrice != null}">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h4 class="text-warning mb-1" th:text="${#numbers.formatDecimal(product.unitPrice - product.purchasePrice, 1, 2)} + ' €'">20.00 €</h4>
+                                    <small class="text-muted">Marge</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="fw-bold text-muted">Stock actuel</label>
+                                <div class="d-flex align-items-center">
+                                    <h3 class="mb-0 me-2"
+                                        th:class="'mb-0 me-2 ' + (${product.outOfStock} ? 'text-danger' : (${product.lowStock} ? 'text-warning' : 'text-success'))"
+                                        th:text="${(product.stock ?: 0)} + ' ' + ${product.unit ?: 'pièce'}">150 pièces</h3>
+                                    <span class="badge"
+                                          th:class="'badge ' + (${product.outOfStock} ? 'bg-danger' : (${product.lowStock} ? 'bg-warning' : 'bg-success'))"
+                                          th:text="${product.outOfStock} ? 'Rupture' : (${product.lowStock} ? 'Faible' : 'Correct')">Correct</span>
+                                </div>
+                                <div class="progress mt-2" style="height: 8px;">
+                                    <div class="progress-bar"
+                                         th:class="'progress-bar ' + (${product.outOfStock} ? 'bg-danger' : (${product.lowStock} ? 'bg-warning' : 'bg-success'))"
+                                         th:style="'width: ' + (${product.maxStock != null and product.maxStock > 0} ? (${(product.stock ?: 0) * 100 / product.maxStock}) : 50) + '%'"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="fw-bold text-muted">Stock minimum</label>
+                                <p class="mb-0 h5" th:text="${(product.minStock ?: 0)} + ' ' + ${product.unit ?: 'pièce'}">10 pièces</p>
+                            </div>
+                            <div class="col-md-4 mb-3" th:if="${product.maxStock != null and product.maxStock > 0}">
+                                <label class="fw-bold text-muted">Stock maximum</label>
+                                <p class="mb-0 h5" th:text="${product.maxStock} + ' ' + ${product.unit ?: 'pièce'}">500 pièces</p>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3" th:if="${product.vatRate != null}">
+                                <label class="fw-bold text-muted">Taux de TVA</label>
+                                <p class="mb-0" th:text="${product.vatRate} + '%'">20%</p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${product.weight != null and product.weight > 0}">
+                                <label class="fw-bold text-muted">Poids</label>
+                                <p class="mb-0" th:text="${product.weight} + ' kg'">1.5 kg</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="card mb-4" th:if="${product.notes != null and #strings.length(product.notes) > 0}">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0" th:text="${product.notes}">Notes sur le produit...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne latérale -->
+            <div class="col-lg-4">
+                <!-- Image du produit -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-image me-2"></i>Image du Produit</h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <!-- Image principale -->
+                        <div th:if="${product.imageUrl != null and #strings.length(product.imageUrl) > 0}" id="productImageContainer">
+                            <img th:src="${product.imageUrl}"
+                                 th:alt="${product.name}"
+                                 class="img-fluid rounded shadow"
+                                 style="max-height: 300px; cursor: pointer;"
+                                 onclick="openImageModal(this.src)"
+                                 onerror="showImageError()">
+                        </div>
+
+                        <!-- Placeholder si pas d'image -->
+                        <div th:if="${product.imageUrl == null or #strings.length(product.imageUrl) == 0}"
+                             class="bg-light rounded d-flex align-items-center justify-content-center"
+                             style="height: 200px; border: 2px dashed #dee2e6;">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-image fa-3x mb-2"></i>
+                                <p class="mb-0">Aucune image disponible</p>
+                                <small>Cliquez sur Modifier pour ajouter une image</small>
+                            </div>
+                        </div>
+
+                        <!-- Erreur de chargement d'image -->
+                        <div id="imageError" style="display: none;"
+                             class="bg-light rounded d-flex align-items-center justify-content-center text-danger">
+                            <div class="text-center">
+                                <i class="fas fa-exclamation-triangle fa-3x mb-2"></i>
+                                <p class="mb-0">Erreur de chargement de l'image</p>
+                                <small>Vérifiez l'URL de l'image</small>
+                            </div>
+                        </div>
+
+                        <!-- Informations sur l'image -->
+                        <div th:if="${product.imageUrl != null and #strings.length(product.imageUrl) > 0}" class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Cliquez sur l'image pour l'agrandir
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions rapides -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions Rapides</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary btn-sm" onclick="adjustStock()">
+                                <i class="fas fa-boxes me-2"></i>Ajuster le stock
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="createOrder()">
+                                <i class="fas fa-shopping-cart me-2"></i>Créer une commande
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="updatePrice()">
+                                <i class="fas fa-tag me-2"></i>Modifier le prix
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="changeImage()">
+                                <i class="fas fa-image me-2"></i>Changer l'image
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="generateBarcode()">
+                                <i class="fas fa-barcode me-2"></i>Générer code-barres
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations système -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info me-2"></i>Informations Système</h6>
+                    </div>
+                    <div class="card-body">
+                        <small class="text-muted" th:if="${product.createdAt != null}">
+                            <strong>Créé le :</strong><br>
+                            <span th:text="${#temporals.format(product.createdAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 10:30</span>
+                        </small><br>
+                        <small class="text-muted" th:if="${product.updatedAt != null}">
+                            <strong>Modifié le :</strong><br>
+                            <span th:text="${#temporals.format(product.updatedAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 14:15</span>
+                        </small><br>
+                        <small class="text-muted">
+                            <strong>ID :</strong> <span th:text="'#' + ${product.id}">#123</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'agrandissement d'image -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">
+                    <i class="fas fa-image me-2"></i>Image du Produit
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body text-center p-0 position-relative">
+                <img id="modalImage"
+                     src=""
+                     alt="Image du produit"
+                     class="img-fluid w-100"
+                     style="max-height: 70vh; width: auto; cursor: zoom-in;">
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary" onclick="toggleFullscreen()" title="Plein écran (F)">
+                        <i class="fas fa-expand me-2"></i>Plein écran
+                    </button>
+                </div>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="downloadImage()" title="Télécharger (Ctrl+D)">
+                        <i class="fas fa-download me-2"></i>Télécharger
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Fermer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'ajustement de stock -->
+<div class="modal fade" id="stockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajuster le Stock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="stockForm">
+                    <div class="mb-3">
+                        <label class="form-label">Stock actuel</label>
+                        <input type="text" class="form-control" th:value="${product.stock}" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type d'ajustement</label>
+                        <label for="adjustmentType"></label><select class="form-select" id="adjustmentType">
+                            <option value="add">Ajouter au stock</option>
+                            <option value="remove">Retirer du stock</option>
+                            <option value="set">Définir le stock exact</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantité</label>
+                        <input type="number" class="form-control" id="quantity" min="0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motif</label>
+                        <select class="form-select" id="reason">
+                            <option value="restock">Réapprovisionnement</option>
+                            <option value="sale">Vente</option>
+                            <option value="damage">Produit endommagé</option>
+                            <option value="inventory">Inventaire</option>
+                            <option value="other">Autre</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Commentaire (optionnel)</label>
+                        <textarea class="form-control" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveStockAdjustment()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer ce produit ?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Cette action est irréversible et supprimera également tout l'historique associé.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<th:block th:fragment="js_assets">
+    <script th:inline="javascript">
+    // Fonctions pour la gestion des images
+    function openImageModal(imageSrc) {
+        try {
+            if (!imageSrc || imageSrc.trim() === '') {
+                console.error('URL d\'image vide ou invalide');
+                return;
+            }
+
+            const modal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            const modalTitle = modal.querySelector('.modal-title');
+
+            if (!modal || !modalImage) {
+                console.error('Éléments de la modal introuvables');
+                return;
+            }
+
+            const productName = document.querySelector('h1 span').textContent || 'Produit';
+            modalTitle.textContent = `Image - ${productName}`;
+
+            modalImage.src = imageSrc;
+            modalImage.alt = `Image de ${productName}`;
+
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+
+        } catch (error) {
+            console.error('Erreur dans openImageModal:', error);
+        }
+    }
+
+    function showImageError() {
+        const container = document.getElementById('productImageContainer');
+        const errorDiv = document.getElementById('imageError');
+        if (container && errorDiv) {
+            container.style.display = 'none';
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    function downloadImage() {
+        try {
+            const modalImage = document.getElementById('modalImage');
+            const productName = document.querySelector('h1 span').textContent || 'produit';
+
+            if (!modalImage || !modalImage.src) {
+                alert('Aucune image à télécharger');
+                return;
+            }
+
+            const link = document.createElement('a');
+            link.href = modalImage.src;
+            link.download = productName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.jpg';
+            link.style.display = 'none';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (error) {
+            console.error('Erreur lors du téléchargement:', error);
+            alert('Erreur lors du téléchargement');
+        }
+    }
+
+    function toggleFullscreen() {
+        const modal = document.getElementById('imageModal');
+        const modalDialog = modal.querySelector('.modal-dialog');
+        const fullscreenBtn = modal.querySelector('[onclick="toggleFullscreen()"]');
+
+        if (modalDialog.classList.contains('modal-fullscreen')) {
+            modalDialog.classList.remove('modal-fullscreen');
+            modalDialog.classList.add('modal-lg');
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand me-2"></i>Plein écran';
+        } else {
+            modalDialog.classList.remove('modal-lg');
+            modalDialog.classList.add('modal-fullscreen');
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress me-2"></i>Réduire';
+        }
+    }
+
+    // Fonction pour changer l'image
+    function changeImage() {
+        const newImageUrl = prompt('Nouvelle URL d\'image:', '');
+        if (newImageUrl && newImageUrl.trim() !== '') {
+            console.log('Nouvelle URL d\'image:', newImageUrl.trim());
+            // Ici, vous implémenteriez la sauvegarde via AJAX
+            alert('Fonctionnalité à implémenter côté serveur');
+        }
+    }
+
+    // Fonctions pour les actions
+    function deleteProduct() {
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        deleteModal.show();
+    }
+
+    function confirmDelete() {
+        const productId = window.location.pathname.split('/').pop();
+        window.location.href = `/products/delete/${productId}`;
+    }
+
+    function adjustStock() {
+        const stockModal = new bootstrap.Modal(document.getElementById('stockModal'));
+        stockModal.show();
+    }
+
+    function saveStockAdjustment() {
+        const form = document.getElementById('stockForm');
+        const formData = new FormData(form);
+
+        console.log('Ajustement de stock:', Object.fromEntries(formData));
+
+        bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
+        alert('Ajustement de stock enregistré (fonctionnalité à implémenter)');
+    }
+
+    function createOrder() {
+        const productId = window.location.pathname.split('/').pop();
+        window.location.href = `/orders/new?productId=${productId}`;
+    }
+
+    function updatePrice() {
+        const currentPrice = prompt('Nouveau prix unitaire (€):', '0.00');
+        if (currentPrice && !isNaN(currentPrice) && parseFloat(currentPrice) > 0) {
+            console.log('Nouveau prix:', currentPrice);
+            alert('Mise à jour du prix (fonctionnalité à implémenter)');
+        }
+    }
+
+    function generateBarcode() {
+        const productId = window.location.pathname.split('/').pop();
+        window.open(`/products/barcode/${productId}`, '_blank');
+    }
+
+    function printProduct() {
+        window.print();
+    }
+
+    function exportProduct() {
+        const productId = window.location.pathname.split('/').pop();
+        window.location.href = `/products/export/${productId}`;
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page de détails du produit chargée');
+    });
+</script>
+</th:block>
+<style>
+    @media print {
+        .btn, .dropdown, nav, .card-header .btn {
+            display: none !important;
+        }
+
+        .card {
+            border: 1px solid #dee2e6 !important;
+            box-shadow: none !important;
+        }
+    }
+
+    .progress {
+        background-color: #e9ecef;
+    }
+
+    .badge {
+        font-size: 0.75em;
+    }
+
+    .card-body h4 {
+        font-weight: 600;
+    }
+
+    #productImageContainer img {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: 1px solid #dee2e6;
+    }
+
+    #productImageContainer img:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    #imageError {
+        height: 200px;
+        border: 2px dashed #dc3545;
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+</style>
+</body>
+</html>
