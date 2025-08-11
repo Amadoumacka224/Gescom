@@ -5,76 +5,104 @@
 </head>
 <body>
 <div th:fragment="content">
-    <!-- En-tête avec boutons d'action -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1><i class="fas fa-users me-2"></i>Gestion des Clients</h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                    <li class="breadcrumb-item active">Clients</li>
-                </ol>
-            </nav>
-        </div>
-        <div th:if="${canCreate}">
-            <a th:href="@{/clients/new}" class="btn btn-primary">
+    <!-- Page Header -->
+    <div th:replace="~{fragments/components :: page-header(
+        'Gestion des Clients',
+        'Gérez vos clients et prospects',
+        ~{::header-actions})}">
+        <div th:fragment="header-actions">
+            <a th:if="${canCreate}" th:href="@{/clients/new}" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>Nouveau Client
             </a>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-2"></i>Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#">
+                        <i class="fas fa-file-excel me-2"></i>Export Excel
+                    </a></li>
+                    <li><a class="dropdown-item" href="#">
+                        <i class="fas fa-file-pdf me-2"></i>Export PDF
+                    </a></li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <!-- Statistiques rapides -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-primary">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-primary">Total Clients</h5>
-                    <h2 th:text="${totalClients}" class="text-primary">0</h2>
-                </div>
-            </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${totalClients},
+                'Total Clients',
+                null,
+                null,
+                'fas fa-users',
+                'primary')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-success">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-success">Clients Actifs</h5>
-                    <h2 th:text="${activeClients}" class="text-success">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${activeClients},
+                'Clients Actifs',
+                null,
+                null,
+                'fas fa-user-check',
+                'success')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-warning">Prospects</h5>
-                    <h2 th:text="${prospects}" class="text-warning">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${prospects},
+                'Prospects',
+                null,
+                null,
+                'fas fa-user-clock',
+                'warning')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-info">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-info">Entreprises</h5>
-                    <h2 th:text="${companies}" class="text-info">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${companies},
+                'Entreprises',
+                null,
+                null,
+                'fas fa-building',
+                'info')}"></div>
         </div>
     </div>
 
     <!-- Filtres et recherche -->
     <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres et recherche</h5>
+        </div>
         <div class="card-body">
             <form th:action="@{/clients}" method="get" class="row g-3">
                 <div class="col-md-4">
                     <label for="search" class="form-label">Rechercher</label>
-                    <input type="text" class="form-control" id="search" name="search"
-                           th:value="${search}" placeholder="Nom, email, entreprise...">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="search" name="search"
+                               th:value="${search}" placeholder="Nom, email, entreprise...">
+                    </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="status" class="form-label">Statut</label>
                     <select class="form-select" id="status" name="status">
                         <option value="">Tous les statuts</option>
                         <option value="ACTIVE" th:selected="${selectedStatus == 'ACTIVE'}">Actif</option>
                         <option value="INACTIVE" th:selected="${selectedStatus == 'INACTIVE'}">Inactif</option>
                         <option value="PROSPECT" th:selected="${selectedStatus == 'PROSPECT'}">Prospect</option>
+                        <option value="BLOCKED" th:selected="${selectedStatus == 'BLOCKED'}">Bloqué</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="clientType" class="form-label">Type</label>
+                    <select class="form-select" id="clientType" name="clientType">
+                        <option value="">Tous les types</option>
+                        <option value="INDIVIDUAL" th:selected="${selectedClientType == 'INDIVIDUAL'}">Particulier</option>
+                        <option value="COMPANY" th:selected="${selectedClientType == 'COMPANY'}">Entreprise</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -85,12 +113,12 @@
                         <option value="50" th:selected="${size == 50}">50</option>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-outline-primary me-2">
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">
                         <i class="fas fa-search me-1"></i>Filtrer
                     </button>
-                    <a th:href="@{/clients}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times me-1"></i>Reset
+                    <a th:href="@{/clients}" class="btn btn-outline-secondary" title="Réinitialiser">
+                        <i class="fas fa-undo"></i>
                     </a>
                 </div>
                 <!-- Champs cachés pour maintenir le tri -->
@@ -102,8 +130,19 @@
 
     <!-- Table des clients -->
     <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Liste des Clients</h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Liste des Clients</h5>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-dark" th:text="${#lists.size(clients)} + ' résultat(s)'">0 résultat(s)</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" title="Vue tableau">
+                        <i class="fas fa-table"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" title="Vue carte">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                </div>
+            </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -113,14 +152,13 @@
                         <th>
                             <a th:href="@{/clients(sortBy='name', sortDir=${sortBy == 'name' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, size=${size})}"
                                class="text-decoration-none">
-                                Nom
+                                Client
                                 <i th:if="${sortBy == 'name'}"
                                    th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
                                 <i th:unless="${sortBy == 'name'}" class="fas fa-sort text-muted"></i>
                             </a>
                         </th>
-                        <th>Email</th>
-                        <th>Téléphone</th>
+                        <th>Contact</th>
                         <th>Type</th>
                         <th>Statut</th>
                         <th>Commercial</th>
@@ -128,72 +166,111 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="client : ${clients}">
+                    <tr th:each="client : ${clients}" class="align-middle">
                         <td>
-                            <div>
-                                <strong th:text="${client.name}">Nom Client</strong>
-                                <br>
-                                <small th:if="${client.companyName}"
-                                       th:text="${client.companyName}"
-                                       class="text-muted">Entreprise</small>
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                        <i class="fas fa-user text-primary"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <strong th:text="${client.name}">Nom Client</strong>
+                                    <br>
+                                    <small th:if="${client.companyName}"
+                                           th:text="${client.companyName}"
+                                           class="text-muted">Entreprise</small>
+                                    <small th:unless="${client.companyName}"
+                                           class="text-muted" th:text="'#' + ${client.id}">#123</small>
+                                </div>
                             </div>
                         </td>
-                        <td th:text="${client.email}">email@example.com</td>
-                        <td th:text="${client.phoneNumber}">+33 1 23 45 67 89</td>
                         <td>
-                                <span th:if="${client.clientType == T(com.gescom.entity.Client.ClientType).COMPANY}"
-                                      class="badge bg-info">Entreprise</span>
-                            <span th:if="${client.clientType == T(com.gescom.entity.Client.ClientType).INDIVIDUAL}"
-                                  class="badge bg-secondary">Particulier</span>
+                            <div th:if="${client.email}">
+                                <i class="fas fa-envelope me-1 text-muted"></i>
+                                <a th:href="'mailto:' + ${client.email}" th:text="${client.email}" class="text-decoration-none">email@example.com</a>
+                            </div>
+                            <div th:if="${client.phoneNumber}">
+                                <i class="fas fa-phone me-1 text-muted"></i>
+                                <a th:href="'tel:' + ${client.phoneNumber}" th:text="${client.phoneNumber}" class="text-decoration-none">+33 1 23 45 67 89</a>
+                            </div>
                         </td>
                         <td>
-                                <span th:if="${client.status == T(com.gescom.entity.Client.ClientStatus).ACTIVE}"
-                                      class="badge bg-success">Actif</span>
-                            <span th:if="${client.status == T(com.gescom.entity.Client.ClientStatus).INACTIVE}"
-                                  class="badge bg-secondary">Inactif</span>
-                            <span th:if="${client.status == T(com.gescom.entity.Client.ClientStatus).PROSPECT}"
-                                  class="badge bg-warning">Prospect</span>
+                            <span th:switch="${client.clientType}" class="badge rounded-pill">
+                                <span th:case="'COMPANY'" class="bg-info">Entreprise</span>
+                                <span th:case="'INDIVIDUAL'" class="bg-secondary">Particulier</span>
+                                <span th:case="'ASSOCIATION'" class="bg-purple">Association</span>
+                            </span>
                         </td>
                         <td>
-                                <span th:if="${client.assignedUser}"
-                                      th:text="${client.assignedUser.fullName}">Commercial</span>
-                            <span th:unless="${client.assignedUser}"
-                                  class="text-muted">Non assigné</span>
+                            <span th:switch="${client.status}" class="badge rounded-pill">
+                                <span th:case="'ACTIVE'" class="bg-success">Actif</span>
+                                <span th:case="'INACTIVE'" class="bg-secondary">Inactif</span>
+                                <span th:case="'PROSPECT'" class="bg-warning text-dark">Prospect</span>
+                                <span th:case="'BLOCKED'" class="bg-danger">Bloqué</span>
+                            </span>
                         </td>
                         <td>
-                            <div class="btn-group" role="group">
-                                <a th:href="@{/clients/{id}(id=${client.id})}"
-                                   class="btn btn-sm btn-outline-info" title="Voir">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a th:if="${canEdit}"
-                                   th:href="@{/clients/{id}/edit(id=${client.id})}"
-                                   class="btn btn-sm btn-outline-primary" title="Modifier">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button th:if="${canEdit}"
-                                        type="button"
-                                        class="btn btn-sm btn-outline-warning"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#assignModal' + ${client.id}"
-                                        title="Assigner">
-                                    <i class="fas fa-user-plus"></i>
+                            <div th:if="${client.assignedUser}" class="d-flex align-items-center">
+                                <div class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                    <i class="fas fa-user text-info" style="font-size: 0.8rem;"></i>
+                                </div>
+                                <span th:text="${client.assignedUser.fullName}">Commercial</span>
+                            </div>
+                            <span th:unless="${client.assignedUser}" class="text-muted">
+                                <i class="fas fa-user-slash me-1"></i>Non assigné
+                            </span>
+                        </td>
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-ellipsis-v"></i>
                                 </button>
-                                <button th:if="${canDelete}"
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#deleteModal' + ${client.id}"
-                                        title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item" th:href="@{/clients/{id}(id=${client.id})}">
+                                            <i class="fas fa-eye me-2 text-info"></i>Voir détails
+                                        </a>
+                                    </li>
+                                    <li th:if="${canEdit}">
+                                        <a class="dropdown-item" th:href="@{/clients/{id}/edit(id=${client.id})}">
+                                            <i class="fas fa-edit me-2 text-primary"></i>Modifier
+                                        </a>
+                                    </li>
+                                    <li th:if="${canEdit}">
+                                        <a class="dropdown-item" href="#" data-bs-toggle="modal" th:data-bs-target="'#assignModal' + ${client.id}">
+                                            <i class="fas fa-user-plus me-2 text-warning"></i>Assigner commercial
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item" th:href="@{/orders/new(clientId=${client.id})}">
+                                            <i class="fas fa-shopping-cart me-2 text-success"></i>Nouvelle commande
+                                        </a>
+                                    </li>
+                                    <li th:if="${canDelete}"><hr class="dropdown-divider"></li>
+                                    <li th:if="${canDelete}">
+                                        <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" th:data-bs-target="'#deleteModal' + ${client.id}">
+                                            <i class="fas fa-trash me-2"></i>Supprimer
+                                        </a>
+                                    </li>
+                                </ul>
                             </div>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(clients)}">
-                        <td colspan="7" class="text-center text-muted py-4">
-                            <i class="fas fa-users fa-3x mb-3"></i>
-                            <br>Aucun client trouvé
+                        <td colspan="6" class="text-center py-5">
+                            <div th:replace="~{fragments/components :: empty-state(
+                                'fas fa-users',
+                                'Aucun client',
+                                'Aucun client ne correspond à vos critères de recherche.',
+                                ~{::empty-action})}">
+                                <div th:fragment="empty-action" th:if="${canCreate}">
+                                    <a th:href="@{/clients/new}" class="btn btn-primary">
+                                        <i class="fas fa-plus me-2"></i>Créer un client
+                                    </a>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                     </tbody>
@@ -201,31 +278,14 @@
             </div>
 
             <!-- Pagination -->
-            <nav th:if="${totalPages > 1}" aria-label="Navigation clients">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/clients(page=${currentPage - 1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus})}">
-                            Précédent
-                        </a>
-                    </li>
-
-                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
-                        class="page-item"
-                        th:classappend="${i == currentPage} ? 'active'">
-                        <a class="page-link"
-                           th:text="${i+1}"
-                           th:href="@{/clients(page=${i}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus})}">1</a>
-                    </li>
-
-                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/clients(page=${currentPage+1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, status=${selectedStatus})}">
-                            Suivant
-                        </a>
-                    </li>
-                </ul>
-            </nav>
+            <div th:if="${totalPages > 1}" th:replace="~{fragments/components :: pagination(
+                ${currentPage},
+                ${totalPages},
+                '/clients?size=' + ${size} + '&sortBy=' + ${sortBy} + '&sortDir=' + ${sortDir} +
+                (${search} != null ? '&search=' + ${search} : '') +
+                (${selectedStatus} != null ? '&status=' + ${selectedStatus} : '') +
+                (${selectedClientType} != null ? '&clientType=' + ${selectedClientType} : '')
+            )}"></div>
         </div>
     </div>
 

@@ -1,5 +1,8 @@
 package com.gescom.entity;
 
+
+
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -60,7 +63,13 @@ public class OrderItem {
     @PrePersist
     @PreUpdate
     public void calculateTotals() {
-        if (unitPrice == null || quantity == null) return;
+        if (unitPrice == null || quantity == null) {
+            this.totalPriceHT = BigDecimal.ZERO;
+            this.totalVatAmount = BigDecimal.ZERO;
+            this.totalPrice = BigDecimal.ZERO;
+            this.discountAmount = BigDecimal.ZERO;
+            return;
+        }
 
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
 
@@ -81,6 +90,10 @@ public class OrderItem {
         }
 
         this.totalPrice = totalPriceHT.add(totalVatAmount);
+
+        System.out.println("OrderItem calculateTotals - Qté: " + quantity +
+                ", Prix: " + unitPrice +
+                ", Total HT: " + totalPriceHT);
     }
 
     public BigDecimal getUnitPriceAfterDiscount() {

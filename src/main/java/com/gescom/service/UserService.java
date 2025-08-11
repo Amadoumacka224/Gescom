@@ -1,6 +1,10 @@
 package com.gescom.service;
 
-// src/main/java/com/company/commercial/service/UserService.java
+
+
+
+
+
 
 import com.gescom.entity.Role;
 import com.gescom.entity.User;
@@ -8,10 +12,7 @@ import com.gescom.repository.RoleRepository;
 import com.gescom.repository.UserRepository;
 import com.gescom.exception.UserAlreadyExistsException;
 import com.gescom.exception.UserNotFoundException;
-import com.gescom.entity.User;
-import com.gescom.exception.UserAlreadyExistsException;
-import com.gescom.repository.RoleRepository;
-import com.gescom.repository.UserRepository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

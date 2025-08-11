@@ -1,162 +1,592 @@
-  <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
-    <title th:text="'Détails Commande ' + ${order.orderNumber}">Détails Commande</title>
-    <style>
-        .order-header {
-            background: linear-gradient(120deg, #e9ecef 0%, #f8f9fa 100%);
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        }
-        .status-badge {
-            font-size: 0.9rem;
-            padding: 0.5em 0.75em;
-        }
-        .product-image-placeholder {
-            width: 50px;
-            height: 50px;
-            background-color: #e9ecef;
-            border-radius: 0.375rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #6c757d;
-            font-size: 1.2rem;
-        }
-        .section-card {
-            border-radius: 0.75rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-            margin-bottom: 1.5rem;
-            border: 1px solid rgba(0, 0, 0, 0.125);
-        }
-        .section-card .card-header {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-            font-weight: 600;
-        }
-        .address-block {
-            background-color: #f8f9fa;
-            border-radius: 0.5rem;
-            padding: 1rem;
-        }
-        .timeline {
-            position: relative;
-            padding-left: 2rem;
-        }
-        .timeline::before {
-            content: '';
-            position: absolute;
-            left: 0.75rem;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background-color: #dee2e6;
-        }
-        .timeline-item {
-            position: relative;
-            margin-bottom: 1.5rem;
-        }
-        .timeline-item:last-child {
-            margin-bottom: 0;
-        }
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -2.25rem;
-            top: 0.25rem;
-            width: 1rem;
-            height: 1rem;
-            border-radius: 50%;
-            background-color: #0d6efd;
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 0.125rem rgba(13, 110, 253, 0.25);
-        }
-        .timeline-item.inactive::before {
-            background-color: #adb5bd;
-            box-shadow: 0 0 0 0.125rem rgba(173, 181, 189, 0.25);
-        }
-        @media (max-width: 768px) {
-            .order-header {
-                padding: 1rem;
-            }
-            .btn-group {
-                width: 100%;
-                margin-top: 1rem;
-            }
-            .btn-group .btn {
-                flex: 1;
-                margin-bottom: 0.5rem;
-            }
-        }
-    </style>
+    <title th:text="'Commande ' + ${order.orderNumber}">Détails Commande</title>
 </head>
 <body>
-<div th:fragment="content">
-    <!-- En-tête -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1><i class="fas fa-shopping-cart me-2"></i>Détails Commande <span th:text="${order.orderNumber}">CMD-001</span></h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a th:href="@{/orders}">Commandes</a></li>
-                    <li class="breadcrumb-item active" th:text="${order.orderNumber}">CMD-001</li>
-                </ol>
-            </nav>
-        </div>
-        <div class="btn-group">
-            <a th:href="@{/orders}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+
+<style>
+    /* === STYLES POUR LA PAGE DE DÉTAIL DE COMMANDE === */
+    .order-detail-page {
+        --primary-color: #0d6efd;
+        --success-color: #198754;
+        --warning-color: #fd7e14;
+        --danger-color: #dc3545;
+        --info-color: #0dcaf0;
+        --gray-100: #f8f9fa;
+        --gray-200: #e9ecef;
+        --gray-300: #dee2e6;
+        --gray-500: #6c757d;
+        --gray-700: #495057;
+        --gray-900: #212529;
+        --border-radius: 0.5rem;
+        --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        --shadow-md: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    /* === HEADER DE LA COMMANDE === */
+    .order-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, #0b5ed7 100%);
+        color: white;
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-md);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .order-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+        pointer-events: none;
+    }
+
+    .order-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .order-status {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.875rem;
+        background: rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+
+    /* === INFORMATIONS PRINCIPALES === */
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .info-item {
+        background: rgba(255,255,255,0.1);
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        backdrop-filter: blur(10px);
+    }
+
+    .info-label {
+        display: flex;
+        align-items: center;
+        font-size: 0.875rem;
+        opacity: 0.9;
+        margin-bottom: 0.25rem;
+    }
+
+    .info-label i {
+        margin-right: 0.5rem;
+        width: 16px;
+    }
+
+    .info-value {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .total-amount {
+        font-size: 2rem;
+        font-weight: 700;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    /* === CARTES DE SECTIONS === */
+    .section-card {
+        background: white;
+        border-radius: var(--border-radius);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 2rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        border: 1px solid var(--gray-200);
+    }
+
+    .section-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
+    .section-header {
+        background: linear-gradient(135deg, var(--gray-100) 0%, #e3e6ea 100%);
+        padding: 1.25rem;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .section-title {
+        display: flex;
+        align-items: center;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--gray-900);
+        margin: 0;
+    }
+
+    .section-title i {
+        margin-right: 0.75rem;
+        color: var(--primary-color);
+    }
+
+    .section-content {
+        padding: 1.5rem;
+    }
+
+    /* === TABLEAU DES PRODUITS === */
+    .products-table {
+        border-radius: var(--border-radius);
+        overflow: hidden;
+    }
+
+    .product-row {
+        transition: background-color 0.2s ease;
+    }
+
+    .product-row:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+
+    .product-info {
+        display: flex;
+        align-items: center;
+    }
+
+    .product-image {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-200) 100%);
+        border-radius: var(--border-radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        color: var(--gray-500);
+        border: 2px solid var(--gray-300);
+    }
+
+    .product-name {
+        font-weight: 600;
+        color: var(--gray-900);
+        margin-bottom: 0.25rem;
+    }
+
+    .product-ref {
+        font-size: 0.875rem;
+        color: var(--gray-500);
+    }
+
+    /* === RÉSUMÉ FINANCIER === */
+    .financial-summary {
+        background: linear-gradient(135deg, #f8f9fa 0%, white 100%);
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        border: 1px solid var(--gray-200);
+    }
+
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .summary-row:last-child {
+        border-bottom: none;
+        border-top: 2px solid var(--primary-color);
+        margin-top: 1rem;
+        padding-top: 1rem;
+        font-weight: 700;
+    }
+
+    .summary-label {
+        color: var(--gray-700);
+    }
+
+    .summary-value {
+        font-weight: 600;
+    }
+
+    .total-value {
+        font-size: 1.5rem;
+        color: var(--primary-color);
+    }
+
+    /* === STATUTS === */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.375rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-draft { background: #6c757d; color: white; }
+    .status-pending { background: #ffc107; color: #000; }
+    .status-confirmed { background: #0d6efd; color: white; }
+    .status-processing { background: #20c997; color: white; }
+    .status-shipped { background: #fd7e14; color: white; }
+    .status-delivered { background: #198754; color: white; }
+    .status-cancelled { background: #dc3545; color: white; }
+
+    /* === TIMELINE === */
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 0.75rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(to bottom, var(--primary-color), rgba(13, 110, 253, 0.3));
+    }
+
+    .timeline-item {
+        position: relative;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -1.625rem;
+        top: 1rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        border: 3px solid white;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.3);
+    }
+
+    .timeline-item.completed::before {
+        background: var(--success-color);
+        box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.3);
+    }
+
+    .timeline-item.inactive::before {
+        background: var(--gray-300);
+        box-shadow: 0 0 0 3px rgba(108, 117, 125, 0.2);
+    }
+
+    /* === ADRESSES === */
+    .address-card {
+        background: var(--gray-100);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .address-title {
+        display: flex;
+        align-items: center;
+        font-weight: 600;
+        color: var(--gray-900);
+        margin-bottom: 0.5rem;
+    }
+
+    .address-title i {
+        margin-right: 0.5rem;
+    }
+
+    .address-content {
+        white-space: pre-line;
+        color: var(--gray-700);
+        font-family: inherit;
+        margin: 0;
+    }
+
+    /* === BOUTONS D'ACTIONS === */
+    .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.75rem 1.25rem;
+        border-radius: var(--border-radius);
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-action i {
+        margin-right: 0.5rem;
+    }
+
+    .btn-primary-action {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-primary-action:hover {
+        background: #0b5ed7;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(13, 110, 253, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-success-action {
+        background: var(--success-color);
+        color: white;
+    }
+
+    .btn-success-action:hover {
+        background: #157347;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(25, 135, 84, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+
+    .btn-outline-action {
+        background: white;
+        color: var(--gray-700);
+        border: 1px solid var(--gray-300);
+    }
+
+    .btn-outline-action:hover {
+        background: var(--gray-100);
+        border-color: var(--gray-400);
+        transform: translateY(-2px);
+        color: var(--gray-700);
+        text-decoration: none;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 768px) {
+        .order-header {
+            padding: 1.5rem;
+        }
+
+        .order-number {
+            font-size: 2rem;
+        }
+
+        .total-amount {
+            font-size: 1.5rem;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .section-content {
+            padding: 1rem;
+        }
+
+        .action-buttons {
+            justify-content: center;
+        }
+
+        .btn-action {
+            flex: 1;
+            min-width: 120px;
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .order-header {
+            padding: 1rem;
+        }
+
+        .section-header {
+            padding: 1rem;
+        }
+
+        .btn-action {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+    }
+
+    /* === ANIMATIONS === */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .section-card {
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    .section-card:nth-child(2) { animation-delay: 0.1s; }
+    .section-card:nth-child(3) { animation-delay: 0.2s; }
+    .section-card:nth-child(4) { animation-delay: 0.3s; }
+
+    /* === STYLES D'IMPRESSION === */
+    @media print {
+        .action-buttons, .btn-action {
+            display: none !important;
+        }
+
+        .section-card {
+            break-inside: avoid;
+            box-shadow: none !important;
+            border: 1px solid #dee2e6 !important;
+        }
+
+        .order-header {
+            background: white !important;
+            color: black !important;
+            border: 2px solid #0d6efd !important;
+        }
+
+        .order-header * {
+            color: black !important;
+        }
+
+        .order-detail-page {
+            font-size: 12px;
+        }
+
+        .section-title {
+            font-size: 1rem;
+        }
+
+        .timeline::before {
+            background: #000 !important;
+        }
+    }
+</style>
+
+<div th:fragment="content" class="order-detail-page">
+    <!-- Page Header avec actions -->
+    <div th:replace="~{fragments/components :: page-header(
+        'Commande ' + ${order.orderNumber},
+        'Détails complets de la commande',
+        ~{::header-actions})}">
+        <div th:fragment="header-actions" class="action-buttons">
+            <a th:href="@{/orders}" class="btn-action btn-outline-action">
+                <i class="fas fa-arrow-left"></i>
+                Retour à la liste
             </a>
-            <button type="button" class="btn btn-outline-primary" onclick="printOrder()">
-                <i class="fas fa-print me-2"></i>Imprimer
+            <button type="button" class="btn-action btn-outline-action" onclick="printOrder()">
+                <i class="fas fa-print"></i>
+                Imprimer
             </button>
-            <button type="button" class="btn btn-outline-info" onclick="sendByEmail()">
-                <i class="fas fa-envelope me-2"></i>Envoyer par email
+            <button type="button" class="btn-action btn-outline-action" onclick="sendByEmail()">
+                <i class="fas fa-envelope"></i>
+                Envoyer par email
             </button>
-            <div class="btn-group" role="group">
-                <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown">
-                    <i class="fas fa-cogs me-2"></i>Actions
-                </button>
-                <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" th:href="@{/orders/{id}/edit(id=${order.id})}"><i class="fas fa-edit me-2"></i>Modifier</a></li>
-                    <li><a class="dropdown-item" href="#"><i class="fas fa-copy me-2"></i>Dupliquer</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="#" onclick="cancelOrder()"><i class="fas fa-ban me-2"></i>Annuler</a></li>
-                </ul>
-            </div>
+            <a th:href="@{/orders/{id}/edit(id=${order.id})}"
+               th:if="${order.status.name() == 'DRAFT' or order.status.name() == 'CONFIRMED'}"
+               class="btn-action btn-primary-action">
+                <i class="fas fa-edit"></i>
+                Modifier
+            </a>
         </div>
     </div>
 
-    <!-- Résumé de la commande -->
-    <div class="order-header mb-4">
+    <!-- Header principal de la commande -->
+    <div class="order-header">
         <div class="row align-items-center">
-            <div class="col-md-8">
-                <div class="d-flex align-items-center mb-2">
-                    <h2 class="mb-0 me-3">Commande <span th:text="${order.orderNumber}">CMD-001</span></h2>
-                    <span th:switch="${order.status}" class="status-badge rounded-pill">
-                        <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
-                        <span th:case="'PENDING'" class="badge bg-warning text-dark">En attente</span>
-                        <span th:case="'CONFIRMED'" class="badge bg-primary">Confirmée</span>
-                        <span th:case="'PROCESSING'" class="badge bg-info text-dark">En cours de traitement</span>
-                        <span th:case="'SHIPPED'" class="badge bg-success">Expédiée</span>
-                        <span th:case="'DELIVERED'" class="badge bg-success">Livrée</span>
-                        <span th:case="'CANCELLED'" class="badge bg-danger">Annulée</span>
-                        <span th:case="*" class="badge bg-light text-dark">Statut inconnu</span>
-                    </span>
+            <div class="col-lg-8">
+                <div class="order-number" th:text="${order.orderNumber}">CMD-202401-001</div>
+
+                <div class="order-status" th:switch="${order.status.name()}">
+                    <span th:case="'DRAFT'">📝 Brouillon</span>
+                    <span th:case="'PENDING'">⏳ En attente</span>
+                    <span th:case="'CONFIRMED'">✅ Confirmée</span>
+                    <span th:case="'PROCESSING'">🔄 En traitement</span>
+                    <span th:case="'SHIPPED'">🚚 Expédiée</span>
+                    <span th:case="'DELIVERED'">📦 Livrée</span>
+                    <span th:case="'CANCELLED'">❌ Annulée</span>
+                    <span th:case="*">❓ Statut inconnu</span>
                 </div>
-                <p class="mb-1"><i class="fas fa-calendar me-2"></i>Date de commande : <strong th:text="${#temporals.format(order.orderDate, 'dd/MM/yyyy HH:mm')}">01/01/2024 10:00</strong></p>
-                <p class="mb-1"><i class="fas fa-user me-2"></i>Client : <strong th:text="${order.client.name}">Nom du Client</strong></p>
-                <p class="mb-0"><i class="fas fa-euro-sign me-2"></i>Montant total : <strong class="h5 text-primary" th:text="${#numbers.formatCurrency(order.totalAmount)}">0,00 €</strong></p>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <div class="qr-code-placeholder bg-light border rounded d-inline-block p-2">
-                    <div class="bg-white border rounded" style="width: 100px; height: 100px; display: flex; align-items: center; justify-content: center;">
-                        <i class="fas fa-qrcode fa-3x text-muted"></i>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="fas fa-calendar"></i>
+                            Date de commande
+                        </div>
+                        <div class="info-value" th:text="${#temporals.format(order.orderDate, 'dd/MM/yyyy à HH:mm')}">
+                            01/01/2024 à 10:00
+                        </div>
                     </div>
-                    <small class="d-block mt-1 text-muted">Code QR de la commande</small>
+
+                    <div class="info-item">
+                        <div class="info-label">
+                            <i class="fas fa-user"></i>
+                            Client
+                        </div>
+                        <div class="info-value" th:text="${order.client.name}">Nom du Client</div>
+                    </div>
+
+                    <div class="info-item" th:if="${order.expectedDeliveryDate}">
+                        <div class="info-label">
+                            <i class="fas fa-truck"></i>
+                            Livraison prévue
+                        </div>
+                        <div class="info-value" th:text="${#temporals.format(order.expectedDeliveryDate, 'dd/MM/yyyy')}">
+                            05/01/2024
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4 text-center">
+                <div class="info-label">
+                    <i class="fas fa-euro-sign"></i>
+                    Montant total
+                </div>
+                <div class="total-amount" th:text="${order.totalAmount != null ? #numbers.formatCurrency(order.totalAmount) : '0,00 €'}">
+                    1 234,56 €
+                </div>
+                <div class="mt-2">
+                    <span class="status-badge" th:switch="${order.paymentStatus.name()}">
+                        <span th:case="'PENDING'">💰 Paiement en attente</span>
+                        <span th:case="'PARTIAL'">💳 Partiellement payé</span>
+                        <span th:case="'PAID'">✅ Payé</span>
+                        <span th:case="'OVERDUE'">⚠️ En retard</span>
+                        <span th:case="*">❓ Statut inconnu</span>
+                    </span>
                 </div>
             </div>
         </div>
@@ -165,54 +595,71 @@
     <div class="row">
         <!-- Colonne principale -->
         <div class="col-lg-8">
-            <!-- Produits de la commande -->
-            <div class="section-card card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-box me-2"></i>Produits (<span th:text="${#lists.size(order.orderItems)}">0</span>)</h5>
+
+            <!-- Section des produits -->
+            <div class="section-card">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-shopping-cart"></i>
+                        Produits commandés
+                    </h3>
+                    <span class="badge bg-primary" th:text="${#lists.size(order.orderItems)} + ' article(s)'">
+                        3 articles
+                    </span>
                 </div>
-                <div class="card-body p-0">
+                <div class="section-content p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0">
+                        <table class="table table-hover products-table mb-0">
                             <thead class="table-light">
                             <tr>
-                                <th>Produit</th>
-                                <th class="text-center">Quantité</th>
-                                <th class="text-end">Prix unitaire</th>
-                                <th class="text-end">Remise</th>
-                                <th class="text-end">Total HT</th>
+                                <th style="width: 45%;">Produit</th>
+                                <th class="text-center" style="width: 10%;">Quantité</th>
+                                <th class="text-end" style="width: 15%;">Prix unitaire</th>
+                                <th class="text-end" style="width: 15%;">Remise</th>
+                                <th class="text-end" style="width: 15%;">Total HT</th>
                             </tr>
                             </thead>
                             <tbody>
-                            <tr th:each="item : ${order.orderItems}">
+                            <tr th:each="item : ${order.orderItems}" class="product-row">
                                 <td>
-                                    <div class="d-flex align-items-center">
-                                        <div class="product-image-placeholder me-3">
+                                    <div class="product-info">
+                                        <div class="product-image">
                                             <i class="fas fa-box"></i>
                                         </div>
                                         <div>
-                                            <strong th:text="${item.product.name}">Nom du Produit</strong><br>
-                                            <small class="text-muted" th:text="'Réf: ' + ${item.product.reference}">Référence</small>
+                                            <div class="product-name" th:text="${item.product.name}">
+                                                Nom du Produit
+                                            </div>
+                                            <div class="product-ref" th:text="'Réf: ' + ${item.product.reference}">
+                                                Réf: REF-001
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-center align-middle">
-                                    <span th:text="${item.quantity}">1</span>
+                                    <strong th:text="${item.quantity}">2</strong>
                                 </td>
                                 <td class="text-end align-middle">
-                                    <span th:text="${#numbers.formatCurrency(item.unitPrice)}">0,00 €</span>
+                                    <span th:text="${#numbers.formatCurrency(item.unitPrice)}">99,99 €</span>
                                 </td>
                                 <td class="text-end align-middle">
-                                    <span th:if="${item.discountRate != null and item.discountRate > 0}" th:text="${#numbers.formatDecimal(item.discountRate, 1, 2)} + ' %'">0,00 %</span>
-                                    <span th:unless="${item.discountRate != null and item.discountRate > 0}">-</span>
+                                        <span th:if="${item.discountRate != null and item.discountRate > 0}"
+                                              th:text="${#numbers.formatDecimal(item.discountRate, 1, 2)} + ' %'">
+                                            5,00 %
+                                        </span>
+                                    <span th:unless="${item.discountRate != null and item.discountRate > 0}">
+                                            -
+                                        </span>
                                 </td>
-                                <td class="text-end align-middle fw-bold">
-                                    <span th:text="${#numbers.formatCurrency(item.totalPriceHT)}">0,00 €</span>
+                                <td class="text-end align-middle">
+                                    <strong th:text="${#numbers.formatCurrency(item.totalPriceHT)}">189,98 €</strong>
                                 </td>
                             </tr>
                             <tr th:if="${#lists.isEmpty(order.orderItems)}">
-                                <td colspan="5" class="text-center text-muted py-4">
-                                    <i class="fas fa-shopping-basket fa-2x mb-2"></i><br>
-                                    Aucun produit dans cette commande.
+                                <td colspan="5" class="text-center text-muted py-5">
+                                    <i class="fas fa-shopping-cart fa-3x mb-3 d-block"></i>
+                                    <strong>Aucun produit dans cette commande</strong>
+                                    <p class="mb-0">La commande ne contient aucun article.</p>
                                 </td>
                             </tr>
                             </tbody>
@@ -221,143 +668,311 @@
                 </div>
             </div>
 
-            <!-- Historique de la commande -->
-            <div class="section-card card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Historique de la commande</h5>
+            <!-- Section historique/timeline -->
+            <div class="section-card">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-history"></i>
+                        Suivi de la commande
+                    </h3>
                 </div>
-                <div class="card-body">
+                <div class="section-content">
                     <div class="timeline">
-                        <div class="timeline-item">
-                            <h6 class="mb-1">Commande créée</h6>
-                            <p class="mb-0 text-muted small" th:text="${#temporals.format(order.orderDate, 'dd/MM/yyyy HH:mm')}">01/01/2024 10:00</p>
-                            <p class="mb-0 small">Par <span th:text="${order.createdBy?.name ?: 'Système'}">Utilisateur</span></p>
+                        <div class="timeline-item completed">
+                            <h6 class="mb-1">🎯 Commande créée</h6>
+                            <p class="mb-1 text-muted" th:text="${#temporals.format(order.orderDate, 'dd/MM/yyyy à HH:mm')}">
+                                01/01/2024 à 10:00
+                            </p>
+                            <p class="mb-0 small">
+                                Par <strong th:text="${order.user?.firstName + ' ' + order.user?.lastName ?: 'Système'}">Jean Dupont</strong>
+                            </p>
                         </div>
-                        <div class="timeline-item" th:if="${order.status.ordinal() >= T(com.gescom.entity.Order.OrderStatus).CONFIRMED.ordinal()}">
-                            <h6 class="mb-1">Commande confirmée</h6>
-                            <p class="mb-0 text-muted small">Date de confirmation</p>
+
+                        <div class="timeline-item"
+                             th:class="${order.status.name() == 'CONFIRMED' or order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                            <h6 class="mb-1">✅ Commande confirmée</h6>
+                            <p class="mb-0 text-muted small"
+                               th:text="${order.status.name() == 'CONFIRMED' or order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'Commande validée et prête pour traitement' : 'En attente de confirmation'">
+                                En attente de confirmation
+                            </p>
                         </div>
-                        <div class="timeline-item inactive">
-                            <h6 class="mb-1">En cours de traitement</h6>
-                            <p class="mb-0 text-muted small">En attente de traitement</p>
+
+                        <div class="timeline-item"
+                             th:class="${order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                            <h6 class="mb-1">🔄 En cours de traitement</h6>
+                            <p class="mb-0 text-muted small"
+                               th:text="${order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'Commande en cours de préparation' : 'En attente de traitement'">
+                                En attente de traitement
+                            </p>
                         </div>
-                        <div class="timeline-item inactive">
-                            <h6 class="mb-1">Expédiée</h6>
-                            <p class="mb-0 text-muted small">En attente d'expédition</p>
+
+                        <div class="timeline-item"
+                             th:class="${order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                            <h6 class="mb-1">🚚 Expédiée</h6>
+                            <p class="mb-0 text-muted small"
+                               th:text="${order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'Commande expédiée' : 'En attente d\'expédition'">
+                                En attente d'expédition
+                            </p>
                         </div>
-                        <div class="timeline-item inactive">
-                            <h6 class="mb-1">Livrée</h6>
-                            <p class="mb-0 text-muted small">En attente de livraison</p>
+
+                        <div class="timeline-item"
+                             th:class="${order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                            <h6 class="mb-1">📦 Livrée</h6>
+                            <p class="mb-0 text-muted small"
+                               th:text="${order.status.name() == 'DELIVERED'} ? 'Commande livrée avec succès' : 'En attente de livraison'">
+                                En attente de livraison
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
+
         </div>
 
         <!-- Colonne latérale -->
         <div class="col-lg-4">
+
             <!-- Informations client -->
-            <div class="section-card card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Informations client</h5>
+            <div class="section-card">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-user-circle"></i>
+                        Client
+                    </h3>
                 </div>
-                <div class="card-body">
-                    <h6 th:text="${order.client.name}">Nom du Client</h6>
-                    <p class="mb-1" th:if="${order.client.companyName}"><i class="fas fa-building me-2"></i><span th:text="${order.client.companyName}">Nom de l'entreprise</span></p>
-                    <p class="mb-1"><i class="fas fa-envelope me-2"></i><a th:href="'mailto:' + ${order.client.email}" th:text="${order.client.email}">email@client.com</a></p>
-                    <p class="mb-1"><i class="fas fa-phone me-2"></i><a th:href="'tel:' + ${order.client.phone}" th:text="${order.client.phone}">+33 1 23 45 67 89</a></p>
-                    <hr>
-                    <a th:href="@{/clients/{id}(id=${order.client.id})}" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-eye me-1"></i>Voir la fiche client
-                    </a>
+                <div class="section-content">
+                    <h5 th:text="${order.client.name}">Nom du Client</h5>
+                    <div class="mt-3">
+                        <p class="mb-2" th:if="${order.client.companyName}">
+                            <i class="fas fa-building text-muted me-2"></i>
+                            <span th:text="${order.client.companyName}">Nom de l'entreprise</span>
+                        </p>
+                        <p class="mb-2">
+                            <i class="fas fa-envelope text-muted me-2"></i>
+                            <a th:href="'mailto:' + ${order.client.email}"
+                               th:text="${order.client.email}">email@client.com</a>
+                        </p>
+                        <p class="mb-0" th:if="${order.client.phoneNumber}">
+                            <i class="fas fa-phone text-muted me-2"></i>
+                            <a th:href="'tel:' + ${order.client.phoneNumber}"
+                               th:text="${order.client.phoneNumber}">+33 1 23 45 67 89</a>
+                        </p>
+                    </div>
+                    <div class="mt-3">
+                        <a th:href="@{/clients/{id}(id=${order.client.id})}" class="btn-action btn-outline-action">
+                            <i class="fas fa-eye"></i>
+                            Voir la fiche
+                        </a>
+                    </div>
                 </div>
             </div>
 
             <!-- Adresses -->
-            <div class="section-card card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Adresses</h5>
+            <div class="section-card">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-map-marker-alt"></i>
+                        Adresses
+                    </h3>
                 </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <h6 class="mb-2"><i class="fas fa-file-invoice me-2 text-primary"></i>Facturation</h6>
-                        <div class="address-block">
-                            <pre class="mb-0" th:text="${order.billingAddress ?: 'Adresse non spécifiée'}">Adresse de facturation</pre>
+                <div class="section-content">
+                    <div class="address-card">
+                        <div class="address-title">
+                            <i class="fas fa-file-invoice text-primary"></i>
+                            Facturation
+                        </div>
+                        <div class="address-content" th:text="${order.billingAddress ?: 'Adresse non spécifiée'}">
+                            123 Rue de la Facture
+                            75001 Paris, France
                         </div>
                     </div>
-                    <div>
-                        <h6 class="mb-2"><i class="fas fa-truck me-2 text-success"></i>Livraison</h6>
-                        <div class="address-block">
-                            <pre class="mb-0" th:text="${order.shippingAddress ?: 'Adresse non spécifiée'}">Adresse de livraison</pre>
+
+                    <div class="address-card">
+                        <div class="address-title">
+                            <i class="fas fa-truck text-success"></i>
+                            Livraison
+                        </div>
+                        <div class="address-content" th:text="${order.shippingAddress ?: 'Adresse non spécifiée'}">
+                            456 Avenue de la Livraison
+                            75002 Paris, France
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Résumé financier -->
-            <div class="section-card card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Résumé financier</h5>
+            <div class="section-card">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-calculator"></i>
+                        Résumé financier
+                    </h3>
                 </div>
-                <div class="card-body">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Sous-total HT :</span>
-                        <span th:text="${#numbers.formatCurrency(order.subtotalHT)}">0,00 €</span>
+                <div class="section-content">
+                    <div class="financial-summary">
+                        <div class="summary-row">
+                            <span class="summary-label">Sous-total HT :</span>
+                            <span class="summary-value" th:text="${order.totalAmountHT != null ? #numbers.formatCurrency(order.totalAmountHT) : #numbers.formatCurrency(0)}">1 000,00 €</span>
+                        </div>
+
+                        <div class="summary-row" th:if="${order.discountAmount != null and order.discountAmount > 0}">
+                            <span class="summary-label">Remise :</span>
+                            <span class="summary-value text-danger">
+                    -<span th:text="${#numbers.formatCurrency(order.discountAmount)}">50,00 €</span>
+                </span>
+                        </div>
+
+                        <div class="summary-row">
+                            <span class="summary-label">TVA :</span>
+                            <span class="summary-value" th:text="${order.totalVatAmount != null ? #numbers.formatCurrency(order.totalVatAmount) : #numbers.formatCurrency(0)}">200,00 €</span>
+                        </div>
+
+                        <div class="summary-row" th:if="${order.shippingCost != null and order.shippingCost > 0}">
+                            <span class="summary-label">Frais de port :</span>
+                            <span class="summary-value" th:text="${#numbers.formatCurrency(order.shippingCost)}">15,00 €</span>
+                        </div>
+
+                        <div class="summary-row">
+                            <span class="summary-label">Total TTC :</span>
+                            <span class="summary-value total-value" th:text="${order.totalAmount != null ? #numbers.formatCurrency(order.totalAmount) : #numbers.formatCurrency(0)}">1 234,56 €</span>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between mb-2" th:if="${order.discountAmount != null and order.discountAmount.compareTo(new java.math.BigDecimal('0')) > 0}">
-                        <span class="text-muted">Remise :</span>
-                        <span class="text-danger">-<span th:text="${#numbers.formatCurrency(order.discountAmount)}">0,00 €</span></span>
+                </div>
+            </div>
+                    <!-- Actions de facturation -->
+                    <div class="mt-4">
+                        <div class="d-grid gap-2">
+                            <a th:href="@{/invoices/new(orderId=${order.id})}"
+                               th:if="${order.invoice == null and (order.status.name() == 'CONFIRMED' or order.status.name() == 'DELIVERED' or order.status.name() == 'SHIPPED')}"
+                               class="btn-action btn-success-action">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                                Générer une facture
+                            </a>
+
+                            <a th:href="@{/invoices/{id}(id=${order.invoice.id})}"
+                               th:if="${order.invoice != null}"
+                               class="btn-action btn-primary-action">
+                                <i class="fas fa-file-invoice"></i>
+                                Voir la facture
+                            </a>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Total HT :</span>
-                        <span th:text="${#numbers.formatCurrency(order.totalHT)}">0,00 €</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">TVA :</span>
-                        <span th:text="${#numbers.formatCurrency(order.totalVAT)}">0,00 €</span>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2" th:if="${order.shippingCost != null and order.shippingCost.compareTo(new java.math.BigDecimal('0')) > 0}">
-                        <span class="text-muted">Frais de port :</span>
-                        <span th:text="${#numbers.formatCurrency(order.shippingCost)}">0,00 €</span>
-                    </div>
-                    <hr>
-                    <div class="d-flex justify-content-between">
-                        <span class="h6 mb-0">Total TTC :</span>
-                        <span class="h5 mb-0 text-primary fw-bold" th:text="${#numbers.formatCurrency(order.totalAmount)}">0,00 €</span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="mb-1"><i class="fas fa-credit-card me-2"></i>Mode de paiement : <span th:text="${order.paymentMethod ?: 'Non spécifié'}">Non spécifié</span></p>
-                        <p class="mb-0"><i class="fas fa-euro-sign me-2"></i>Statut du paiement :
-                            <span th:switch="${order.paymentStatus}" class="badge rounded-pill">
-                                <span th:case="'PENDING'" class="bg-warning">En attente</span>
-                                <span th:case="'PARTIALLY_PAID'" class="bg-info text-dark">Partiellement payé</span>
-                                <span th:case="'PAID'" class="bg-success">Payé</span>
-                                <span th:case="'OVERDUE'" class="bg-danger">En retard</span>
-                                <span th:case="*" class="bg-secondary">Inconnu</span>
-                            </span>
-                        </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Section des notes (si présentes) -->
+    <div class="row" th:if="${order.notes or order.internalNotes}">
+        <div class="col-12">
+            <div class="section-card">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        <i class="fas fa-sticky-note"></i>
+                        Notes
+                    </h3>
+                </div>
+                <div class="section-content">
+                    <div class="row">
+                        <div class="col-md-6" th:if="${order.notes}">
+                            <h6><i class="fas fa-comment text-primary me-2"></i>Notes client</h6>
+                            <p class="mb-0" th:text="${order.notes}">Notes visibles par le client</p>
+                        </div>
+                        <div class="col-md-6" th:if="${order.internalNotes}">
+                            <h6><i class="fas fa-lock text-warning me-2"></i>Notes internes</h6>
+                            <p class="mb-0" th:text="${order.internalNotes}">Notes internes uniquement</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 
-<script>
-    function printOrder() {
-        window.print();
-    }
+<th:block th:fragment="js_assets">
+    <script>
+        // === FONCTIONS UTILITAIRES ===
+        function printOrder() {
+            // Masquer les boutons d'actions avant l'impression
+            const actionButtons = document.querySelectorAll('.action-buttons');
+            actionButtons.forEach(btn => btn.style.display = 'none');
 
-    function sendByEmail() {
-        alert("Fonctionnalité d'envoi par email à implémenter");
-    }
+            window.print();
 
-    function cancelOrder() {
-        if (confirm("Êtes-vous sûr de vouloir annuler cette commande ?")) {
-            // Implémenter la logique d'annulation
-            alert("Fonctionnalité d'annulation à implémenter");
+            // Réafficher les boutons après l'impression
+            setTimeout(() => {
+                actionButtons.forEach(btn => btn.style.display = '');
+            }, 100);
         }
-    }
-</script>
+
+        function sendByEmail() {
+            const orderNumber = /*[[${order.orderNumber}]]*/ 'CMD-001';
+            const clientEmail = /*[[${order.client.email}]]*/ 'client@example.com';
+
+            if (confirm(`Envoyer la commande ${orderNumber} par email à ${clientEmail} ?`)) {
+                // TODO: Implémenter l'envoi par email
+                alert('Fonctionnalité d\'envoi par email à implémenter');
+            }
+        }
+
+        function duplicateOrder() {
+            const orderId = /*[[${order.id}]]*/ '1';
+            const orderNumber = /*[[${order.orderNumber}]]*/ 'CMD-001';
+
+            if (confirm(`Voulez-vous créer une nouvelle commande basée sur ${orderNumber} ?`)) {
+                window.location.href = `/orders/${orderId}/duplicate`;
+            }
+        }
+
+        function cancelOrder() {
+            const orderNumber = /*[[${order.orderNumber}]]*/ 'CMD-001';
+
+            if (confirm(`Êtes-vous sûr de vouloir annuler la commande ${orderNumber} ?\n\nCette action ne peut pas être annulée.`)) {
+                // TODO: Implémenter l'annulation
+                alert('Fonctionnalité d\'annulation à implémenter');
+            }
+        }
+
+        // === INITIALISATION ===
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page de détail de commande chargée');
+
+            // Animation d'entrée pour les cartes
+            const cards = document.querySelectorAll('.section-card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+        });
+
+        // === STYLES D'IMPRESSION ===
+        const printStyles = `
+        @media print {
+            .action-buttons, .btn-action {
+                display: none !important;
+            }
+            .section-card {
+                break-inside: avoid;
+                box-shadow: none !important;
+                border: 1px solid #dee2e6 !important;
+            }
+            .order-header {
+                background: white !important;
+                color: black !important;
+                border: 2px solid #0d6efd !important;
+            }
+            .order-header * {
+                color: black !important;
+            }
+        }
+    `;
+
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = printStyles;
+        document.head.appendChild(styleSheet);
+    </script>
+</th:block>
+
 </body>
 </html>

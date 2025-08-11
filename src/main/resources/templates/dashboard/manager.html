@@ -438,267 +438,267 @@
 
 <!-- JavaScript avec Chart.js et fonctionnalités avancées -->
 <th:block th:fragment="js_assets">
-<script th:inline="javascript">
-    // Données depuis le serveur
-    const dashboardData = {
-        teamPerformance: /*[[${dashboardData?.revenueByTeamMember ?: {}}]]*/ [],
-        ordersData: /*[[${dashboardData?.ordersByTeamMember ?: {}}]]*/ [],
-        clientsData: /*[[${dashboardData?.clientsByTeamMember ?: {}}]]*/ []
-    };
+    <script th:inline="javascript">
+        // Données depuis le serveur
+        const dashboardData = {
+            teamPerformance: /*[[${dashboardData?.revenueByTeamMember ?: {}}]]*/ [],
+            ordersData: /*[[${dashboardData?.ordersByTeamMember ?: {}}]]*/ [],
+            clientsData: /*[[${dashboardData?.clientsByTeamMember ?: {}}]]*/ []
+        };
 
-    let currentChart = null;
-    let currentDataType = 'revenue';
+        let currentChart = null;
+        let currentDataType = 'revenue';
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialiser le graphique
-        initializeChart();
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser le graphique
+            initializeChart();
 
-        // Initialiser le date range picker
-        initializeDateRangePicker();
+            // Initialiser le date range picker
+            initializeDateRangePicker();
 
-        // Auto-refresh des données toutes les 5 minutes
-        setInterval(refreshData, 300000);
+            // Auto-refresh des données toutes les 5 minutes
+            setInterval(refreshData, 300000);
 
-        console.log('Dashboard Manager initialisé');
-    });
+            console.log('Dashboard Manager initialisé');
+        });
 
-    function initializeChart() {
-        const ctx = document.getElementById('teamPerformanceChart');
-        if (!ctx) return;
+        function initializeChart() {
+            const ctx = document.getElementById('teamPerformanceChart');
+            if (!ctx) return;
 
-        const ctxContext = ctx.getContext('2d');
+            const ctxContext = ctx.getContext('2d');
 
-        // Données par défaut si vides
-        const defaultData = dashboardData.teamPerformance.length > 0 ? dashboardData.teamPerformance : [
-            { name: 'Aucune donnée', revenue: 0, orders: 0, clients: 0 }
-        ];
+            // Données par défaut si vides
+            const defaultData = dashboardData.teamPerformance.length > 0 ? dashboardData.teamPerformance : [
+                { name: 'Aucune donnée', revenue: 0, orders: 0, clients: 0 }
+            ];
 
-        currentChart = new Chart(ctxContext, {
-            type: 'bar',
-            data: {
-                labels: defaultData.map(item => item.name || 'N/A'),
-                datasets: [{
-                    label: 'Chiffre d\'affaires (€)',
-                    data: defaultData.map(item => item.revenue || 0),
-                    backgroundColor: 'rgba(14, 165, 233, 0.8)',
-                    borderColor: 'rgba(14, 165, 233, 1)',
-                    borderWidth: 2,
-                    borderRadius: 4,
-                    borderSkipped: false,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
+            currentChart = new Chart(ctxContext, {
+                type: 'bar',
+                data: {
+                    labels: defaultData.map(item => item.name || 'N/A'),
+                    datasets: [{
+                        label: 'Chiffre d\'affaires (€)',
+                        data: defaultData.map(item => item.revenue || 0),
+                        backgroundColor: 'rgba(14, 165, 233, 0.8)',
                         borderColor: 'rgba(14, 165, 233, 1)',
-                        borderWidth: 1,
-                        callbacks: {
-                            label: function(context) {
-                                if (currentDataType === 'revenue') {
-                                    return 'CA: ' + new Intl.NumberFormat('fr-FR', {
-                                        style: 'currency',
-                                        currency: 'EUR'
-                                    }).format(context.parsed.y);
-                                }
-                                return context.dataset.label + ': ' + context.parsed.y;
-                            }
-                        }
-                    }
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
                         },
-                        ticks: {
-                            callback: function(value) {
-                                if (currentDataType === 'revenue') {
-                                    return new Intl.NumberFormat('fr-FR', {
-                                        style: 'currency',
-                                        currency: 'EUR',
-                                        notation: 'compact'
-                                    }).format(value);
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(14, 165, 233, 1)',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    if (currentDataType === 'revenue') {
+                                        return 'CA: ' + new Intl.NumberFormat('fr-FR', {
+                                            style: 'currency',
+                                            currency: 'EUR'
+                                        }).format(context.parsed.y);
+                                    }
+                                    return context.dataset.label + ': ' + context.parsed.y;
                                 }
-                                return value;
                             }
                         }
                     },
-                    x: {
-                        grid: {
-                            display: false
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    if (currentDataType === 'revenue') {
+                                        return new Intl.NumberFormat('fr-FR', {
+                                            style: 'currency',
+                                            currency: 'EUR',
+                                            notation: 'compact'
+                                        }).format(value);
+                                    }
+                                    return value;
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
                         }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
                     }
-                },
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
-                },
-                animation: {
-                    duration: 1000,
-                    easing: 'easeOutQuart'
                 }
-            }
-        });
-    }
-
-    function switchChart(dataType) {
-        if (!currentChart) return;
-
-        // Mettre à jour les boutons actifs
-        document.querySelectorAll('.card-header .btn-group button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        event.target.classList.add('active');
-
-        currentDataType = dataType;
-        let data, label, color;
-
-        switch(dataType) {
-            case 'revenue':
-                data = dashboardData.teamPerformance.map(item => item.revenue || 0);
-                label = 'Chiffre d\'affaires (€)';
-                color = 'rgba(14, 165, 233, 0.8)';
-                break;
-            case 'orders':
-                data = dashboardData.ordersData.length > 0 ?
-                    dashboardData.ordersData.map(item => item.orders || 0) :
-                    dashboardData.teamPerformance.map(item => item.orders || 0);
-                label = 'Nombre de commandes';
-                color = 'rgba(16, 185, 129, 0.8)';
-                break;
-            case 'clients':
-                data = dashboardData.clientsData.length > 0 ?
-                    dashboardData.clientsData.map(item => item.clients || 0) :
-                    dashboardData.teamPerformance.map(item => item.clients || 0);
-                label = 'Nombre de clients';
-                color = 'rgba(6, 182, 212, 0.8)';
-                break;
+            });
         }
 
-        currentChart.data.datasets[0].data = data;
-        currentChart.data.datasets[0].label = label;
-        currentChart.data.datasets[0].backgroundColor = color;
-        currentChart.data.datasets[0].borderColor = color.replace('0.8', '1');
+        function switchChart(dataType) {
+            if (!currentChart) return;
 
-        currentChart.update('active');
-    }
+            // Mettre à jour les boutons actifs
+            document.querySelectorAll('.card-header .btn-group button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
 
-    function initializeDateRangePicker() {
-        $('#dateRangePicker').daterangepicker({
-            locale: {
-                format: 'DD/MM/YYYY',
-                separator: ' - ',
-                applyLabel: 'Appliquer',
-                cancelLabel: 'Annuler',
-                fromLabel: 'De',
-                toLabel: 'À',
-                customRangeLabel: 'Personnalisé',
-                weekLabel: 'S',
-                daysOfWeek: ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'],
-                monthNames: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
-                firstDay: 1
-            },
-            ranges: {
-                'Aujourd\'hui': [moment(), moment()],
-                'Hier': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
-                '7 derniers jours': [moment().subtract(6, 'days'), moment()],
-                '30 derniers jours': [moment().subtract(29, 'days'), moment()],
-                'Ce mois': [moment().startOf('month'), moment().endOf('month')],
-                'Mois dernier': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            currentDataType = dataType;
+            let data, label, color;
+
+            switch(dataType) {
+                case 'revenue':
+                    data = dashboardData.teamPerformance.map(item => item.revenue || 0);
+                    label = 'Chiffre d\'affaires (€)';
+                    color = 'rgba(14, 165, 233, 0.8)';
+                    break;
+                case 'orders':
+                    data = dashboardData.ordersData.length > 0 ?
+                        dashboardData.ordersData.map(item => item.orders || 0) :
+                        dashboardData.teamPerformance.map(item => item.orders || 0);
+                    label = 'Nombre de commandes';
+                    color = 'rgba(16, 185, 129, 0.8)';
+                    break;
+                case 'clients':
+                    data = dashboardData.clientsData.length > 0 ?
+                        dashboardData.clientsData.map(item => item.clients || 0) :
+                        dashboardData.teamPerformance.map(item => item.clients || 0);
+                    label = 'Nombre de clients';
+                    color = 'rgba(6, 182, 212, 0.8)';
+                    break;
             }
-        }, function(start, end, label) {
-            console.log('Nouvelle période sélectionnée: ' + start.format('YYYY-MM-DD') + ' to ' + end.format('YYYY-MM-DD'));
-            // Rediriger avec les nouvelles dates
-            window.location.href = `/dashboard?startDate=${start.format('YYYY-MM-DD')}&endDate=${end.format('YYYY-MM-DD')}`;
-        });
-    }
 
-    // Fonctions d'actions
-    function refreshData() {
-        showLoader();
-        setTimeout(() => {
-            location.reload();
-        }, 1000);
-    }
+            currentChart.data.datasets[0].data = data;
+            currentChart.data.datasets[0].label = label;
+            currentChart.data.datasets[0].backgroundColor = color;
+            currentChart.data.datasets[0].borderColor = color.replace('0.8', '1');
 
-    function exportReport() {
-        showNotification('Export en cours...', 'info');
-        window.open('/manager/export-report?format=excel', '_blank');
-    }
-
-    function exportTable() {
-        showNotification('Export Excel en cours...', 'info');
-        window.open('/manager/export-performance?format=excel', '_blank');
-    }
-
-    function printTable() {
-        window.print();
-    }
-
-    function manageTeam() {
-        window.location.href = '/manager/team';
-    }
-
-    function viewMemberDetails(memberId) {
-        window.location.href = `/users/${memberId}`;
-    }
-
-    function contactMember(email) {
-        window.location.href = `mailto:${email}?subject=Suivi commercial`;
-    }
-
-    function viewDetails(userId) {
-        window.location.href = `/manager/member-details/${userId}`;
-    }
-
-    function setObjective(userId) {
-        // Ouvrir une modal ou rediriger vers la page d'objectifs
-        window.location.href = `/manager/set-objective/${userId}`;
-    }
-
-    function showLoader() {
-        const loader = document.getElementById('chartLoader');
-        if (loader) {
-            loader.style.display = 'block';
+            currentChart.update('active');
         }
-    }
 
-    function showNotification(message, type = 'info') {
-        const alertClass = {
-            'success': 'alert-success',
-            'error': 'alert-danger',
-            'warning': 'alert-warning',
-            'info': 'alert-info'
-        }[type] || 'alert-info';
+        function initializeDateRangePicker() {
+            $('#dateRangePicker').daterangepicker({
+                locale: {
+                    format: 'DD/MM/YYYY',
+                    separator: ' - ',
+                    applyLabel: 'Appliquer',
+                    cancelLabel: 'Annuler',
+                    fromLabel: 'De',
+                    toLabel: 'À',
+                    customRangeLabel: 'Personnalisé',
+                    weekLabel: 'S',
+                    daysOfWeek: ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'],
+                    monthNames: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+                    firstDay: 1
+                },
+                ranges: {
+                    'Aujourd\'hui': [moment(), moment()],
+                    'Hier': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                    '7 derniers jours': [moment().subtract(6, 'days'), moment()],
+                    '30 derniers jours': [moment().subtract(29, 'days'), moment()],
+                    'Ce mois': [moment().startOf('month'), moment().endOf('month')],
+                    'Mois dernier': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                }
+            }, function(start, end, label) {
+                console.log('Nouvelle période sélectionnée: ' + start.format('YYYY-MM-DD') + ' to ' + end.format('YYYY-MM-DD'));
+                // Rediriger avec les nouvelles dates
+                window.location.href = `/dashboard?startDate=${start.format('YYYY-MM-DD')}&endDate=${end.format('YYYY-MM-DD')}`;
+            });
+        }
 
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
-        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
-        alertDiv.innerHTML = `
+        // Fonctions d'actions
+        function refreshData() {
+            showLoader();
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+
+        function exportReport() {
+            showNotification('Export en cours...', 'info');
+            window.open('/manager/export-report?format=excel', '_blank');
+        }
+
+        function exportTable() {
+            showNotification('Export Excel en cours...', 'info');
+            window.open('/manager/export-performance?format=excel', '_blank');
+        }
+
+        function printTable() {
+            window.print();
+        }
+
+        function manageTeam() {
+            window.location.href = '/manager/team';
+        }
+
+        function viewMemberDetails(memberId) {
+            window.location.href = `/users/${memberId}`;
+        }
+
+        function contactMember(email) {
+            window.location.href = `mailto:${email}?subject=Suivi commercial`;
+        }
+
+        function viewDetails(userId) {
+            window.location.href = `/manager/member-details/${userId}`;
+        }
+
+        function setObjective(userId) {
+            // Ouvrir une modal ou rediriger vers la page d'objectifs
+            window.location.href = `/manager/set-objective/${userId}`;
+        }
+
+        function showLoader() {
+            const loader = document.getElementById('chartLoader');
+            if (loader) {
+                loader.style.display = 'block';
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const alertClass = {
+                'success': 'alert-success',
+                'error': 'alert-danger',
+                'warning': 'alert-warning',
+                'info': 'alert-info'
+            }[type] || 'alert-info';
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+            alertDiv.innerHTML = `
             <i class="fas fa-info-circle me-2"></i>${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
 
-        document.body.appendChild(alertDiv);
+            document.body.appendChild(alertDiv);
 
-        setTimeout(() => {
-            if (alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
-    }
-</script>
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
 </th:block>
 
 </body>

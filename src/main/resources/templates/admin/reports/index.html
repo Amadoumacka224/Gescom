@@ -350,74 +350,74 @@
 
 <!-- Scripts pour les graphiques -->
 <th:block th:fragment="js_assets">
-<script th:inline="javascript">
-    document.addEventListener('DOMContentLoaded', function() {
-        // Données des rapports
-        const salesData = /*[[${salesReport.dailyRevenue}]]*/ {};
-        const commercialData = /*[[${commercialReport.topCommercials}]]*/ [];
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            // Données des rapports
+            const salesData = /*[[${salesReport.dailyRevenue}]]*/ {};
+            const commercialData = /*[[${commercialReport.topCommercials}]]*/ [];
 
-        // Graphique de tendance des ventes
-        const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');
-        new Chart(salesTrendCtx, {
-            type: 'line',
-            data: {
-                labels: Object.keys(salesData),
-                datasets: [{
-                    data: Object.values(salesData),
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    tension: 0.1,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { display: false },
-                    y: { display: false }
+            // Graphique de tendance des ventes
+            const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');
+            new Chart(salesTrendCtx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(salesData),
+                    datasets: [{
+                        data: Object.values(salesData),
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    }
                 }
-            }
-        });
+            });
 
-        // Graphique commercial
-        const commercialCtx = document.getElementById('commercialChart').getContext('2d');
-        new Chart(commercialCtx, {
-            type: 'doughnut',
-            data: {
-                labels: commercialData.map(c => c.commercial.firstName),
-                datasets: [{
-                    data: commercialData.map(c => c.revenue),
-                    backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1']
-                }]
-            },
-            options: {
-                responsive: false,
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-
-        // Graphique type de clients
-        const clientTypeCtx = document.getElementById('clientTypeChart').getContext('2d');
-        new Chart(clientTypeCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Entreprises', 'Particuliers'],
-                datasets: [{
-                    data: [/*[[${clientReport.companies}]]*/ 0, /*[[${clientReport.individuals}]]*/ 0],
-                    backgroundColor: ['#17a2b8', '#6c757d']
-                }]
-            },
-            options: {
-                responsive: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true }
+            // Graphique commercial
+            const commercialCtx = document.getElementById('commercialChart').getContext('2d');
+            new Chart(commercialCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: commercialData.map(c => c.commercial.firstName),
+                    datasets: [{
+                        data: commercialData.map(c => c.revenue),
+                        backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1']
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: { legend: { position: 'bottom' } }
                 }
-            }
+            });
+
+            // Graphique type de clients
+            const clientTypeCtx = document.getElementById('clientTypeChart').getContext('2d');
+            new Chart(clientTypeCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Entreprises', 'Particuliers'],
+                    datasets: [{
+                        data: [/*[[${clientReport.companies}]]*/ 0, /*[[${clientReport.individuals}]]*/ 0],
+                        backgroundColor: ['#17a2b8', '#6c757d']
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
         });
-    });
-</script>
+    </script>
 </th:block>
 </body>
 </html>

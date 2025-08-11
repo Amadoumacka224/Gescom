@@ -5,68 +5,87 @@
 </head>
 <body>
 <div th:fragment="content">
-    <!-- En-tête avec boutons d'action -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1><i class="fas fa-box me-2"></i>Gestion des Produits</h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                    <li class="breadcrumb-item active">Produits</li>
-                </ol>
-            </nav>
-        </div>
-        <div th:if="${canCreate}">
-            <a th:href="@{/products/new}" class="btn btn-primary">
+    <!-- Page Header -->
+    <div th:replace="~{fragments/components :: page-header(
+        'Gestion des Produits',
+        'Gérez votre catalogue de produits',
+        ~{::header-actions})}">
+        <div th:fragment="header-actions">
+            <a th:if="${canCreate}" th:href="@{/products/new}" class="btn btn-primary">
                 <i class="fas fa-plus me-2"></i>Nouveau Produit
             </a>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-2"></i>Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#">
+                        <i class="fas fa-file-excel me-2"></i>Export Excel
+                    </a></li>
+                    <li><a class="dropdown-item" href="#">
+                        <i class="fas fa-file-pdf me-2"></i>Export PDF
+                    </a></li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <!-- Statistiques rapides -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-primary">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-primary">Total Produits</h5>
-                    <h2 th:text="${totalProducts}" class="text-primary">0</h2>
-                </div>
-            </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${totalProducts},
+                'Total Produits',
+                null,
+                null,
+                'fas fa-box',
+                'primary')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-success">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-success">Produits Actifs</h5>
-                    <h2 th:text="${activeProducts}" class="text-success">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${activeProducts},
+                'Produits Actifs',
+                null,
+                null,
+                'fas fa-check-circle',
+                'success')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-warning">Stock Bas</h5>
-                    <h2 th:text="${lowStockProducts}" class="text-warning">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${lowStockProducts},
+                'Stock Bas',
+                null,
+                null,
+                'fas fa-exclamation-triangle',
+                'warning')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-info">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-info">Valeur Stock</h5>
-                    <h2 th:text="${#numbers.formatCurrency(totalStockValue)}" class="text-info">€0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${#numbers.formatCurrency(totalStockValue)},
+                'Valeur Stock',
+                null,
+                null,
+                'fas fa-euro-sign',
+                'info')}"></div>
         </div>
     </div>
 
     <!-- Filtres et recherche -->
     <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres et recherche</h5>
+        </div>
         <div class="card-body">
             <form th:action="@{/products}" method="get" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="search" class="form-label">Rechercher</label>
-                    <input type="text" class="form-control" id="search" name="search"
-                           th:value="${search}" placeholder="Nom, référence, description...">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="search" name="search"
+                               th:value="${search}" placeholder="Nom, référence, description...">
+                    </div>
                 </div>
                 <div class="col-md-2">
                     <label for="category" class="form-label">Catégorie</label>
@@ -93,12 +112,12 @@
                         <option value="50" th:selected="${size == 50}">50</option>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-outline-primary me-2">
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">
                         <i class="fas fa-search me-1"></i>Filtrer
                     </button>
-                    <a th:href="@{/products}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times me-1"></i>Reset
+                    <a th:href="@{/products}" class="btn btn-outline-secondary" title="Réinitialiser">
+                        <i class="fas fa-undo"></i>
                     </a>
                 </div>
                 <!-- Champs cachés pour maintenir le tri -->
@@ -110,8 +129,19 @@
 
     <!-- Table des produits -->
     <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Liste des Produits</h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Liste des Produits</h5>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-dark" th:text="${#lists.size(products)} + ' résultat(s)'">0 résultat(s)</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" title="Vue tableau">
+                        <i class="fas fa-table"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" title="Vue carte">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                </div>
+            </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -152,23 +182,32 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="product : ${products}">
+                    <tr th:each="product : ${products}" class="align-middle">
                         <td>
-                            <div>
-                                <strong th:text="${product.name}">Nom Produit</strong>
-                                <br>
-                                <small th:if="${product.description}"
-                                       th:text="${#strings.abbreviate(product.description, 50)}"
-                                       class="text-muted">Description</small>
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                        <i class="fas fa-box text-primary"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <strong th:text="${product.name}">Nom Produit</strong>
+                                    <br>
+                                    <small th:if="${product.description}"
+                                           th:text="${#strings.abbreviate(product.description, 50)}"
+                                           class="text-muted">Description</small>
+                                    <small th:unless="${product.description}"
+                                           class="text-muted" th:text="'#' + ${product.id}">#123</small>
+                                </div>
                             </div>
                         </td>
                         <td>
                             <code th:text="${product.reference}">REF-001</code>
                         </td>
                         <td>
-                                <span th:if="${product.category}"
-                                      th:text="${product.category}"
-                                      class="badge bg-secondary">Catégorie</span>
+                            <span th:if="${product.category}"
+                                  th:text="${product.category}"
+                                  class="badge bg-secondary rounded-pill">Catégorie</span>
                             <span th:unless="${product.category}"
                                   class="text-muted">Non définie</span>
                         </td>
@@ -183,8 +222,8 @@
                         </td>
                         <td>
                             <div>
-                                    <span th:text="${product.stock}"
-                                          th:class="${product.stock != null and product.minStock != null and product.stock <= product.minStock} ? 'badge bg-warning' : 'badge bg-success'">0</span>
+                                <span th:text="${product.stock}"
+                                      th:class="${product.stock != null and product.minStock != null and product.stock <= product.minStock} ? 'badge bg-warning rounded-pill' : 'badge bg-success rounded-pill'">0</span>
                                 <span th:text="${product.unit ?: 'pcs'}">pcs</span>
                                 <br>
                                 <small th:if="${product.minStock}"
@@ -193,55 +232,62 @@
                             </div>
                         </td>
                         <td>
-                                <span th:if="${product.isActive == true}"
-                                      class="badge bg-success">Actif</span>
+                            <span th:if="${product.isActive == true}"
+                                  class="badge bg-success rounded-pill">Actif</span>
                             <span th:if="${product.isActive == false}"
-                                  class="badge bg-secondary">Inactif</span>
+                                  class="badge bg-secondary rounded-pill">Inactif</span>
                         </td>
                         <td>
-                            <div class="btn-group" role="group">
-                                <a th:href="@{/products/{id}(id=${product.id})}"
-                                   class="btn btn-sm btn-outline-info" title="Voir">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a th:if="${canEdit}"
-                                   th:href="@{/products/{id}/edit(id=${product.id})}"
-                                   class="btn btn-sm btn-outline-primary" title="Modifier">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button th:if="${canEdit}"
-                                        type="button"
-                                        class="btn btn-sm btn-outline-success"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#stockModal' + ${product.id}"
-                                        title="Ajuster stock">
-                                    <i class="fas fa-boxes"></i>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-ellipsis-v"></i>
                                 </button>
-                                <form th:if="${canEdit}"
-                                      th:action="@{/products/{id}/toggle-status(id=${product.id})}"
-                                      method="post"
-                                      class="d-inline">
-                                    <button type="submit"
-                                            th:class="${product.isActive} ? 'btn btn-sm btn-outline-warning' : 'btn btn-sm btn-outline-success'"
-                                            th:title="${product.isActive} ? 'Désactiver' : 'Activer'">
-                                        <i th:class="${product.isActive} ? 'fas fa-toggle-on' : 'fas fa-toggle-off'"></i>
-                                    </button>
-                                </form>
-                                <button th:if="${canDelete}"
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#deleteModal' + ${product.id}"
-                                        title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item" th:href="@{/products/{id}(id=${product.id})}">
+                                            <i class="fas fa-eye me-2 text-info"></i>Voir détails
+                                        </a>
+                                    </li>
+                                    <li th:if="${canEdit}">
+                                        <a class="dropdown-item" th:href="@{/products/{id}/edit(id=${product.id})}">
+                                            <i class="fas fa-edit me-2 text-primary"></i>Modifier
+                                        </a>
+                                    </li>
+                                    <li th:if="${canEdit}">
+                                        <a class="dropdown-item" href="#" data-bs-toggle="modal" th:data-bs-target="'#stockModal' + ${product.id}">
+                                            <i class="fas fa-boxes me-2 text-success"></i>Ajuster stock
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li th:if="${canEdit}">
+                                        <a class="dropdown-item" href="#" onclick="toggleProductStatus(this)" th:data-product-id="${product.id}" th:data-active="${product.isActive}">
+                                            <i th:class="${product.isActive} ? 'fas fa-toggle-off me-2 text-warning' : 'fas fa-toggle-on me-2 text-success'"></i>
+                                            <span th:text="${product.isActive} ? 'Désactiver' : 'Activer'">Changer statut</span>
+                                        </a>
+                                    </li>
+                                    <li th:if="${canDelete}"><hr class="dropdown-divider"></li>
+                                    <li th:if="${canDelete}">
+                                        <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" th:data-bs-target="'#deleteModal' + ${product.id}">
+                                            <i class="fas fa-trash me-2"></i>Supprimer
+                                        </a>
+                                    </li>
+                                </ul>
                             </div>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(products)}">
-                        <td colspan="7" class="text-center text-muted py-4">
-                            <i class="fas fa-box fa-3x mb-3"></i>
-                            <br>Aucun produit trouvé
+                        <td colspan="7" class="text-center py-5">
+                            <div th:replace="~{fragments/components :: empty-state(
+                                'fas fa-box',
+                                'Aucun produit',
+                                'Aucun produit ne correspond à vos critères de recherche.',
+                                ~{::empty-action})}">
+                                <div th:fragment="empty-action" th:if="${canCreate}">
+                                    <a th:href="@{/products/new}" class="btn btn-primary">
+                                        <i class="fas fa-plus me-2"></i>Créer un produit
+                                    </a>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                     </tbody>
@@ -249,33 +295,14 @@
             </div>
 
             <!-- Pagination -->
-            <nav th:if="${totalPages > 1}" aria-label="Navigation produits">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/products(page=${currentPage - 1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, category=${selectedCategory}, lowStock=${lowStockFilter})}"
-                            aria-label="Précédent">
-                             <span aria-hidden="true">&laquo;</span>
-                             <span class="visually-hidden">Précédent</span>
-                        </a>
-                    </li>
-
-                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
-                        class="page-item"
-                        th:classappend="${i == currentPage} ? 'active'">
-                        <a class="page-link"
-                           th:text="${i+1}"
-                           th:href="@{/products(page=${i}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, category=${selectedCategory}, lowStock=${lowStockFilter})}">1</a>
-                    </li>
-
-                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/products(page=${currentPage+1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, category=${selectedCategory}, lowStock=${lowStockFilter})}">
-                            Suivant
-                        </a>
-                    </li>
-                </ul>
-            </nav>
+            <div th:if="${totalPages > 1}" th:replace="~{fragments/components :: pagination(
+                ${currentPage},
+                ${totalPages},
+                '/products?size=' + ${size} + '&sortBy=' + ${sortBy} + '&sortDir=' + ${sortDir} +
+                (${search} != null ? '&search=' + ${search} : '') +
+                (${selectedCategory} != null ? '&category=' + ${selectedCategory} : '') +
+                (${lowStockFilter} != null ? '&lowStock=' + ${lowStockFilter} : '')
+            )}"></div>
         </div>
     </div>
 

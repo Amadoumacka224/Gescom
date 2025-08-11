@@ -1,6 +1,5 @@
 package com.gescom.service;
 
-// src/main/java/com/company/commercial/service/UserDetailsServiceImpl.java
 
 import com.gescom.entity.User;
 import com.gescom.repository.UserRepository;

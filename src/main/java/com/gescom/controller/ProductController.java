@@ -1,5 +1,7 @@
 package com.gescom.controller;
 
+
+
 import com.gescom.entity.Product;
 import com.gescom.entity.User;
 import com.gescom.repository.ProductRepository;
@@ -157,6 +159,9 @@ public class ProductController {
 
         return "products/list";
     }
+
+
+
 
     @GetMapping("/new")
     public String newProduct(Model model) {
