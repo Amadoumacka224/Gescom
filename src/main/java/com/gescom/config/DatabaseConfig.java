@@ -1,5 +1,18 @@
 package com.gescom.config;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 import com.gescom.entity.*;
 import com.gescom.repository.*;
 import org.slf4j.Logger;
@@ -357,7 +370,7 @@ public class DatabaseConfig {
                     item.setProduct(product);
                     item.setQuantity(random.nextInt(10) + 1);
                     item.setUnitPrice(product.getUnitPrice());
-                   // item.setVatRate(product.getVatRate() != null ? product.getVatRate() : BigDecimal.valueOf(20.0));
+                    // item.setVatRate(product.getVatRate() != null ? product.getVatRate() : BigDecimal.valueOf(20.0));
 
                     // Remise aléatoire parfois
                     if (random.nextBoolean() && random.nextDouble() < 0.3) {
@@ -469,7 +482,7 @@ public class DatabaseConfig {
         product.setCategory(category);
         product.setBrand(brand);
         product.setUnit(unit);
-       // product.setVatRate(BigDecimal.valueOf(20.0));
+        // product.setVatRate(BigDecimal.valueOf(20.0));
         product.setIsActive(true);
         product.setBarCode("BC" + reference);
 

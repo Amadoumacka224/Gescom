@@ -14,53 +14,115 @@
 
     <!-- Contenu principal si le produit existe -->
     <div th:if="${product != null}">
-        <!-- En-tête -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h1>
-                    <i class="fas fa-box me-2"></i>
-                    <span th:text="${product.name ?: 'Nom non défini'}">Nom du Produit</span>
-                    <span class="badge ms-2"
-                          th:class="'badge ' + (${product.isActive != null && product.isActive} ? 'bg-success' : 'bg-secondary')"
-                          th:text="${product.isActive != null && product.isActive} ? 'Actif' : 'Inactif'">Statut</span>
-                    <span class="badge bg-primary ms-1" th:if="${product.isFeatured != null && product.isFeatured}">
-                        <i class="fas fa-star me-1"></i>Mis en avant
-                    </span>
-                </h1>
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb">
-                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a th:href="@{/products}">Produits</a></li>
-                        <li class="breadcrumb-item active" th:text="${product.reference ?: 'Sans référence'}">Référence</li>
-                    </ol>
-                </nav>
-            </div>
-            <div class="btn-group">
+        <!-- Page Header -->
+        <div th:replace="~{fragments/components :: page-header(
+            'Produit ' + ${product.name},
+            'Détails et informations du produit',
+            ~{::header-actions})}">
+            <div th:fragment="header-actions" class="action-buttons">
                 <a th:href="@{/products}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+                    <i class="fas fa-arrow-left"></i>
+                    Retour à la liste
                 </a>
-                <a th:href="@{'/products/edit/' + ${product.id}}" class="btn btn-primary">
-                    <i class="fas fa-edit me-2"></i>Modifier
-                </a>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                        <i class="fas fa-ellipsis-v"></i>
+                <button type="button" class="btn btn-outline-primary" onclick="printProduct()">
+                    <i class="fas fa-print"></i>
+                    Imprimer
+                </button>
+                <button type="button" class="btn btn-outline-info" onclick="exportProduct()">
+                    <i class="fas fa-download"></i>
+                    Exporter
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-cogs"></i>
+                        Actions
                     </button>
-                    <ul class="dropdown-menu">
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" th:href="@{/products/{id}/edit(id=${product.id})}">
+                            <i class="fas fa-edit me-2"></i>Modifier
+                        </a></li>
                         <li><a class="dropdown-item" th:href="@{'/products/duplicate/' + ${product.id}}">
                             <i class="fas fa-copy me-2"></i>Dupliquer
                         </a></li>
-                        <li><a class="dropdown-item" href="#" onclick="printProduct()">
-                            <i class="fas fa-print me-2"></i>Imprimer
-                        </a></li>
-                        <li><a class="dropdown-item" href="#" onclick="exportProduct()">
-                            <i class="fas fa-download me-2"></i>Exporter
-                        </a></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="adjustStock()">
+                            <i class="fas fa-boxes me-2"></i>Ajuster stock
+                        </a></li>
                         <li><a class="dropdown-item text-danger" href="#" onclick="deleteProduct()">
-                            <i class="fas fa-trash me-2"></i>Supprimer
+                            <i class="fas fa-ban me-2"></i>Supprimer
                         </a></li>
                     </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Summary -->
+        <div class="order-header">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center mb-3">
+                        <h2 class="mb-0 me-3" th:text="${product.name}">Nom Produit</h2>
+                        <span th:switch="${product.isActive}" class="status-badge">
+                            <span th:case="true" class="badge bg-success">Actif</span>
+                            <span th:case="false" class="badge bg-secondary">Inactif</span>
+                            <span th:case="*" class="badge bg-secondary">Inconnu</span>
+                        </span>
+                        <span class="badge bg-primary ms-2" th:if="${product.isFeatured != null && product.isFeatured}">
+                            <i class="fas fa-star me-1"></i>Mis en avant
+                        </span>
+                        <span class="badge bg-warning ms-1" th:if="${product.lowStock}">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Stock bas
+                        </span>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6" th:if="${product.reference}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-barcode me-2 text-primary"></i>
+                                <span>Référence</span>
+                            </div>
+                            <div class="fw-semibold">
+                                <code th:text="${product.reference}">REF-001</code>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" th:if="${product.category}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-tags me-2 text-primary"></i>
+                                <span>Catégorie</span>
+                            </div>
+                            <div class="fw-semibold" th:text="${product.category}">Électronique</div>
+                        </div>
+
+                        <div class="col-md-6" th:if="${product.unitPrice}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-euro-sign me-2 text-primary"></i>
+                                <span>Prix unitaire</span>
+                            </div>
+                            <div class="fw-semibold" th:text="${#numbers.formatCurrency(product.unitPrice)}">€99.99</div>
+                        </div>
+
+                        <div class="col-md-6" th:if="${product.stock != null}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-warehouse me-2 text-primary"></i>
+                                <span>Stock</span>
+                            </div>
+                            <div class="fw-semibold">
+                                <span th:text="${product.stock}" th:class="${product.lowStock} ? 'text-warning' : 'text-success'">150</span>
+                                <span th:text="${product.unit ?: 'pièce'}">pièce</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 text-center">
+                    <div class="qr-placeholder">
+                        <i class="fas fa-box fa-4x text-muted mb-3"></i>
+                        <div class="small text-muted">Fiche produit</div>
+                        <button class="btn btn-outline-primary btn-sm mt-2">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -69,7 +131,7 @@
             <!-- Colonne principale -->
             <div class="col-lg-8">
                 <!-- Informations générales -->
-                <div class="card mb-4">
+                <div class="section-card card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations Générales</h5>
                     </div>
@@ -102,7 +164,7 @@
                 </div>
 
                 <!-- Prix et Stock -->
-                <div class="card mb-4">
+                <div class="section-card card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-euro-sign me-2"></i>Prix et Stock</h5>
                     </div>
@@ -177,7 +239,7 @@
                 </div>
 
                 <!-- Notes -->
-                <div class="card mb-4" th:if="${product.notes != null and #strings.length(product.notes) > 0}">
+                <div class="section-card card mb-4" th:if="${product.notes != null and #strings.length(product.notes) > 0}">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h5>
                     </div>
@@ -190,7 +252,7 @@
             <!-- Colonne latérale -->
             <div class="col-lg-4">
                 <!-- Image du produit -->
-                <div class="card mb-4">
+                <div class="section-card card mb-4">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-image me-2"></i>Image du Produit</h6>
                     </div>
@@ -237,7 +299,7 @@
                 </div>
 
                 <!-- Actions rapides -->
-                <div class="card mb-4">
+                <div class="section-card card mb-4">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions Rapides</h6>
                     </div>
@@ -263,7 +325,7 @@
                 </div>
 
                 <!-- Informations système -->
-                <div class="card">
+                <div class="section-card card">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-info me-2"></i>Informations Système</h6>
                     </div>
@@ -339,10 +401,10 @@
                     <div class="mb-3">
                         <label class="form-label">Type d'ajustement</label>
                         <label for="adjustmentType"></label><select class="form-select" id="adjustmentType">
-                            <option value="add">Ajouter au stock</option>
-                            <option value="remove">Retirer du stock</option>
-                            <option value="set">Définir le stock exact</option>
-                        </select>
+                        <option value="add">Ajouter au stock</option>
+                        <option value="remove">Retirer du stock</option>
+                        <option value="set">Définir le stock exact</option>
+                    </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Quantité</label>
@@ -398,155 +460,155 @@
 <!-- JavaScript -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-    // Fonctions pour la gestion des images
-    function openImageModal(imageSrc) {
-        try {
-            if (!imageSrc || imageSrc.trim() === '') {
-                console.error('URL d\'image vide ou invalide');
-                return;
-            }
+        // Fonctions pour la gestion des images
+        function openImageModal(imageSrc) {
+            try {
+                if (!imageSrc || imageSrc.trim() === '') {
+                    console.error('URL d\'image vide ou invalide');
+                    return;
+                }
 
+                const modal = document.getElementById('imageModal');
+                const modalImage = document.getElementById('modalImage');
+                const modalTitle = modal.querySelector('.modal-title');
+
+                if (!modal || !modalImage) {
+                    console.error('Éléments de la modal introuvables');
+                    return;
+                }
+
+                const productName = document.querySelector('h1 span').textContent || 'Produit';
+                modalTitle.textContent = `Image - ${productName}`;
+
+                modalImage.src = imageSrc;
+                modalImage.alt = `Image de ${productName}`;
+
+                const bootstrapModal = new bootstrap.Modal(modal);
+                bootstrapModal.show();
+
+            } catch (error) {
+                console.error('Erreur dans openImageModal:', error);
+            }
+        }
+
+        function showImageError() {
+            const container = document.getElementById('productImageContainer');
+            const errorDiv = document.getElementById('imageError');
+            if (container && errorDiv) {
+                container.style.display = 'none';
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function downloadImage() {
+            try {
+                const modalImage = document.getElementById('modalImage');
+                const productName = document.querySelector('h1 span').textContent || 'produit';
+
+                if (!modalImage || !modalImage.src) {
+                    alert('Aucune image à télécharger');
+                    return;
+                }
+
+                const link = document.createElement('a');
+                link.href = modalImage.src;
+                link.download = productName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.jpg';
+                link.style.display = 'none';
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+            } catch (error) {
+                console.error('Erreur lors du téléchargement:', error);
+                alert('Erreur lors du téléchargement');
+            }
+        }
+
+        function toggleFullscreen() {
             const modal = document.getElementById('imageModal');
-            const modalImage = document.getElementById('modalImage');
-            const modalTitle = modal.querySelector('.modal-title');
+            const modalDialog = modal.querySelector('.modal-dialog');
+            const fullscreenBtn = modal.querySelector('[onclick="toggleFullscreen()"]');
 
-            if (!modal || !modalImage) {
-                console.error('Éléments de la modal introuvables');
-                return;
+            if (modalDialog.classList.contains('modal-fullscreen')) {
+                modalDialog.classList.remove('modal-fullscreen');
+                modalDialog.classList.add('modal-lg');
+                fullscreenBtn.innerHTML = '<i class="fas fa-expand me-2"></i>Plein écran';
+            } else {
+                modalDialog.classList.remove('modal-lg');
+                modalDialog.classList.add('modal-fullscreen');
+                fullscreenBtn.innerHTML = '<i class="fas fa-compress me-2"></i>Réduire';
             }
-
-            const productName = document.querySelector('h1 span').textContent || 'Produit';
-            modalTitle.textContent = `Image - ${productName}`;
-
-            modalImage.src = imageSrc;
-            modalImage.alt = `Image de ${productName}`;
-
-            const bootstrapModal = new bootstrap.Modal(modal);
-            bootstrapModal.show();
-
-        } catch (error) {
-            console.error('Erreur dans openImageModal:', error);
         }
-    }
 
-    function showImageError() {
-        const container = document.getElementById('productImageContainer');
-        const errorDiv = document.getElementById('imageError');
-        if (container && errorDiv) {
-            container.style.display = 'none';
-            errorDiv.style.display = 'block';
-        }
-    }
-
-    function downloadImage() {
-        try {
-            const modalImage = document.getElementById('modalImage');
-            const productName = document.querySelector('h1 span').textContent || 'produit';
-
-            if (!modalImage || !modalImage.src) {
-                alert('Aucune image à télécharger');
-                return;
+        // Fonction pour changer l'image
+        function changeImage() {
+            const newImageUrl = prompt('Nouvelle URL d\'image:', '');
+            if (newImageUrl && newImageUrl.trim() !== '') {
+                console.log('Nouvelle URL d\'image:', newImageUrl.trim());
+                // Ici, vous implémenteriez la sauvegarde via AJAX
+                alert('Fonctionnalité à implémenter côté serveur');
             }
-
-            const link = document.createElement('a');
-            link.href = modalImage.src;
-            link.download = productName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.jpg';
-            link.style.display = 'none';
-
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-        } catch (error) {
-            console.error('Erreur lors du téléchargement:', error);
-            alert('Erreur lors du téléchargement');
         }
-    }
 
-    function toggleFullscreen() {
-        const modal = document.getElementById('imageModal');
-        const modalDialog = modal.querySelector('.modal-dialog');
-        const fullscreenBtn = modal.querySelector('[onclick="toggleFullscreen()"]');
-
-        if (modalDialog.classList.contains('modal-fullscreen')) {
-            modalDialog.classList.remove('modal-fullscreen');
-            modalDialog.classList.add('modal-lg');
-            fullscreenBtn.innerHTML = '<i class="fas fa-expand me-2"></i>Plein écran';
-        } else {
-            modalDialog.classList.remove('modal-lg');
-            modalDialog.classList.add('modal-fullscreen');
-            fullscreenBtn.innerHTML = '<i class="fas fa-compress me-2"></i>Réduire';
+        // Fonctions pour les actions
+        function deleteProduct() {
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
         }
-    }
 
-    // Fonction pour changer l'image
-    function changeImage() {
-        const newImageUrl = prompt('Nouvelle URL d\'image:', '');
-        if (newImageUrl && newImageUrl.trim() !== '') {
-            console.log('Nouvelle URL d\'image:', newImageUrl.trim());
-            // Ici, vous implémenteriez la sauvegarde via AJAX
-            alert('Fonctionnalité à implémenter côté serveur');
+        function confirmDelete() {
+            const productId = window.location.pathname.split('/').pop();
+            window.location.href = `/products/delete/${productId}`;
         }
-    }
 
-    // Fonctions pour les actions
-    function deleteProduct() {
-        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        deleteModal.show();
-    }
-
-    function confirmDelete() {
-        const productId = window.location.pathname.split('/').pop();
-        window.location.href = `/products/delete/${productId}`;
-    }
-
-    function adjustStock() {
-        const stockModal = new bootstrap.Modal(document.getElementById('stockModal'));
-        stockModal.show();
-    }
-
-    function saveStockAdjustment() {
-        const form = document.getElementById('stockForm');
-        const formData = new FormData(form);
-
-        console.log('Ajustement de stock:', Object.fromEntries(formData));
-
-        bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
-        alert('Ajustement de stock enregistré (fonctionnalité à implémenter)');
-    }
-
-    function createOrder() {
-        const productId = window.location.pathname.split('/').pop();
-        window.location.href = `/orders/new?productId=${productId}`;
-    }
-
-    function updatePrice() {
-        const currentPrice = prompt('Nouveau prix unitaire (€):', '0.00');
-        if (currentPrice && !isNaN(currentPrice) && parseFloat(currentPrice) > 0) {
-            console.log('Nouveau prix:', currentPrice);
-            alert('Mise à jour du prix (fonctionnalité à implémenter)');
+        function adjustStock() {
+            const stockModal = new bootstrap.Modal(document.getElementById('stockModal'));
+            stockModal.show();
         }
-    }
 
-    function generateBarcode() {
-        const productId = window.location.pathname.split('/').pop();
-        window.open(`/products/barcode/${productId}`, '_blank');
-    }
+        function saveStockAdjustment() {
+            const form = document.getElementById('stockForm');
+            const formData = new FormData(form);
 
-    function printProduct() {
-        window.print();
-    }
+            console.log('Ajustement de stock:', Object.fromEntries(formData));
 
-    function exportProduct() {
-        const productId = window.location.pathname.split('/').pop();
-        window.location.href = `/products/export/${productId}`;
-    }
+            bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
+            alert('Ajustement de stock enregistré (fonctionnalité à implémenter)');
+        }
 
-    // Initialisation
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Page de détails du produit chargée');
-    });
-</script>
+        function createOrder() {
+            const productId = window.location.pathname.split('/').pop();
+            window.location.href = `/orders/new?productId=${productId}`;
+        }
+
+        function updatePrice() {
+            const currentPrice = prompt('Nouveau prix unitaire (€):', '0.00');
+            if (currentPrice && !isNaN(currentPrice) && parseFloat(currentPrice) > 0) {
+                console.log('Nouveau prix:', currentPrice);
+                alert('Mise à jour du prix (fonctionnalité à implémenter)');
+            }
+        }
+
+        function generateBarcode() {
+            const productId = window.location.pathname.split('/').pop();
+            window.open(`/products/barcode/${productId}`, '_blank');
+        }
+
+        function printProduct() {
+            window.print();
+        }
+
+        function exportProduct() {
+            const productId = window.location.pathname.split('/').pop();
+            window.location.href = `/products/export/${productId}`;
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page de détails du produit chargée');
+        });
+    </script>
 </th:block>
 <style>
     @media print {

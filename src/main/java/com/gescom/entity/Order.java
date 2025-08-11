@@ -1,7 +1,12 @@
 package com.gescom.entity;
 
+
+
+
+
+
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
+
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -88,6 +93,23 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
+    // Méthode utilitaire pour ajouter un OrderItem avec relation bidirectionnelle
+    public void addOrderItem(OrderItem orderItem) {
+        if (orderItems == null) {
+            orderItems = new ArrayList<>();
+        }
+        orderItems.add(orderItem);
+        orderItem.setOrder(this);
+    }
+
+    // Méthode utilitaire pour supprimer un OrderItem
+    public void removeOrderItem(OrderItem orderItem) {
+        if (orderItems != null) {
+            orderItems.remove(orderItem);
+            orderItem.setOrder(null);
+        }
+    }
+
     @OneToOne(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Invoice invoice;
 
@@ -147,22 +169,38 @@ public class Order {
 
     // Méthodes utilitaires
     public void calculateTotals() {
+        if (orderItems == null || orderItems.isEmpty()) {
+            this.totalAmountHT = BigDecimal.ZERO;
+            this.totalVatAmount = BigDecimal.ZERO;
+            this.totalAmount = BigDecimal.ZERO;
+            this.discountAmount = BigDecimal.ZERO;
+            System.out.println("Order calculateTotals - Aucun OrderItem, totaux à zéro");
+            return;
+        }
+
         BigDecimal subtotalHT = orderItems.stream()
-                .map(OrderItem::getTotalPriceHT)
+                .map(item -> item.getTotalPriceHT() != null ? item.getTotalPriceHT() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal subtotalVAT = orderItems.stream()
-                .map(OrderItem::getTotalVatAmount)
+                .map(item -> item.getTotalVatAmount() != null ? item.getTotalVatAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Application de la remise
         if (discountRate != null && discountRate.compareTo(BigDecimal.ZERO) > 0) {
             discountAmount = subtotalHT.multiply(discountRate).divide(BigDecimal.valueOf(100));
+        } else {
+            discountAmount = BigDecimal.ZERO;
         }
 
-        this.totalAmountHT = subtotalHT.subtract(discountAmount != null ? discountAmount : BigDecimal.ZERO);
+        this.totalAmountHT = subtotalHT.subtract(discountAmount);
         this.totalVatAmount = subtotalVAT;
         this.totalAmount = totalAmountHT.add(totalVatAmount).add(shippingCost != null ? shippingCost : BigDecimal.ZERO);
+
+        System.out.println("Order calculateTotals - Items: " + orderItems.size() +
+                ", Subtotal HT: " + subtotalHT +
+                ", Total HT: " + totalAmountHT +
+                ", Total TTC: " + totalAmount);
     }
 
     public int getTotalQuantity() {

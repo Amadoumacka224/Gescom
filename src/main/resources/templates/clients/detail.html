@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
-    <title th:text="'Détails - ' + ${client?.name ?: 'Client'}">Détails du Client</title>
+    <title th:text="'Détails Client - ' + ${client?.name ?: 'Client'}">Détails du Client</title>
 </head>
 <body>
 <style>
@@ -76,56 +76,122 @@
 
     <!-- Contenu principal si le client existe -->
     <div th:if="${client != null}">
-        <!-- En-tête -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h1>
-                    <i class="fas fa-user me-2"></i>
-                    <span th:text="${client.name ?: 'Nom non défini'}">Nom du Client</span>
-                    <span class="badge ms-2"
-                          th:class="'badge ' + (${client.status.name() == 'ACTIVE'} ? 'bg-success' :
-                                               (${client.status.name() == 'PROSPECT'} ? 'bg-warning' :
-                                               (${client.status.name() == 'BLOCKED'} ? 'bg-danger' : 'bg-secondary')))"
-                          th:text="${client.status.displayName}">Statut</span>
-                    <span class="badge bg-info ms-1" th:text="${client.clientType.displayName}">Type</span>
-                    <span class="badge bg-warning ms-1" th:if="${client.needsFollowUp}">
-                        <i class="fas fa-clock me-1"></i>Relance due
-                    </span>
-                </h1>
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb">
-                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a th:href="@{/clients}">Clients</a></li>
-                        <li class="breadcrumb-item active" th:text="${client.name ?: 'Client'}">Client</li>
-                    </ol>
-                </nav>
-            </div>
-            <div class="btn-group">
+        <!-- Page Header -->
+        <div th:replace="~{fragments/components :: page-header(
+            'Client ' + ${client.name},
+            'Détails et informations du client',
+            ~{::header-actions})}">
+            <div th:fragment="header-actions" class="action-buttons">
                 <a th:href="@{/clients}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+                    <i class="fas fa-arrow-left"></i>
+                    Retour à la liste
                 </a>
-                <a th:href="@{'/clients/edit/' + ${client.id}}" class="btn btn-primary">
-                    <i class="fas fa-edit me-2"></i>Modifier
-                </a>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                        <i class="fas fa-ellipsis-v"></i>
+                <button type="button" class="btn btn-outline-primary" onclick="printClient()">
+                    <i class="fas fa-print"></i>
+                    Imprimer
+                </button>
+                <button type="button" class="btn btn-outline-info" onclick="sendEmail()">
+                    <i class="fas fa-envelope"></i>
+                    Email
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-cogs"></i>
+                        Actions
                     </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" th:href="@{'/orders/new?clientId=' + ${client.id}}">
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" th:href="@{/clients/{id}/edit(id=${client.id})}">
+                            <i class="fas fa-edit me-2"></i>Modifier
+                        </a></li>
+                        <li><a class="dropdown-item" th:href="@{/orders/new(clientId=${client.id})}">
                             <i class="fas fa-shopping-cart me-2"></i>Nouvelle commande
                         </a></li>
+                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="#" onclick="exportClient()">
                             <i class="fas fa-download me-2"></i>Exporter
                         </a></li>
-                        <li><a class="dropdown-item" href="#" onclick="printClient()">
-                            <i class="fas fa-print me-2"></i>Imprimer
-                        </a></li>
-                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item text-danger" href="#" onclick="deleteClient()">
-                            <i class="fas fa-trash me-2"></i>Supprimer
+                            <i class="fas fa-ban me-2"></i>Supprimer
                         </a></li>
                     </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Client Summary -->
+        <div class="order-header">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center mb-3">
+                        <h2 class="mb-0 me-3" th:text="${client.name}">Nom Client</h2>
+                        <span th:switch="${client.status}" class="status-badge">
+                            <span th:case="'ACTIVE'" class="badge bg-success">Actif</span>
+                            <span th:case="'INACTIVE'" class="badge bg-secondary">Inactif</span>
+                            <span th:case="'PROSPECT'" class="badge bg-warning text-dark">Prospect</span>
+                            <span th:case="'BLOCKED'" class="badge bg-danger">Bloqué</span>
+                            <span th:case="*" class="badge bg-secondary">Inconnu</span>
+                        </span>
+                        <span th:switch="${client.clientType}" class="badge ms-2">
+                            <span th:case="'COMPANY'" class="bg-info">Entreprise</span>
+                            <span th:case="'INDIVIDUAL'" class="bg-secondary">Particulier</span>
+                            <span th:case="'ASSOCIATION'" class="bg-purple">Association</span>
+                        </span>
+                        <span class="badge bg-warning ms-1" th:if="${client.needsFollowUp}">
+                            <i class="fas fa-clock me-1"></i>Relance due
+                        </span>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6" th:if="${client.email}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-envelope me-2 text-primary"></i>
+                                <span>Email</span>
+                            </div>
+                            <div class="fw-semibold">
+                                <a th:href="'mailto:' + ${client.email}" th:text="${client.email}" class="text-decoration-none">
+                                    email@client.com
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" th:if="${client.phoneNumber}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-phone me-2 text-primary"></i>
+                                <span>Téléphone</span>
+                            </div>
+                            <div class="fw-semibold">
+                                <a th:href="'tel:' + ${client.phoneNumber}" th:text="${client.phoneNumber}" class="text-decoration-none">
+                                    +33 1 23 45 67 89
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" th:if="${client.companyName}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-building me-2 text-primary"></i>
+                                <span>Entreprise</span>
+                            </div>
+                            <div class="fw-semibold" th:text="${client.companyName}">Nom Entreprise</div>
+                        </div>
+
+                        <div class="col-md-6" th:if="${client.assignedUser}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-user-tie me-2 text-primary"></i>
+                                <span>Commercial</span>
+                            </div>
+                            <div class="fw-semibold" th:text="${client.assignedUser.fullName}">Commercial</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 text-center">
+                    <div class="qr-placeholder">
+                        <i class="fas fa-user-circle fa-4x text-muted mb-3"></i>
+                        <div class="small text-muted">Profil client</div>
+                        <button class="btn btn-outline-primary btn-sm mt-2">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -134,7 +200,7 @@
             <!-- Colonne principale -->
             <div class="col-lg-8">
                 <!-- Informations générales -->
-                <div class="card mb-4">
+                <div class="section-card card">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations Générales</h5>
                     </div>
@@ -185,7 +251,7 @@
                 </div>
 
                 <!-- Informations entreprise (si applicable) -->
-                <div class="card mb-4" th:if="${client.clientType.name() == 'COMPANY' and (client.companyName != null or client.siretNumber != null or client.vatNumber != null)}">
+                <div class="section-card card" th:if="${client.clientType.name() == 'COMPANY' and (client.companyName != null or client.siretNumber != null or client.vatNumber != null)}">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-building me-2"></i>Informations Entreprise</h5>
                     </div>
@@ -208,7 +274,7 @@
                 </div>
 
                 <!-- Adresse -->
-                <div class="card mb-4" th:if="${client.address != null or client.city != null or client.postalCode != null}">
+                <div class="section-card card" th:if="${client.address != null or client.city != null or client.postalCode != null}">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Adresse</h5>
                         <button class="btn btn-sm btn-outline-primary" onclick="openMap()" title="Voir sur la carte">
@@ -248,7 +314,7 @@
                 </div>
 
                 <!-- Historique des commandes -->
-                <div class="card mb-4">
+                <div class="section-card card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Commandes Récentes</h5>
                         <a th:href="@{'/orders?clientId=' + ${client.id}}" class="btn btn-sm btn-outline-primary">Voir toutes</a>
@@ -296,7 +362,7 @@
                 </div>
 
                 <!-- Notes -->
-                <div class="card mb-4" th:if="${client.notes != null and #strings.length(client.notes) > 0}">
+                <div class="section-card card" th:if="${client.notes != null and #strings.length(client.notes) > 0}">
                     <div class="card-header">
                         <h5 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h5>
                     </div>
@@ -309,7 +375,7 @@
             <!-- Colonne latérale -->
             <div class="col-lg-4">
                 <!-- Statistiques client -->
-                <div class="card mb-4">
+                <div class="section-card card">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Statistiques</h6>
                     </div>
@@ -348,7 +414,7 @@
                 </div>
 
                 <!-- Gestion et suivi -->
-                <div class="card mb-4">
+                <div class="section-card card">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-user-cog me-2"></i>Gestion</h6>
                     </div>
@@ -380,7 +446,7 @@
                 </div>
 
                 <!-- Actions rapides -->
-                <div class="card mb-4">
+                <div class="section-card card">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions Rapides</h6>
                     </div>
@@ -406,7 +472,7 @@
                 </div>
 
                 <!-- Informations système -->
-                <div class="card">
+                <div class="section-card card">
                     <div class="card-header">
                         <h6 class="mb-0"><i class="fas fa-info me-2"></i>Informations Système</h6>
                     </div>
@@ -492,130 +558,130 @@
 <!-- JavaScript -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(function() {
-            showNotification('Copié dans le presse-papiers !', 'success');
-        }).catch(function() {
-            showNotification('Erreur lors de la copie', 'error');
-        });
-    }
-
-    function copyAddress() {
-        var addressText = document.querySelector('.bg-light p').textContent;
-        copyToClipboard(addressText);
-    }
-
-    function openMap() {
-        var address = document.querySelector('.bg-light p').textContent;
-        var encodedAddress = encodeURIComponent(address);
-        window.open(`https://www.google.com/maps/search/${encodedAddress}`, '_blank');
-    }
-
-    function sendEmail() {
-        var email = document.querySelector('a[href^="mailto:"]');
-        if (email) {
-            window.location.href = email.href + '?subject=Contact depuis notre système';
-        } else {
-            showNotification('Aucun email configuré pour ce client', 'warning');
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                showNotification('Copié dans le presse-papiers !', 'success');
+            }).catch(function() {
+                showNotification('Erreur lors de la copie', 'error');
+            });
         }
-    }
 
-    function scheduleCall() {
-        var phone = document.querySelector('a[href^="tel:"]');
-        if (phone) {
-            var phoneNumber = phone.textContent;
-            showNotification(`Appel programmé vers ${phoneNumber}`, 'info');
-            // Ici vous pourriez intégrer avec un système de téléphonie
-        } else {
-            showNotification('Aucun téléphone configuré pour ce client', 'warning');
+        function copyAddress() {
+            var addressText = document.querySelector('.bg-light p').textContent;
+            copyToClipboard(addressText);
         }
-    }
 
-    function updateFollowUp() {
-        var followUpModal = new bootstrap.Modal(document.getElementById('followUpModal'));
+        function openMap() {
+            var address = document.querySelector('.bg-light p').textContent;
+            var encodedAddress = encodeURIComponent(address);
+            window.open(`https://www.google.com/maps/search/${encodedAddress}`, '_blank');
+        }
 
-        // Initialiser avec une date dans 1 semaine
-        var nextWeek = new Date();
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        nextWeek.setMinutes(nextWeek.getMinutes() - nextWeek.getTimezoneOffset());
-        document.getElementById('followUpDateTime').value = nextWeek.toISOString().slice(0, 16);
+        function sendEmail() {
+            var email = document.querySelector('a[href^="mailto:"]');
+            if (email) {
+                window.location.href = email.href + '?subject=Contact depuis notre système';
+            } else {
+                showNotification('Aucun email configuré pour ce client', 'warning');
+            }
+        }
 
-        followUpModal.show();
-    }
+        function scheduleCall() {
+            var phone = document.querySelector('a[href^="tel:"]');
+            if (phone) {
+                var phoneNumber = phone.textContent;
+                showNotification(`Appel programmé vers ${phoneNumber}`, 'info');
+                // Ici vous pourriez intégrer avec un système de téléphonie
+            } else {
+                showNotification('Aucun téléphone configuré pour ce client', 'warning');
+            }
+        }
 
-    function saveFollowUp() {
-        var form = document.getElementById('followUpForm');
-        var formData = new FormData(form);
+        function updateFollowUp() {
+            var followUpModal = new bootstrap.Modal(document.getElementById('followUpModal'));
 
-        // Ici vous implémenteriez la sauvegarde
-        console.log('Relance programmée:', Object.fromEntries(formData));
+            // Initialiser avec une date dans 1 semaine
+            var nextWeek = new Date();
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            nextWeek.setMinutes(nextWeek.getMinutes() - nextWeek.getTimezoneOffset());
+            document.getElementById('followUpDateTime').value = nextWeek.toISOString().slice(0, 16);
 
-        bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
-        showNotification('Relance programmée avec succès !', 'success');
-    }
+            followUpModal.show();
+        }
 
-    function generateReport() {
-        var clientId = window.location.pathname.split('/').pop();
-        window.open(`/clients/${clientId}/report`, '_blank');
-    }
+        function saveFollowUp() {
+            var form = document.getElementById('followUpForm');
+            var formData = new FormData(form);
 
-    function deleteClient() {
-        var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-        deleteModal.show();
-    }
+            // Ici vous implémenteriez la sauvegarde
+            console.log('Relance programmée:', Object.fromEntries(formData));
 
-    function confirmDelete() {
-        var clientId = window.location.pathname.split('/').pop();
-        window.location.href = `/clients/delete/${clientId}`;
-    }
+            bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
+            showNotification('Relance programmée avec succès !', 'success');
+        }
 
-    function exportClient() {
-        var clientId = window.location.pathname.split('/').pop();
-        window.location.href = `/clients/export/${clientId}`;
-    }
+        function generateReport() {
+            var clientId = window.location.pathname.split('/').pop();
+            window.open(`/clients/${clientId}/report`, '_blank');
+        }
 
-    function printClient() {
-        window.print();
-    }
+        function deleteClient() {
+            var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
+        }
 
-    function showNotification(message, type = 'info') {
-        var alertClass = {
-            'success': 'alert-success',
-            'error': 'alert-danger',
-            'warning': 'alert-warning',
-            'info': 'alert-info'
-        }[type] || 'alert-info';
+        function confirmDelete() {
+            var clientId = window.location.pathname.split('/').pop();
+            window.location.href = `/clients/delete/${clientId}`;
+        }
 
-        var alertDiv = document.createElement('div');
-        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
-        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
-        alertDiv.innerHTML = `
+        function exportClient() {
+            var clientId = window.location.pathname.split('/').pop();
+            window.location.href = `/clients/export/${clientId}`;
+        }
+
+        function printClient() {
+            window.print();
+        }
+
+        function showNotification(message, type = 'info') {
+            var alertClass = {
+                'success': 'alert-success',
+                'error': 'alert-danger',
+                'warning': 'alert-warning',
+                'info': 'alert-info'
+            }[type] || 'alert-info';
+
+            var alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+            alertDiv.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
 
-        document.body.appendChild(alertDiv);
+            document.body.appendChild(alertDiv);
 
-        setTimeout(() => {
-            if (alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
-    }
-
-    // Initialisation
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Page de détails client chargée');
-
-        // Vérifier s'il y a une alerte de relance
-        var needsFollowUp = document.querySelector('.badge.bg-warning');
-        if (needsFollowUp && needsFollowUp.textContent.includes('Relance due')) {
             setTimeout(() => {
-                showNotification('Ce client nécessite une relance !', 'warning');
-            }, 1000);
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
         }
-    });
-</script>
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page de détails client chargée');
+
+            // Vérifier s'il y a une alerte de relance
+            var needsFollowUp = document.querySelector('.badge.bg-warning');
+            if (needsFollowUp && needsFollowUp.textContent.includes('Relance due')) {
+                setTimeout(() => {
+                    showNotification('Ce client nécessite une relance !', 'warning');
+                }, 1000);
+            }
+        });
+    </script>
 </th:block>
 </body>
 </html>

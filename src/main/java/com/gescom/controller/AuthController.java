@@ -1,5 +1,10 @@
 package com.gescom.controller;
 
+
+
+
+
+
 import org.springframework.stereotype.Controller;
 
 import com.gescom.dto.UserRegistrationDto;
@@ -24,6 +29,25 @@ public class AuthController {
 
     @Autowired
     private UserService userService;
+
+    /**
+     * Route racine - Redirige selon l'état d'authentification
+     */
+    @GetMapping("/")
+    public String home(Authentication authentication) {
+        // Si l'utilisateur est connecté, rediriger vers le dashboard
+        if (authentication != null && authentication.isAuthenticated() &&
+                !authentication.getName().equals("anonymousUser") &&
+                authentication.getAuthorities().stream()
+                        .anyMatch(a -> a.getAuthority().startsWith("ROLE_"))) {
+            logger.info("Utilisateur connecté détecté, redirection vers dashboard: {}", authentication.getName());
+            return "redirect:/dashboard";
+        }
+
+        // Sinon, rediriger vers la page de connexion
+        logger.info("Utilisateur non connecté, redirection vers login");
+        return "redirect:/login";
+    }
 
     @GetMapping("/login")
     public String loginPage(

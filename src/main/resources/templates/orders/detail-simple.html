@@ -1,10 +1,141 @@
 <!DOCTYPE html>
-<html lang="en">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <title th:text="'Détails Commande ' + ${order.orderNumber}">Détails Commande</title>
 </head>
 <body>
-$END$
+<div th:fragment="content">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-shopping-cart me-2"></i>Détails Commande <span th:text="${order.orderNumber}">CMD-001</span></h1>
+        </div>
+        <div>
+            <a th:href="@{/orders}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+            </a>
+        </div>
+    </div>
+
+    <!-- Informations de base -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Informations générales</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Numéro:</strong> <span th:text="${order.orderNumber}">CMD-001</span></p>
+                    <p><strong>Date:</strong> <span th:text="${#temporals.format(order.orderDate, 'dd/MM/yyyy HH:mm')}">01/01/2024</span></p>
+                    <p><strong>Statut:</strong> <span th:text="${order.status}">DRAFT</span></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Client:</strong> <span th:text="${order.client?.name ?: 'Non défini'}">Client</span></p>
+                    <p><strong>Commercial:</strong> <span th:text="${order.user?.username ?: 'Non défini'}">User</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Articles -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Articles (<span th:text="${#lists.size(order.orderItems)}">0</span>)</h5>
+        </div>
+        <div class="card-body">
+            <div th:if="${#lists.isEmpty(order.orderItems)}" class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>Aucun article dans cette commande.
+            </div>
+
+            <div th:unless="${#lists.isEmpty(order.orderItems)}">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Produit</th>
+                            <th>Quantité</th>
+                            <th>Prix unitaire</th>
+                            <th>Total HT</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="item : ${order.orderItems}">
+                            <td>
+                                <strong th:text="${item.product?.name ?: 'Produit non défini'}">Produit</strong><br>
+                                <small class="text-muted" th:text="'Réf: ' + ${item.product?.reference ?: 'N/A'}">Référence</small>
+                            </td>
+                            <td th:text="${item.quantity != null ? item.quantity : 0}">0</td>
+                            <td th:text="${item.unitPrice != null ? #numbers.formatCurrency(item.unitPrice) : #numbers.formatCurrency(0)}">0,00 €</td>
+                            <td th:text="${item.totalPriceHT != null ? #numbers.formatCurrency(item.totalPriceHT) : #numbers.formatCurrency(0)}">0,00 €</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Totaux -->
+    <div class="row">
+        <div class="col-md-6 offset-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Récapitulatif financier</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Sous-total HT -->
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Total HT:</span>
+                        <span th:text="${order.totalAmountHT != null ? #numbers.formatCurrency(order.totalAmountHT) : #numbers.formatCurrency(0)}">0,00 €</span>
+                    </div>
+
+                    <!-- Remise (affichée seulement si > 0) -->
+                    <div class="d-flex justify-content-between mb-2 text-danger"
+                         th:if="${order.discountAmount != null and order.discountAmount > 0}">
+                        <span>Remise:</span>
+                        <span>-<span th:text="${#numbers.formatCurrency(order.discountAmount)}">0,00 €</span></span>
+                    </div>
+
+                    <!-- TVA -->
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>TVA:</span>
+                        <span th:text="${order.totalVatAmount != null ? #numbers.formatCurrency(order.totalVatAmount) : #numbers.formatCurrency(0)}">0,00 €</span>
+                    </div>
+
+                    <!-- Frais de port (affichés seulement si > 0) -->
+                    <div class="d-flex justify-content-between mb-2"
+                         th:if="${order.shippingCost != null and order.shippingCost > 0}">
+                        <span>Frais de port:</span>
+                        <span th:text="${#numbers.formatCurrency(order.shippingCost)}">0,00 €</span>
+                    </div>
+
+                    <hr>
+
+                    <!-- Total TTC -->
+                    <div class="d-flex justify-content-between">
+                        <span class="h5"><strong>Total TTC:</strong></span>
+                        <span class="h5 text-primary"
+                              th:text="${order.totalAmount != null ? #numbers.formatCurrency(order.totalAmount) : #numbers.formatCurrency(0)}">0,00 €</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Info -->
+    <div class="card mt-4 bg-light">
+        <div class="card-header">
+            <h6 class="mb-0">Informations de debug</h6>
+        </div>
+        <div class="card-body">
+            <p><strong>ID Commande:</strong> <span th:text="${order.id}">N/A</span></p>
+            <p><strong>Nombre d'articles:</strong> <span th:text="${#lists.size(order.orderItems)}">0</span></p>
+            <p><strong>Total HT:</strong> <span th:text="${order.totalAmountHT}">null</span></p>
+            <p><strong>Total TTC:</strong> <span th:text="${order.totalAmount}">null</span></p>
+            <p><strong>Statut:</strong> <span th:text="${order.status}">null</span></p>
+            <p><strong>Invoice:</strong> <span th:text="${order.invoice?.id ?: 'null'}">null</span></p>
+        </div>
+    </div>
+</div>
 </body>
 </html>

@@ -5,52 +5,68 @@
 </head>
 <body>
 <div th:fragment="content">
-    <!-- En-tête -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1><i class="fas fa-file-invoice me-2"></i>Gestion des Factures</h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                    <li class="breadcrumb-item active">Factures</li>
-                </ol>
-            </nav>
+    <!-- Page Header -->
+    <div th:replace="~{fragments/components :: page-header(
+        'Gestion des Factures',
+        'Gérez vos factures et encaissements',
+        ~{::header-actions})}">
+        <div th:fragment="header-actions">
+            <a th:if="${canCreate}" th:href="@{/invoices/new}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nouvelle Facture
+            </a>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-2"></i>Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#">
+                        <i class="fas fa-file-excel me-2"></i>Export Excel
+                    </a></li>
+                    <li><a class="dropdown-item" href="#">
+                        <i class="fas fa-file-pdf me-2"></i>Export PDF
+                    </a></li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <!-- Statistiques rapides -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-primary">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-primary">Total Factures</h5>
-                    <h2 th:text="${totalInvoices}" class="text-primary">0</h2>
-                </div>
-            </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${totalInvoices},
+                'Total Factures',
+                null,
+                null,
+                'fas fa-file-invoice',
+                'primary')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-success">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-success">Payées</h5>
-                    <h2 th:text="${paidInvoices}" class="text-success">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${paidInvoices},
+                'Payées',
+                null,
+                null,
+                'fas fa-check-circle',
+                'success')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-warning">En Retard</h5>
-                    <h2 th:text="${overdueInvoices}" class="text-warning">0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${overdueInvoices},
+                'En Retard',
+                null,
+                null,
+                'fas fa-exclamation-triangle',
+                'warning')}"></div>
         </div>
-        <div class="col-md-3">
-            <div class="card border-info">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-info">Impayés</h5>
-                    <h2 th:text="${#numbers.formatCurrency(outstandingAmount)}" class="text-info">€0</h2>
-                </div>
-            </div>
+        <div class="col-lg-3 col-md-6">
+            <div th:replace="~{fragments/components :: stats-card(
+                ${#numbers.formatCurrency(outstandingAmount)},
+                'Impayés',
+                null,
+                null,
+                'fas fa-euro-sign',
+                'info')}"></div>
         </div>
     </div>
 
@@ -88,12 +104,20 @@
 
     <!-- Filtres et recherche -->
     <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtres et recherche</h5>
+        </div>
         <div class="card-body">
             <form th:action="@{/invoices}" method="get" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="search" class="form-label">Rechercher</label>
-                    <input type="text" class="form-control" id="search" name="search"
-                           th:value="${search}" placeholder="N° facture, client...">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="search" name="search"
+                               th:value="${search}" placeholder="N° facture, client...">
+                    </div>
                 </div>
                 <div class="col-md-2">
                     <label for="status" class="form-label">Statut</label>
@@ -115,21 +139,12 @@
                     <label for="dateTo" class="form-label">Au</label>
                     <input type="date" class="form-control" id="dateTo" name="dateTo" th:value="${dateTo}">
                 </div>
-                <div class="col-md-1">
-                    <label class="form-label">Filtres</label>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="overdue" name="overdue" value="true" th:checked="${overdueFilter}">
-                        <label class="form-check-label" for="overdue">
-                            En retard
-                        </label>
-                    </div>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-outline-primary me-2">
+                <div class="col-md-2 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-fill">
                         <i class="fas fa-search me-1"></i>Filtrer
                     </button>
-                    <a th:href="@{/invoices}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times me-1"></i>Reset
+                    <a th:href="@{/invoices}" class="btn btn-outline-secondary" title="Réinitialiser">
+                        <i class="fas fa-undo"></i>
                     </a>
                 </div>
                 <!-- Champs cachés -->

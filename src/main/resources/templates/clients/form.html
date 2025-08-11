@@ -5,38 +5,31 @@
 </head>
 <body>
 <div th:fragment="content">
-    <!-- En-tête -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1>
-                <i class="fas fa-user-plus me-2" th:unless="${isEdit}"></i>
-                <i class="fas fa-user-edit me-2" th:if="${isEdit}"></i>
-                <span th:text="${isEdit} ? 'Modifier le Client' : 'Nouveau Client'">Formulaire Client</span>
-            </h1>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a th:href="@{/clients}">Clients</a></li>
-                    <li class="breadcrumb-item active" th:text="${isEdit} ? 'Modifier' : 'Nouveau'">Formulaire</li>
-                </ol>
-            </nav>
-        </div>
-        <div>
+    <!-- Page Header -->
+    <div th:replace="~{fragments/components :: page-header(
+        ${isEdit} ? 'Modifier le Client' : 'Nouveau Client',
+        ${isEdit} ? 'Modification des informations client' : 'Création d\'un nouveau client',
+        ~{::header-actions})}">
+        <div th:fragment="header-actions">
             <a th:href="@{/clients}" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Retour à la liste
             </a>
+            <button type="submit" form="clientForm" class="btn btn-primary">
+                <i class="fas fa-save me-2"></i>
+                <span th:text="${isEdit} ? 'Modifier' : 'Créer'">Enregistrer</span>
+            </button>
         </div>
     </div>
 
     <!-- Formulaire -->
     <div class="row">
         <div class="col-lg-8">
-            <div class="card">
+            <div class="section-card card">
                 <div class="card-header">
-                    <h5 class="mb-0">Informations du Client</h5>
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Informations du Client</h5>
                 </div>
                 <div class="card-body">
-                    <form th:action="@{/clients}" th:object="${client}" method="post" novalidate>
+                    <form id="clientForm" th:action="@{/clients}" th:object="${client}" method="post" novalidate>
                         <!-- ID caché pour modification -->
                         <input type="hidden" th:field="*{id}">
 
@@ -75,14 +68,18 @@
                             </div>
 
                             <div class="col-md-6 mb-3">
+                                <label for="mobileNumber" class="form-label">Mobile</label>
+                                <input type="tel" class="form-control" id="mobileNumber" th:field="*{mobileNumber}"
+                                       placeholder="+33 6 12 34 56 78">
+                            </div>
+
+                            <div class="col-md-6 mb-3">
                                 <label for="clientType" class="form-label">Type de client <span class="text-danger">*</span></label>
                                 <select class="form-select" id="clientType" th:field="*{clientType}" required>
                                     <option value="">Sélectionner le type</option>
-                                    <option th:each="type : ${T(com.gescom.entity.Client.ClientType).values()}"
-                                            th:value="${type}"
-                                            th:text="${type == T(com.gescom.entity.Client.ClientType).COMPANY ? 'Entreprise' : 'Particulier'}">
-                                        Type
-                                    </option>
+                                    <option value="INDIVIDUAL">Particulier</option>
+                                    <option value="COMPANY">Entreprise</option>
+                                    <option value="ASSOCIATION">Association</option>
                                 </select>
                             </div>
 
@@ -96,6 +93,12 @@
                                 <label for="siretNumber" class="form-label">SIRET</label>
                                 <input type="text" class="form-control" id="siretNumber" th:field="*{siretNumber}"
                                        placeholder="123 456 789 00012">
+                            </div>
+
+                            <div class="col-md-6 mb-3" id="vatField" style="display: none;">
+                                <label for="vatNumber" class="form-label">Numéro TVA</label>
+                                <input type="text" class="form-control" id="vatNumber" th:field="*{vatNumber}"
+                                       placeholder="FR12345678901">
                             </div>
                         </div>
 
@@ -144,12 +147,10 @@
                                 <label for="status" class="form-label">Statut <span class="text-danger">*</span></label>
                                 <select class="form-select" id="status" th:field="*{status}" required>
                                     <option value="">Sélectionner le statut</option>
-                                    <option th:each="status : ${T(com.gescom.entity.Client.ClientStatus).values()}"
-                                            th:value="${status}"
-                                            th:text="${status == T(com.gescom.entity.Client.ClientStatus).ACTIVE ? 'Actif' :
-                                                     (status == T(com.gescom.entity.Client.ClientStatus).INACTIVE ? 'Inactif' : 'Prospect')}">
-                                        Statut
-                                    </option>
+                                    <option value="ACTIVE">Actif</option>
+                                    <option value="INACTIVE">Inactif</option>
+                                    <option value="PROSPECT">Prospect</option>
+                                    <option value="BLOCKED">Bloqué</option>
                                 </select>
                             </div>
 
@@ -199,7 +200,7 @@
 
         <!-- Panel d'aide -->
         <div class="col-lg-4">
-            <div class="card">
+            <div class="section-card card">
                 <div class="card-header">
                     <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Aide</h6>
                 </div>
@@ -232,81 +233,83 @@
 <!-- JavaScript pour la gestion du formulaire -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-    document.addEventListener('DOMContentLoaded', function() {
-        const clientTypeSelect = document.getElementById('clientType');
-        const companyFields = document.getElementById('companyFields');
-        const siretField = document.getElementById('siretField');
-        const statusSelect = document.getElementById('status');
-        const followUpDateDiv = document.getElementById('followUpDate');
+        document.addEventListener('DOMContentLoaded', function() {
+            const clientTypeSelect = document.getElementById('clientType');
+            const companyFields = document.getElementById('companyFields');
+            const siretField = document.getElementById('siretField');
+            const vatField = document.getElementById('vatField');
+            const statusSelect = document.getElementById('status');
+            const followUpDateDiv = document.getElementById('followUpDate');
 
-        // Gestion des champs entreprise
-        function toggleCompanyFields() {
-            const isCompany = clientTypeSelect.value === 'COMPANY';
-            companyFields.style.display = isCompany ? 'block' : 'none';
-            siretField.style.display = isCompany ? 'block' : 'none';
+            // Gestion des champs entreprise
+            function toggleCompanyFields() {
+                const isCompany = clientTypeSelect.value === 'COMPANY' || clientTypeSelect.value === 'ASSOCIATION';
+                companyFields.style.display = isCompany ? 'block' : 'none';
+                siretField.style.display = isCompany ? 'block' : 'none';
+                vatField.style.display = isCompany ? 'block' : 'none';
 
-            // Rendre obligatoire le nom d'entreprise si c'est une entreprise
-            const companyNameInput = document.getElementById('companyName');
-            if (isCompany) {
-                companyNameInput.required = true;
-            } else {
-                companyNameInput.required = false;
-            }
-        }
-
-        // Gestion du champ de relance pour les prospects
-        function toggleFollowUpDate() {
-            const isProspect = statusSelect.value === 'PROSPECT';
-            followUpDateDiv.style.display = isProspect ? 'block' : 'none';
-        }
-
-        // Event listeners
-        clientTypeSelect.addEventListener('change', toggleCompanyFields);
-        statusSelect.addEventListener('change', toggleFollowUpDate);
-
-        // Initialisation
-        toggleCompanyFields();
-        toggleFollowUpDate();
-
-        // Validation du formulaire
-        const form = document.querySelector('form');
-        form.addEventListener('submit', function(event) {
-            const email = document.getElementById('email');
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-            if (!emailRegex.test(email.value)) {
-                event.preventDefault();
-                email.classList.add('is-invalid');
-                return false;
-            }
-
-            return true;
-        });
-
-        // Auto-complétion de la ville avec le code postal (optionnel)
-        const postalCodeInput = document.getElementById('postalCode');
-        const cityInput = document.getElementById('city');
-
-        postalCodeInput.addEventListener('blur', function() {
-            const postalCode = this.value;
-            if (postalCode.length === 5 && /^\d+$/.test(postalCode)) {
-                // Ici vous pourriez ajouter une API de géolocalisation
-                // Pour l'instant, juste des exemples statiques
-                const cityMapping = {
-                    '75001': 'Paris',
-                    '69001': 'Lyon',
-                    '13001': 'Marseille',
-                    '31000': 'Toulouse',
-                    '33000': 'Bordeaux'
-                };
-
-                if (cityMapping[postalCode] && !cityInput.value) {
-                    cityInput.value = cityMapping[postalCode];
+                // Rendre obligatoire le nom d'entreprise si c'est une entreprise
+                const companyNameInput = document.getElementById('companyName');
+                if (isCompany) {
+                    companyNameInput.required = true;
+                } else {
+                    companyNameInput.required = false;
                 }
             }
+
+            // Gestion du champ de relance pour les prospects
+            function toggleFollowUpDate() {
+                const isProspect = statusSelect.value === 'PROSPECT';
+                followUpDateDiv.style.display = isProspect ? 'block' : 'none';
+            }
+
+            // Event listeners
+            clientTypeSelect.addEventListener('change', toggleCompanyFields);
+            statusSelect.addEventListener('change', toggleFollowUpDate);
+
+            // Initialisation
+            toggleCompanyFields();
+            toggleFollowUpDate();
+
+            // Validation du formulaire
+            const form = document.querySelector('form');
+            form.addEventListener('submit', function(event) {
+                const email = document.getElementById('email');
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (!emailRegex.test(email.value)) {
+                    event.preventDefault();
+                    email.classList.add('is-invalid');
+                    return false;
+                }
+
+                return true;
+            });
+
+            // Auto-complétion de la ville avec le code postal (optionnel)
+            const postalCodeInput = document.getElementById('postalCode');
+            const cityInput = document.getElementById('city');
+
+            postalCodeInput.addEventListener('blur', function() {
+                const postalCode = this.value;
+                if (postalCode.length === 5 && /^\d+$/.test(postalCode)) {
+                    // Ici vous pourriez ajouter une API de géolocalisation
+                    // Pour l'instant, juste des exemples statiques
+                    const cityMapping = {
+                        '75001': 'Paris',
+                        '69001': 'Lyon',
+                        '13001': 'Marseille',
+                        '31000': 'Toulouse',
+                        '33000': 'Bordeaux'
+                    };
+
+                    if (cityMapping[postalCode] && !cityInput.value) {
+                        cityInput.value = cityMapping[postalCode];
+                    }
+                }
+            });
         });
-    });
-</script>
+    </script>
 </th:block>
 </body>
 </html>

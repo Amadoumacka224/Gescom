@@ -141,67 +141,67 @@
 <!-- Scripts pour les graphiques -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-    // Données des graphiques passées depuis le serveur
-    const revenueData = /*[[${dashboardData.revenueByDay}]]*/ [];
-    const ordersStatusData = /*[[${dashboardData.ordersByStatus}]]*/ [];
+        // Données des graphiques passées depuis le serveur
+        const revenueData = /*[[${dashboardData.revenueByDay}]]*/ [];
+        const ordersStatusData = /*[[${dashboardData.ordersByStatus}]]*/ [];
 
-    // Configuration des graphiques Chart.js
-    document.addEventListener('DOMContentLoaded', function() {
-        // Graphique CA
-        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-        new Chart(revenueCtx, {
-            type: 'line',
-            data: {
-                labels: revenueData.map(item => item.date),
-                datasets: [{
-                    label: 'Chiffre d\'affaires',
-                    data: revenueData.map(item => item.revenue),
-                    borderColor: 'rgb(54, 162, 235)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                    tension: 0.1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return new Intl.NumberFormat('fr-FR', {
-                                    style: 'currency',
-                                    currency: 'EUR'
-                                }).format(value);
+        // Configuration des graphiques Chart.js
+        document.addEventListener('DOMContentLoaded', function() {
+            // Graphique CA
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: revenueData.map(item => item.date),
+                    datasets: [{
+                        label: 'Chiffre d\'affaires',
+                        data: revenueData.map(item => item.revenue),
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return new Intl.NumberFormat('fr-FR', {
+                                        style: 'currency',
+                                        currency: 'EUR'
+                                    }).format(value);
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
 
-        // Graphique statuts commandes
-        const statusCtx = document.getElementById('ordersStatusChart').getContext('2d');
-        new Chart(statusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ordersStatusData.map(item => item.status),
-                datasets: [{
-                    data: ordersStatusData.map(item => item.count),
-                    backgroundColor: [
-                        'rgba(255, 99, 132, 0.8)',
-                        'rgba(54, 162, 235, 0.8)',
-                        'rgba(255, 205, 86, 0.8)',
-                        'rgba(75, 192, 192, 0.8)'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
+            // Graphique statuts commandes
+            const statusCtx = document.getElementById('ordersStatusChart').getContext('2d');
+            new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ordersStatusData.map(item => item.status),
+                    datasets: [{
+                        data: ordersStatusData.map(item => item.count),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 205, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
         });
-    });
-</script>
+    </script>
 </th:block>
 </body>
 </html>

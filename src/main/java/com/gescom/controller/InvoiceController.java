@@ -1,9 +1,12 @@
 package com.gescom.controller;
 
-// Importation des classes nécessaires
+
+
 import com.gescom.entity.Invoice;
+import com.gescom.entity.Order;
 import com.gescom.entity.User;
 import com.gescom.repository.InvoiceRepository;
+import com.gescom.repository.OrderRepository;
 import com.gescom.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,6 +38,10 @@ public class InvoiceController {
     // Injection automatique du repository des utilisateurs
     @Autowired
     private UserRepository userRepository;
+
+    // Injection automatique du repository des commandes
+    @Autowired
+    private OrderRepository orderRepository;
 
     // Méthode qui gère les requêtes GET vers "/invoices"
     @GetMapping
@@ -532,5 +539,67 @@ public class InvoiceController {
         }
 
         return "redirect:/invoices";
+    }
+
+    @GetMapping("/new")
+    public String newInvoice(@RequestParam(required = false) Long orderId, Model model, RedirectAttributes redirectAttributes) {
+        try {
+            System.out.println("=== CRÉATION NOUVELLE FACTURE ===");
+            System.out.println("OrderId reçu: " + orderId);
+
+            Invoice invoice = new Invoice();
+
+            // Si une commande est spécifiée, pré-remplir la facture
+            if (orderId != null) {
+                Optional<Order> orderOpt = orderRepository.findById(orderId);
+                if (orderOpt.isEmpty()) {
+                    System.err.println("ERREUR: Commande " + orderId + " non trouvée");
+                    redirectAttributes.addFlashAttribute("error", "Commande non trouvée");
+                    return "redirect:/orders";
+                }
+
+                Order order = orderOpt.get();
+                System.out.println("Commande trouvée: " + order.getOrderNumber());
+
+                // Vérifier si la commande n'a pas déjà une facture
+                if (order.getInvoice() != null) {
+                    System.out.println("Commande déjà facturée, redirection vers facture existante");
+                    redirectAttributes.addFlashAttribute("warning", "Cette commande a déjà une facture");
+                    return "redirect:/invoices/" + order.getInvoice().getId();
+                }
+
+                // Pré-remplir la facture avec les données de la commande
+                invoice.setOrder(order);
+                invoice.setBillingAddress(order.getBillingAddress());
+                invoice.setDiscountRate(order.getDiscountRate());
+                invoice.setShippingCost(order.getShippingCost());
+                invoice.setTotalAmountHT(order.getTotalAmountHT());
+                invoice.setTotalVatAmount(order.getTotalVatAmount());
+                invoice.setTotalAmount(order.getTotalAmount());
+                invoice.setDiscountAmount(order.getDiscountAmount());
+
+                System.out.println("Facture pré-remplie avec montant: " + invoice.getTotalAmount());
+            }
+
+            model.addAttribute("invoice", invoice);
+            model.addAttribute("isEdit", false);
+
+            // Liste des commandes disponibles pour facturation (confirmées ou livrées sans facture)
+            List<Order> availableOrders = orderRepository.findAll().stream()
+                    .filter(order -> (order.getStatus() == Order.OrderStatus.CONFIRMED ||
+                            order.getStatus() == Order.OrderStatus.DELIVERED) &&
+                            order.getInvoice() == null)
+                    .collect(Collectors.toList());
+            model.addAttribute("availableOrders", availableOrders);
+
+            System.out.println("Redirection vers formulaire facture");
+            return "invoices/form";
+
+        } catch (Exception e) {
+            System.err.println("ERREUR création facture: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error", "Erreur lors de la création de la facture: " + e.getMessage());
+            return "redirect:/invoices";
+        }
     }
 }
