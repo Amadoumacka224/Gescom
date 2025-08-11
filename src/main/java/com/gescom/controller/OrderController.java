@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/orders")
-public class OrderController {
+public class CommandeController {
 
     @Autowired
     private OrderRepository orderRepository;
