@@ -17,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import java.io.IOException;
 
 @Configuration
 @EnableWebSecurity
@@ -65,6 +66,7 @@ public class SecurityConfig {
                 // Configuration des autorisations (CORRIGÉE)
                 .authorizeHttpRequests(authz -> authz
                         // Ressources publiques - ORDRE IMPORTANT !
+
                         .requestMatchers(
                                 "/",
                                 "/login**",
@@ -125,12 +127,18 @@ public class SecurityConfig {
 
                 // Configuration des headers pour H2 Console
                 .headers(headers -> headers
-                        .frameOptions().sameOrigin()
+                        .frameOptions(frameOptions -> frameOptions.sameOrigin())
                 )
 
                 // Gestion des exceptions
                 .exceptionHandling(exceptions -> exceptions
-                        .accessDeniedPage("/error/403")
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            try {
+                                response.sendRedirect("/error");
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        })
                 );
 
         return http.build();

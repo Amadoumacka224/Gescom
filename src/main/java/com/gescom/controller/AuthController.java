@@ -1,10 +1,5 @@
 package com.gescom.controller;
 
-
-
-
-
-
 import org.springframework.stereotype.Controller;
 
 import com.gescom.dto.UserRegistrationDto;
@@ -43,7 +38,7 @@ public class AuthController {
             logger.info("Utilisateur connecté détecté, redirection vers dashboard: {}", authentication.getName());
             return "redirect:/dashboard";
         }
-
+        
         // Sinon, rediriger vers la page de connexion
         logger.info("Utilisateur non connecté, redirection vers login");
         return "redirect:/login";

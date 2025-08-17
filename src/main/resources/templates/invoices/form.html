@@ -2,6 +2,257 @@
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
     <title th:text="${isEdit} ? 'Modifier la Facture' : 'Nouvelle Facture'">Formulaire Facture</title>
+    <style>
+        /* Styles pour la prévisualisation de facture */
+        .invoice-document {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .invoice-document .company-info h2 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .invoice-document .invoice-header h1 {
+            font-size: 2.5rem;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .invoice-document .invoice-meta p {
+            margin-bottom: 0.25rem;
+            font-size: 0.95rem;
+        }
+
+        .invoice-document .client-info h6 {
+            font-size: 1.1rem;
+            color: #2c3e50;
+        }
+
+        .invoice-document .address-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .invoice-document .table {
+            font-size: 0.9rem;
+        }
+
+        .invoice-document .table thead th {
+            background-color: #2c3e50 !important;
+            color: white;
+            border: none;
+            font-weight: 600;
+            padding: 12px 8px;
+        }
+
+        .invoice-document .table tbody td {
+            padding: 10px 8px;
+            border-color: #dee2e6;
+            vertical-align: middle;
+        }
+
+        .invoice-document .totals-section .table td {
+            padding: 8px 12px;
+            font-size: 0.95rem;
+        }
+
+        .invoice-document .totals-section .table tr:last-child td {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        /* Styles spécifiques pour l'impression */
+        @media print {
+            .modal-header, .modal-footer {
+                display: none !important;
+            }
+
+            .modal-dialog {
+                max-width: 100% !important;
+                margin: 0 !important;
+            }
+
+            .modal-content {
+                border: none !important;
+                box-shadow: none !important;
+            }
+
+            .invoice-document {
+                padding: 20px !important;
+            }
+        }
+
+        /* Animation pour le modal */
+        .modal.fade .modal-dialog {
+            transition: transform 0.3s ease-out;
+        }
+
+        /* MODAL SIMPLE STYLE */
+        .modal-xl {
+            max-width: 1200px;
+        }
+
+        /* Modal personnalisée pour l'aperçu de facture - MÊME CSS QUE LE MODAL D'AJOUT D'ARTICLE */
+        .custom-modal {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 99999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(0, 0, 0, 0.8) !important;
+            backdrop-filter: blur(4px);
+            pointer-events: auto !important;
+        }
+        
+        .custom-modal-dialog {
+            position: relative !important;
+            width: 95% !important;
+            max-width: 1400px !important;
+            max-height: 95vh !important;
+            overflow: hidden;
+            margin: auto !important;
+            z-index: 100000 !important;
+            transform: translate(0, 0) !important;
+        }
+        
+        .custom-modal-content {
+            background: white !important;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+            max-height: 95vh !important;
+            overflow: hidden;
+            z-index: 100001 !important;
+        }
+        
+        .custom-modal-header {
+            padding: 20px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .custom-modal-title {
+            margin: 0;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 600;
+            flex: 1;
+        }
+        
+        .custom-btn-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .custom-btn-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .custom-modal-body {
+            padding: 0;
+            overflow-y: auto;
+            flex: 1;
+            max-height: calc(95vh - 200px);
+        }
+        
+        .custom-modal-footer {
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            border-radius: 0 0 12px 12px;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        /* Animation d'ouverture */
+        .custom-modal.show {
+            display: flex !important;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .custom-modal.show .custom-modal-dialog {
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .custom-modal-dialog {
+                width: 95%;
+                margin: 10px;
+            }
+            
+            .custom-modal-content {
+                max-height: 95vh;
+            }
+            
+            .custom-modal-header {
+                padding: 16px 20px;
+            }
+            
+            .custom-modal-body {
+                padding: 20px;
+            }
+            
+            .custom-modal-footer {
+                padding: 12px 20px;
+            }
+        }
+
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            .invoice-document .table {
+                font-size: 0.8rem;
+            }
+
+            .invoice-document .invoice-header h1 {
+                font-size: 2rem;
+            }
+
+            .invoice-document .company-info h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
 </head>
 <body>
 <div th:fragment="content">
@@ -323,7 +574,7 @@
                                 <span th:text="${isEdit} ? 'Mettre à jour' : 'Créer la facture'">Sauvegarder</span>
                             </button>
 
-                            <button type="button" class="btn btn-outline-primary" onclick="previewInvoice()" th:if="${isEdit}">
+                            <button type="button" class="btn btn-outline-primary" onclick="window.openInvoicePreviewModal()">
                                 <i class="fas fa-eye me-2"></i>Aperçu
                             </button>
 
@@ -359,6 +610,35 @@
             </div>
         </div>
     </form>
+
+    <!-- MODAL APERÇU FACTURE - STRUCTURE IDENTIQUE AU MODAL D'AJOUT D'ARTICLE -->
+    <div id="invoicePreviewModal" class="custom-modal" style="display: none;" onclick="window.closeInvoicePreviewModal()">
+        <div class="custom-modal-dialog" onclick="event.stopPropagation()">
+            <div class="custom-modal-content">
+                <div class="custom-modal-header">
+                    <h5 class="custom-modal-title">
+                        <i class="fas fa-file-invoice me-2"></i>Aperçu de la Facture
+                    </h5>
+                    <button type="button" class="custom-btn-close" onclick="window.closeInvoicePreviewModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="custom-modal-body">
+                    <div id="invoiceContent" class="invoice-document" style="background: white; padding: 30px;">
+                        <!-- Le contenu sera généré dynamiquement par JavaScript -->
+                    </div>
+                </div>
+                <div class="custom-modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.closeInvoicePreviewModal()">
+                        <i class="fas fa-times me-2"></i>Fermer
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="printInvoice()">
+                        <i class="fas fa-print me-2"></i>Imprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <th:block th:fragment="js_assets">
@@ -424,71 +704,6 @@
                             }
                         });
                 }
-            }
-
-
-            // Calcul automatique des totaux
-            function calculateTotals() {
-                let subtotalHT = 0;
-                let totalVAT = 0;
-
-                document.querySelectorAll('.invoice-item-row:not(.d-none)').forEach(row => {
-                    const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
-                    const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
-                    const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
-                    const vatRate = parseFloat(row.querySelector('.item-vat-rate').value) || 0;
-
-                    const lineSubtotal = quantity * unitPrice;
-                    const lineDiscount = lineSubtotal * (discount / 100);
-                    const lineTotal = lineSubtotal - lineDiscount;
-                    const lineVAT = lineTotal * vatRate / 100;
-
-                    subtotalHT += lineTotal;
-                    totalVAT += lineVAT;
-
-                    // Mettre à jour l'affichage de la ligne
-                    row.querySelector('.item-total-ht').textContent = lineTotal.toFixed(2) + ' €';
-                });
-
-                // Récupérer la remise globale et les frais de port
-                const globalDiscountRate = parseFloat(document.getElementById('discountRate').value) || 0;
-                const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
-
-                // Calcul des remises et totaux
-                const globalDiscountAmount = subtotalHT * (globalDiscountRate / 100);
-                const totalHT = subtotalHT - globalDiscountAmount;
-                const totalTTC = totalHT + totalVAT + shippingCost;
-
-                // Mettre à jour l'affichage
-                document.getElementById('subtotalHT').textContent = subtotalHT.toFixed(2) + ' €';
-                document.getElementById('totalHT').textContent = totalHT.toFixed(2) + ' €';
-                document.getElementById('totalVAT').textContent = totalVAT.toFixed(2) + ' €';
-                document.getElementById('totalTTC').textContent = totalTTC.toFixed(2) + ' €';
-
-                // Afficher/masquer les lignes conditionnelles
-                const discountRow = document.getElementById('discountRow');
-                const discountDisplay = document.getElementById('discountDisplay');
-                if (globalDiscountAmount > 0) {
-                    discountRow.style.display = 'flex';
-                    discountDisplay.textContent = '-' + globalDiscountAmount.toFixed(2) + ' €';
-                } else {
-                    discountRow.style.display = 'none';
-                }
-
-                const shippingRow = document.getElementById('shippingRow');
-                const shippingDisplay = document.getElementById('shippingDisplay');
-                if (shippingCost > 0) {
-                    shippingRow.style.display = 'flex';
-                    shippingDisplay.textContent = shippingCost.toFixed(2) + ' €';
-                } else {
-                    shippingRow.style.display = 'none';
-                }
-
-                // Mettre à jour les champs cachés
-                document.getElementById('hiddenDiscountAmount').value = globalDiscountAmount.toFixed(2);
-                document.getElementById('hiddenTotalHT').value = totalHT.toFixed(2);
-                document.getElementById('hiddenTotalVAT').value = totalVAT.toFixed(2);
-                document.getElementById('hiddenTotalTTC').value = totalTTC.toFixed(2);
             }
 
             // Event listeners
@@ -572,8 +787,13 @@
         function updateNoItemsAlert() {
             const tbody = document.getElementById('invoiceItemsBody');
             const alert = document.getElementById('noItemsAlert');
-            const visibleRows = tbody.querySelectorAll('.invoice-item-row:not(.d-none)').length;
 
+            // Vérifier que les éléments existent
+            if (!tbody || !alert) {
+                return; // Elements not found, probably in preview mode
+            }
+
+            const visibleRows = tbody.querySelectorAll('.invoice-item-row:not(.d-none)').length;
             alert.style.display = visibleRows === 0 ? 'block' : 'none';
         }
 
@@ -583,32 +803,427 @@
             return visibleRows.length;
         }
 
-        function previewInvoice() {
-            alert('Aperçu de la facture à implémenter');
+        // Calcul automatique des totaux
+        function calculateTotals() {
+            // Vérifier si on est en mode formulaire (pas en prévisualisation)
+            const discountRateElement = document.getElementById('discountRate');
+            if (!discountRateElement) {
+                return; // Not in form mode, probably in preview
+            }
+
+            let subtotalHT = 0;
+            let totalVAT = 0;
+
+            document.querySelectorAll('.invoice-item-row:not(.d-none)').forEach(row => {
+                const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+                const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
+                const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
+                const vatRate = parseFloat(row.querySelector('.item-vat-rate').value) || 0;
+
+                const lineSubtotal = quantity * unitPrice;
+                const lineDiscount = lineSubtotal * (discount / 100);
+                const lineTotal = lineSubtotal - lineDiscount;
+                const lineVAT = lineTotal * vatRate / 100;
+
+                subtotalHT += lineTotal;
+                totalVAT += lineVAT;
+
+                // Mettre à jour l'affichage de la ligne
+                row.querySelector('.item-total-ht').textContent = lineTotal.toFixed(2) + ' €';
+            });
+
+            // Récupérer la remise globale et les frais de port
+            const globalDiscountRate = parseFloat(document.getElementById('discountRate').value) || 0;
+            const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+
+            // Calcul des remises et totaux
+            const globalDiscountAmount = subtotalHT * (globalDiscountRate / 100);
+            const totalHT = subtotalHT - globalDiscountAmount;
+            const totalTTC = totalHT + totalVAT + shippingCost;
+
+            // Mettre à jour l'affichage
+            document.getElementById('subtotalHT').textContent = subtotalHT.toFixed(2) + ' €';
+            document.getElementById('totalHT').textContent = totalHT.toFixed(2) + ' €';
+            document.getElementById('totalVAT').textContent = totalVAT.toFixed(2) + ' €';
+            document.getElementById('totalTTC').textContent = totalTTC.toFixed(2) + ' €';
+
+            // Afficher/masquer les lignes conditionnelles
+            const discountRow = document.getElementById('discountRow');
+            const discountDisplay = document.getElementById('discountDisplay');
+            if (globalDiscountAmount > 0) {
+                discountRow.style.display = 'flex';
+                discountDisplay.textContent = '-' + globalDiscountAmount.toFixed(2) + ' €';
+            } else {
+                discountRow.style.display = 'none';
+            }
+
+            const shippingRow = document.getElementById('shippingRow');
+            const shippingDisplay = document.getElementById('shippingDisplay');
+            if (shippingCost > 0) {
+                shippingRow.style.display = 'flex';
+                shippingDisplay.textContent = shippingCost.toFixed(2) + ' €';
+            } else {
+                shippingRow.style.display = 'none';
+            }
+
+            // Mettre à jour les champs cachés
+            document.getElementById('hiddenDiscountAmount').value = globalDiscountAmount.toFixed(2);
+            document.getElementById('hiddenTotalHT').value = totalHT.toFixed(2);
+            document.getElementById('hiddenTotalVAT').value = totalVAT.toFixed(2);
+            document.getElementById('hiddenTotalTTC').value = totalTTC.toFixed(2);
+        }
+
+        // Fonctions globales exactement comme dans orders/form.html
+        window.openInvoicePreviewModal = function() {
+            console.log('Ouverture du modal d\'aperçu facture');
+            loadInvoiceData();
+            
+            const modalElement = document.getElementById('invoicePreviewModal');
+            if (modalElement) {
+                // Force tous les styles exactement comme dans orders
+                modalElement.style.cssText = `
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    z-index: 99999 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    background: rgba(0, 0, 0, 0.8) !important;
+                    backdrop-filter: blur(4px);
+                    pointer-events: auto !important;
+                `;
+                
+                modalElement.classList.add('show');
+                console.log('Modal d\'aperçu ouvert avec succès');
+            }
+        };
+
+        window.closeInvoicePreviewModal = function() {
+            console.log('Fermeture du modal d\'aperçu facture');
+            const modalElement = document.getElementById('invoicePreviewModal');
+            
+            if (modalElement) {
+                modalElement.classList.remove('show');
+                setTimeout(() => {
+                    modalElement.style.display = 'none';
+                }, 200);
+            }
+        };
+
+        // Fermer avec Échap
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('invoicePreviewModal');
+                if (modal && modal.style.display !== 'none') {
+                    window.closeInvoicePreviewModal();
+                }
+            }
+        });
+
+        // Fonction pour charger les données dans l'aperçu
+        function loadInvoiceData() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value || 'FACT-NEW';
+            const invoiceDate = formatDateFr(document.getElementById('invoiceDate').value);
+            const dueDate = formatDateFr(document.getElementById('dueDate').value);
+            const status = document.getElementById('status');
+            const statusText = status.options[status.selectedIndex].text;
+
+            // Client info
+            const clientDisplay = document.getElementById('clientDisplay').value || 'Client non sélectionné';
+            const billingAddress = document.getElementById('billingAddress').value || 'Adresse non renseignée';
+
+            // Order info
+            const orderSelect = document.getElementById('order');
+            let orderInfo = '';
+            if (orderSelect.value) {
+                const selectedOption = orderSelect.options[orderSelect.selectedIndex];
+                orderInfo = selectedOption.text.split(' - ')[0];
+            } else {
+                orderInfo = 'Aucune commande liée';
+            }
+
+            // Payment method
+            const paymentMethod = document.getElementById('paymentMethod');
+            const paymentText = paymentMethod.value ? paymentMethod.options[paymentMethod.selectedIndex].text : 'À définir';
+
+            // Notes et conditions
+            const notes = document.getElementById('notes').value;
+            const terms = document.getElementById('termsConditions').value;
+
+            // Construire le HTML de la facture
+            let html = `
+        <!-- En-tête de la facture -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="company-info">
+                    <h2 class="text-primary fw-bold">GESCOM</h2>
+                    <p class="mb-1">Système de Gestion Commerciale</p>
+                    <p class="mb-1">123 Rue de l'Entreprise</p>
+                    <p class="mb-1">75001 Paris, France</p>
+                    <p class="mb-1">Tél: 01 23 45 67 89</p>
+                    <p class="mb-0">Email: contact@gescom.fr</p>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="invoice-header">
+                    <h1 class="text-dark mb-3">FACTURE</h1>
+                    <div class="invoice-meta">
+                        <p class="mb-1"><strong>N° Facture:</strong> ${invoiceNumber}</p>
+                        <p class="mb-1"><strong>Date:</strong> ${invoiceDate}</p>
+                        <p class="mb-1"><strong>Échéance:</strong> ${dueDate}</p>
+                        <p class="mb-0"><strong>Statut:</strong> <span class="badge ${getStatusBadgeClass(status.value)}">${statusText}</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informations client -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="billing-address">
+                    <h5 class="text-primary mb-3">Facturé à:</h5>
+                    <div class="client-info">
+                        <h6 class="mb-2">${clientDisplay}</h6>
+                        <div class="address-text">
+                            <p class="mb-0">${billingAddress.replace(/\n/g, '<br>')}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="invoice-details">
+                    <h5 class="text-primary mb-3">Détails de la commande:</h5>
+                    <p class="mb-1"><strong>N° Commande:</strong> ${orderInfo}</p>
+                    <p class="mb-0"><strong>Mode de paiement:</strong> ${paymentText}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau des articles -->
+        <div class="table-responsive mb-4">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 35%">Description</th>
+                        <th style="width: 10%" class="text-center">Qté</th>
+                        <th style="width: 15%" class="text-end">Prix unitaire</th>
+                        <th style="width: 10%" class="text-center">Remise %</th>
+                        <th style="width: 10%" class="text-center">TVA %</th>
+                        <th style="width: 20%" class="text-end">Total HT</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            // Ajouter les lignes de facture
+            const visibleRows = document.querySelectorAll('.invoice-item-row:not(.d-none)');
+            if (visibleRows.length === 0) {
+                html += `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Aucun article ajouté à la facture
+                </td>
+            </tr>`;
+            } else {
+                visibleRows.forEach(row => {
+                    const description = row.querySelector('.item-description').value || 'Produit sans nom';
+                    const quantity = row.querySelector('.item-quantity').value || '0';
+                    const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
+                    const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
+                    const vatRate = parseFloat(row.querySelector('.item-vat-rate').value) || 0;
+
+                    const lineSubtotal = quantity * unitPrice;
+                    const lineDiscount = lineSubtotal * (discount / 100);
+                    const lineTotal = lineSubtotal - lineDiscount;
+
+                    html += `
+                <tr>
+                    <td class="align-middle">${description}</td>
+                    <td class="text-center align-middle">${quantity}</td>
+                    <td class="text-end align-middle">${formatCurrency(unitPrice)}</td>
+                    <td class="text-center align-middle">${discount}%</td>
+                    <td class="text-center align-middle">${vatRate}%</td>
+                    <td class="text-end align-middle fw-bold">${formatCurrency(lineTotal)}</td>
+                </tr>`;
+                });
+            }
+
+            html += `
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totaux -->
+        <div class="row">
+            <div class="col-md-8">`;
+
+            // Notes
+            if (notes.trim()) {
+                html += `
+                <div>
+                    <h6 class="text-primary mb-2">Notes:</h6>
+                    <div class="text-muted small">${notes.replace(/\n/g, '<br>')}</div>
+                </div>`;
+            }
+
+            // Conditions de paiement
+            if (terms.trim()) {
+                html += `
+                <div class="mt-3">
+                    <h6 class="text-primary mb-2">Conditions de paiement:</h6>
+                    <div class="text-muted small">${terms.replace(/\n/g, '<br>')}</div>
+                </div>`;
+            }
+
+            html += `
+            </div>
+            <div class="col-md-4">
+                <div class="totals-section">
+                    <table class="table table-sm">`;
+
+            // Récupérer les totaux
+            const subtotalHT = parseFloat(document.getElementById('subtotalHT').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const totalHT = parseFloat(document.getElementById('totalHT').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const totalVAT = parseFloat(document.getElementById('totalVAT').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const totalTTC = parseFloat(document.getElementById('totalTTC').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const discountRate = parseFloat(document.getElementById('discountRate').value) || 0;
+            const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+
+            html += `
+                        <tr>
+                            <td class="border-0 fw-bold">Sous-total HT:</td>
+                            <td class="border-0 text-end fw-bold">${formatCurrency(subtotalHT)}</td>
+                        </tr>`;
+
+            if (discountRate > 0) {
+                const discountAmount = subtotalHT * (discountRate / 100);
+                html += `
+                        <tr>
+                            <td class="border-0 text-danger">Remise (${discountRate}%):</td>
+                            <td class="border-0 text-end text-danger">-${formatCurrency(discountAmount)}</td>
+                        </tr>`;
+            }
+
+            html += `
+                        <tr>
+                            <td class="border-0 fw-bold">Total HT:</td>
+                            <td class="border-0 text-end fw-bold">${formatCurrency(totalHT)}</td>
+                        </tr>
+                        <tr>
+                            <td class="border-0">TVA:</td>
+                            <td class="border-0 text-end">${formatCurrency(totalVAT)}</td>
+                        </tr>`;
+
+            if (shippingCost > 0) {
+                html += `
+                        <tr>
+                            <td class="border-0">Frais de port:</td>
+                            <td class="border-0 text-end">${formatCurrency(shippingCost)}</td>
+                        </tr>`;
+            }
+
+            html += `
+                        <tr class="table-dark">
+                            <td class="fw-bold fs-5">TOTAL TTC:</td>
+                            <td class="text-end fw-bold fs-5">${formatCurrency(totalTTC)}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pied de page -->
+        <div class="mt-5 pt-4 border-top">
+            <div class="row">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        <strong>GESCOM</strong> - Système de Gestion Commerciale<br>
+                        SIRET: 123 456 789 00012 - TVA: FR12345678901<br>
+                        Capital social: 10 000 €
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted">
+                        Facture générée le ${new Date().toLocaleDateString('fr-FR')}<br>
+                        Page 1/1
+                    </small>
+                </div>
+            </div>
+        </div>`;
+
+            // Injecter le HTML dans le modal
+            document.getElementById('invoiceContent').innerHTML = html;
+        }
+
+        function formatDateFr(dateString) {
+            if (!dateString) return 'Non définie';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fr-FR');
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(amount);
+        }
+
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'DRAFT': return 'bg-secondary';
+                case 'SENT': return 'bg-primary';
+                case 'PAID': return 'bg-success';
+                case 'PARTIAL': return 'bg-warning text-dark';
+                case 'OVERDUE': return 'bg-danger';
+                case 'CANCELLED': return 'bg-dark';
+                default: return 'bg-secondary';
+            }
+        }
+
+        function printInvoice() {
+            // Créer une nouvelle fenêtre pour l'impression
+            const printWindow = window.open('', '_blank');
+            const invoiceContent = document.getElementById('invoiceContent').innerHTML;
+
+            printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Facture - Impression</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+            <style>
+                @media print {
+                    body { margin: 0; padding: 20px; font-size: 12px; }
+                    .invoice-document { box-shadow: none; border: none; }
+                    @page { margin: 1cm; }
+                }
+                body { font-family: Arial, sans-serif; }
+                .invoice-document { max-width: 210mm; margin: 0 auto; }
+            </style>
+        </head>
+        <body>
+            <div class="invoice-document">
+                ${invoiceContent}
+            </div>
+        </body>
+        </html>
+    `);
+
+            printWindow.document.close();
+
+            // Attendre que le contenu soit chargé avant d'imprimer
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
         }
 
         function generatePDF() {
             alert('Génération PDF à implémenter');
         }
-
-        // Fonction pour recalculer les totaux de ligne individuels
-        function updateLineTotal(row) {
-            const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
-            const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
-            const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
-            const vatRate = parseFloat(row.querySelector('.item-vat-rate').value) || 0;
-
-            const lineTotal = quantity * unitPrice * (1 - discount / 100);
-
-            // Mettre à jour l'affichage du total HT de la ligne
-            row.querySelector('.item-total-ht').textContent = lineTotal.toFixed(2) + ' €';
-
-            return {
-                totalHT: lineTotal,
-                vatAmount: lineTotal * vatRate / 100
-            };
-        }
-
 
         // Fonction pour charger les articles de commande dans la facture
         function loadOrderItemsIntoInvoice(orderItems) {

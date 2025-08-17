@@ -1,8 +1,5 @@
 package com.gescom.entity;
 
-
-
-
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -59,6 +56,9 @@ public class OrderItem {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    @Column(length = 255)
+    private String description;
+
     // Méthodes utilitaires
     @PrePersist
     @PreUpdate
@@ -90,10 +90,10 @@ public class OrderItem {
         }
 
         this.totalPrice = totalPriceHT.add(totalVatAmount);
-
-        System.out.println("OrderItem calculateTotals - Qté: " + quantity +
-                ", Prix: " + unitPrice +
-                ", Total HT: " + totalPriceHT);
+        
+        System.out.println("OrderItem calculateTotals - Qté: " + quantity + 
+                         ", Prix: " + unitPrice + 
+                         ", Total HT: " + totalPriceHT);
     }
 
     public BigDecimal getUnitPriceAfterDiscount() {
@@ -102,5 +102,20 @@ public class OrderItem {
         }
         BigDecimal discount = unitPrice.multiply(discountRate).divide(BigDecimal.valueOf(100));
         return unitPrice.subtract(discount);
+    }
+
+    public BigDecimal getTotalPriceAfterDiscount() {
+        if (discountAmount == null || discountAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return totalPrice;
+        }
+        return totalPrice.subtract(discountAmount);
+    }
+
+    public String getDescription() {
+        return description != null ? description : "";
+    }
+
+    public void setDescription(String description) {
+        this.description = description != null ? description.trim() : null;
     }
 }

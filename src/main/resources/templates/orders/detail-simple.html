@@ -1,10 +1,67 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::css_assets})}">
 <head>
     <title th:text="'Détails Commande ' + ${order.orderNumber}">Détails Commande</title>
 </head>
 <body>
-<div th:fragment="content">
+
+<div th:fragment="css_assets">
+<style>
+    /* Force tous les textes à être noirs pour éviter le problème de texte blanc */
+    .order-detail-page {
+        color: #212529 !important;
+    }
+    
+    .order-detail-page * {
+        color: inherit !important;
+    }
+    
+    .order-detail-page h1,
+    .order-detail-page h2,
+    .order-detail-page h3,
+    .order-detail-page h4,
+    .order-detail-page h5,
+    .order-detail-page h6,
+    .order-detail-page p,
+    .order-detail-page span,
+    .order-detail-page td,
+    .order-detail-page th,
+    .order-detail-page div,
+    .order-detail-page strong,
+    .order-detail-page small {
+        color: #212529 !important;
+    }
+    
+    /* Exceptions pour les liens */
+    .order-detail-page a {
+        color: #0d6efd !important;
+    }
+    
+    /* Exceptions pour les badges et boutons qui ont leurs propres couleurs */
+    .order-detail-page .btn,
+    .order-detail-page .badge,
+    .order-detail-page .text-primary,
+    .order-detail-page .text-success,
+    .order-detail-page .text-danger,
+    .order-detail-page .text-warning,
+    .order-detail-page .text-muted {
+        color: inherit !important;
+    }
+    
+    /* Headers de table */
+    .order-detail-page .table th {
+        color: #212529 !important;
+        background-color: #f8f9fa !important;
+    }
+    
+    /* Texte des alertes */
+    .order-detail-page .alert {
+        color: #0c5460 !important;
+    }
+</style>
+</div>
+
+<div th:fragment="content" class="order-detail-page">
     <!-- En-tête -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -46,28 +103,28 @@
             <div th:if="${#lists.isEmpty(order.orderItems)}" class="alert alert-info">
                 <i class="fas fa-info-circle me-2"></i>Aucun article dans cette commande.
             </div>
-
+            
             <div th:unless="${#lists.isEmpty(order.orderItems)}">
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead class="table-light">
-                        <tr>
-                            <th>Produit</th>
-                            <th>Quantité</th>
-                            <th>Prix unitaire</th>
-                            <th>Total HT</th>
-                        </tr>
+                            <tr>
+                                <th>Produit</th>
+                                <th>Quantité</th>
+                                <th>Prix unitaire</th>
+                                <th>Total HT</th>
+                            </tr>
                         </thead>
                         <tbody>
-                        <tr th:each="item : ${order.orderItems}">
-                            <td>
-                                <strong th:text="${item.product?.name ?: 'Produit non défini'}">Produit</strong><br>
-                                <small class="text-muted" th:text="'Réf: ' + ${item.product?.reference ?: 'N/A'}">Référence</small>
-                            </td>
-                            <td th:text="${item.quantity != null ? item.quantity : 0}">0</td>
-                            <td th:text="${item.unitPrice != null ? #numbers.formatCurrency(item.unitPrice) : #numbers.formatCurrency(0)}">0,00 €</td>
-                            <td th:text="${item.totalPriceHT != null ? #numbers.formatCurrency(item.totalPriceHT) : #numbers.formatCurrency(0)}">0,00 €</td>
-                        </tr>
+                            <tr th:each="item : ${order.orderItems}">
+                                <td>
+                                    <strong th:text="${item.product?.name ?: 'Produit non défini'}">Produit</strong><br>
+                                    <small class="text-muted" th:text="'Réf: ' + ${item.product?.reference ?: 'N/A'}">Référence</small>
+                                </td>
+                                <td th:text="${item.quantity ?: 0}">0</td>
+                                <td th:text="${#numbers.formatCurrency(item.unitPrice ?: 0)}">0,00 €</td>
+                                <td th:text="${#numbers.formatCurrency(item.totalPriceHT ?: 0)}">0,00 €</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -83,39 +140,35 @@
                     <h5 class="mb-0">Récapitulatif financier</h5>
                 </div>
                 <div class="card-body">
-                    <!-- Sous-total HT -->
                     <div class="d-flex justify-content-between mb-2">
                         <span>Total HT:</span>
-                        <span th:text="${order.totalAmountHT != null ? #numbers.formatCurrency(order.totalAmountHT) : #numbers.formatCurrency(0)}">0,00 €</span>
+                        <span th:text="${#numbers.formatCurrency(order.totalAmountHT ?: 0)}">0,00 €</span>
                     </div>
-
-                    <!-- Remise (affichée seulement si > 0) -->
-                    <div class="d-flex justify-content-between mb-2 text-danger"
-                         th:if="${order.discountAmount != null and order.discountAmount > 0}">
-                        <span>Remise:</span>
-                        <span>-<span th:text="${#numbers.formatCurrency(order.discountAmount)}">0,00 €</span></span>
-                    </div>
-
-                    <!-- TVA -->
                     <div class="d-flex justify-content-between mb-2">
                         <span>TVA:</span>
-                        <span th:text="${order.totalVatAmount != null ? #numbers.formatCurrency(order.totalVatAmount) : #numbers.formatCurrency(0)}">0,00 €</span>
+                        <span th:text="${#numbers.formatCurrency(order.totalVatAmount ?: 0)}">0,00 €</span>
                     </div>
-
-                    <!-- Frais de port (affichés seulement si > 0) -->
-                    <div class="d-flex justify-content-between mb-2"
-                         th:if="${order.shippingCost != null and order.shippingCost > 0}">
-                        <span>Frais de port:</span>
-                        <span th:text="${#numbers.formatCurrency(order.shippingCost)}">0,00 €</span>
-                    </div>
-
                     <hr>
-
-                    <!-- Total TTC -->
                     <div class="d-flex justify-content-between">
                         <span class="h5"><strong>Total TTC:</strong></span>
-                        <span class="h5 text-primary"
-                              th:text="${order.totalAmount != null ? #numbers.formatCurrency(order.totalAmount) : #numbers.formatCurrency(0)}">0,00 €</span>
+                        <span class="h5 text-primary" th:text="${#numbers.formatCurrency(order.totalAmount ?: 0)}">0,00 €</span>
+                    </div>
+                    
+                    <!-- Bouton Facturer -->
+                    <div class="mt-3 d-grid">
+                        <div th:if="${(order.status?.name() == 'CONFIRMED' or order.status?.name() == 'PROCESSING' or order.status?.name() == 'SHIPPED' or order.status?.name() == 'DELIVERED') and order.invoice == null}">
+                            <a th:href="@{/invoices/new(orderId=${order.id})}" class="btn btn-success">
+                                <i class="fas fa-file-invoice-dollar me-2"></i>Créer une facture
+                            </a>
+                        </div>
+                        <div th:if="${order.invoice != null}">
+                            <a th:href="@{/invoices/{id}(id=${order.invoice.id})}" class="btn btn-outline-primary">
+                                <i class="fas fa-file-invoice me-2"></i>Voir la facture
+                            </a>
+                        </div>
+                        <div th:unless="${(order.status?.name() == 'CONFIRMED' or order.status?.name() == 'DELIVERED')}">
+                            <small class="text-muted">Bouton facturer disponible pour les commandes confirmées ou livrées</small>
+                        </div>
                     </div>
                 </div>
             </div>

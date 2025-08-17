@@ -1,6 +1,7 @@
 package com.gescom.entity;
 
-
+// 2. Entité Role
+// src/main/java/com/company/commercial/entity/Role.java
 
 
 import jakarta.persistence.*;

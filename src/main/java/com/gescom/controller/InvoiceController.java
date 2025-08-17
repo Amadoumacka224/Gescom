@@ -1,7 +1,6 @@
 package com.gescom.controller;
 
-
-
+// Importation des classes nécessaires
 import com.gescom.entity.Invoice;
 import com.gescom.entity.Order;
 import com.gescom.entity.User;
@@ -9,6 +8,7 @@ import com.gescom.repository.InvoiceRepository;
 import com.gescom.repository.OrderRepository;
 import com.gescom.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
@@ -18,11 +18,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 // Annotation qui indique que cette classe est un contrôleur Spring MVC
@@ -546,9 +543,9 @@ public class InvoiceController {
         try {
             System.out.println("=== CRÉATION NOUVELLE FACTURE ===");
             System.out.println("OrderId reçu: " + orderId);
-
+            
             Invoice invoice = new Invoice();
-
+            
             // Si une commande est spécifiée, pré-remplir la facture
             if (orderId != null) {
                 Optional<Order> orderOpt = orderRepository.findById(orderId);
@@ -557,17 +554,17 @@ public class InvoiceController {
                     redirectAttributes.addFlashAttribute("error", "Commande non trouvée");
                     return "redirect:/orders";
                 }
-
+                
                 Order order = orderOpt.get();
                 System.out.println("Commande trouvée: " + order.getOrderNumber());
-
+                
                 // Vérifier si la commande n'a pas déjà une facture
                 if (order.getInvoice() != null) {
                     System.out.println("Commande déjà facturée, redirection vers facture existante");
                     redirectAttributes.addFlashAttribute("warning", "Cette commande a déjà une facture");
                     return "redirect:/invoices/" + order.getInvoice().getId();
                 }
-
+                
                 // Pré-remplir la facture avec les données de la commande
                 invoice.setOrder(order);
                 invoice.setBillingAddress(order.getBillingAddress());
@@ -577,29 +574,277 @@ public class InvoiceController {
                 invoice.setTotalVatAmount(order.getTotalVatAmount());
                 invoice.setTotalAmount(order.getTotalAmount());
                 invoice.setDiscountAmount(order.getDiscountAmount());
-
+                
                 System.out.println("Facture pré-remplie avec montant: " + invoice.getTotalAmount());
             }
-
+            
             model.addAttribute("invoice", invoice);
             model.addAttribute("isEdit", false);
-
-            // Liste des commandes disponibles pour facturation (confirmées ou livrées sans facture)
+            
+            // Liste des commandes disponibles pour facturation (confirmées, en traitement, expédiées ou livrées sans facture)
             List<Order> availableOrders = orderRepository.findAll().stream()
-                    .filter(order -> (order.getStatus() == Order.OrderStatus.CONFIRMED ||
-                            order.getStatus() == Order.OrderStatus.DELIVERED) &&
-                            order.getInvoice() == null)
+                    .filter(order -> (order.getStatus() == Order.OrderStatus.CONFIRMED || 
+                                    order.getStatus() == Order.OrderStatus.PROCESSING ||
+                                    order.getStatus() == Order.OrderStatus.SHIPPED ||
+                                    order.getStatus() == Order.OrderStatus.DELIVERED) && 
+                                   order.getInvoice() == null)
                     .collect(Collectors.toList());
             model.addAttribute("availableOrders", availableOrders);
-
+            
             System.out.println("Redirection vers formulaire facture");
             return "invoices/form";
-
+            
         } catch (Exception e) {
             System.err.println("ERREUR création facture: " + e.getMessage());
             e.printStackTrace();
             redirectAttributes.addFlashAttribute("error", "Erreur lors de la création de la facture: " + e.getMessage());
             return "redirect:/invoices";
+        }
+    }
+
+    @PostMapping
+    public String createOrUpdateInvoice(
+            @ModelAttribute Invoice invoice,
+            @AuthenticationPrincipal UserDetails userDetails,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            System.out.println("=== CRÉATION/MODIFICATION FACTURE ===");
+            System.out.println("Facture ID: " + invoice.getId());
+            System.out.println("Commande ID: " + (invoice.getOrder() != null ? invoice.getOrder().getId() : "null"));
+
+            // Récupérer l'utilisateur connecté
+            Optional<User> userOpt = userRepository.findByUsername(userDetails.getUsername());
+            if (userOpt.isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Utilisateur non trouvé");
+                return "redirect:/invoices";
+            }
+            User currentUser = userOpt.get();
+
+            boolean isEdit = invoice.getId() != null;
+            
+            if (isEdit) {
+                // Modification d'une facture existante
+                Optional<Invoice> existingInvoiceOpt = invoiceRepository.findById(invoice.getId());
+                if (existingInvoiceOpt.isEmpty()) {
+                    redirectAttributes.addFlashAttribute("error", "Facture non trouvée");
+                    return "redirect:/invoices";
+                }
+                
+                Invoice existingInvoice = existingInvoiceOpt.get();
+                
+                // Mettre à jour les champs modifiables
+                existingInvoice.setInvoiceNumber(invoice.getInvoiceNumber());
+                existingInvoice.setInvoiceDate(invoice.getInvoiceDate());
+                existingInvoice.setDueDate(invoice.getDueDate());
+                existingInvoice.setBillingAddress(invoice.getBillingAddress());
+                existingInvoice.setNotes(invoice.getNotes());
+                existingInvoice.setDiscountRate(invoice.getDiscountRate());
+                existingInvoice.setShippingCost(invoice.getShippingCost());
+                
+                // Recalculer les totaux
+                existingInvoice.calculateTotals();
+                
+                invoiceRepository.save(existingInvoice);
+                redirectAttributes.addFlashAttribute("success", "Facture modifiée avec succès");
+                return "redirect:/invoices/" + existingInvoice.getId();
+                
+            } else {
+                // Création d'une nouvelle facture
+                
+                // Générer un numéro de facture si nécessaire
+                if (invoice.getInvoiceNumber() == null || invoice.getInvoiceNumber().trim().isEmpty()) {
+                    invoice.setInvoiceNumber(generateInvoiceNumber());
+                }
+                
+                // Définir les dates par défaut
+                if (invoice.getInvoiceDate() == null) {
+                    invoice.setInvoiceDate(LocalDate.now());
+                }
+                if (invoice.getDueDate() == null) {
+                    invoice.setDueDate(LocalDate.now().plusDays(30)); // 30 jours par défaut
+                }
+                
+                // Définir le statut initial
+                invoice.setStatus(Invoice.InvoiceStatus.DRAFT);
+                
+                // Si une commande est associée, copier les détails
+                if (invoice.getOrder() != null && invoice.getOrder().getId() != null) {
+                    Optional<Order> orderOpt = orderRepository.findById(invoice.getOrder().getId());
+                    if (orderOpt.isPresent()) {
+                        Order order = orderOpt.get();
+                        
+                        // Vérifier que la commande n'a pas déjà une facture
+                        if (order.getInvoice() != null) {
+                            redirectAttributes.addFlashAttribute("error", "Cette commande a déjà une facture");
+                            return "redirect:/orders/" + order.getId();
+                        }
+                        
+                        // Copier toutes les informations de la commande vers la facture
+                        copyOrderToInvoice(order, invoice);
+                        
+                        System.out.println("Informations copiées de la commande vers la facture");
+                        System.out.println("Nombre d'articles dans la commande: " + order.getOrderItems().size());
+                    }
+                }
+                
+                // Calculer les totaux
+                invoice.calculateTotals();
+                
+                // Sauvegarder la facture
+                Invoice savedInvoice = invoiceRepository.save(invoice);
+                
+                // Si une commande est associée, la lier à la facture
+                if (savedInvoice.getOrder() != null) {
+                    Order order = savedInvoice.getOrder();
+                    order.setInvoice(savedInvoice);
+                    orderRepository.save(order);
+                }
+                
+                System.out.println("Facture créée avec ID: " + savedInvoice.getId());
+                redirectAttributes.addFlashAttribute("success", "Facture créée avec succès");
+                return "redirect:/invoices/" + savedInvoice.getId();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("ERREUR lors de la création/modification de la facture: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error", "Erreur lors de la sauvegarde: " + e.getMessage());
+            return "redirect:/invoices/new";
+        }
+    }
+
+    private void copyOrderToInvoice(Order order, Invoice invoice) {
+        // Copier les informations de base
+        invoice.setOrder(order);
+        invoice.setBillingAddress(order.getBillingAddress());
+        invoice.setDiscountRate(order.getDiscountRate() != null ? order.getDiscountRate() : BigDecimal.ZERO);
+        invoice.setShippingCost(order.getShippingCost() != null ? order.getShippingCost() : BigDecimal.ZERO);
+        
+        // Copier les totaux (ils seront recalculés)
+        invoice.setTotalAmountHT(order.getTotalAmountHT());
+        invoice.setTotalVatAmount(order.getTotalVatAmount());
+        invoice.setTotalAmount(order.getTotalAmount());
+        invoice.setDiscountAmount(order.getDiscountAmount());
+        
+        // Les articles de la commande sont automatiquement liés via la relation Order
+        // La facture aura accès aux articles via invoice.getOrder().getOrderItems()
+        
+        System.out.println("Données copiées:");
+        System.out.println("- Commande: " + order.getOrderNumber());
+        System.out.println("- Total HT: " + order.getTotalAmountHT());
+        System.out.println("- Total TTC: " + order.getTotalAmount());
+        System.out.println("- Nombre d'articles: " + order.getOrderItems().size());
+    }
+
+    private String generateInvoiceNumber() {
+        // Générer un numéro de facture unique
+        String datePrefix = LocalDate.now().toString().substring(0, 7).replace("-", ""); // YYYYMM
+        
+        try {
+            // Récupérer toutes les factures
+            List<Invoice> allInvoices = invoiceRepository.findAll();
+            
+            // Compter les factures du mois
+            String monthPattern = "FACT-" + datePrefix;
+            long monthlyCount = allInvoices.stream()
+                    .filter(inv -> inv.getInvoiceNumber() != null)
+                    .filter(inv -> inv.getInvoiceNumber().startsWith(monthPattern))
+                    .count();
+            
+            // Générer et vérifier l'unicité
+            int nextNumber = (int) monthlyCount + 1;
+            String proposedNumber;
+            boolean exists;
+            
+            do {
+                proposedNumber = String.format("FACT-%s-%04d", datePrefix, nextNumber);
+                final String checkNumber = proposedNumber;
+                exists = allInvoices.stream()
+                        .anyMatch(inv -> inv.getInvoiceNumber() != null && inv.getInvoiceNumber().equals(checkNumber));
+                if (exists) {
+                    nextNumber++;
+                }
+            } while (exists);
+            
+            return proposedNumber;
+            
+        } catch (Exception e) {
+            // Fallback simple avec timestamp
+            return String.format("FACT-%s-%d", datePrefix, System.currentTimeMillis() % 10000);
+        }
+    }
+
+    /**
+     * API endpoint pour récupérer les données d'une commande
+     * Utilisé par AJAX pour pré-remplir le formulaire de facture
+     */
+    @GetMapping("/api/orders/{orderId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getOrderData(@PathVariable Long orderId) {
+        try {
+            Optional<Order> orderOpt = orderRepository.findById(orderId);
+            if (orderOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Order order = orderOpt.get();
+            Map<String, Object> response = new HashMap<>();
+            
+            // Informations de base de la commande
+            response.put("id", order.getId());
+            response.put("orderNumber", order.getOrderNumber());
+            response.put("orderDate", order.getOrderDate());
+            response.put("status", order.getStatus().getDisplayName());
+            response.put("billingAddress", order.getBillingAddress());
+            response.put("totalAmount", order.getTotalAmount());
+            response.put("totalAmountHT", order.getTotalAmountHT());
+            response.put("totalVatAmount", order.getTotalVatAmount());
+            response.put("discountRate", order.getDiscountRate());
+            response.put("shippingCost", order.getShippingCost());
+            
+            // Informations client
+            if (order.getClient() != null) {
+                Map<String, Object> clientData = new HashMap<>();
+                clientData.put("id", order.getClient().getId());
+                clientData.put("name", order.getClient().getName());
+                clientData.put("email", order.getClient().getEmail());
+                clientData.put("companyName", order.getClient().getCompanyName());
+                response.put("client", clientData);
+            }
+            
+            // Articles de la commande
+            List<Map<String, Object>> orderItemsData = order.getOrderItems().stream()
+                    .map(item -> {
+                        Map<String, Object> itemData = new HashMap<>();
+                        itemData.put("quantity", item.getQuantity());
+                        itemData.put("unitPrice", item.getUnitPrice());
+                        itemData.put("discountRate", item.getDiscountRate());
+                        itemData.put("vatRate", item.getVatRate());
+                        itemData.put("totalPriceHT", item.getTotalPriceHT());
+                        itemData.put("description", item.getDescription());
+                        
+                        if (item.getProduct() != null) {
+                            Map<String, Object> productData = new HashMap<>();
+                            productData.put("id", item.getProduct().getId());
+                            productData.put("name", item.getProduct().getName());
+                            productData.put("reference", item.getProduct().getReference());
+                            productData.put("unit", item.getProduct().getUnit());
+                            itemData.put("product", productData);
+                        }
+                        
+                        return itemData;
+                    })
+                    .collect(Collectors.toList());
+            
+            response.put("orderItems", orderItemsData);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Erreur lors de la récupération des données de la commande: " + e.getMessage());
+            return ResponseEntity.badRequest().body(error);
         }
     }
 }

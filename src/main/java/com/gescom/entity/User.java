@@ -1,3 +1,4 @@
+// src/main/java/com/company/commercial/entity/User.java (VERSION COMPLÈTEMENT CORRIGÉE)
 package com.gescom.entity;
 
 import jakarta.persistence.*;

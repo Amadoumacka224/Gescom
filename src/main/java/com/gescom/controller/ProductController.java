@@ -1,7 +1,5 @@
 package com.gescom.controller;
 
-
-
 import com.gescom.entity.Product;
 import com.gescom.entity.User;
 import com.gescom.repository.ProductRepository;
@@ -15,6 +13,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.List;
@@ -284,7 +283,8 @@ public class ProductController {
             @PathVariable Long id,
             @RequestParam Integer adjustment,
             @RequestParam String reason,
-            RedirectAttributes redirectAttributes) {
+            RedirectAttributes redirectAttributes,
+            HttpServletRequest request) {
 
         try {
             Optional<Product> productOpt = productRepository.findById(id);
@@ -299,6 +299,11 @@ public class ProductController {
 
             if (newStock < 0) {
                 redirectAttributes.addFlashAttribute("error", "Le stock ne peut pas être négatif");
+                // Retourner vers la page de détails si elle existe
+                String referer = request.getHeader("Referer");
+                if (referer != null && referer.contains("/products/" + id)) {
+                    return "redirect:/products/" + id;
+                }
                 return "redirect:/products";
             }
 
@@ -307,6 +312,12 @@ public class ProductController {
 
             String message = String.format("Stock ajusté: %+d (Raison: %s)", adjustment, reason);
             redirectAttributes.addFlashAttribute("success", message);
+
+            // Retourner vers la page de détails si elle existe
+            String referer = request.getHeader("Referer");
+            if (referer != null && referer.contains("/products/" + id)) {
+                return "redirect:/products/" + id;
+            }
 
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Erreur lors de l'ajustement: " + e.getMessage());

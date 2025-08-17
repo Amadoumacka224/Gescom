@@ -128,7 +128,7 @@
                                 <td th:text="${order.clientName}">Client</td>
                                 <td th:text="${#numbers.formatCurrency(order.totalAmount)}">0 €</td>
                                 <td>
-                                    <span class="badge"
+                                    <span class="badge" 
                                           th:classappend="'bg-' + ${order.statusClass}"
                                           th:text="${order.statusLabel}">Status</span>
                                 </td>
@@ -142,7 +142,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -179,51 +179,51 @@
     </div>
 </div>
 <th:block th:fragment="js_assets">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script th:inline="javascript">
-        const personalSalesData = /*[[${dashboardData.personalSalesEvolution}]]*/ [];
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script th:inline="javascript">
+    const personalSalesData = /*[[${dashboardData.personalSalesEvolution}]]*/ [];
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Graphique évolution des ventes personnelles
-            const ctx = document.getElementById('personalSalesChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: personalSalesData.map(item => item.date),
-                    datasets: [{
-                        label: 'Mon Chiffre d\'affaires',
-                        data: personalSalesData.map(item => item.revenue),
-                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
+    document.addEventListener('DOMContentLoaded', function() {
+        // Graphique évolution des ventes personnelles
+        const ctx = document.getElementById('personalSalesChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: personalSalesData.map(item => item.date),
+                datasets: [{
+                    label: 'Mon Chiffre d\'affaires',
+                    data: personalSalesData.map(item => item.revenue),
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
                 },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return new Intl.NumberFormat('fr-FR', {
-                                        style: 'currency',
-                                        currency: 'EUR'
-                                    }).format(value);
-                                }
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR'
+                                }).format(value);
                             }
                         }
                     }
                 }
-            });
+            }
         });
-    </script>
+    });
+</script>
 </th:block>
 </body>
 </html>

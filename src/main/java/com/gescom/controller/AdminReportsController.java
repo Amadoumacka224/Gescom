@@ -1,12 +1,5 @@
 package com.gescom.controller;
 
-
-
-
-
-
-
-
 import com.gescom.entity.*;
 import com.gescom.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;

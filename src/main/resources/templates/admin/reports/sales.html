@@ -28,12 +28,12 @@
             <form th:action="@{/admin/reports/sales}" method="get" class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label for="startDate" class="form-label">Date de début</label>
-                    <input type="date" class="form-control" id="startDate" name="startDate"
+                    <input type="date" class="form-control" id="startDate" name="startDate" 
                            th:value="${startDate}" required>
                 </div>
                 <div class="col-md-3">
                     <label for="endDate" class="form-label">Date de fin</label>
-                    <input type="date" class="form-control" id="endDate" name="endDate"
+                    <input type="date" class="form-control" id="endDate" name="endDate" 
                            th:value="${endDate}" required>
                 </div>
                 <div class="col-md-2">
@@ -81,7 +81,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
@@ -103,7 +103,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
@@ -120,7 +120,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
@@ -193,7 +193,7 @@
                                 <td th:text="${product.quantitySold}">0</td>
                                 <td th:text="${#numbers.formatCurrency(product.revenue)}">€0</td>
                                 <td>
-                                    <span class="badge"
+                                    <span class="badge" 
                                           th:classappend="${product.margin >= 30} ? 'bg-success' : (${product.margin >= 15} ? 'bg-warning' : 'bg-danger')"
                                           th:text="${product.margin} + '%'">0%</span>
                                 </td>
@@ -204,7 +204,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -225,7 +225,7 @@
                             <tbody>
                             <tr th:each="sales, iterStat : ${salesReport.topSalespeople}">
                                 <td>
-                                    <span class="badge"
+                                    <span class="badge" 
                                           th:classappend="${iterStat.index == 0} ? 'bg-warning' : (${iterStat.index == 1} ? 'bg-secondary' : (${iterStat.index == 2} ? 'bg-dark' : 'bg-light text-dark'))"
                                           th:text="${iterStat.count}">1</span>
                                 </td>
@@ -238,7 +238,7 @@
                                 <td th:text="${#numbers.formatCurrency(sales.revenue)}">€0</td>
                                 <td>
                                     <div class="progress" style="height: 15px;">
-                                        <div class="progress-bar"
+                                        <div class="progress-bar" 
                                              th:classappend="${sales.objectiveAchievement >= 100} ? 'bg-success' : (${sales.objectiveAchievement >= 75} ? 'bg-primary' : (${sales.objectiveAchievement >= 50} ? 'bg-warning' : 'bg-danger'))"
                                              th:style="'width: ' + ${sales.objectiveAchievement} + '%'"
                                              th:text="${sales.objectiveAchievement} + '%'">0%</div>
@@ -294,7 +294,7 @@
                         <td th:text="${#numbers.formatCurrency(sale.vatAmount)}">€0</td>
                         <td th:text="${#numbers.formatCurrency(sale.totalAmount)}">€0</td>
                         <td>
-                            <span class="badge"
+                            <span class="badge" 
                                   th:classappend="'bg-' + ${sale.statusClass}"
                                   th:text="${sale.statusLabel}">Status</span>
                         </td>
@@ -312,12 +312,12 @@
                     </tbody>
                 </table>
             </div>
-
+            
             <!-- Pagination -->
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <div class="text-muted">
-                    Affichage de <span th:text="${(currentPage - 1) * pageSize + 1}">1</span> à
-                    <span th:text="${#numbers.formatInteger(T(java.lang.Math).min(currentPage * pageSize, totalElements), 0)}">10</span>
+                    Affichage de <span th:text="${(currentPage - 1) * pageSize + 1}">1</span> à 
+                    <span th:text="${#numbers.formatInteger(T(java.lang.Math).min(currentPage * pageSize, totalElements), 0)}">10</span> 
                     sur <span th:text="${totalElements}">100</span> résultats
                 </div>
                 <nav th:if="${totalPages > 1}">
@@ -325,7 +325,7 @@
                         <li class="page-item" th:classappend="${currentPage == 1} ? 'disabled'">
                             <a class="page-link" th:href="@{/admin/reports/sales(page=${currentPage - 1}, startDate=${startDate}, endDate=${endDate}, groupBy=${groupBy}, category=${category})}">Précédent</a>
                         </li>
-                        <li class="page-item" th:each="i : ${#numbers.sequence(1, totalPages)}"
+                        <li class="page-item" th:each="i : ${#numbers.sequence(1, totalPages)}" 
                             th:classappend="${i == currentPage} ? 'active'">
                             <a class="page-link" th:href="@{/admin/reports/sales(page=${i}, startDate=${startDate}, endDate=${endDate}, groupBy=${groupBy}, category=${category})}" th:text="${i}">1</a>
                         </li>
@@ -340,88 +340,88 @@
 </div>
 
 <th:block th:fragment="js_assets">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script th:inline="javascript">
-        const revenueData = /*[[${salesReport.revenueEvolution}]]*/ [];
-        const categoryData = /*[[${salesReport.categoryBreakdown}]]*/ [];
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script th:inline="javascript">
+    const revenueData = /*[[${salesReport.revenueEvolution}]]*/ [];
+    const categoryData = /*[[${salesReport.categoryBreakdown}]]*/ [];
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Graphique évolution du CA
-            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-            new Chart(revenueCtx, {
-                type: 'line',
-                data: {
-                    labels: revenueData.map(item => item.period),
-                    datasets: [{
-                        label: 'Chiffre d\'affaires',
-                        data: revenueData.map(item => item.revenue),
-                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
+    document.addEventListener('DOMContentLoaded', function() {
+        // Graphique évolution du CA
+        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+        new Chart(revenueCtx, {
+            type: 'line',
+            data: {
+                labels: revenueData.map(item => item.period),
+                datasets: [{
+                    label: 'Chiffre d\'affaires',
+                    data: revenueData.map(item => item.revenue),
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
                 },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return new Intl.NumberFormat('fr-FR', {
-                                        style: 'currency',
-                                        currency: 'EUR'
-                                    }).format(value);
-                                }
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR'
+                                }).format(value);
                             }
                         }
                     }
                 }
-            });
-
-            // Graphique répartition par catégorie
-            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-            new Chart(categoryCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: categoryData.map(item => item.category),
-                    datasets: [{
-                        data: categoryData.map(item => item.revenue),
-                        backgroundColor: [
-                            'rgba(54, 162, 235, 0.8)',
-                            'rgba(255, 99, 132, 0.8)',
-                            'rgba(255, 205, 86, 0.8)',
-                            'rgba(75, 192, 192, 0.8)',
-                            'rgba(153, 102, 255, 0.8)'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
+            }
         });
 
-        // Fonctions d'export
-        function exportToPDF() {
-            alert('Export PDF à implémenter');
-        }
+        // Graphique répartition par catégorie
+        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+        new Chart(categoryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: categoryData.map(item => item.category),
+                datasets: [{
+                    data: categoryData.map(item => item.revenue),
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    });
 
-        function exportToExcel() {
-            alert('Export Excel à implémenter');
-        }
-    </script>
+    // Fonctions d'export
+    function exportToPDF() {
+        alert('Export PDF à implémenter');
+    }
+
+    function exportToExcel() {
+        alert('Export Excel à implémenter');
+    }
+</script>
 </th:block>
 </body>
 </html>

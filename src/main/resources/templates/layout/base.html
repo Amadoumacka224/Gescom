@@ -21,7 +21,7 @@
             --primary-600: #2563eb;
             --primary-700: #1d4ed8;
             --primary-900: #1e3a8a;
-
+            
             /* Neutral Colors */
             --gray-50: #f8fafc;
             --gray-100: #f1f5f9;
@@ -33,7 +33,7 @@
             --gray-700: #334155;
             --gray-800: #1e293b;
             --gray-900: #0f172a;
-
+            
             /* Semantic Colors */
             --success-50: #ecfdf5;
             --success-500: #10b981;
@@ -47,7 +47,7 @@
             --info-50: #f0f9ff;
             --info-500: #06b6d4;
             --info-600: #0891b2;
-
+            
             /* Layout Variables */
             --sidebar-width: 280px;
             --sidebar-collapsed-width: 80px;
@@ -55,19 +55,19 @@
             --border-radius: 12px;
             --border-radius-sm: 8px;
             --border-radius-lg: 16px;
-
+            
             /* Shadows */
             --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
             --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-
+            
             /* Transitions */
             --transition-fast: all 0.15s ease;
             --transition-normal: all 0.25s ease;
             --transition-slow: all 0.4s ease;
-
+            
             /* Typography */
             --font-weight-medium: 500;
             --font-weight-semibold: 600;
@@ -248,6 +248,18 @@
             height: var(--topbar-height);
             display: flex;
             align-items: center;
+            justify-content: space-between;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+        }
+
+        .breadcrumb-nav {
+            flex: 1;
         }
 
         .topbar-brand {
@@ -269,7 +281,6 @@
             font-size: 0.875rem;
             display: flex;
             align-items: center;
-            flex: 1;
         }
 
         .breadcrumb-item {
@@ -299,6 +310,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-shrink: 0;
         }
 
         .search-box {
@@ -689,6 +701,10 @@
             .search-box {
                 width: 240px;
             }
+            
+            .topbar-actions {
+                gap: 10px;
+            }
         }
 
         @media (max-width: 992px) {
@@ -728,6 +744,10 @@
             .search-box {
                 width: 200px;
             }
+            
+            .topbar-left {
+                gap: 10px;
+            }
 
             .content-area {
                 padding: 24px;
@@ -753,12 +773,24 @@
                 padding: 12px 20px;
             }
 
+            .topbar-left {
+                gap: 12px;
+            }
+
             .sidebar-toggle {
                 display: block;
             }
 
             .search-box {
                 display: none;
+            }
+
+            .breadcrumb {
+                font-size: 0.8rem;
+            }
+
+            .breadcrumb-item {
+                margin-right: 0.25rem;
             }
 
             .content-area {
@@ -891,13 +923,13 @@
                     <i class="fas fa-user-shield"></i>
                     <span>Utilisateurs</span>
                 </a>
+                <a class="nav-link" th:href="@{/admin/settings}">
+                    <i class="fas fa-cogs"></i>
+                    <span>Paramètres</span>
+                </a>
                 <a class="nav-link" th:href="@{/admin/reports}">
                     <i class="fas fa-chart-bar"></i>
                     <span>Rapports</span>
-                </a>
-                <a class="nav-link" th:href="@{/admin/settings}">
-                    <i class="fas fa-cog"></i>
-                    <span>Paramètres</span>
                 </a>
             </div>
         </nav>
@@ -906,27 +938,30 @@
         <div class="main-content flex-grow-1">
             <!-- Top Navigation -->
             <header class="topbar">
-                <!-- Mobile toggle -->
-                <button class="sidebar-toggle" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
+                <!-- Left side: Mobile toggle + Breadcrumb -->
+                <div class="topbar-left">
+                    <!-- Mobile toggle -->
+                    <button class="sidebar-toggle" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
 
-                <!-- Breadcrumb -->
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb">
-                        <li class="breadcrumb-item">
-                            <a th:href="@{/dashboard}">
-                                <i class="fas fa-home"></i>
-                            </a>
-                        </li>
-                        <li class="breadcrumb-item">
-                            <a th:href="@{/dashboard}">Dashboard</a>
-                        </li>
-                        <li class="breadcrumb-item active">Accueil</li>
-                    </ol>
-                </nav>
+                    <!-- Breadcrumb -->
+                    <nav aria-label="breadcrumb" class="breadcrumb-nav">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a th:href="@{/dashboard}">
+                                    <i class="fas fa-home"></i>
+                                </a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a th:href="@{/dashboard}">Dashboard</a>
+                            </li>
+                            <li class="breadcrumb-item active">Accueil</li>
+                        </ol>
+                    </nav>
+                </div>
 
-                <!-- Topbar Actions -->
+                <!-- Right side: Actions -->
                 <div class="topbar-actions">
                     <!-- Search -->
                     <div class="search-box">
@@ -1026,7 +1061,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const currentPath = window.location.pathname;
         const navLinks = document.querySelectorAll('.sidebar .nav-link');
-
+        
         navLinks.forEach(function(link) {
             const href = link.getAttribute('href');
             if (href === currentPath || (href !== '/dashboard' && currentPath.startsWith(href))) {
@@ -1064,10 +1099,10 @@
     document.addEventListener('click', function(e) {
         const sidebar = document.getElementById('sidebar');
         const toggle = document.querySelector('.sidebar-toggle');
-
-        if (window.innerWidth <= 768 &&
-            sidebar && sidebar.classList.contains('show') &&
-            !sidebar.contains(e.target) &&
+        
+        if (window.innerWidth <= 768 && 
+            sidebar && sidebar.classList.contains('show') && 
+            !sidebar.contains(e.target) && 
             !toggle.contains(e.target)) {
             sidebar.classList.remove('show');
         }

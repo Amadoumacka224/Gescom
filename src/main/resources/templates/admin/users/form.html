@@ -530,300 +530,300 @@
 <!-- JavaScript pour la gestion du formulaire -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-        document.addEventListener('DOMContentLoaded', function() {
-            // Event listeners
-            document.getElementById('password').addEventListener('input', checkPasswordStrength);
-            document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
-            document.getElementById('firstName').addEventListener('input', updatePreview);
-            document.getElementById('lastName').addEventListener('input', updatePreview);
-            document.getElementById('username').addEventListener('input', updatePreview);
-            document.getElementById('email').addEventListener('input', updatePreview);
+    document.addEventListener('DOMContentLoaded', function() {
+        // Event listeners
+        document.getElementById('password').addEventListener('input', checkPasswordStrength);
+        document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
+        document.getElementById('firstName').addEventListener('input', updatePreview);
+        document.getElementById('lastName').addEventListener('input', updatePreview);
+        document.getElementById('username').addEventListener('input', updatePreview);
+        document.getElementById('email').addEventListener('input', updatePreview);
 
-            // Event listeners pour les rôles
-            document.querySelectorAll('input[name="roles"]').forEach(function(checkbox) {
-                checkbox.addEventListener('change', updatePreview);
-            });
-
-            // Validation du formulaire
-            document.getElementById('userForm').addEventListener('submit', validateForm);
+        // Event listeners pour les rôles
+        document.querySelectorAll('input[name="roles"]').forEach(function(checkbox) {
+            checkbox.addEventListener('change', updatePreview);
         });
 
-        function checkPasswordStrength() {
-            var password = document.getElementById('password').value;
-            var strengthBar = document.getElementById('password-strength');
-            var strengthText = document.getElementById('password-strength-text');
+        // Validation du formulaire
+        document.getElementById('userForm').addEventListener('submit', validateForm);
+    });
 
-            var strength = 0;
-            var feedback = [];
+    function checkPasswordStrength() {
+        var password = document.getElementById('password').value;
+        var strengthBar = document.getElementById('password-strength');
+        var strengthText = document.getElementById('password-strength-text');
 
-            if (password.length >= 8) strength += 20;
-            else feedback.push('au moins 8 caractères');
+        var strength = 0;
+        var feedback = [];
 
-            if (/[a-z]/.test(password)) strength += 20;
-            else feedback.push('minuscules');
+        if (password.length >= 8) strength += 20;
+        else feedback.push('au moins 8 caractères');
 
-            if (/[A-Z]/.test(password)) strength += 20;
-            else feedback.push('majuscules');
+        if (/[a-z]/.test(password)) strength += 20;
+        else feedback.push('minuscules');
 
-            if (/[0-9]/.test(password)) strength += 20;
-            else feedback.push('chiffres');
+        if (/[A-Z]/.test(password)) strength += 20;
+        else feedback.push('majuscules');
 
-            if (/[^A-Za-z0-9]/.test(password)) strength += 20;
-            else feedback.push('caractères spéciaux');
+        if (/[0-9]/.test(password)) strength += 20;
+        else feedback.push('chiffres');
 
-            strengthBar.style.width = strength + '%';
+        if (/[^A-Za-z0-9]/.test(password)) strength += 20;
+        else feedback.push('caractères spéciaux');
 
-            if (strength < 40) {
-                strengthBar.className = 'progress-bar bg-danger';
-                strengthText.textContent = 'Faible - Ajouter: ' + feedback.join(', ');
-            } else if (strength < 80) {
-                strengthBar.className = 'progress-bar bg-warning';
-                strengthText.textContent = 'Moyen - Améliorer: ' + feedback.join(', ');
-            } else {
-                strengthBar.className = 'progress-bar bg-success';
-                strengthText.textContent = 'Fort - Excellent mot de passe !';
-            }
+        strengthBar.style.width = strength + '%';
 
-            checkPasswordMatch();
+        if (strength < 40) {
+            strengthBar.className = 'progress-bar bg-danger';
+            strengthText.textContent = 'Faible - Ajouter: ' + feedback.join(', ');
+        } else if (strength < 80) {
+            strengthBar.className = 'progress-bar bg-warning';
+            strengthText.textContent = 'Moyen - Améliorer: ' + feedback.join(', ');
+        } else {
+            strengthBar.className = 'progress-bar bg-success';
+            strengthText.textContent = 'Fort - Excellent mot de passe !';
         }
 
-        function checkPasswordMatch() {
-            var password = document.getElementById('password').value;
-            var confirmPassword = document.getElementById('confirmPassword').value;
-            var mismatchDiv = document.getElementById('password-mismatch');
-            var matchDiv = document.getElementById('password-match');
-            var confirmInput = document.getElementById('confirmPassword');
+        checkPasswordMatch();
+    }
 
-            if (confirmPassword.length > 0) {
-                if (password === confirmPassword) {
-                    confirmInput.classList.remove('is-invalid');
-                    confirmInput.classList.add('is-valid');
-                    mismatchDiv.style.display = 'none';
-                    matchDiv.style.display = 'block';
-                } else {
-                    confirmInput.classList.remove('is-valid');
-                    confirmInput.classList.add('is-invalid');
-                    mismatchDiv.style.display = 'block';
-                    matchDiv.style.display = 'none';
-                }
-            } else {
-                confirmInput.classList.remove('is-valid', 'is-invalid');
+    function checkPasswordMatch() {
+        var password = document.getElementById('password').value;
+        var confirmPassword = document.getElementById('confirmPassword').value;
+        var mismatchDiv = document.getElementById('password-mismatch');
+        var matchDiv = document.getElementById('password-match');
+        var confirmInput = document.getElementById('confirmPassword');
+
+        if (confirmPassword.length > 0) {
+            if (password === confirmPassword) {
+                confirmInput.classList.remove('is-invalid');
+                confirmInput.classList.add('is-valid');
                 mismatchDiv.style.display = 'none';
+                matchDiv.style.display = 'block';
+            } else {
+                confirmInput.classList.remove('is-valid');
+                confirmInput.classList.add('is-invalid');
+                mismatchDiv.style.display = 'block';
                 matchDiv.style.display = 'none';
             }
+        } else {
+            confirmInput.classList.remove('is-valid', 'is-invalid');
+            mismatchDiv.style.display = 'none';
+            matchDiv.style.display = 'none';
         }
+    }
 
-        function togglePassword(fieldId) {
-            var field = document.getElementById(fieldId);
-            var eyeIcon = document.getElementById(fieldId + '-eye');
+    function togglePassword(fieldId) {
+        var field = document.getElementById(fieldId);
+        var eyeIcon = document.getElementById(fieldId + '-eye');
 
-            if (field.type === 'password') {
-                field.type = 'text';
-                eyeIcon.className = 'fas fa-eye-slash';
-            } else {
-                field.type = 'password';
-                eyeIcon.className = 'fas fa-eye';
-            }
+        if (field.type === 'password') {
+            field.type = 'text';
+            eyeIcon.className = 'fas fa-eye-slash';
+        } else {
+            field.type = 'password';
+            eyeIcon.className = 'fas fa-eye';
         }
+    }
 
-        function generateUsername() {
-            var firstName = document.getElementById('firstName').value.toLowerCase();
-            var lastName = document.getElementById('lastName').value.toLowerCase();
+    function generateUsername() {
+        var firstName = document.getElementById('firstName').value.toLowerCase();
+        var lastName = document.getElementById('lastName').value.toLowerCase();
 
-            if (firstName && lastName) {
-                var username = firstName.charAt(0) + lastName + Math.floor(Math.random() * 100);
-                document.getElementById('username').value = username;
-                updatePreview();
-            } else {
-                alert('Veuillez d\'abord renseigner le prénom et le nom');
-            }
-        }
-
-        function generateEmail() {
-            var firstName = document.getElementById('firstName').value.toLowerCase();
-            var lastName = document.getElementById('lastName').value.toLowerCase();
-
-            if (firstName && lastName) {
-                var email = firstName + '.' + lastName + '@company.com';
-                document.getElementById('email').value = email;
-                updatePreview();
-            } else {
-                alert('Veuillez d\'abord renseigner le prénom et le nom');
-            }
-        }
-
-        function generatePassword() {
-            var passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
-            regeneratePassword();
-            passwordModal.show();
-        }
-
-        function regeneratePassword() {
-            var length = parseInt(document.getElementById('passwordLength').value);
-            var includeUppercase = document.getElementById('includeUppercase').checked;
-            var includeLowercase = document.getElementById('includeLowercase').checked;
-            var includeNumbers = document.getElementById('includeNumbers').checked;
-            var includeSymbols = document.getElementById('includeSymbols').checked;
-
-            var charset = '';
-            if (includeUppercase) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            if (includeLowercase) charset += 'abcdefghijklmnopqrstuvwxyz';
-            if (includeNumbers) charset += '0123456789';
-            if (includeSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
-
-            if (charset === '') {
-                alert('Veuillez sélectionner au moins un type de caractère');
-                return;
-            }
-
-            var password = '';
-            for (var i = 0; i < length; i++) {
-                password += charset.charAt(Math.floor(Math.random() * charset.length));
-            }
-
-            document.getElementById('generatedPassword').value = password;
-        }
-
-        function copyPassword() {
-            var passwordField = document.getElementById('generatedPassword');
-            passwordField.select();
-            document.execCommand('copy');
-            showNotification('Mot de passe copié !', 'success');
-        }
-
-        function useGeneratedPassword() {
-            var generatedPassword = document.getElementById('generatedPassword').value;
-            document.getElementById('password').value = generatedPassword;
-            document.getElementById('confirmPassword').value = generatedPassword;
-
-            checkPasswordStrength();
-            bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
-            showNotification('Mot de passe appliqué !', 'success');
-        }
-
-        function toggleCommercialFields() {
-            var isCommercial = document.getElementById('roleCommercial').checked;
-            var commercialFields = document.getElementById('commercialFields');
-
-            if (isCommercial) {
-                commercialFields.style.display = 'block';
-            } else {
-                commercialFields.style.display = 'none';
-            }
-        }
-
-        function updatePreview() {
-            var firstName = document.getElementById('firstName').value;
-            var lastName = document.getElementById('lastName').value;
-            var username = document.getElementById('username').value;
-            var email = document.getElementById('email').value;
-
-            var fullName = (firstName + ' ' + lastName).trim();
-
-            document.getElementById('previewName').textContent = fullName || 'Nom Complet';
-            document.getElementById('previewUsername').textContent = username ? '@' + username : '@username';
-            document.getElementById('previewEmail').textContent = email || 'email@company.com';
-
-            // Mise à jour des rôles
-            var roles = [];
-            document.querySelectorAll('input[name="roles"]:checked').forEach(function(checkbox) {
-                var roleName = checkbox.value;
-                var roleClass = roleName === 'ADMIN' ? 'bg-warning' :
-                    roleName === 'MANAGER' ? 'bg-primary' : 'bg-success';
-                roles.push('<span class="badge ' + roleClass + ' me-1">' + roleName + '</span>');
-            });
-
-            document.getElementById('previewRoles').innerHTML = roles.length > 0 ? roles.join('') : '<span class="text-muted small">Aucun rôle</span>';
-
-            // Afficher la prévisualisation si des données sont saisies
-            if (firstName || lastName || username || email) {
-                document.getElementById('previewCard').style.display = 'block';
-            }
-        }
-
-        function previewUser() {
+        if (firstName && lastName) {
+            var username = firstName.charAt(0) + lastName + Math.floor(Math.random() * 100);
+            document.getElementById('username').value = username;
             updatePreview();
+        } else {
+            alert('Veuillez d\'abord renseigner le prénom et le nom');
+        }
+    }
+
+    function generateEmail() {
+        var firstName = document.getElementById('firstName').value.toLowerCase();
+        var lastName = document.getElementById('lastName').value.toLowerCase();
+
+        if (firstName && lastName) {
+            var email = firstName + '.' + lastName + '@company.com';
+            document.getElementById('email').value = email;
+            updatePreview();
+        } else {
+            alert('Veuillez d\'abord renseigner le prénom et le nom');
+        }
+    }
+
+    function generatePassword() {
+        var passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
+        regeneratePassword();
+        passwordModal.show();
+    }
+
+    function regeneratePassword() {
+        var length = parseInt(document.getElementById('passwordLength').value);
+        var includeUppercase = document.getElementById('includeUppercase').checked;
+        var includeLowercase = document.getElementById('includeLowercase').checked;
+        var includeNumbers = document.getElementById('includeNumbers').checked;
+        var includeSymbols = document.getElementById('includeSymbols').checked;
+
+        var charset = '';
+        if (includeUppercase) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        if (includeLowercase) charset += 'abcdefghijklmnopqrstuvwxyz';
+        if (includeNumbers) charset += '0123456789';
+        if (includeSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+        if (charset === '') {
+            alert('Veuillez sélectionner au moins un type de caractère');
+            return;
+        }
+
+        var password = '';
+        for (var i = 0; i < length; i++) {
+            password += charset.charAt(Math.floor(Math.random() * charset.length));
+        }
+
+        document.getElementById('generatedPassword').value = password;
+    }
+
+    function copyPassword() {
+        var passwordField = document.getElementById('generatedPassword');
+        passwordField.select();
+        document.execCommand('copy');
+        showNotification('Mot de passe copié !', 'success');
+    }
+
+    function useGeneratedPassword() {
+        var generatedPassword = document.getElementById('generatedPassword').value;
+        document.getElementById('password').value = generatedPassword;
+        document.getElementById('confirmPassword').value = generatedPassword;
+
+        checkPasswordStrength();
+        bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
+        showNotification('Mot de passe appliqué !', 'success');
+    }
+
+    function toggleCommercialFields() {
+        var isCommercial = document.getElementById('roleCommercial').checked;
+        var commercialFields = document.getElementById('commercialFields');
+
+        if (isCommercial) {
+            commercialFields.style.display = 'block';
+        } else {
+            commercialFields.style.display = 'none';
+        }
+    }
+
+    function updatePreview() {
+        var firstName = document.getElementById('firstName').value;
+        var lastName = document.getElementById('lastName').value;
+        var username = document.getElementById('username').value;
+        var email = document.getElementById('email').value;
+
+        var fullName = (firstName + ' ' + lastName).trim();
+
+        document.getElementById('previewName').textContent = fullName || 'Nom Complet';
+        document.getElementById('previewUsername').textContent = username ? '@' + username : '@username';
+        document.getElementById('previewEmail').textContent = email || 'email@company.com';
+
+        // Mise à jour des rôles
+        var roles = [];
+        document.querySelectorAll('input[name="roles"]:checked').forEach(function(checkbox) {
+            var roleName = checkbox.value;
+            var roleClass = roleName === 'ADMIN' ? 'bg-warning' :
+                roleName === 'MANAGER' ? 'bg-primary' : 'bg-success';
+            roles.push('<span class="badge ' + roleClass + ' me-1">' + roleName + '</span>');
+        });
+
+        document.getElementById('previewRoles').innerHTML = roles.length > 0 ? roles.join('') : '<span class="text-muted small">Aucun rôle</span>';
+
+        // Afficher la prévisualisation si des données sont saisies
+        if (firstName || lastName || username || email) {
             document.getElementById('previewCard').style.display = 'block';
-            document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth' });
         }
+    }
 
-        function validateForm(event) {
-            var isValid = true;
-            var errors = [];
+    function previewUser() {
+        updatePreview();
+        document.getElementById('previewCard').style.display = 'block';
+        document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth' });
+    }
 
-            // Vérification des champs obligatoires
-            var requiredFields = ['firstName', 'lastName', 'email', 'username'];
-            requiredFields.forEach(function(fieldId) {
-                var field = document.getElementById(fieldId);
-                if (!field.value.trim()) {
-                    field.classList.add('is-invalid');
-                    errors.push('Le champ ' + field.previousElementSibling.textContent + ' est obligatoire');
-                    isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
-                }
-            });
+    function validateForm(event) {
+        var isValid = true;
+        var errors = [];
 
-            // Vérification du mot de passe (si création)
-            var isEdit = document.querySelector('input[type="hidden"][name="id"]').value !== '';
-            if (!isEdit) {
-                var password = document.getElementById('password').value;
-                if (!password || password.length < 8) {
-                    document.getElementById('password').classList.add('is-invalid');
-                    errors.push('Le mot de passe doit contenir au moins 8 caractères');
-                    isValid = false;
-                }
+        // Vérification des champs obligatoires
+        var requiredFields = ['firstName', 'lastName', 'email', 'username'];
+        requiredFields.forEach(function(fieldId) {
+            var field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                errors.push('Le champ ' + field.previousElementSibling.textContent + ' est obligatoire');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
             }
+        });
 
-            // Vérification de la correspondance des mots de passe
+        // Vérification du mot de passe (si création)
+        var isEdit = document.querySelector('input[type="hidden"][name="id"]').value !== '';
+        if (!isEdit) {
             var password = document.getElementById('password').value;
-            var confirmPassword = document.getElementById('confirmPassword').value;
-            if (password && password !== confirmPassword) {
-                errors.push('Les mots de passe ne correspondent pas');
+            if (!password || password.length < 8) {
+                document.getElementById('password').classList.add('is-invalid');
+                errors.push('Le mot de passe doit contenir au moins 8 caractères');
                 isValid = false;
-            }
-
-            // Vérification des rôles
-            var rolesChecked = document.querySelectorAll('input[name="roles"]:checked').length;
-            if (rolesChecked === 0) {
-                errors.push('Au moins un rôle doit être sélectionné');
-                isValid = false;
-            }
-
-            if (!isValid) {
-                event.preventDefault();
-                showNotification('Erreurs de validation :\n' + errors.join('\n'), 'error');
             }
         }
 
-        function showNotification(message, type = 'info') {
-            var alertClass = {
-                'success': 'alert-success',
-                'error': 'alert-danger',
-                'warning': 'alert-warning',
-                'info': 'alert-info'
-            }[type] || 'alert-info';
+        // Vérification de la correspondance des mots de passe
+        var password = document.getElementById('password').value;
+        var confirmPassword = document.getElementById('confirmPassword').value;
+        if (password && password !== confirmPassword) {
+            errors.push('Les mots de passe ne correspondent pas');
+            isValid = false;
+        }
 
-            var alertDiv = document.createElement('div');
-            alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
-            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px; white-space: pre-line;';
-            alertDiv.innerHTML = `
+        // Vérification des rôles
+        var rolesChecked = document.querySelectorAll('input[name="roles"]:checked').length;
+        if (rolesChecked === 0) {
+            errors.push('Au moins un rôle doit être sélectionné');
+            isValid = false;
+        }
+
+        if (!isValid) {
+            event.preventDefault();
+            showNotification('Erreurs de validation :\n' + errors.join('\n'), 'error');
+        }
+    }
+
+    function showNotification(message, type = 'info') {
+        var alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
+
+        var alertDiv = document.createElement('div');
+        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px; white-space: pre-line;';
+        alertDiv.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
 
-            document.body.appendChild(alertDiv);
+        document.body.appendChild(alertDiv);
 
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.remove();
-                }
-            }, 5000);
-        }
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
 
-        // Initialisation
-        toggleCommercialFields();
-    </script>
+    // Initialisation
+    toggleCommercialFields();
+</script>
 </th:block>
 
 </body>
