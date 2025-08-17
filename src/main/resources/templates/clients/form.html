@@ -7,8 +7,8 @@
 <div th:fragment="content">
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
-        ${isEdit} ? 'Modifier le Client' : 'Nouveau Client',
-        ${isEdit} ? 'Modification des informations client' : 'Création d\'un nouveau client',
+        ${isEdit} ? 'Modifier le Client' : 'Nouveau Client', 
+        ${isEdit} ? 'Modification des informations client' : 'Création d\'un nouveau client', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:href="@{/clients}" class="btn btn-outline-secondary">
@@ -233,83 +233,83 @@
 <!-- JavaScript pour la gestion du formulaire -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-        document.addEventListener('DOMContentLoaded', function() {
-            const clientTypeSelect = document.getElementById('clientType');
-            const companyFields = document.getElementById('companyFields');
-            const siretField = document.getElementById('siretField');
-            const vatField = document.getElementById('vatField');
-            const statusSelect = document.getElementById('status');
-            const followUpDateDiv = document.getElementById('followUpDate');
+    document.addEventListener('DOMContentLoaded', function() {
+        const clientTypeSelect = document.getElementById('clientType');
+        const companyFields = document.getElementById('companyFields');
+        const siretField = document.getElementById('siretField');
+        const vatField = document.getElementById('vatField');
+        const statusSelect = document.getElementById('status');
+        const followUpDateDiv = document.getElementById('followUpDate');
 
-            // Gestion des champs entreprise
-            function toggleCompanyFields() {
-                const isCompany = clientTypeSelect.value === 'COMPANY' || clientTypeSelect.value === 'ASSOCIATION';
-                companyFields.style.display = isCompany ? 'block' : 'none';
-                siretField.style.display = isCompany ? 'block' : 'none';
-                vatField.style.display = isCompany ? 'block' : 'none';
+        // Gestion des champs entreprise
+        function toggleCompanyFields() {
+            const isCompany = clientTypeSelect.value === 'COMPANY' || clientTypeSelect.value === 'ASSOCIATION';
+            companyFields.style.display = isCompany ? 'block' : 'none';
+            siretField.style.display = isCompany ? 'block' : 'none';
+            vatField.style.display = isCompany ? 'block' : 'none';
 
-                // Rendre obligatoire le nom d'entreprise si c'est une entreprise
-                const companyNameInput = document.getElementById('companyName');
-                if (isCompany) {
-                    companyNameInput.required = true;
-                } else {
-                    companyNameInput.required = false;
-                }
+            // Rendre obligatoire le nom d'entreprise si c'est une entreprise
+            const companyNameInput = document.getElementById('companyName');
+            if (isCompany) {
+                companyNameInput.required = true;
+            } else {
+                companyNameInput.required = false;
+            }
+        }
+
+        // Gestion du champ de relance pour les prospects
+        function toggleFollowUpDate() {
+            const isProspect = statusSelect.value === 'PROSPECT';
+            followUpDateDiv.style.display = isProspect ? 'block' : 'none';
+        }
+
+        // Event listeners
+        clientTypeSelect.addEventListener('change', toggleCompanyFields);
+        statusSelect.addEventListener('change', toggleFollowUpDate);
+
+        // Initialisation
+        toggleCompanyFields();
+        toggleFollowUpDate();
+
+        // Validation du formulaire
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const email = document.getElementById('email');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            if (!emailRegex.test(email.value)) {
+                event.preventDefault();
+                email.classList.add('is-invalid');
+                return false;
             }
 
-            // Gestion du champ de relance pour les prospects
-            function toggleFollowUpDate() {
-                const isProspect = statusSelect.value === 'PROSPECT';
-                followUpDateDiv.style.display = isProspect ? 'block' : 'none';
-            }
-
-            // Event listeners
-            clientTypeSelect.addEventListener('change', toggleCompanyFields);
-            statusSelect.addEventListener('change', toggleFollowUpDate);
-
-            // Initialisation
-            toggleCompanyFields();
-            toggleFollowUpDate();
-
-            // Validation du formulaire
-            const form = document.querySelector('form');
-            form.addEventListener('submit', function(event) {
-                const email = document.getElementById('email');
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!emailRegex.test(email.value)) {
-                    event.preventDefault();
-                    email.classList.add('is-invalid');
-                    return false;
-                }
-
-                return true;
-            });
-
-            // Auto-complétion de la ville avec le code postal (optionnel)
-            const postalCodeInput = document.getElementById('postalCode');
-            const cityInput = document.getElementById('city');
-
-            postalCodeInput.addEventListener('blur', function() {
-                const postalCode = this.value;
-                if (postalCode.length === 5 && /^\d+$/.test(postalCode)) {
-                    // Ici vous pourriez ajouter une API de géolocalisation
-                    // Pour l'instant, juste des exemples statiques
-                    const cityMapping = {
-                        '75001': 'Paris',
-                        '69001': 'Lyon',
-                        '13001': 'Marseille',
-                        '31000': 'Toulouse',
-                        '33000': 'Bordeaux'
-                    };
-
-                    if (cityMapping[postalCode] && !cityInput.value) {
-                        cityInput.value = cityMapping[postalCode];
-                    }
-                }
-            });
+            return true;
         });
-    </script>
+
+        // Auto-complétion de la ville avec le code postal (optionnel)
+        const postalCodeInput = document.getElementById('postalCode');
+        const cityInput = document.getElementById('city');
+
+        postalCodeInput.addEventListener('blur', function() {
+            const postalCode = this.value;
+            if (postalCode.length === 5 && /^\d+$/.test(postalCode)) {
+                // Ici vous pourriez ajouter une API de géolocalisation
+                // Pour l'instant, juste des exemples statiques
+                const cityMapping = {
+                    '75001': 'Paris',
+                    '69001': 'Lyon',
+                    '13001': 'Marseille',
+                    '31000': 'Toulouse',
+                    '33000': 'Bordeaux'
+                };
+
+                if (cityMapping[postalCode] && !cityInput.value) {
+                    cityInput.value = cityMapping[postalCode];
+                }
+            }
+        });
+    });
+</script>
 </th:block>
 </body>
 </html>

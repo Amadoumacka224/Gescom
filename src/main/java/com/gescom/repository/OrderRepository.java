@@ -257,19 +257,21 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Trouve une commande avec ses OrderItems et produits
      */
     @Query("SELECT DISTINCT o FROM Order o " +
-            "LEFT JOIN FETCH o.orderItems oi " +
-            "LEFT JOIN FETCH oi.product " +
-            "WHERE o.id = :id")
+           "LEFT JOIN FETCH o.orderItems oi " +
+           "LEFT JOIN FETCH oi.product p " +
+           "LEFT JOIN FETCH o.client c " +
+           "LEFT JOIN FETCH o.user u " +
+           "WHERE o.id = :id")
     Optional<Order> findByIdWithOrderItems(@Param("id") Long id);
 
     /**
      * Trouve une commande avec toutes ses relations chargées
      */
     @Query("SELECT o FROM Order o " +
-            "LEFT JOIN FETCH o.client " +
-            "LEFT JOIN FETCH o.user " +
-            "LEFT JOIN FETCH o.invoice " +
-            "WHERE o.id = :id")
+           "LEFT JOIN FETCH o.client " +
+           "LEFT JOIN FETCH o.user " +
+           "LEFT JOIN FETCH o.invoice " +
+           "WHERE o.id = :id")
     Optional<Order> findByIdWithDetails(@Param("id") Long id);
 
     /**
@@ -286,7 +288,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Trouve le prochain numéro de commande disponible pour un mois donné
      */
     @Query("SELECT COALESCE(MAX(CAST(SUBSTRING(o.orderNumber, LENGTH(o.orderNumber) - 3) AS integer)), 0) + 1 " +
-            "FROM Order o WHERE o.orderNumber LIKE :pattern")
+           "FROM Order o WHERE o.orderNumber LIKE :pattern")
     int findNextOrderNumberForMonth(@Param("pattern") String pattern);
 
 }

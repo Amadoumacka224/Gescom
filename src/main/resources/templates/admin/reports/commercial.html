@@ -88,7 +88,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
@@ -97,7 +97,7 @@
                             <h6 class="card-title text-muted mb-1">Réalisation Objectif</h6>
                             <h3 class="text-success mb-0" th:text="${teamReport.objectiveAchievement} + '%'">0%</h3>
                             <div class="progress mt-2" style="height: 8px;">
-                                <div class="progress-bar bg-success"
+                                <div class="progress-bar bg-success" 
                                      th:style="'width: ' + ${teamReport.objectiveAchievement} + '%'"></div>
                             </div>
                         </div>
@@ -108,7 +108,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
@@ -125,7 +125,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
@@ -170,7 +170,7 @@
                             <tbody>
                             <tr th:each="salesperson, iterStat : ${teamReport.salespeople}">
                                 <td>
-                                    <span class="badge fs-6 fw-bold"
+                                    <span class="badge fs-6 fw-bold" 
                                           th:classappend="${iterStat.index == 0} ? 'bg-warning text-dark' : (${iterStat.index == 1} ? 'bg-secondary' : (${iterStat.index == 2} ? 'bg-dark' : 'bg-light text-dark'))"
                                           th:text="${iterStat.count}">1</span>
                                 </td>
@@ -191,7 +191,7 @@
                                 <td>
                                     <strong th:text="${#numbers.formatCurrency(salesperson.revenue)}">€0</strong>
                                     <br>
-                                    <small class="text-muted"
+                                    <small class="text-muted" 
                                            th:classappend="${salesperson.revenueGrowth >= 0} ? 'text-success' : 'text-danger'"
                                            th:text="(${salesperson.revenueGrowth >= 0} ? '+' : '') + ${salesperson.revenueGrowth} + '%'">
                                         +0%
@@ -201,7 +201,7 @@
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <div class="progress flex-grow-1 me-2" style="height: 20px;">
-                                            <div class="progress-bar fw-bold"
+                                            <div class="progress-bar fw-bold" 
                                                  th:classappend="${salesperson.objectiveAchievement >= 100} ? 'bg-success' : (${salesperson.objectiveAchievement >= 80} ? 'bg-primary' : (${salesperson.objectiveAchievement >= 50} ? 'bg-warning' : 'bg-danger'))"
                                                  th:style="'width: ' + ${T(java.lang.Math).min(salesperson.objectiveAchievement, 100)} + '%'"
                                                  th:text="${salesperson.objectiveAchievement} + '%'">0%</div>
@@ -215,12 +215,12 @@
                                     <small class="text-success" th:text="'+' + ${salesperson.newClients} + ' nouveaux'">+0 nouveaux</small>
                                 </td>
                                 <td>
-                                    <span class="badge"
+                                    <span class="badge" 
                                           th:classappend="${salesperson.conversionRate >= 20} ? 'bg-success' : (${salesperson.conversionRate >= 10} ? 'bg-primary' : 'bg-warning')"
                                           th:text="${salesperson.conversionRate} + '%'">0%</span>
                                 </td>
                                 <td>
-                                    <span class="badge"
+                                    <span class="badge" 
                                           th:classappend="'bg-' + ${salesperson.statusClass}"
                                           th:text="${salesperson.statusLabel}">Status</span>
                                 </td>
@@ -231,7 +231,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header">
@@ -256,7 +256,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -281,7 +281,7 @@
                             <small class="text-muted">Moyenne</small>
                         </div>
                     </div>
-
+                    
                     <canvas id="objectivesChart"></canvas>
                 </div>
             </div>
@@ -310,7 +310,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header">
@@ -331,7 +331,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div class="col-md-4">
             <div class="card">
                 <div class="card-header">
@@ -339,7 +339,7 @@
                 </div>
                 <div class="card-body">
                     <div th:if="${!#lists.isEmpty(teamReport.alerts)}">
-                        <div th:each="alert : ${teamReport.alerts}" class="alert alert-sm mb-2"
+                        <div th:each="alert : ${teamReport.alerts}" class="alert alert-sm mb-2" 
                              th:classappend="'alert-' + ${alert.type}">
                             <i th:class="'fas ' + ${alert.icon} + ' me-2'"></i>
                             <small th:text="${alert.message}">Message d'alerte</small>
@@ -357,140 +357,140 @@
 </div>
 
 <th:block th:fragment="js_assets">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script th:inline="javascript">
-        const revenueDistribution = /*[[${teamReport.revenueDistribution}]]*/ [];
-        const monthlyPerformance = /*[[${teamReport.monthlyPerformance}]]*/ [];
-        const objectivesData = /*[[${teamReport.objectivesBreakdown}]]*/ [];
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script th:inline="javascript">
+    const revenueDistribution = /*[[${teamReport.revenueDistribution}]]*/ [];
+    const monthlyPerformance = /*[[${teamReport.monthlyPerformance}]]*/ [];
+    const objectivesData = /*[[${teamReport.objectivesBreakdown}]]*/ [];
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Gestion des filtres personnalisés
-            document.getElementById('period').addEventListener('change', function() {
-                const customFields = document.getElementById('customDateFields');
-                const customFields2 = document.getElementById('customDateFields2');
-                if (this.value === 'custom') {
-                    customFields.style.display = 'block';
-                    customFields2.style.display = 'block';
-                } else {
-                    customFields.style.display = 'none';
-                    customFields2.style.display = 'none';
-                }
-            });
-
-            // Graphique répartition du CA
-            const revenueCtx = document.getElementById('revenueDistributionChart').getContext('2d');
-            new Chart(revenueCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: revenueDistribution.map(item => item.name),
-                    datasets: [{
-                        data: revenueDistribution.map(item => item.revenue),
-                        backgroundColor: [
-                            'rgba(54, 162, 235, 0.8)',
-                            'rgba(255, 99, 132, 0.8)',
-                            'rgba(255, 205, 86, 0.8)',
-                            'rgba(75, 192, 192, 0.8)',
-                            'rgba(153, 102, 255, 0.8)',
-                            'rgba(255, 159, 64, 0.8)'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-
-            // Graphique performance mensuelle
-            const monthlyCtx = document.getElementById('monthlyPerformanceChart').getContext('2d');
-            new Chart(monthlyCtx, {
-                type: 'line',
-                data: {
-                    labels: monthlyPerformance.map(item => item.month),
-                    datasets: monthlyPerformance[0]?.salespeople.map((sp, index) => ({
-                        label: sp.name,
-                        data: monthlyPerformance.map(month => month.salespeople[index]?.revenue || 0),
-                        borderColor: `hsl(${index * 60}, 70%, 50%)`,
-                        backgroundColor: `hsla(${index * 60}, 70%, 50%, 0.1)`,
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.4
-                    })) || []
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return new Intl.NumberFormat('fr-FR', {
-                                        style: 'currency',
-                                        currency: 'EUR'
-                                    }).format(value);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-            // Graphique objectifs
-            const objectivesCtx = document.getElementById('objectivesChart').getContext('2d');
-            new Chart(objectivesCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Atteints', 'En cours', 'En retard'],
-                    datasets: [{
-                        data: [
-                            objectivesData.achieved || 0,
-                            objectivesData.inProgress || 0,
-                            objectivesData.behind || 0
-                        ],
-                        backgroundColor: [
-                            'rgba(40, 167, 69, 0.8)',
-                            'rgba(255, 193, 7, 0.8)',
-                            'rgba(220, 53, 69, 0.8)'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-                    }
-                }
-            });
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des filtres personnalisés
+        document.getElementById('period').addEventListener('change', function() {
+            const customFields = document.getElementById('customDateFields');
+            const customFields2 = document.getElementById('customDateFields2');
+            if (this.value === 'custom') {
+                customFields.style.display = 'block';
+                customFields2.style.display = 'block';
+            } else {
+                customFields.style.display = 'none';
+                customFields2.style.display = 'none';
+            }
         });
 
-        // Fonctions d'export
-        function exportToPDF() {
-            alert('Export PDF à implémenter');
-        }
+        // Graphique répartition du CA
+        const revenueCtx = document.getElementById('revenueDistributionChart').getContext('2d');
+        new Chart(revenueCtx, {
+            type: 'doughnut',
+            data: {
+                labels: revenueDistribution.map(item => item.name),
+                datasets: [{
+                    data: revenueDistribution.map(item => item.revenue),
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 159, 64, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
 
-        function exportToExcel() {
-            alert('Export Excel à implémenter');
-        }
-    </script>
+        // Graphique performance mensuelle
+        const monthlyCtx = document.getElementById('monthlyPerformanceChart').getContext('2d');
+        new Chart(monthlyCtx, {
+            type: 'line',
+            data: {
+                labels: monthlyPerformance.map(item => item.month),
+                datasets: monthlyPerformance[0]?.salespeople.map((sp, index) => ({
+                    label: sp.name,
+                    data: monthlyPerformance.map(month => month.salespeople[index]?.revenue || 0),
+                    borderColor: `hsl(${index * 60}, 70%, 50%)`,
+                    backgroundColor: `hsla(${index * 60}, 70%, 50%, 0.1)`,
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4
+                })) || []
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR'
+                                }).format(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Graphique objectifs
+        const objectivesCtx = document.getElementById('objectivesChart').getContext('2d');
+        new Chart(objectivesCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Atteints', 'En cours', 'En retard'],
+                datasets: [{
+                    data: [
+                        objectivesData.achieved || 0,
+                        objectivesData.inProgress || 0,
+                        objectivesData.behind || 0
+                    ],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.8)',
+                        'rgba(255, 193, 7, 0.8)',
+                        'rgba(220, 53, 69, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    });
+
+    // Fonctions d'export
+    function exportToPDF() {
+        alert('Export PDF à implémenter');
+    }
+
+    function exportToExcel() {
+        alert('Export Excel à implémenter');
+    }
+</script>
 </th:block>
 </body>
 </html>

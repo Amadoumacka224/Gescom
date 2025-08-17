@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
     <title>Détails Commande</title>
 </head>
@@ -23,13 +23,13 @@
                     <i class="fas fa-arrow-left me-1"></i>Retour
                 </a>
                 <!-- BOUTON FACTURER -->
-                <a th:if="${(order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED or order.status == T(com.gescom.entity.Order.OrderStatus).DELIVERED) and order.invoice == null}"
-                   th:href="@{/invoices/new(orderId=${order.id})}"
+                <a th:if="${(order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED or order.status == T(com.gescom.entity.Order.OrderStatus).PROCESSING or order.status == T(com.gescom.entity.Order.OrderStatus).SHIPPED or order.status == T(com.gescom.entity.Order.OrderStatus).DELIVERED) and order.invoice == null}" 
+                   th:href="@{/invoices/new(orderId=${order.id})}" 
                    class="btn btn-success ms-2">
                     <i class="fas fa-file-invoice-dollar me-1"></i>Créer Facture
                 </a>
-                <a th:if="${order.invoice != null}"
-                   th:href="@{/invoices/{id}(id=${order.invoice.id})}"
+                <a th:if="${order.invoice != null}" 
+                   th:href="@{/invoices/{id}(id=${order.invoice.id})}" 
                    class="btn btn-outline-primary ms-2">
                     <i class="fas fa-file-invoice me-1"></i>Voir Facture
                 </a>
@@ -76,48 +76,48 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between">
                 <h5 class="mb-0">
-                    Articles
+                    Articles 
                     (<span th:text="${order.orderItems != null ? #lists.size(order.orderItems) : 0}">0</span>)
                 </h5>
             </div>
             <div class="card-body">
                 <!-- Message si aucun article -->
-                <div th:if="${order.orderItems == null or #lists.isEmpty(order.orderItems)}"
+                <div th:if="${order.orderItems == null or #lists.isEmpty(order.orderItems)}" 
                      class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     Aucun article dans cette commande.
                 </div>
-
+                
                 <!-- Liste des articles -->
                 <div th:unless="${order.orderItems == null or #lists.isEmpty(order.orderItems)}">
                     <div class="table-responsive">
                         <table class="table table-striped">
                             <thead>
-                            <tr>
-                                <th>Produit</th>
-                                <th class="text-center">Quantité</th>
-                                <th class="text-end">Prix unitaire</th>
-                                <th class="text-end">Total HT</th>
-                            </tr>
+                                <tr>
+                                    <th>Produit</th>
+                                    <th class="text-center">Quantité</th>
+                                    <th class="text-end">Prix unitaire</th>
+                                    <th class="text-end">Total HT</th>
+                                </tr>
                             </thead>
                             <tbody>
-                            <tr th:each="item, itemStat : ${order.orderItems}">
-                                <td>
-                                    <strong th:text="${item.product?.name ?: ('Produit ' + itemStat.count)}">Produit</strong>
-                                    <br>
-                                    <small class="text-muted" th:if="${item.product?.reference}"
-                                           th:text="'Réf: ' + ${item.product.reference}">Réf</small>
-                                </td>
-                                <td class="text-center">
-                                    <span th:text="${item.quantity ?: 0}">0</span>
-                                </td>
-                                <td class="text-end">
-                                    <span th:text="${item.unitPrice != null ? #numbers.formatCurrency(item.unitPrice) : '0,00 €'}">0,00 €</span>
-                                </td>
-                                <td class="text-end">
-                                    <strong th:text="${item.totalPriceHT != null ? #numbers.formatCurrency(item.totalPriceHT) : '0,00 €'}">0,00 €</strong>
-                                </td>
-                            </tr>
+                                <tr th:each="item, itemStat : ${order.orderItems}">
+                                    <td>
+                                        <strong th:text="${item.product?.name ?: ('Produit ' + itemStat.count)}">Produit</strong>
+                                        <br>
+                                        <small class="text-muted" th:if="${item.product?.reference}" 
+                                               th:text="'Réf: ' + ${item.product.reference}">Réf</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span th:text="${item.quantity ?: 0}">0</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <span th:text="${item.unitPrice != null ? #numbers.formatCurrency(item.unitPrice) : '0,00 €'}">0,00 €</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong th:text="${item.totalPriceHT != null ? #numbers.formatCurrency(item.totalPriceHT) : '0,00 €'}">0,00 €</strong>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -146,17 +146,17 @@
                             <span class="h5"><strong>Total TTC:</strong></span>
                             <span class="h5 text-primary" th:text="${order.totalAmount != null ? #numbers.formatCurrency(order.totalAmount) : '0,00 €'}">0,00 €</span>
                         </div>
-
+                        
                         <!-- Actions -->
                         <div class="mt-3">
                             <!-- BOUTON FACTURER PRINCIPAL -->
-                            <div th:if="${order.status?.name() == 'CONFIRMED' and order.invoice == null}" class="d-grid">
+                            <div th:if="${(order.status?.name() == 'CONFIRMED' or order.status?.name() == 'PROCESSING' or order.status?.name() == 'SHIPPED' or order.status?.name() == 'DELIVERED') and order.invoice == null}" class="d-grid">
                                 <a th:href="@{/invoices/new(orderId=${order.id})}" class="btn btn-success btn-lg">
                                     <i class="fas fa-file-invoice-dollar me-2"></i>
                                     Créer une facture
                                 </a>
                             </div>
-
+                            
                             <!-- Facture existante -->
                             <div th:if="${order.invoice != null}" class="d-grid">
                                 <a th:href="@{/invoices/{id}(id=${order.invoice.id})}" class="btn btn-outline-primary btn-lg">
@@ -164,9 +164,9 @@
                                     Consulter la facture
                                 </a>
                             </div>
-
+                            
                             <!-- Message d'info -->
-                            <div th:if="${order.status?.name() != 'CONFIRMED'}" class="alert alert-info mt-2 mb-0">
+                            <div th:if="${!(order.status?.name() == 'CONFIRMED' or order.status?.name() == 'PROCESSING' or order.status?.name() == 'SHIPPED' or order.status?.name() == 'DELIVERED')}" class="alert alert-info mt-2 mb-0">
                                 <small>
                                     <i class="fas fa-info-circle me-1"></i>
                                     Le bouton facturer sera disponible quand la commande sera confirmée.
@@ -199,6 +199,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<div th:fragment="js_assets">
+    <!-- Specific JS for order details -->
 </div>
 </body>
 </html>

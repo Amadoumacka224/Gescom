@@ -78,8 +78,8 @@
     <div th:if="${client != null}">
         <!-- Page Header -->
         <div th:replace="~{fragments/components :: page-header(
-            'Client ' + ${client.name},
-            'Détails et informations du client',
+            'Client ' + ${client.name}, 
+            'Détails et informations du client', 
             ~{::header-actions})}">
             <div th:fragment="header-actions" class="action-buttons">
                 <a th:href="@{/clients}" class="btn btn-outline-secondary">
@@ -140,7 +140,7 @@
                             <i class="fas fa-clock me-1"></i>Relance due
                         </span>
                     </div>
-
+                    
                     <div class="row g-3">
                         <div class="col-md-6" th:if="${client.email}">
                             <div class="d-flex align-items-center text-muted">
@@ -153,7 +153,7 @@
                                 </a>
                             </div>
                         </div>
-
+                        
                         <div class="col-md-6" th:if="${client.phoneNumber}">
                             <div class="d-flex align-items-center text-muted">
                                 <i class="fas fa-phone me-2 text-primary"></i>
@@ -165,7 +165,7 @@
                                 </a>
                             </div>
                         </div>
-
+                        
                         <div class="col-md-6" th:if="${client.companyName}">
                             <div class="d-flex align-items-center text-muted">
                                 <i class="fas fa-building me-2 text-primary"></i>
@@ -173,7 +173,7 @@
                             </div>
                             <div class="fw-semibold" th:text="${client.companyName}">Nom Entreprise</div>
                         </div>
-
+                        
                         <div class="col-md-6" th:if="${client.assignedUser}">
                             <div class="d-flex align-items-center text-muted">
                                 <i class="fas fa-user-tie me-2 text-primary"></i>
@@ -183,7 +183,7 @@
                         </div>
                     </div>
                 </div>
-
+                
                 <div class="col-lg-4 text-center">
                     <div class="qr-placeholder">
                         <i class="fas fa-user-circle fa-4x text-muted mb-3"></i>
@@ -558,130 +558,130 @@
 <!-- JavaScript -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(function() {
-                showNotification('Copié dans le presse-papiers !', 'success');
-            }).catch(function() {
-                showNotification('Erreur lors de la copie', 'error');
-            });
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            showNotification('Copié dans le presse-papiers !', 'success');
+        }).catch(function() {
+            showNotification('Erreur lors de la copie', 'error');
+        });
+    }
+
+    function copyAddress() {
+        var addressText = document.querySelector('.bg-light p').textContent;
+        copyToClipboard(addressText);
+    }
+
+    function openMap() {
+        var address = document.querySelector('.bg-light p').textContent;
+        var encodedAddress = encodeURIComponent(address);
+        window.open(`https://www.google.com/maps/search/${encodedAddress}`, '_blank');
+    }
+
+    function sendEmail() {
+        var email = document.querySelector('a[href^="mailto:"]');
+        if (email) {
+            window.location.href = email.href + '?subject=Contact depuis notre système';
+        } else {
+            showNotification('Aucun email configuré pour ce client', 'warning');
         }
+    }
 
-        function copyAddress() {
-            var addressText = document.querySelector('.bg-light p').textContent;
-            copyToClipboard(addressText);
+    function scheduleCall() {
+        var phone = document.querySelector('a[href^="tel:"]');
+        if (phone) {
+            var phoneNumber = phone.textContent;
+            showNotification(`Appel programmé vers ${phoneNumber}`, 'info');
+            // Ici vous pourriez intégrer avec un système de téléphonie
+        } else {
+            showNotification('Aucun téléphone configuré pour ce client', 'warning');
         }
+    }
 
-        function openMap() {
-            var address = document.querySelector('.bg-light p').textContent;
-            var encodedAddress = encodeURIComponent(address);
-            window.open(`https://www.google.com/maps/search/${encodedAddress}`, '_blank');
-        }
+    function updateFollowUp() {
+        var followUpModal = new bootstrap.Modal(document.getElementById('followUpModal'));
 
-        function sendEmail() {
-            var email = document.querySelector('a[href^="mailto:"]');
-            if (email) {
-                window.location.href = email.href + '?subject=Contact depuis notre système';
-            } else {
-                showNotification('Aucun email configuré pour ce client', 'warning');
-            }
-        }
+        // Initialiser avec une date dans 1 semaine
+        var nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        nextWeek.setMinutes(nextWeek.getMinutes() - nextWeek.getTimezoneOffset());
+        document.getElementById('followUpDateTime').value = nextWeek.toISOString().slice(0, 16);
 
-        function scheduleCall() {
-            var phone = document.querySelector('a[href^="tel:"]');
-            if (phone) {
-                var phoneNumber = phone.textContent;
-                showNotification(`Appel programmé vers ${phoneNumber}`, 'info');
-                // Ici vous pourriez intégrer avec un système de téléphonie
-            } else {
-                showNotification('Aucun téléphone configuré pour ce client', 'warning');
-            }
-        }
+        followUpModal.show();
+    }
 
-        function updateFollowUp() {
-            var followUpModal = new bootstrap.Modal(document.getElementById('followUpModal'));
+    function saveFollowUp() {
+        var form = document.getElementById('followUpForm');
+        var formData = new FormData(form);
 
-            // Initialiser avec une date dans 1 semaine
-            var nextWeek = new Date();
-            nextWeek.setDate(nextWeek.getDate() + 7);
-            nextWeek.setMinutes(nextWeek.getMinutes() - nextWeek.getTimezoneOffset());
-            document.getElementById('followUpDateTime').value = nextWeek.toISOString().slice(0, 16);
+        // Ici vous implémenteriez la sauvegarde
+        console.log('Relance programmée:', Object.fromEntries(formData));
 
-            followUpModal.show();
-        }
+        bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
+        showNotification('Relance programmée avec succès !', 'success');
+    }
 
-        function saveFollowUp() {
-            var form = document.getElementById('followUpForm');
-            var formData = new FormData(form);
+    function generateReport() {
+        var clientId = window.location.pathname.split('/').pop();
+        window.open(`/clients/${clientId}/report`, '_blank');
+    }
 
-            // Ici vous implémenteriez la sauvegarde
-            console.log('Relance programmée:', Object.fromEntries(formData));
+    function deleteClient() {
+        var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        deleteModal.show();
+    }
 
-            bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
-            showNotification('Relance programmée avec succès !', 'success');
-        }
+    function confirmDelete() {
+        var clientId = window.location.pathname.split('/').pop();
+        window.location.href = `/clients/delete/${clientId}`;
+    }
 
-        function generateReport() {
-            var clientId = window.location.pathname.split('/').pop();
-            window.open(`/clients/${clientId}/report`, '_blank');
-        }
+    function exportClient() {
+        var clientId = window.location.pathname.split('/').pop();
+        window.location.href = `/clients/export/${clientId}`;
+    }
 
-        function deleteClient() {
-            var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-            deleteModal.show();
-        }
+    function printClient() {
+        window.print();
+    }
 
-        function confirmDelete() {
-            var clientId = window.location.pathname.split('/').pop();
-            window.location.href = `/clients/delete/${clientId}`;
-        }
+    function showNotification(message, type = 'info') {
+        var alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
 
-        function exportClient() {
-            var clientId = window.location.pathname.split('/').pop();
-            window.location.href = `/clients/export/${clientId}`;
-        }
-
-        function printClient() {
-            window.print();
-        }
-
-        function showNotification(message, type = 'info') {
-            var alertClass = {
-                'success': 'alert-success',
-                'error': 'alert-danger',
-                'warning': 'alert-warning',
-                'info': 'alert-info'
-            }[type] || 'alert-info';
-
-            var alertDiv = document.createElement('div');
-            alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
-            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
-            alertDiv.innerHTML = `
+        var alertDiv = document.createElement('div');
+        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+        alertDiv.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
 
-            document.body.appendChild(alertDiv);
+        document.body.appendChild(alertDiv);
 
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.remove();
-                }
-            }, 5000);
-        }
-
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Page de détails client chargée');
-
-            // Vérifier s'il y a une alerte de relance
-            var needsFollowUp = document.querySelector('.badge.bg-warning');
-            if (needsFollowUp && needsFollowUp.textContent.includes('Relance due')) {
-                setTimeout(() => {
-                    showNotification('Ce client nécessite une relance !', 'warning');
-                }, 1000);
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
             }
-        });
-    </script>
+        }, 5000);
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page de détails client chargée');
+
+        // Vérifier s'il y a une alerte de relance
+        var needsFollowUp = document.querySelector('.badge.bg-warning');
+        if (needsFollowUp && needsFollowUp.textContent.includes('Relance due')) {
+            setTimeout(() => {
+                showNotification('Ce client nécessite une relance !', 'warning');
+            }, 1000);
+        }
+    });
+</script>
 </th:block>
 </body>
 </html>

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{js_assets})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
     <title th:text="'Détails - ' + ${product?.name ?: 'Produit'}">Détails du Produit</title>
 </head>
 <body>
-<div th:fragment="content">
+<div th:fragment="content" class="product-detail-page">
     <!-- Vérification que le produit existe -->
     <div th:if="${product == null}" class="alert alert-danger">
         <h4><i class="fas fa-exclamation-triangle me-2"></i>Produit introuvable</h4>
@@ -16,8 +16,8 @@
     <div th:if="${product != null}">
         <!-- Page Header -->
         <div th:replace="~{fragments/components :: page-header(
-            'Produit ' + ${product.name},
-            'Détails et informations du produit',
+            'Produit ' + ${product.name}, 
+            'Détails et informations du produit', 
             ~{::header-actions})}">
             <div th:fragment="header-actions" class="action-buttons">
                 <a th:href="@{/products}" class="btn btn-outline-secondary">
@@ -74,54 +74,94 @@
                             <i class="fas fa-exclamation-triangle me-1"></i>Stock bas
                         </span>
                     </div>
-
+                    
                     <div class="row g-3">
                         <div class="col-md-6" th:if="${product.reference}">
-                            <div class="d-flex align-items-center text-muted">
+                            <div class="d-flex align-items-center text-secondary">
                                 <i class="fas fa-barcode me-2 text-primary"></i>
-                                <span>Référence</span>
+                                <span class="fw-bold">Référence Produit</span>
                             </div>
-                            <div class="fw-semibold">
-                                <code th:text="${product.reference}">REF-001</code>
+                            <div class="fw-semibold text-dark">
+                                <code class="bg-light px-2 py-1 rounded text-primary" th:text="${product.reference}">REF-001</code>
                             </div>
                         </div>
-
+                        
                         <div class="col-md-6" th:if="${product.category}">
-                            <div class="d-flex align-items-center text-muted">
-                                <i class="fas fa-tags me-2 text-primary"></i>
-                                <span>Catégorie</span>
+                            <div class="d-flex align-items-center text-secondary">
+                                <i class="fas fa-tags me-2 text-success"></i>
+                                <span class="fw-bold">Catégorie Produit</span>
                             </div>
-                            <div class="fw-semibold" th:text="${product.category}">Électronique</div>
+                            <div class="fw-semibold text-dark">
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2" th:text="${product.category}">Électronique</span>
+                            </div>
                         </div>
-
+                        
                         <div class="col-md-6" th:if="${product.unitPrice}">
-                            <div class="d-flex align-items-center text-muted">
-                                <i class="fas fa-euro-sign me-2 text-primary"></i>
-                                <span>Prix unitaire</span>
+                            <div class="d-flex align-items-center text-secondary">
+                                <i class="fas fa-euro-sign me-2 text-warning"></i>
+                                <span class="fw-bold">Prix de Vente</span>
                             </div>
-                            <div class="fw-semibold" th:text="${#numbers.formatCurrency(product.unitPrice)}">€99.99</div>
+                            <div class="fw-bold text-warning fs-5" th:text="${#numbers.formatCurrency(product.unitPrice)}">€99.99</div>
                         </div>
-
+                        
                         <div class="col-md-6" th:if="${product.stock != null}">
-                            <div class="d-flex align-items-center text-muted">
-                                <i class="fas fa-warehouse me-2 text-primary"></i>
-                                <span>Stock</span>
+                            <div class="d-flex align-items-center text-secondary">
+                                <i class="fas fa-warehouse me-2 text-info"></i>
+                                <span class="fw-bold">Stock Disponible</span>
                             </div>
-                            <div class="fw-semibold">
+                            <div class="fw-bold fs-5">
                                 <span th:text="${product.stock}" th:class="${product.lowStock} ? 'text-warning' : 'text-success'">150</span>
-                                <span th:text="${product.unit ?: 'pièce'}">pièce</span>
+                                <small class="text-dark ms-1" th:text="${product.unit ?: 'unité(s)'}">unité(s)</small>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <div class="col-lg-4 text-center">
-                    <div class="qr-placeholder">
-                        <i class="fas fa-box fa-4x text-muted mb-3"></i>
-                        <div class="small text-muted">Fiche produit</div>
-                        <button class="btn btn-outline-primary btn-sm mt-2">
-                            <i class="fas fa-download me-1"></i>Export
-                        </button>
+                
+                <div class="col-lg-4">
+                    <!-- Galerie d'images du produit -->
+                    <div class="product-image-gallery">
+                        <div class="main-image-container" id="productImageContainer">
+                            <div th:if="${product.imageUrl != null and not #strings.isEmpty(product.imageUrl)}">
+                                <img th:src="${product.imageUrl}" 
+                                     th:alt="${product.name}" 
+                                     class="img-fluid rounded shadow-lg main-product-image"
+                                     id="mainProductImage"
+                                     style="max-height: 300px; width: 100%; object-fit: cover;">
+                            </div>
+                            <div th:unless="${product.imageUrl != null and not #strings.isEmpty(product.imageUrl)}" 
+                                 class="no-image-placeholder">
+                                <div class="placeholder-content text-center p-5 bg-light rounded">
+                                    <i class="fas fa-image fa-4x text-muted mb-3"></i>
+                                    <h6 class="text-muted">Aucune image disponible</h6>
+                                    <p class="small text-muted mb-3">Image du produit non fournie</p>
+                                    <a th:href="@{/products/{id}/edit(id=${product.id})}" 
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-plus me-1"></i>Ajouter une image
+                                    </a>
+                                </div>
+                            </div>
+                            <!-- Message d'erreur si l'image ne se charge pas -->
+                            <div id="imageError" style="display: none;" class="text-center p-4 bg-danger bg-opacity-10 rounded">
+                                <i class="fas fa-exclamation-triangle text-danger mb-2"></i>
+                                <p class="text-danger mb-0">Impossible de charger l'image</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Actions sur l'image -->
+                        <div class="image-actions mt-3 text-center">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="exportProduct()" title="Exporter la fiche">
+                                    <i class="fas fa-download me-1"></i>Export
+                                </button>
+                                <button type="button" class="btn btn-outline-info btn-sm" onclick="printProduct()" title="Imprimer la fiche">
+                                    <i class="fas fa-print me-1"></i>Imprimer
+                                </button>
+                                <a th:href="@{/products/{id}/edit(id=${product.id})}" 
+                                   class="btn btn-outline-secondary btn-sm" title="Modifier le produit">
+                                    <i class="fas fa-edit me-1"></i>Modifier
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -138,26 +178,26 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label class="fw-bold text-muted">Référence</label>
-                                <p class="mb-0" th:text="${product.reference ?: 'Non définie'}">REF-001</p>
+                                <label class="fw-bold text-primary">📋 Référence Produit</label>
+                                <p class="mb-0 text-dark fw-semibold" th:text="${product.reference ?: 'Référence non définie'}">REF-001</p>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="fw-bold text-muted">Catégorie</label>
+                                <label class="fw-bold text-success">🏷️ Catégorie Produit</label>
                                 <p class="mb-0">
-                                    <span class="badge bg-light text-dark" th:text="${product.category ?: 'Non définie'}">Électronique</span>
+                                    <span class="badge bg-success text-white fs-6 px-3 py-2" th:text="${product.category ?: 'Catégorie non définie'}">Électronique</span>
                                 </p>
                             </div>
                             <div class="col-md-6 mb-3" th:if="${product.brand != null and #strings.length(product.brand) > 0}">
-                                <label class="fw-bold text-muted">Marque</label>
-                                <p class="mb-0" th:text="${product.brand}">Samsung</p>
+                                <label class="fw-bold text-info">🔖 Marque du Produit</label>
+                                <p class="mb-0 text-dark fw-semibold fs-5" th:text="${product.brand}">Samsung</p>
                             </div>
                             <div class="col-md-6 mb-3" th:if="${product.barCode != null and #strings.length(product.barCode) > 0}">
-                                <label class="fw-bold text-muted">Code-barres</label>
-                                <p class="mb-0 font-monospace" th:text="${product.barCode}">1234567890123</p>
+                                <label class="fw-bold text-warning">📊 Code-Barres</label>
+                                <p class="mb-0 font-monospace bg-light px-2 py-1 rounded text-dark fw-bold" th:text="${product.barCode}">1234567890123</p>
                             </div>
                             <div class="col-12" th:if="${product.description != null and #strings.length(product.description) > 0}">
-                                <label class="fw-bold text-muted">Description</label>
-                                <p class="mb-0" th:text="${product.description}">Description du produit...</p>
+                                <label class="fw-bold text-dark">📝 Description Détaillée</label>
+                                <p class="mb-0 text-dark lh-lg" th:text="${product.description}">Description complète du produit avec toutes ses caractéristiques...</p>
                             </div>
                         </div>
                     </div>
@@ -184,13 +224,13 @@
                             </div>
                             <div class="col-md-3 mb-3" th:if="${product.purchasePrice != null}">
                                 <div class="text-center p-3 bg-light rounded">
-                                    <h4 class="text-info mb-1" th:text="${#numbers.formatDecimal(product.purchasePrice, 1, 2)} + ' €'">79.99 €</h4>
+                                    <h4 class="text-info mb-1" th:text="${#numbers.formatDecimal(product.purchasePrice, 1, 2) + ' €'}">79.99 €</h4>
                                     <small class="text-muted">Prix d'achat</small>
                                 </div>
                             </div>
                             <div class="col-md-3 mb-3" th:if="${product.purchasePrice != null and product.unitPrice != null}">
                                 <div class="text-center p-3 bg-light rounded">
-                                    <h4 class="text-warning mb-1" th:text="${#numbers.formatDecimal(product.unitPrice - product.purchasePrice, 1, 2)} + ' €'">20.00 €</h4>
+                                    <h4 class="text-warning mb-1" th:text="${#numbers.formatDecimal(product.unitPrice - product.purchasePrice, 1, 2) + ' €'}">20.00 €</h4>
                                     <small class="text-muted">Marge</small>
                                 </div>
                             </div>
@@ -200,7 +240,7 @@
 
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <label class="fw-bold text-muted">Stock actuel</label>
+                                <label class="fw-bold text-primary">📦 Stock Actuel en Magasin</label>
                                 <div class="d-flex align-items-center">
                                     <h3 class="mb-0 me-2"
                                         th:class="'mb-0 me-2 ' + (${product.outOfStock} ? 'text-danger' : (${product.lowStock} ? 'text-warning' : 'text-success'))"
@@ -216,23 +256,25 @@
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <label class="fw-bold text-muted">Stock minimum</label>
+                                <label class="fw-bold text-warning">⚠️ Seuil d'Alerte (Stock Minimum)</label>
                                 <p class="mb-0 h5" th:text="${(product.minStock ?: 0)} + ' ' + ${product.unit ?: 'pièce'}">10 pièces</p>
                             </div>
                             <div class="col-md-4 mb-3" th:if="${product.maxStock != null and product.maxStock > 0}">
-                                <label class="fw-bold text-muted">Stock maximum</label>
+                                <label class="fw-bold text-success">✅ Capacité Maximale de Stockage</label>
                                 <p class="mb-0 h5" th:text="${product.maxStock} + ' ' + ${product.unit ?: 'pièce'}">500 pièces</p>
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3" th:if="${product.vatRate != null}">
-                                <label class="fw-bold text-muted">Taux de TVA</label>
-                                <p class="mb-0" th:text="${product.vatRate} + '%'">20%</p>
+                                <label class="fw-bold text-info">💰 Taux de TVA Applicable</label>
+                                <p class="mb-0 text-dark fw-bold fs-5">
+                                    <span class="badge bg-info text-white px-3 py-2" th:text="${product.vatRate} + '%'">20%</span>
+                                </p>
                             </div>
-                            <div class="col-md-6 mb-3" th:if="${product.weight != null and product.weight > 0}">
-                                <label class="fw-bold text-muted">Poids</label>
-                                <p class="mb-0" th:text="${product.weight} + ' kg'">1.5 kg</p>
+                            <div class="col-md-6 mb-3" th:if="${product.weight != null and product.weight.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                                <label class="fw-bold text-secondary">⚖️ Poids du Produit</label>
+                                <p class="mb-0 text-dark fw-bold fs-5" th:text="${#numbers.formatDecimal(product.weight, 1, 3)} + ' kg'">1.500 kg</p>
                             </div>
                         </div>
                     </div>
@@ -330,17 +372,18 @@
                         <h6 class="mb-0"><i class="fas fa-info me-2"></i>Informations Système</h6>
                     </div>
                     <div class="card-body">
-                        <small class="text-muted" th:if="${product.createdAt != null}">
-                            <strong>Créé le :</strong><br>
-                            <span th:text="${#temporals.format(product.createdAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 10:30</span>
-                        </small><br>
-                        <small class="text-muted" th:if="${product.updatedAt != null}">
-                            <strong>Modifié le :</strong><br>
-                            <span th:text="${#temporals.format(product.updatedAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 14:15</span>
-                        </small><br>
-                        <small class="text-muted">
-                            <strong>ID :</strong> <span th:text="'#' + ${product.id}">#123</span>
-                        </small>
+                        <div class="text-dark" th:if="${product.createdAt != null}">
+                            <strong class="text-success">📅 Date de Création :</strong><br>
+                            <span class="fw-semibold" th:text="${#temporals.format(product.createdAt, 'dd/MM/yyyy à HH:mm')}">25/07/2025 à 10:30</span>
+                        </div><br>
+                        <div class="text-dark" th:if="${product.updatedAt != null}">
+                            <strong class="text-warning">🔄 Dernière Modification :</strong><br>
+                            <span class="fw-semibold" th:text="${#temporals.format(product.updatedAt, 'dd/MM/yyyy à HH:mm')}">25/07/2025 à 14:15</span>
+                        </div><br>
+                        <div class="text-dark">
+                            <strong class="text-primary">🆔 Identifiant Unique :</strong> 
+                            <span class="badge bg-primary px-2 py-1" th:text="'#' + ${product.id}">#123</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -401,10 +444,10 @@
                     <div class="mb-3">
                         <label class="form-label">Type d'ajustement</label>
                         <label for="adjustmentType"></label><select class="form-select" id="adjustmentType">
-                        <option value="add">Ajouter au stock</option>
-                        <option value="remove">Retirer du stock</option>
-                        <option value="set">Définir le stock exact</option>
-                    </select>
+                            <option value="add">Ajouter au stock</option>
+                            <option value="remove">Retirer du stock</option>
+                            <option value="set">Définir le stock exact</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Quantité</label>
@@ -460,157 +503,336 @@
 <!-- JavaScript -->
 <th:block th:fragment="js_assets">
     <script th:inline="javascript">
-        // Fonctions pour la gestion des images
-        function openImageModal(imageSrc) {
-            try {
-                if (!imageSrc || imageSrc.trim() === '') {
-                    console.error('URL d\'image vide ou invalide');
-                    return;
-                }
-
-                const modal = document.getElementById('imageModal');
-                const modalImage = document.getElementById('modalImage');
-                const modalTitle = modal.querySelector('.modal-title');
-
-                if (!modal || !modalImage) {
-                    console.error('Éléments de la modal introuvables');
-                    return;
-                }
-
-                const productName = document.querySelector('h1 span').textContent || 'Produit';
-                modalTitle.textContent = `Image - ${productName}`;
-
-                modalImage.src = imageSrc;
-                modalImage.alt = `Image de ${productName}`;
-
-                const bootstrapModal = new bootstrap.Modal(modal);
-                bootstrapModal.show();
-
-            } catch (error) {
-                console.error('Erreur dans openImageModal:', error);
+    // Fonctions pour la gestion des images
+    function openImageModal(imageSrc) {
+        try {
+            if (!imageSrc || imageSrc.trim() === '') {
+                console.error('URL d\'image vide ou invalide');
+                return;
             }
-        }
 
-        function showImageError() {
-            const container = document.getElementById('productImageContainer');
-            const errorDiv = document.getElementById('imageError');
-            if (container && errorDiv) {
-                container.style.display = 'none';
-                errorDiv.style.display = 'block';
-            }
-        }
-
-        function downloadImage() {
-            try {
-                const modalImage = document.getElementById('modalImage');
-                const productName = document.querySelector('h1 span').textContent || 'produit';
-
-                if (!modalImage || !modalImage.src) {
-                    alert('Aucune image à télécharger');
-                    return;
-                }
-
-                const link = document.createElement('a');
-                link.href = modalImage.src;
-                link.download = productName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.jpg';
-                link.style.display = 'none';
-
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-            } catch (error) {
-                console.error('Erreur lors du téléchargement:', error);
-                alert('Erreur lors du téléchargement');
-            }
-        }
-
-        function toggleFullscreen() {
             const modal = document.getElementById('imageModal');
-            const modalDialog = modal.querySelector('.modal-dialog');
-            const fullscreenBtn = modal.querySelector('[onclick="toggleFullscreen()"]');
+            const modalImage = document.getElementById('modalImage');
+            const modalTitle = modal.querySelector('.modal-title');
 
-            if (modalDialog.classList.contains('modal-fullscreen')) {
-                modalDialog.classList.remove('modal-fullscreen');
-                modalDialog.classList.add('modal-lg');
-                fullscreenBtn.innerHTML = '<i class="fas fa-expand me-2"></i>Plein écran';
-            } else {
-                modalDialog.classList.remove('modal-lg');
-                modalDialog.classList.add('modal-fullscreen');
-                fullscreenBtn.innerHTML = '<i class="fas fa-compress me-2"></i>Réduire';
+            if (!modal || !modalImage) {
+                console.error('Éléments de la modal introuvables');
+                return;
             }
-        }
 
-        // Fonction pour changer l'image
-        function changeImage() {
-            const newImageUrl = prompt('Nouvelle URL d\'image:', '');
-            if (newImageUrl && newImageUrl.trim() !== '') {
-                console.log('Nouvelle URL d\'image:', newImageUrl.trim());
-                // Ici, vous implémenteriez la sauvegarde via AJAX
-                alert('Fonctionnalité à implémenter côté serveur');
+            const productName = document.querySelector('h1 span').textContent || 'Produit';
+            modalTitle.textContent = `Image - ${productName}`;
+
+            modalImage.src = imageSrc;
+            modalImage.alt = `Image de ${productName}`;
+
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+
+        } catch (error) {
+            console.error('Erreur dans openImageModal:', error);
+        }
+    }
+
+    function showImageError() {
+        const container = document.getElementById('productImageContainer');
+        const errorDiv = document.getElementById('imageError');
+        if (container && errorDiv) {
+            container.style.display = 'none';
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    function downloadImage() {
+        try {
+            const modalImage = document.getElementById('modalImage');
+            const productName = document.querySelector('h1 span').textContent || 'produit';
+
+            if (!modalImage || !modalImage.src) {
+                alert('Aucune image à télécharger');
+                return;
             }
+
+            const link = document.createElement('a');
+            link.href = modalImage.src;
+            link.download = productName.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.jpg';
+            link.style.display = 'none';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        } catch (error) {
+            console.error('Erreur lors du téléchargement:', error);
+            alert('Erreur lors du téléchargement');
         }
+    }
 
-        // Fonctions pour les actions
-        function deleteProduct() {
-            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-            deleteModal.show();
+    function toggleFullscreen() {
+        const modal = document.getElementById('imageModal');
+        const modalDialog = modal.querySelector('.modal-dialog');
+        const fullscreenBtn = modal.querySelector('[onclick="toggleFullscreen()"]');
+
+        if (modalDialog.classList.contains('modal-fullscreen')) {
+            modalDialog.classList.remove('modal-fullscreen');
+            modalDialog.classList.add('modal-lg');
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand me-2"></i>Plein écran';
+        } else {
+            modalDialog.classList.remove('modal-lg');
+            modalDialog.classList.add('modal-fullscreen');
+            fullscreenBtn.innerHTML = '<i class="fas fa-compress me-2"></i>Réduire';
         }
+    }
 
-        function confirmDelete() {
-            const productId = window.location.pathname.split('/').pop();
-            window.location.href = `/products/delete/${productId}`;
+    // Fonction pour changer l'image
+    function changeImage() {
+        const newImageUrl = prompt('Nouvelle URL d\'image:', '');
+        if (newImageUrl && newImageUrl.trim() !== '') {
+            console.log('Nouvelle URL d\'image:', newImageUrl.trim());
+            // Ici, vous implémenteriez la sauvegarde via AJAX
+            alert('Fonctionnalité à implémenter côté serveur');
         }
+    }
 
-        function adjustStock() {
-            const stockModal = new bootstrap.Modal(document.getElementById('stockModal'));
-            stockModal.show();
+    // Fonctions pour les actions
+    function deleteProduct() {
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        deleteModal.show();
+    }
+
+    function confirmDelete() {
+        const productId = window.location.pathname.split('/').pop();
+        window.location.href = `/products/delete/${productId}`;
+    }
+
+    function adjustStock() {
+        const stockModal = new bootstrap.Modal(document.getElementById('stockModal'));
+        stockModal.show();
+    }
+
+    function saveStockAdjustment() {
+        const form = document.getElementById('stockForm');
+        const formData = new FormData(form);
+
+        console.log('Ajustement de stock:', Object.fromEntries(formData));
+
+        bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
+        alert('Ajustement de stock enregistré (fonctionnalité à implémenter)');
+    }
+
+    function createOrder() {
+        const productId = window.location.pathname.split('/').pop();
+        window.location.href = `/orders/new?productId=${productId}`;
+    }
+
+    function updatePrice() {
+        const currentPrice = prompt('Nouveau prix unitaire (€):', '0.00');
+        if (currentPrice && !isNaN(currentPrice) && parseFloat(currentPrice) > 0) {
+            console.log('Nouveau prix:', currentPrice);
+            alert('Mise à jour du prix (fonctionnalité à implémenter)');
         }
+    }
 
-        function saveStockAdjustment() {
-            const form = document.getElementById('stockForm');
-            const formData = new FormData(form);
+    function generateBarcode() {
+        const productId = window.location.pathname.split('/').pop();
+        window.open(`/products/barcode/${productId}`, '_blank');
+    }
 
-            console.log('Ajustement de stock:', Object.fromEntries(formData));
+    function printProduct() {
+        window.print();
+    }
 
-            bootstrap.Modal.getInstance(document.getElementById('stockModal')).hide();
-            alert('Ajustement de stock enregistré (fonctionnalité à implémenter)');
-        }
+    function exportProduct() {
+        const productId = window.location.pathname.split('/').pop();
+        window.location.href = `/products/export/${productId}`;
+    }
 
-        function createOrder() {
-            const productId = window.location.pathname.split('/').pop();
-            window.location.href = `/orders/new?productId=${productId}`;
-        }
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page de détails du produit chargée');
+    });
+</script>
 
-        function updatePrice() {
-            const currentPrice = prompt('Nouveau prix unitaire (€):', '0.00');
-            if (currentPrice && !isNaN(currentPrice) && parseFloat(currentPrice) > 0) {
-                console.log('Nouveau prix:', currentPrice);
-                alert('Mise à jour du prix (fonctionnalité à implémenter)');
-            }
-        }
-
-        function generateBarcode() {
-            const productId = window.location.pathname.split('/').pop();
-            window.open(`/products/barcode/${productId}`, '_blank');
-        }
-
-        function printProduct() {
-            window.print();
-        }
-
-        function exportProduct() {
-            const productId = window.location.pathname.split('/').pop();
-            window.location.href = `/products/export/${productId}`;
-        }
-
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Page de détails du produit chargée');
-        });
-    </script>
-</th:block>
 <style>
+    /* CORRECTION ABSOLUE DES TEXTES BLANCS */
+    .product-detail-page,
+    .product-detail-page * {
+        color: #111827 !important;
+        --bs-text-opacity: 1 !important;
+    }
+    
+    /* Réinitialisation complète des couleurs */
+    .product-detail-page .text-muted,
+    .product-detail-page .text-secondary,
+    .product-detail-page .text-dark,
+    .product-detail-page p,
+    .product-detail-page span:not(.badge),
+    .product-detail-page div:not(.badge),
+    .product-detail-page label,
+    .product-detail-page .fw-semibold,
+    .product-detail-page .fw-bold,
+    .product-detail-page .card-body *,
+    .product-detail-page h1, .product-detail-page h2, .product-detail-page h3,
+    .product-detail-page h4, .product-detail-page h5, .product-detail-page h6 {
+        color: #111827 !important;
+        opacity: 1 !important;
+    }
+    
+    /* Désactivation du mode sombre pour cette page */
+    .product-detail-page {
+        --white: #ffffff !important;
+        --gray-700: #374151 !important;
+        --gray-900: #111827 !important;
+        background-color: #ffffff !important;
+    }
+    
+    /* Labels colorés mais lisibles */
+    .product-detail-page .fw-bold.text-primary {
+        color: #1d4ed8 !important;
+        font-weight: 700 !important;
+    }
+    
+    .product-detail-page .fw-bold.text-success {
+        color: #059669 !important;
+        font-weight: 700 !important;
+    }
+    
+    .product-detail-page .fw-bold.text-warning {
+        color: #d97706 !important;
+        font-weight: 700 !important;
+    }
+    
+    .product-detail-page .fw-bold.text-info {
+        color: #0891b2 !important;
+        font-weight: 700 !important;
+    }
+    
+    .product-detail-page .fw-bold.text-secondary {
+        color: #64748b !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Badges avec contrastes */
+    .product-detail-page .badge {
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        padding: 0.5rem 0.75rem !important;
+    }
+    
+    .product-detail-page .badge.bg-success {
+        background-color: #10b981 !important;
+        color: #ffffff !important;
+    }
+    
+    .product-detail-page .badge.bg-primary {
+        background-color: #3b82f6 !important;
+        color: #ffffff !important;
+    }
+    
+    .product-detail-page .badge.bg-warning {
+        background-color: #f59e0b !important;
+        color: #ffffff !important;
+    }
+    
+    .product-detail-page .badge.bg-info {
+        background-color: #06b6d4 !important;
+        color: #ffffff !important;
+    }
+    
+    /* Arrière-plans clairs */
+    .product-detail-page .bg-light {
+        background-color: #f8fafc !important;
+        color: #111827 !important;
+        border: 1px solid #e5e7eb !important;
+    }
+    
+    /* Titres de cartes */
+    .product-detail-page .card-header,
+    .product-detail-page .card-header * {
+        color: #111827 !important;
+        background-color: #f9fafb !important;
+    }
+    
+    /* Code et monospace */
+    .product-detail-page code,
+    .product-detail-page .font-monospace {
+        background-color: #f3f4f6 !important;
+        color: #1f2937 !important;
+        padding: 0.25rem 0.5rem !important;
+        border-radius: 0.375rem !important;
+    }
+
+    /* === GALERIE D'IMAGES PRODUIT === */
+    .product-detail-page .product-image-gallery {
+        position: relative;
+    }
+
+    .product-detail-page .main-image-container {
+        position: relative;
+        overflow: hidden;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        background: #ffffff;
+    }
+
+    .product-detail-page .main-product-image {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: zoom-in;
+    }
+
+    .product-detail-page .main-product-image:hover {
+        transform: scale(1.05);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .product-detail-page .no-image-placeholder {
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .product-detail-page .placeholder-content {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+        border: 2px dashed #cbd5e1 !important;
+        transition: all 0.3s ease;
+    }
+
+    .product-detail-page .placeholder-content:hover {
+        border-color: #3b82f6 !important;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+        transform: translateY(-2px);
+    }
+
+    .product-detail-page .image-actions .btn-group {
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .product-detail-page .image-actions .btn {
+        border: none !important;
+        padding: 8px 16px !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
+    }
+
+    .product-detail-page .image-actions .btn:hover {
+        transform: translateY(-1px) !important;
+    }
+
+    .product-detail-page #imageError {
+        border: 2px dashed #ef4444 !important;
+        border-radius: 12px;
+        animation: shake 0.5s ease-in-out;
+    }
+
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+    
     @media print {
         .btn, .dropdown, nav, .card-header .btn {
             display: none !important;
@@ -657,5 +879,128 @@
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
 </style>
+
+<script>
+// === GESTION DES IMAGES PRODUIT ===
+document.addEventListener('DOMContentLoaded', function() {
+    const mainImage = document.getElementById('mainProductImage');
+    const imageError = document.getElementById('imageError');
+    
+    // Gestion des erreurs de chargement d'image
+    if (mainImage) {
+        mainImage.addEventListener('error', function() {
+            this.style.display = 'none';
+            if (imageError) {
+                imageError.style.display = 'block';
+            }
+        });
+        
+        mainImage.addEventListener('load', function() {
+            if (imageError) {
+                imageError.style.display = 'none';
+            }
+        });
+        
+        // Zoom sur clic
+        mainImage.addEventListener('click', function() {
+            openImageModal(this.src, this.alt);
+        });
+    }
+    
+    console.log('Page de détails du produit chargée avec support des images');
+});
+
+// === FONCTIONS UTILITAIRES ===
+function openImageModal(imageSrc, imageAlt) {
+    // Créer une modale pour afficher l'image en grand
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">${imageAlt}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img src="${imageSrc}" alt="${imageAlt}" class="img-fluid rounded" style="max-height: 70vh;">
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bootstrapModal = new bootstrap.Modal(modal);
+    
+    modal.addEventListener('hidden.bs.modal', function() {
+        document.body.removeChild(modal);
+    });
+    
+    bootstrapModal.show();
+}
+
+function printProduct() {
+    window.print();
+}
+
+function exportProduct() {
+    // Créer un export simple du produit
+    const productName = document.querySelector('h2').textContent;
+    const productData = {
+        nom: productName,
+        reference: document.querySelector('[th\\:text*="reference"]')?.textContent,
+        exportDate: new Date().toLocaleDateString('fr-FR')
+    };
+    
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(productData, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `produit_${productName.replace(/\s+/g, '_')}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+function adjustStock() {
+    const currentStock = document.querySelector('[th\\:text*="stock"]')?.textContent || '0';
+    const adjustment = prompt(`Stock actuel: ${currentStock}\nEntrez l'ajustement (+ ou -):`, '0');
+    
+    if (adjustment !== null && !isNaN(adjustment)) {
+        const reason = prompt('Raison de l\'ajustement:', '');
+        if (reason !== null) {
+            // Créer un formulaire pour soumettre l'ajustement
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = window.location.pathname + '/adjust-stock';
+            
+            const adjustmentInput = document.createElement('input');
+            adjustmentInput.type = 'hidden';
+            adjustmentInput.name = 'adjustment';
+            adjustmentInput.value = adjustment;
+            
+            const reasonInput = document.createElement('input');
+            reasonInput.type = 'hidden';
+            reasonInput.name = 'reason';
+            reasonInput.value = reason;
+            
+            form.appendChild(adjustmentInput);
+            form.appendChild(reasonInput);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+}
+
+function deleteProduct() {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = window.location.pathname + '/delete';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+</th:block>
 </body>
 </html>

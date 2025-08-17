@@ -130,7 +130,7 @@ h6 { font-size: 1rem; }
 }
 
 .text-muted {
-    color: var(--gray-500) !important;
+    color: var(--gray-600) !important;
 }
 
 .text-small {
@@ -729,6 +729,7 @@ h6 { font-size: 1rem; }
 }
 
 /* ===== MODALES PROFESSIONNELLES ===== */
+/* Styles de base uniquement - pas de z-index ou comportement forcé */
 .modal-content {
     border: none;
     border-radius: var(--radius-xl);
@@ -915,37 +916,8 @@ h6 { font-size: 1rem; }
     }
 }
 
-/* ===== MODE SOMBRE (OPTIONNEL) ===== */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --gray-50: #0f172a;
-        --gray-100: #1e293b;
-        --gray-200: #334155;
-        --gray-300: #475569;
-        --gray-400: #64748b;
-        --gray-500: #94a3b8;
-        --gray-600: #cbd5e1;
-        --gray-700: #e2e8f0;
-        --gray-800: #f1f5f9;
-        --gray-900: #f8fafc;
-        --white: #1e293b;
-    }
-
-    body {
-        background-color: var(--gray-50);
-        color: var(--gray-700);
-    }
-
-    .card {
-        background: var(--white);
-        border-color: var(--gray-200);
-    }
-
-    .navbar {
-        background: var(--white) !important;
-        border-color: var(--gray-200);
-    }
-}
+/* ===== MODE SOMBRE DÉSACTIVÉ ===== */
+/* Le mode sombre automatique est désactivé pour éviter les problèmes de lisibilité */
 
 /* ===== IMPRESSION ===== */
 @media print {

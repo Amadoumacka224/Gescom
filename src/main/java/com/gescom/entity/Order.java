@@ -1,12 +1,7 @@
 package com.gescom.entity;
 
-
-
-
-
-
 import jakarta.persistence.*;
-
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -92,7 +87,7 @@ public class Order {
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
-
+    
     // Méthode utilitaire pour ajouter un OrderItem avec relation bidirectionnelle
     public void addOrderItem(OrderItem orderItem) {
         if (orderItems == null) {
@@ -101,7 +96,7 @@ public class Order {
         orderItems.add(orderItem);
         orderItem.setOrder(this);
     }
-
+    
     // Méthode utilitaire pour supprimer un OrderItem
     public void removeOrderItem(OrderItem orderItem) {
         if (orderItems != null) {
@@ -196,11 +191,11 @@ public class Order {
         this.totalAmountHT = subtotalHT.subtract(discountAmount);
         this.totalVatAmount = subtotalVAT;
         this.totalAmount = totalAmountHT.add(totalVatAmount).add(shippingCost != null ? shippingCost : BigDecimal.ZERO);
-
-        System.out.println("Order calculateTotals - Items: " + orderItems.size() +
-                ", Subtotal HT: " + subtotalHT +
-                ", Total HT: " + totalAmountHT +
-                ", Total TTC: " + totalAmount);
+        
+        System.out.println("Order calculateTotals - Items: " + orderItems.size() + 
+                         ", Subtotal HT: " + subtotalHT + 
+                         ", Total HT: " + totalAmountHT + 
+                         ", Total TTC: " + totalAmount);
     }
 
     public int getTotalQuantity() {

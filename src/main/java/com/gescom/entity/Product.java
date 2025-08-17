@@ -1,7 +1,5 @@
 package com.gescom.entity;
 
-
-
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
@@ -78,7 +76,7 @@ public class Product {
 
     @DecimalMin(value = "0.0", message = "Le poids ne peut pas être négatif")
     @Column(precision = 8, scale = 3)
-    private int weight;
+    private BigDecimal weight;
 
     @Size(max = 200, message = "L'URL de l'image ne peut pas dépasser 200 caractères")
     @Column(name = "image_url")
@@ -87,7 +85,7 @@ public class Product {
     @DecimalMin(value = "0.0", message = "Le taux de TVA ne peut pas être négatif")
     @DecimalMax(value = "100.0", message = "Le taux de TVA ne peut pas dépasser 100%")
     @Column(name = "vat_rate", precision = 5, scale = 2)
-    private int vatRate = 18; // Taux de TVA par défaut à 20%
+    private BigDecimal vatRate = BigDecimal.valueOf(18); // Taux de TVA par défaut à 18%
 
     @Column(name = "is_active")
     private Boolean isActive = true;
@@ -112,8 +110,15 @@ public class Product {
     private LocalDateTime updatedAt;
 
     // Méthodes utilitaires
-    public int getPriceIncludingVat() {
-        return 10;
+    public BigDecimal getPriceIncludingVat() {
+        if (unitPrice == null) {
+            return BigDecimal.ZERO;
+        }
+        if (vatRate == null) {
+            return unitPrice;
+        }
+        BigDecimal vatRateDecimal = vatRate.divide(BigDecimal.valueOf(100));
+        return unitPrice.add(unitPrice.multiply(vatRateDecimal));
     }
 
     public boolean isLowStock() {

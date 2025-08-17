@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
     <title>Administration - Utilisateurs</title>
 </head>
@@ -336,6 +336,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<div th:fragment="js_assets">
+    <!-- Specific JS for user admin list -->
 </div>
 </body>
 </html>

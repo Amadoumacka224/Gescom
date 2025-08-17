@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
     <title>Gestion des Factures</title>
 </head>
@@ -7,8 +7,8 @@
 <div th:fragment="content">
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
-        'Gestion des Factures',
-        'Gérez vos factures et encaissements',
+        'Gestion des Factures', 
+        'Gérez vos factures et encaissements', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/invoices/new}" class="btn btn-primary">
@@ -34,38 +34,38 @@
     <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${totalInvoices},
-                'Total Factures',
-                null,
-                null,
-                'fas fa-file-invoice',
+                ${totalInvoices}, 
+                'Total Factures', 
+                null, 
+                null, 
+                'fas fa-file-invoice', 
                 'primary')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${paidInvoices},
-                'Payées',
-                null,
-                null,
-                'fas fa-check-circle',
+                ${paidInvoices}, 
+                'Payées', 
+                null, 
+                null, 
+                'fas fa-check-circle', 
                 'success')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${overdueInvoices},
-                'En Retard',
-                null,
-                null,
-                'fas fa-exclamation-triangle',
+                ${overdueInvoices}, 
+                'En Retard', 
+                null, 
+                null, 
+                'fas fa-exclamation-triangle', 
                 'warning')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${#numbers.formatCurrency(outstandingAmount)},
-                'Impayés',
-                null,
-                null,
-                'fas fa-euro-sign',
+                ${#numbers.formatCurrency(outstandingAmount)}, 
+                'Impayés', 
+                null, 
+                null, 
+                'fas fa-euro-sign', 
                 'info')}"></div>
         </div>
     </div>
@@ -450,6 +450,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<div th:fragment="js_assets">
+    <!-- Specific JS for invoice list -->
 </div>
 </body>
 </html>

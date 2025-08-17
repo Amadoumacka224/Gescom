@@ -1,5 +1,6 @@
 package com.gescom.entity;
 
+// src/main/java/com/company/commercial/entity/Permission.java
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;

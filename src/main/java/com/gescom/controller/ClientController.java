@@ -1,12 +1,5 @@
 package com.gescom.controller;
 
-
-
-
-
-
-
-
 import com.gescom.entity.Client;
 import com.gescom.entity.User;
 import com.gescom.repository.ClientRepository;

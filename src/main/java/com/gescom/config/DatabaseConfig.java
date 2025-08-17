@@ -1,18 +1,5 @@
 package com.gescom.config;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 import com.gescom.entity.*;
 import com.gescom.repository.*;
 import org.slf4j.Logger;
@@ -26,10 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Configuration
@@ -119,6 +104,7 @@ public class DatabaseConfig {
 
     @Transactional
     public List<User> createUsers() {
+
         logger.info("👥 Création des utilisateurs...");
 
         List<User> users = new ArrayList<>();
@@ -145,7 +131,7 @@ public class DatabaseConfig {
         users.add(userRepository.save(manager1));
 
         User manager2 = createUser("manager2", "Pierre", "Martin", "manager2@commercial.com",
-                managerRole, BigDecimal.valueOf(280000));
+                userRole, BigDecimal.valueOf(280000));
         manager2.setPassword(passwordEncoder.encode("password123"));
         users.add(userRepository.save(manager2));
 
@@ -186,7 +172,7 @@ public class DatabaseConfig {
         // Filtrer les utilisateurs ayant le rôle USER
         List<User> commercials = users.stream()
                 .filter(u -> u.hasRole("USER"))
-                .toList();
+                .collect(Collectors.toList());
 
         // Clients entreprises
         String[][] companies = {
@@ -325,7 +311,7 @@ public class DatabaseConfig {
 
         List<User> commercials = users.stream()
                 .filter(u -> u.hasRole("USER"))
-                .toList();
+                .collect(Collectors.toList());;
 
         if (commercials.isEmpty()) {
             logger.warn("Aucun commercial trouvé, impossible de créer des commandes");
@@ -344,10 +330,15 @@ public class DatabaseConfig {
 
             for (int i = 0; i < ordersToday; i++) {
                 User commercial = commercials.get(random.nextInt(commercials.size()));
-                Client client = clients.stream()
+                List<Client> actives = clients.stream()
                         .filter(c -> c.getStatus() == Client.ClientStatus.ACTIVE)
-                        .toList()
-                        .get(random.nextInt((int) clients.stream().filter(c -> c.getStatus() == Client.ClientStatus.ACTIVE).count()));
+                        .collect(Collectors.toList());
+
+                if (actives.isEmpty()) {
+                    throw new NoSuchElementException("Aucun client actif");
+                }
+
+                Client client = actives.get(random.nextInt(actives.size()));
 
                 Order order = new Order();
                 order.setOrderNumber("CMD-" + (orderNumber++));
@@ -370,7 +361,7 @@ public class DatabaseConfig {
                     item.setProduct(product);
                     item.setQuantity(random.nextInt(10) + 1);
                     item.setUnitPrice(product.getUnitPrice());
-                    // item.setVatRate(product.getVatRate() != null ? product.getVatRate() : BigDecimal.valueOf(20.0));
+                   // item.setVatRate(product.getVatRate() != null ? product.getVatRate() : BigDecimal.valueOf(20.0));
 
                     // Remise aléatoire parfois
                     if (random.nextBoolean() && random.nextDouble() < 0.3) {
@@ -482,7 +473,7 @@ public class DatabaseConfig {
         product.setCategory(category);
         product.setBrand(brand);
         product.setUnit(unit);
-        // product.setVatRate(BigDecimal.valueOf(20.0));
+       // product.setVatRate(BigDecimal.valueOf(20.0));
         product.setIsActive(true);
         product.setBarCode("BC" + reference);
 

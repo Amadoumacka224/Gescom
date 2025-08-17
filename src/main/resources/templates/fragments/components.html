@@ -26,8 +26,8 @@
     </div>
     <div class="stats-value" th:text="${value}">0</div>
     <div class="stats-label" th:text="${label}">Label</div>
-    <div th:if="${change}"
-         th:class="'stats-change ' + ${changeType}"
+    <div th:if="${change}" 
+         th:class="'stats-change ' + ${changeType}" 
          th:text="${change}">+0%</div>
 </div>
 
@@ -37,18 +37,18 @@
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>
-                <tr>
-                    <th th:each="header : ${headers}" th:text="${header}">Header</th>
-                    <th th:if="${actions}" class="text-center">Actions</th>
-                </tr>
+                    <tr>
+                        <th th:each="header : ${headers}" th:text="${header}">Header</th>
+                        <th th:if="${actions}" class="text-center">Actions</th>
+                    </tr>
                 </thead>
                 <tbody>
-                <tr th:each="row : ${data}">
-                    <td th:each="cell : ${row}" th:text="${cell}">Cell</td>
-                    <td th:if="${actions}" class="text-center">
-                        <th:block th:replace="${actions}"></th:block>
-                    </td>
-                </tr>
+                    <tr th:each="row : ${data}">
+                        <td th:each="cell : ${row}" th:text="${cell}">Cell</td>
+                        <td th:if="${actions}" class="text-center">
+                            <th:block th:replace="${actions}"></th:block>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -56,7 +56,7 @@
 </div>
 
 <!-- Button Component -->
-<a th:fragment="btn(href, text, variant, size, icon)"
+<a th:fragment="btn(href, text, variant, size, icon)" 
    th:href="${href}"
    th:class="'btn btn-' + ${variant} + ' ' + (${size} ? 'btn-' + ${size} : '')">
     <i th:if="${icon}" th:class="${icon}"></i>
@@ -64,8 +64,8 @@
 </a>
 
 <!-- Badge Component -->
-<span th:fragment="badge(text, variant)"
-      th:class="'badge bg-' + ${variant}"
+<span th:fragment="badge(text, variant)" 
+      th:class="'badge bg-' + ${variant}" 
       th:text="${text}">Badge</span>
 
 <!-- Search Box Component -->
@@ -75,9 +75,9 @@
             <span class="input-group-text">
                 <i class="fas fa-search"></i>
             </span>
-            <input type="text"
-                   name="search"
-                   class="form-control"
+            <input type="text" 
+                   name="search" 
+                   class="form-control" 
                    th:placeholder="${placeholder}"
                    th:value="${param.search}">
             <button class="btn btn-primary" type="submit">
@@ -92,8 +92,8 @@
     <label class="form-label" th:text="${label}">Filtre</label>
     <select class="form-select" th:name="${name}" onchange="this.form.submit()">
         <option value="">Tous</option>
-        <option th:each="option : ${options}"
-                th:value="${option.value}"
+        <option th:each="option : ${options}" 
+                th:value="${option.value}" 
                 th:text="${option.text}"
                 th:selected="${option.value == selected}">Option</option>
     </select>
@@ -104,23 +104,23 @@
     <ul class="pagination justify-content-center">
         <!-- Previous -->
         <li th:class="'page-item ' + (${currentPage == 0} ? 'disabled' : '')">
-            <a class="page-link"
+            <a class="page-link" 
                th:href="${currentPage > 0} ? ${baseUrl + '?page=' + (currentPage - 1)} : '#'">
                 <i class="fas fa-chevron-left"></i>
             </a>
         </li>
-
+        
         <!-- Pages -->
         <li th:each="page : ${#numbers.sequence(0, totalPages - 1)}"
             th:class="'page-item ' + (${page == currentPage} ? 'active' : '')">
-            <a class="page-link"
+            <a class="page-link" 
                th:href="${baseUrl + '?page=' + page}"
                th:text="${page + 1}">1</a>
         </li>
-
+        
         <!-- Next -->
         <li th:class="'page-item ' + (${currentPage == totalPages - 1} ? 'disabled' : '')">
-            <a class="page-link"
+            <a class="page-link" 
                th:href="${currentPage < totalPages - 1} ? ${baseUrl + '?page=' + (currentPage + 1)} : '#'">
                 <i class="fas fa-chevron-right"></i>
             </a>
@@ -129,7 +129,7 @@
 </nav>
 
 <!-- Loading Spinner Component -->
-<div th:fragment="loading-spinner(size)"
+<div th:fragment="loading-spinner(size)" 
      th:class="'d-flex justify-content-center align-items-center ' + (${size} ? 'p-' + ${size} : 'p-4')">
     <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Chargement...</span>
@@ -149,9 +149,9 @@
 </div>
 
 <!-- Modal Component -->
-<div th:fragment="modal(id, title, size)"
-     th:id="${id}"
-     class="modal fade"
+<div th:fragment="modal(id, title, size)" 
+     th:id="${id}" 
+     class="modal fade" 
      tabindex="-1">
     <div th:class="'modal-dialog ' + (${size} ? 'modal-' + ${size} : '')">
         <div class="modal-content">
@@ -183,13 +183,13 @@
 
 <!-- Form Field Component -->
 <div th:fragment="form-field(label, name, type, value, required, placeholder)" class="mb-3">
-    <label th:for="${name}"
-           class="form-label"
+    <label th:for="${name}" 
+           class="form-label" 
            th:text="${label}">Label</label>
-    <input th:type="${type ?: 'text'}"
+    <input th:type="${type ?: 'text'}" 
            th:id="${name}"
            th:name="${name}"
-           class="form-control"
+           class="form-control" 
            th:value="${value}"
            th:placeholder="${placeholder}"
            th:required="${required}">
@@ -205,8 +205,8 @@
         </li>
         <li th:each="item, iterStat : ${items}"
             th:class="'breadcrumb-item ' + (${iterStat.last} ? 'active' : '')">
-            <a th:if="!${iterStat.last}"
-               th:href="${item.url}"
+            <a th:if="!${iterStat.last}" 
+               th:href="${item.url}" 
                th:text="${item.title}">Item</a>
             <span th:if="${iterStat.last}" th:text="${item.title}">Active Item</span>
         </li>

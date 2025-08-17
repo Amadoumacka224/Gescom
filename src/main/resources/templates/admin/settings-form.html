@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title th:text="${isEdit ? 'Modifier le paramètre' : 'Nouveau paramètre'} + ' - GESCOM'">Paramètre - GESCOM</title>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --secondary-color: #6c757d;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #0dcaf0;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --border-radius: 8px;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            background-color: #f5f7fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .main-content {
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), #4285f4);
+            color: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .breadcrumb {
+            background: transparent;
+            padding: 0;
+            margin: 0.5rem 0 0 0;
+        }
+
+        .breadcrumb-item a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+        }
+
+        .breadcrumb-item.active {
+            color: white;
+        }
+
+        /* Form Container */
+        .form-container {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .form-header {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .form-header h4 {
+            margin: 0;
+            color: var(--dark-color);
+            font-weight: 600;
+        }
+
+        .form-body {
+            padding: 2rem;
+        }
+
+        /* Form Sections */
+        .form-section {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid #f8f9fa;
+        }
+
+        .form-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .form-section-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        /* Form Controls */
+        .form-label {
+            font-weight: 500;
+            color: var(--dark-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control, .form-select, .form-control-color {
+            border-radius: var(--border-radius);
+            border: 1px solid #e0e6ed;
+            padding: 0.75rem 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+
+        .form-text {
+            color: var(--secondary-color);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Input Groups */
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group-text {
+            background-color: #f8f9fa;
+            border-color: #e0e6ed;
+            color: var(--secondary-color);
+        }
+
+        /* Validation */
+        .is-invalid {
+            border-color: var(--danger-color);
+        }
+
+        .invalid-feedback {
+            color: var(--danger-color);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        .is-valid {
+            border-color: var(--success-color);
+        }
+
+        .valid-feedback {
+            color: var(--success-color);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Alerts */
+        .alert {
+            border-radius: var(--border-radius);
+            border: none;
+            padding: 1rem 1.5rem;
+        }
+
+        .alert-info {
+            background-color: #e7f3ff;
+            color: #0c5460;
+        }
+
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #664d03;
+        }
+
+        /* Buttons */
+        .btn {
+            border-radius: var(--border-radius);
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            border-color: #0a58ca;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-outline-secondary {
+            border-color: var(--secondary-color);
+            color: var(--secondary-color);
+        }
+
+        .btn-outline-secondary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        /* Preview Section */
+        .preview-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .preview-label {
+            font-weight: 600;
+            color: var(--dark-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .preview-value {
+            background: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: calc(var(--border-radius) / 2);
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            border: 1px solid #dee2e6;
+        }
+
+        /* System Setting Alert */
+        .system-alert {
+            background: linear-gradient(135deg, #fff3cd, #fef7e0);
+            border: 1px solid #ffeaa7;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .system-alert .icon {
+            color: #f39c12;
+            font-size: 1.25rem;
+            margin-right: 0.75rem;
+        }
+
+        /* Help Text */
+        .help-box {
+            background: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .help-box .icon {
+            color: var(--info-color);
+            font-size: 1.25rem;
+            margin-right: 0.75rem;
+        }
+
+        /* Type Specific Styles */
+        .color-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .form-control-color {
+            width: 60px;
+            height: 45px;
+            border: 2px solid #dee2e6;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: var(--border-radius);
+            border: 1px solid #dee2e6;
+        }
+
+        .form-check-input {
+            transform: scale(1.25);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1rem;
+            }
+
+            .page-header {
+                padding: 1.5rem;
+            }
+
+            .form-body {
+                padding: 1.5rem;
+            }
+
+            .btn-group {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div th:fragment="content">
+    <div class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>
+                <i class="fas fa-cog"></i>
+                <span th:text="${isEdit ? 'Modifier le paramètre' : 'Nouveau paramètre'}"></span>
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/admin/settings}">Paramètres</a></li>
+                    <li class="breadcrumb-item active" th:text="${isEdit ? 'Modifier' : 'Nouveau'}"></li>
+                </ol>
+            </nav>
+        </div>
+
+        <!-- Flash Messages -->
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- System Setting Alert -->
+        <div th:if="${isEdit and isSystemSetting}" class="system-alert">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-shield-alt icon"></i>
+                <div>
+                    <strong>Paramètre Système</strong>
+                    <p class="mb-0">Ce paramètre est géré par le système. Seule la valeur peut être modifiée.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Box -->
+        <div th:if="${isDuplicate}" class="help-box">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-copy icon"></i>
+                <div>
+                    <strong>Duplication de paramètre</strong>
+                    <p class="mb-0">Vous créez une copie du paramètre. Assurez-vous de modifier la clé pour qu'elle soit unique.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Container -->
+        <div class="form-container">
+            <div class="form-header">
+                <h4 th:text="${isEdit ? 'Modification du paramètre' : 'Création d\'un nouveau paramètre'}"></h4>
+            </div>
+            
+            <div class="form-body">
+                <form th:action="@{/admin/settings/save}" th:object="${setting}" method="post" id="settingForm">
+                    <input type="hidden" th:field="*{id}">
+                    
+                    <!-- Basic Information Section -->
+                    <div class="form-section">
+                        <h5 class="form-section-title">
+                            <i class="fas fa-info-circle"></i>
+                            Informations de base
+                        </h5>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="key" class="form-label">Clé du paramètre *</label>
+                                    <input type="text" class="form-control" id="key" th:field="*{key}" 
+                                           th:readonly="${isEdit and isSystemSetting}"
+                                           placeholder="ex: app.name, company.email">
+                                    <div class="form-text">Identifiant unique du paramètre (format: categorie.nom)</div>
+                                    <div th:if="${#fields.hasErrors('key')}" class="invalid-feedback" th:errors="*{key}"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="category" class="form-label">Catégorie *</label>
+                                    <select class="form-select" id="category" th:field="*{category}" 
+                                            th:disabled="${isEdit and isSystemSetting}">
+                                        <option value="">Sélectionner une catégorie</option>
+                                        <option th:each="cat : ${categories}" 
+                                                th:value="${cat}" 
+                                                th:text="${cat.displayName} + ' - ' + ${cat.description}">
+                                        </option>
+                                    </select>
+                                    <div class="form-text">Groupe de classification du paramètre</div>
+                                    <div th:if="${#fields.hasErrors('category')}" class="invalid-feedback" th:errors="*{category}"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" th:field="*{description}" rows="2"
+                                      th:readonly="${isEdit and isSystemSetting}"
+                                      placeholder="Description détaillée du paramètre"></textarea>
+                            <div class="form-text">Description explicative du rôle de ce paramètre</div>
+                            <div th:if="${#fields.hasErrors('description')}" class="invalid-feedback" th:errors="*{description}"></div>
+                        </div>
+                    </div>
+
+                    <!-- Value Configuration Section -->
+                    <div class="form-section">
+                        <h5 class="form-section-title">
+                            <i class="fas fa-edit"></i>
+                            Configuration de la valeur
+                        </h5>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="valueType" class="form-label">Type de valeur *</label>
+                                    <select class="form-select" id="valueType" th:field="*{valueType}" 
+                                            th:disabled="${isEdit and isSystemSetting}"
+                                            onchange="updateValueInput()">
+                                        <option th:each="type : ${valueTypes}" 
+                                                th:value="${type}" 
+                                                th:text="${type.displayName} + ' - ' + ${type.description}">
+                                        </option>
+                                    </select>
+                                    <div class="form-text">Définit le format et la validation de la valeur</div>
+                                    <div th:if="${#fields.hasErrors('valueType')}" class="invalid-feedback" th:errors="*{valueType}"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6" th:if="${!isEdit or !isSystemSetting}">
+                                <div class="mb-3">
+                                    <label for="sortOrder" class="form-label">Ordre d'affichage</label>
+                                    <input type="number" class="form-control" id="sortOrder" th:field="*{sortOrder}" 
+                                           min="0" placeholder="0">
+                                    <div class="form-text">Position relative dans la catégorie (0 = premier)</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Dynamic Value Input -->
+                        <div class="mb-3">
+                            <label for="value" class="form-label">Valeur</label>
+                            <div id="valueInputContainer">
+                                <!-- Input will be generated dynamically based on valueType -->
+                                <input type="text" class="form-control" id="value" th:field="*{value}" 
+                                       placeholder="Saisir la valeur">
+                            </div>
+                            <div class="form-text" id="valueHelp">Saisir la valeur selon le type sélectionné</div>
+                            <div th:if="${#fields.hasErrors('value')}" class="invalid-feedback" th:errors="*{value}"></div>
+                        </div>
+                        
+                        <!-- Value Preview -->
+                        <div class="preview-section" id="valuePreview" style="display: none;">
+                            <div class="preview-label">Aperçu de la valeur :</div>
+                            <div class="preview-value" id="previewContent"></div>
+                        </div>
+                    </div>
+
+                    <!-- System Configuration Section -->
+                    <div class="form-section" th:if="${!isEdit or !isSystemSetting}">
+                        <h5 class="form-section-title">
+                            <i class="fas fa-cogs"></i>
+                            Configuration système
+                        </h5>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isSystem" th:field="*{isSystem}">
+                                    <label class="form-check-label" for="isSystem">
+                                        Paramètre système
+                                    </label>
+                                    <div class="form-text">Les paramètres système ne peuvent pas être supprimés</div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="isEncrypted" th:field="*{isEncrypted}">
+                                    <label class="form-check-label" for="isEncrypted">
+                                        Valeur cryptée
+                                    </label>
+                                    <div class="form-text">Pour les mots de passe et données sensibles</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-3 justify-content-end">
+                        <a th:href="@{/admin/settings}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>Annuler
+                        </a>
+                        <button type="button" class="btn btn-outline-primary" onclick="previewValue()">
+                            <i class="fas fa-eye me-2"></i>Aperçu
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                            <i class="fas fa-undo me-2"></i>Réinitialiser
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>
+                            <span th:text="${isEdit ? 'Modifier' : 'Créer'}"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize Select2
+            $('.form-select').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
+            
+            // Initialize value input based on current type
+            updateValueInput();
+            
+            // Auto-update preview as user types
+            $('#value, input[name="value"]').on('input change', function() {
+                previewValue();
+            });
+        });
+
+        function updateValueInput() {
+            const valueType = $('#valueType').val();
+            const currentValue = $('*[name="value"]').val() || '';
+            const container = $('#valueInputContainer');
+            const helpText = $('#valueHelp');
+            
+            let inputHtml = '';
+            let helpTextContent = '';
+            
+            switch(valueType) {
+                case 'STRING':
+                    inputHtml = `<input type="text" class="form-control" name="value" value="${currentValue}" placeholder="Texte simple">`;
+                    helpTextContent = 'Saisir du texte simple';
+                    break;
+                    
+                case 'TEXT':
+                    inputHtml = `<textarea class="form-control" name="value" rows="3" placeholder="Texte multi-lignes">${currentValue}</textarea>`;
+                    helpTextContent = 'Saisir du texte sur plusieurs lignes';
+                    break;
+                    
+                case 'INTEGER':
+                    inputHtml = `<input type="number" class="form-control" name="value" value="${currentValue}" placeholder="123">`;
+                    helpTextContent = 'Saisir un nombre entier (ex: 42, -10)';
+                    break;
+                    
+                case 'DECIMAL':
+                    inputHtml = `<input type="number" step="0.01" class="form-control" name="value" value="${currentValue}" placeholder="3.14">`;
+                    helpTextContent = 'Saisir un nombre décimal (ex: 3.14, 19.6)';
+                    break;
+                    
+                case 'BOOLEAN':
+                    const checked = currentValue === 'true' ? 'checked' : '';
+                    inputHtml = `
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" class="form-check-input" name="booleanValue" ${checked} onchange="updateBooleanValue(this)">
+                            <span class="form-check-label">Activé</span>
+                            <input type="hidden" name="value" value="${currentValue}">
+                        </div>`;
+                    helpTextContent = 'Cocher pour activer (true) ou décocher pour désactiver (false)';
+                    break;
+                    
+                case 'EMAIL':
+                    inputHtml = `<input type="email" class="form-control" name="value" value="${currentValue}" placeholder="exemple@domaine.com">`;
+                    helpTextContent = 'Saisir une adresse email valide';
+                    break;
+                    
+                case 'URL':
+                    inputHtml = `<input type="url" class="form-control" name="value" value="${currentValue}" placeholder="https://exemple.com">`;
+                    helpTextContent = 'Saisir une URL complète (avec http:// ou https://)';
+                    break;
+                    
+                case 'PASSWORD':
+                    inputHtml = `<input type="password" class="form-control" name="value" value="${currentValue}" placeholder="••••••••">`;
+                    helpTextContent = 'Saisir un mot de passe (sera crypté automatiquement)';
+                    break;
+                    
+                case 'COLOR':
+                    inputHtml = `
+                        <div class="color-input-wrapper">
+                            <input type="color" class="form-control-color" name="colorValue" value="${currentValue || '#0d6efd'}" onchange="updateColorValue(this)">
+                            <input type="text" class="form-control" name="value" value="${currentValue}" placeholder="#FF0000">
+                        </div>`;
+                    helpTextContent = 'Choisir une couleur ou saisir le code hexadécimal (ex: #FF0000)';
+                    break;
+                    
+                case 'DATE':
+                    inputHtml = `<input type="date" class="form-control" name="value" value="${currentValue}">`;
+                    helpTextContent = 'Sélectionner une date';
+                    break;
+                    
+                case 'TIME':
+                    inputHtml = `<input type="time" class="form-control" name="value" value="${currentValue}">`;
+                    helpTextContent = 'Sélectionner une heure';
+                    break;
+                    
+                case 'JSON':
+                    inputHtml = `<textarea class="form-control" name="value" rows="4" placeholder='{"key": "value"}'>${currentValue}</textarea>`;
+                    helpTextContent = 'Saisir un objet JSON valide (ex: {"key": "value"})';
+                    break;
+                    
+                case 'FILE_PATH':
+                    inputHtml = `<input type="text" class="form-control" name="value" value="${currentValue}" placeholder="/chemin/vers/fichier">`;
+                    helpTextContent = 'Saisir le chemin vers un fichier ou dossier';
+                    break;
+                    
+                case 'LIST':
+                    inputHtml = `<textarea class="form-control" name="value" rows="3" placeholder="valeur1, valeur2, valeur3">${currentValue}</textarea>`;
+                    helpTextContent = 'Saisir les valeurs séparées par des virgules';
+                    break;
+                    
+                default:
+                    inputHtml = `<input type="text" class="form-control" name="value" value="${currentValue}" placeholder="Valeur">`;
+                    helpTextContent = 'Saisir la valeur';
+            }
+            
+            container.html(inputHtml);
+            helpText.text(helpTextContent);
+            
+            // Re-bind events
+            $('*[name="value"]').on('input change', function() {
+                previewValue();
+            });
+        }
+
+        function updateBooleanValue(checkbox) {
+            const hiddenInput = checkbox.parentNode.querySelector('input[name="value"]');
+            hiddenInput.value = checkbox.checked ? 'true' : 'false';
+            previewValue();
+        }
+
+        function updateColorValue(colorInput) {
+            const textInput = colorInput.parentNode.querySelector('input[name="value"]');
+            textInput.value = colorInput.value;
+            previewValue();
+        }
+
+        function previewValue() {
+            const valueType = $('#valueType').val();
+            const value = $('*[name="value"]').val() || '';
+            const preview = $('#valuePreview');
+            const content = $('#previewContent');
+            
+            if (!value) {
+                preview.hide();
+                return;
+            }
+            
+            let displayValue = value;
+            
+            switch(valueType) {
+                case 'PASSWORD':
+                    displayValue = '••••••••';
+                    break;
+                case 'BOOLEAN':
+                    displayValue = value === 'true' ? '✓ Activé' : '✗ Désactivé';
+                    break;
+                case 'LIST':
+                    displayValue = value.replace(/,/g, ', ');
+                    break;
+                case 'JSON':
+                    displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+                    break;
+                case 'TEXT':
+                    displayValue = value.length > 100 ? value.substring(0, 100) + '...' : value;
+                    break;
+            }
+            
+            content.text(displayValue);
+            preview.show();
+        }
+
+        // Store original form data for reset
+        let originalFormData = {};
+        
+        function storeOriginalData() {
+            originalFormData = {
+                key: $('#key').val(),
+                description: $('#description').val(),
+                category: $('#category').val(),
+                valueType: $('#valueType').val(),
+                value: $('*[name="value"]').val() || '',
+                sortOrder: $('#sortOrder').val(),
+                isSystem: $('#isSystem').is(':checked'),
+                isEncrypted: $('#isEncrypted').is(':checked')
+            };
+        }
+        
+        function resetForm() {
+            if (confirm('Réinitialiser le formulaire aux valeurs d\'origine ?')) {
+                $('#key').val(originalFormData.key);
+                $('#description').val(originalFormData.description);
+                $('#category').val(originalFormData.category).trigger('change');
+                $('#valueType').val(originalFormData.valueType);
+                $('#sortOrder').val(originalFormData.sortOrder);
+                $('#isSystem').prop('checked', originalFormData.isSystem);
+                $('#isEncrypted').prop('checked', originalFormData.isEncrypted);
+                
+                // Update value input and trigger change
+                updateValueInput();
+                $('*[name="value"]').val(originalFormData.value);
+                previewValue();
+            }
+        }
+        
+        // Enhanced form validation with real-time feedback
+        function validateField(field, value, type) {
+            const fieldElement = $('#' + field);
+            fieldElement.removeClass('is-valid is-invalid');
+            
+            let isValid = true;
+            let message = '';
+            
+            switch(field) {
+                case 'key':
+                    if (!value.trim()) {
+                        isValid = false;
+                        message = 'La clé est obligatoire';
+                    } else if (!value.match(/^[a-zA-Z][a-zA-Z0-9._-]*$/)) {
+                        isValid = false;
+                        message = 'Format invalide (lettres, chiffres, points, tirets)';
+                    }
+                    break;
+                    
+                case 'value':
+                    if (type === 'EMAIL' && value && !value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                        isValid = false;
+                        message = 'Format d\'email invalide';
+                    } else if (type === 'URL' && value && !value.match(/^https?:\/\/.+/)) {
+                        isValid = false;
+                        message = 'L\'URL doit commencer par http:// ou https://';
+                    } else if (type === 'INTEGER' && value && !value.match(/^-?\d+$/)) {
+                        isValid = false;
+                        message = 'Doit être un nombre entier';
+                    } else if (type === 'DECIMAL' && value && !value.match(/^-?\d*\.?\d+$/)) {
+                        isValid = false;
+                        message = 'Doit être un nombre décimal';
+                    } else if (type === 'COLOR' && value && !value.match(/^#[0-9A-Fa-f]{6}$/)) {
+                        isValid = false;
+                        message = 'Format couleur invalide (#RRGGBB)';
+                    }
+                    break;
+            }
+            
+            if (isValid) {
+                fieldElement.addClass('is-valid');
+                fieldElement.siblings('.invalid-feedback').hide();
+            } else {
+                fieldElement.addClass('is-invalid');
+                let feedback = fieldElement.siblings('.invalid-feedback');
+                if (feedback.length === 0) {
+                    feedback = $('<div class="invalid-feedback"></div>');
+                    fieldElement.after(feedback);
+                }
+                feedback.text(message).show();
+            }
+            
+            return isValid;
+        }
+        
+        // Real-time validation
+        $('#key').on('blur', function() {
+            validateField('key', $(this).val(), null);
+        });
+        
+        $(document).on('blur', '*[name="value"]', function() {
+            const valueType = $('#valueType').val();
+            validateField('value', $(this).val(), valueType);
+        });
+        
+        // Form validation
+        $('#settingForm').on('submit', function(e) {
+            const key = $('#key').val().trim();
+            const valueType = $('#valueType').val();
+            const value = $('*[name="value"]').val() || '';
+            
+            let isFormValid = true;
+            
+            // Validate all fields
+            if (!validateField('key', key, null)) {
+                isFormValid = false;
+            }
+            
+            if (!validateField('value', value, valueType)) {
+                isFormValid = false;
+            }
+            
+            // Basic validation
+            if (!key) {
+                alert('La clé est obligatoire');
+                isFormValid = false;
+            }
+            
+            if (!valueType) {
+                alert('Le type de valeur est obligatoire');
+                isFormValid = false;
+            }
+            
+            if (!isFormValid) {
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        // Store original data when page loads
+        $(document).ready(function() {
+            setTimeout(storeOriginalData, 500); // Wait for form to be fully loaded
+        });
+    </script>
+</div>
+
+<div th:fragment="js_assets">
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+</div>
+</body>
+</html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{})}">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
     <title>Gestion des Commandes</title>
 </head>
@@ -7,8 +7,8 @@
 <div th:fragment="content">
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
-        'Gestion des Commandes',
-        'Gérez vos commandes clients',
+        'Gestion des Commandes', 
+        'Gérez vos commandes clients', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/orders/new}" class="btn btn-primary">
@@ -34,38 +34,38 @@
     <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${totalOrders},
-                'Total Commandes',
-                null,
-                null,
-                'fas fa-shopping-cart',
+                ${totalOrders}, 
+                'Total Commandes', 
+                null, 
+                null, 
+                'fas fa-shopping-cart', 
                 'primary')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${draftOrders},
-                'Brouillons',
-                null,
-                null,
-                'fas fa-file-alt',
+                ${draftOrders}, 
+                'Brouillons', 
+                null, 
+                null, 
+                'fas fa-file-alt', 
                 'warning')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${confirmedOrders},
-                'Confirmées',
-                null,
-                null,
-                'fas fa-check-circle',
+                ${confirmedOrders}, 
+                'Confirmées', 
+                null, 
+                null, 
+                'fas fa-check-circle', 
                 'info')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${#numbers.formatCurrency(totalAmount)},
-                'Montant Total',
-                null,
-                null,
-                'fas fa-euro-sign',
+                ${#numbers.formatCurrency(totalAmount)}, 
+                'Montant Total', 
+                null, 
+                null, 
+                'fas fa-euro-sign', 
                 'success')}"></div>
         </div>
     </div>
@@ -92,10 +92,12 @@
                     <select class="form-select" id="status" name="status">
                         <option value="">Tous les statuts</option>
                         <option value="DRAFT" th:selected="${selectedStatus == 'DRAFT'}">Brouillon</option>
+                        <option value="PENDING" th:selected="${selectedStatus == 'PENDING'}">En attente</option>
                         <option value="CONFIRMED" th:selected="${selectedStatus == 'CONFIRMED'}">Confirmée</option>
-                        <option value="PROCESSING" th:selected="${selectedStatus == 'PROCESSING'}">En cours</option>
+                        <option value="PROCESSING" th:selected="${selectedStatus == 'PROCESSING'}">En traitement</option>
                         <option value="SHIPPED" th:selected="${selectedStatus == 'SHIPPED'}">Expédiée</option>
                         <option value="DELIVERED" th:selected="${selectedStatus == 'DELIVERED'}">Livrée</option>
+                        <option value="RETURNED" th:selected="${selectedStatus == 'RETURNED'}">Retournée</option>
                         <option value="CANCELLED" th:selected="${selectedStatus == 'CANCELLED'}">Annulée</option>
                     </select>
                 </div>
@@ -214,9 +216,9 @@
                         </td>
                         <td>
                             <div>
-                                <strong th:text="${order.client.name}">Client Name</strong>
+                                <strong th:text="${order.client?.name ?: 'Client non défini'}">Client Name</strong>
                                 <br>
-                                <small th:if="${order.client.companyName}"
+                                <small th:if="${order.client?.companyName}"
                                        th:text="${order.client.companyName}"
                                        class="text-muted">Entreprise</small>
                             </div>
@@ -226,21 +228,25 @@
                                 <div class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
                                     <i class="fas fa-user text-info" style="font-size: 0.8rem;"></i>
                                 </div>
-                                <span th:text="${order.user.fullName}">Commercial</span>
+                                <span th:text="${order.user != null ? (order.user.firstName + ' ' + order.user.lastName) : 'Non assigné'}">Commercial</span>
                             </div>
+                        </td>
                         <td>
-                            <div class="fw-bold" th:text="${order.totalAmount != null ? #numbers.formatCurrency(order.totalAmount) : #numbers.formatCurrency(0)}">€0.00</div>
-                            <small th:if="${order.totalAmountHT != null}"
+                            <div class="fw-bold" th:text="${#numbers.formatCurrency(order.totalAmount ?: 0 ) }">€0.00</div>
+                            <small th:if="${order.totalAmountHT}"
                                    th:text="'HT: ' + ${#numbers.formatCurrency(order.totalAmountHT)}"
                                    class="text-muted">HT</small>
                         </td>
-                            <span th:switch="${order.status}" class="badge rounded-pill">
+                        <td>
+                            <span th:switch="${order.status?.name()}" class="badge rounded-pill">
                                 <span th:case="'DRAFT'" class="bg-secondary">Brouillon</span>
+                                <span th:case="'PENDING'" class="bg-warning text-dark">En attente</span>
                                 <span th:case="'CONFIRMED'" class="bg-primary">Confirmée</span>
-                                <span th:case="'PROCESSING'" class="bg-info">En cours</span>
+                                <span th:case="'PROCESSING'" class="bg-info">En traitement</span>
                                 <span th:case="'SHIPPED'" class="bg-warning text-dark">Expédiée</span>
                                 <span th:case="'DELIVERED'" class="bg-success">Livrée</span>
-                                <span th:case="'CANCELLED'" class="bg-danger">Annulée</span>
+                                <span th:case="'RETURNED'" class="bg-danger">Retournée</span>
+                                <span th:case="'CANCELLED'" class="bg-dark">Annulée</span>
                             </span>
                         </td>
                         <td>
@@ -254,7 +260,7 @@
                                             <i class="fas fa-eye me-2 text-info"></i>Voir détails
                                         </a>
                                     </li>
-                                    <li th:if="${canEdit and (order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT or order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED)}">
+                                    <li th:if="${canEdit and (order.status?.name() == 'DRAFT' or order.status?.name() == 'CONFIRMED')}">
                                         <a class="dropdown-item" th:href="@{/orders/{id}/edit(id=${order.id})}">
                                             <i class="fas fa-edit me-2 text-primary"></i>Modifier
                                         </a>
@@ -265,7 +271,7 @@
                                         </a>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <li th:if="${(order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED or order.status == T(com.gescom.entity.Order.OrderStatus).DELIVERED) and order.invoice == null}">
+                                    <li th:if="${(order.status?.name() == 'CONFIRMED' or order.status?.name() == 'PROCESSING' or order.status?.name() == 'SHIPPED' or order.status?.name() == 'DELIVERED') and order.invoice == null}">
                                         <a class="dropdown-item" th:href="@{/invoices/new(orderId=${order.id})}">
                                             <i class="fas fa-file-invoice-dollar me-2 text-success"></i>Générer facture
                                         </a>
@@ -280,8 +286,8 @@
                                             <i class="fas fa-copy me-2 text-info"></i>Dupliquer
                                         </a>
                                     </li>
-                                    <li th:if="${canDelete and order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT}"><hr class="dropdown-divider"></li>
-                                    <li th:if="${canDelete and order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT}">
+                                    <li th:if="${canDelete and order.status?.name() == 'DRAFT'}"><hr class="dropdown-divider"></li>
+                                    <li th:if="${canDelete and order.status?.name() == 'DRAFT'}">
                                         <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" th:data-bs-target="'#deleteModal' + ${order.id}">
                                             <i class="fas fa-trash me-2"></i>Supprimer
                                         </a>
@@ -311,10 +317,10 @@
 
             <!-- Pagination -->
             <div th:if="${totalPages > 1}" th:replace="~{fragments/components :: pagination(
-                ${currentPage},
-                ${totalPages},
-                '/orders?size=' + ${size} + '&sortBy=' + ${sortBy} + '&sortDir=' + ${sortDir} +
-                (${search} != null ? '&search=' + ${search} : '') +
+                ${currentPage}, 
+                ${totalPages}, 
+                '/orders?size=' + ${size} + '&sortBy=' + ${sortBy} + '&sortDir=' + ${sortDir} + 
+                (${search} != null ? '&search=' + ${search} : '') + 
                 (${selectedStatus} != null ? '&status=' + ${selectedStatus} : '') +
                 (${dateFrom} != null ? '&dateFrom=' + ${dateFrom} : '') +
                 (${dateTo} != null ? '&dateTo=' + ${dateTo} : '')
@@ -336,13 +342,15 @@
                     <div class="modal-body">
                         <p>Commande: <strong th:text="${order.orderNumber}">CMD-001</strong></p>
                         <p>Statut actuel:
-                            <span th:switch="${order.status}">
+                            <span th:switch="${order.status?.name()}">
                                 <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
+                                <span th:case="'PENDING'" class="badge bg-warning text-dark">En attente</span>
                                 <span th:case="'CONFIRMED'" class="badge bg-primary">Confirmée</span>
-                                <span th:case="'PROCESSING'" class="badge bg-info">En cours</span>
+                                <span th:case="'PROCESSING'" class="badge bg-info">En traitement</span>
                                 <span th:case="'SHIPPED'" class="badge bg-warning">Expédiée</span>
                                 <span th:case="'DELIVERED'" class="badge bg-success">Livrée</span>
-                                <span th:case="'CANCELLED'" class="badge bg-danger">Annulée</span>
+                                <span th:case="'RETURNED'" class="badge bg-danger">Retournée</span>
+                                <span th:case="'CANCELLED'" class="badge bg-dark">Annulée</span>
                             </span>
                         </p>
 
@@ -350,16 +358,31 @@
                             <label for="newStatus" class="form-label">Nouveau statut</label>
                             <select name="newStatus" class="form-select" id="newStatus" required>
                                 <option value="">Sélectionner un statut</option>
-                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).DRAFT}"
-                                        value="CONFIRMED">Confirmée</option>
-                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).CONFIRMED}"
-                                        value="PROCESSING">En cours</option>
-                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).PROCESSING}"
-                                        value="SHIPPED">Expédiée</option>
-                                <option th:if="${order.status == T(com.gescom.entity.Order.OrderStatus).SHIPPED}"
-                                        value="DELIVERED">Livrée</option>
-                                <option th:if="${order.status != T(com.gescom.entity.Order.OrderStatus).DELIVERED and order.status != T(com.gescom.entity.Order.OrderStatus).CANCELLED}"
-                                        value="CANCELLED">Annulée</option>
+                                <!-- Depuis DRAFT -->
+                                <option th:if="${order.status?.name() == 'DRAFT'}" value="PENDING">En attente</option>
+                                <option th:if="${order.status?.name() == 'DRAFT'}" value="CONFIRMED">Confirmée</option>
+                                <option th:if="${order.status?.name() == 'DRAFT'}" value="CANCELLED">Annulée</option>
+                                
+                                <!-- Depuis PENDING -->
+                                <option th:if="${order.status?.name() == 'PENDING'}" value="CONFIRMED">Confirmée</option>
+                                <option th:if="${order.status?.name() == 'PENDING'}" value="CANCELLED">Annulée</option>
+                                
+                                <!-- Depuis CONFIRMED -->
+                                <option th:if="${order.status?.name() == 'CONFIRMED'}" value="PROCESSING">En traitement</option>
+                                <option th:if="${order.status?.name() == 'CONFIRMED'}" value="PENDING">En attente</option>
+                                <option th:if="${order.status?.name() == 'CONFIRMED'}" value="CANCELLED">Annulée</option>
+                                
+                                <!-- Depuis PROCESSING -->
+                                <option th:if="${order.status?.name() == 'PROCESSING'}" value="SHIPPED">Expédiée</option>
+                                <option th:if="${order.status?.name() == 'PROCESSING'}" value="PENDING">En attente</option>
+                                <option th:if="${order.status?.name() == 'PROCESSING'}" value="CANCELLED">Annulée</option>
+                                
+                                <!-- Depuis SHIPPED -->
+                                <option th:if="${order.status?.name() == 'SHIPPED'}" value="DELIVERED">Livrée</option>
+                                <option th:if="${order.status?.name() == 'SHIPPED'}" value="RETURNED">Retournée</option>
+                                
+                                <!-- Depuis DELIVERED -->
+                                <option th:if="${order.status?.name() == 'DELIVERED'}" value="RETURNED">Retournée</option>
                             </select>
                         </div>
                     </div>
@@ -419,6 +442,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<div th:fragment="js_assets">
+    <!-- Specific JS for order list -->
 </div>
 </body>
 </html>
