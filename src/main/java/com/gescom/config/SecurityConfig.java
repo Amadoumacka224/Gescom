@@ -19,6 +19,8 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import java.io.IOException;
 
+import static org.springframework.web.servlet.function.RequestPredicates.headers;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
@@ -125,10 +127,14 @@ public class SecurityConfig {
                         .expiredUrl("/login?expired=true")
                 )
 
+
                 // Configuration des headers pour H2 Console
                 .headers(headers -> headers
                         .frameOptions(frameOptions -> frameOptions.sameOrigin())
                 )
+
+
+
 
                 // Gestion des exceptions
                 .exceptionHandling(exceptions -> exceptions
