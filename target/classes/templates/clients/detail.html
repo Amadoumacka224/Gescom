@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title th:text="'Détails Client - ' + ${client?.name ?: 'Client'}">Détails du Client</title>
+</head>
+<body>
+<style>
+    @media print {
+        .btn, .dropdown, nav, .card-header .btn, .modal {
+            display: none !important;
+        }
+
+        .card {
+            border: 1px solid #dee2e6 !important;
+            box-shadow: none !important;
+        }
+    }
+
+    .progress {
+        background-color: #e9ecef;
+    }
+
+    .badge {
+        font-size: 0.75em;
+    }
+
+    .card-body h4 {
+        font-weight: 600;
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .bg-light p {
+        word-break: break-word;
+    }
+
+    .table th {
+        border-top: none;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .btn-sm {
+        font-size: 0.8rem;
+    }
+
+    /* Animation des notifications */
+    .alert {
+        animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+<div th:fragment="content">
+    <!-- Vérification que le client existe -->
+    <div th:if="${client == null}" class="alert alert-danger">
+        <h4><i class="fas fa-exclamation-triangle me-2"></i>Client introuvable</h4>
+        <p>Le client demandé n'existe pas ou a été supprimé.</p>
+        <a th:href="@{/clients}" class="btn btn-primary">Retour à la liste des clients</a>
+    </div>
+
+    <!-- Contenu principal si le client existe -->
+    <div th:if="${client != null}">
+        <!-- Page Header -->
+        <div th:replace="~{fragments/components :: page-header(
+            'Client ' + ${client.name}, 
+            'Détails et informations du client', 
+            ~{::header-actions})}">
+            <div th:fragment="header-actions" class="action-buttons">
+                <a th:href="@{/clients}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i>
+                    Retour à la liste
+                </a>
+                <button type="button" class="btn btn-outline-primary" onclick="printClient()">
+                    <i class="fas fa-print"></i>
+                    Imprimer
+                </button>
+                <button type="button" class="btn btn-outline-info" onclick="sendEmail()">
+                    <i class="fas fa-envelope"></i>
+                    Email
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-cogs"></i>
+                        Actions
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" th:href="@{/clients/{id}/edit(id=${client.id})}">
+                            <i class="fas fa-edit me-2"></i>Modifier
+                        </a></li>
+                        <li><a class="dropdown-item" th:href="@{/orders/new(clientId=${client.id})}">
+                            <i class="fas fa-shopping-cart me-2"></i>Nouvelle commande
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportClient()">
+                            <i class="fas fa-download me-2"></i>Exporter
+                        </a></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteClient()">
+                            <i class="fas fa-ban me-2"></i>Supprimer
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Client Summary -->
+        <div class="order-header">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center mb-3">
+                        <h2 class="mb-0 me-3" th:text="${client.name}">Nom Client</h2>
+                        <span th:switch="${client.status}" class="status-badge">
+                            <span th:case="'ACTIVE'" class="badge bg-success">Actif</span>
+                            <span th:case="'INACTIVE'" class="badge bg-secondary">Inactif</span>
+                            <span th:case="'PROSPECT'" class="badge bg-warning text-dark">Prospect</span>
+                            <span th:case="'BLOCKED'" class="badge bg-danger">Bloqué</span>
+                            <span th:case="*" class="badge bg-secondary">Inconnu</span>
+                        </span>
+                        <span th:switch="${client.clientType}" class="badge ms-2">
+                            <span th:case="'COMPANY'" class="bg-info">Entreprise</span>
+                            <span th:case="'INDIVIDUAL'" class="bg-secondary">Particulier</span>
+                            <span th:case="'ASSOCIATION'" class="bg-purple">Association</span>
+                        </span>
+                        <span class="badge bg-warning ms-1" th:if="${client.needsFollowUp}">
+                            <i class="fas fa-clock me-1"></i>Relance due
+                        </span>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6" th:if="${client.email}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-envelope me-2 text-primary"></i>
+                                <span>Email</span>
+                            </div>
+                            <div class="fw-semibold">
+                                <a th:href="'mailto:' + ${client.email}" th:text="${client.email}" class="text-decoration-none">
+                                    email@client.com
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6" th:if="${client.phoneNumber}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-phone me-2 text-primary"></i>
+                                <span>Téléphone</span>
+                            </div>
+                            <div class="fw-semibold">
+                                <a th:href="'tel:' + ${client.phoneNumber}" th:text="${client.phoneNumber}" class="text-decoration-none">
+                                    +33 1 23 45 67 89
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6" th:if="${client.companyName}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-building me-2 text-primary"></i>
+                                <span>Entreprise</span>
+                            </div>
+                            <div class="fw-semibold" th:text="${client.companyName}">Nom Entreprise</div>
+                        </div>
+                        
+                        <div class="col-md-6" th:if="${client.assignedUser}">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-user-tie me-2 text-primary"></i>
+                                <span>Commercial</span>
+                            </div>
+                            <div class="fw-semibold" th:text="${client.assignedUser.fullName}">Commercial</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 text-center">
+                    <div class="qr-placeholder">
+                        <i class="fas fa-user-circle fa-4x text-muted mb-3"></i>
+                        <div class="small text-muted">Profil client</div>
+                        <button class="btn btn-outline-primary btn-sm mt-2">
+                            <i class="fas fa-download me-1"></i>Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Colonne principale -->
+            <div class="col-lg-8">
+                <!-- Informations générales -->
+                <div class="section-card card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Nom complet</label>
+                                <p class="mb-0" th:text="${client.name}">Nom du client</p>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Type de client</label>
+                                <p class="mb-0">
+                                    <span class="badge bg-light text-dark" th:text="${client.clientType.displayName}">Particulier</span>
+                                </p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.email != null}">
+                                <label class="fw-bold text-muted">Email</label>
+                                <p class="mb-0">
+                                    <a th:href="'mailto:' + ${client.email}" th:text="${client.email}" class="text-decoration-none">
+                                        email@client.com
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="Copier">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.phoneNumber != null}">
+                                <label class="fw-bold text-muted">Téléphone</label>
+                                <p class="mb-0">
+                                    <a th:href="'tel:' + ${client.phoneNumber}" th:text="${client.phoneNumber}" class="text-decoration-none">
+                                        +33 1 23 45 67 89
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="Copier">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.mobileNumber != null}">
+                                <label class="fw-bold text-muted">Mobile</label>
+                                <p class="mb-0">
+                                    <a th:href="'tel:' + ${client.mobileNumber}" th:text="${client.mobileNumber}" class="text-decoration-none">
+                                        +33 6 12 34 56 78
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations entreprise (si applicable) -->
+                <div class="section-card card" th:if="${client.clientType.name() == 'COMPANY' and (client.companyName != null or client.siretNumber != null or client.vatNumber != null)}">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-building me-2"></i>Informations Entreprise</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3" th:if="${client.companyName != null}">
+                                <label class="fw-bold text-muted">Nom de l'entreprise</label>
+                                <p class="mb-0" th:text="${client.companyName}">Nom Entreprise</p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.siretNumber != null}">
+                                <label class="fw-bold text-muted">SIRET</label>
+                                <p class="mb-0 font-monospace" th:text="${client.siretNumber}">12345678901234</p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.vatNumber != null}">
+                                <label class="fw-bold text-muted">Numéro TVA</label>
+                                <p class="mb-0 font-monospace" th:text="${client.vatNumber}">FR12345678901</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Adresse -->
+                <div class="section-card card" th:if="${client.address != null or client.city != null or client.postalCode != null}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Adresse</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="openMap()" title="Voir sur la carte">
+                            <i class="fas fa-map me-1"></i>Carte
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <div class="bg-light p-3 rounded">
+                                    <p class="mb-0" th:text="${client.fullAddress}">Adresse complète</p>
+                                    <button class="btn btn-sm btn-outline-secondary mt-2" onclick="copyAddress()" title="Copier l'adresse">
+                                        <i class="fas fa-copy me-1"></i>Copier l'adresse
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-8 mb-3" th:if="${client.address != null}">
+                                <label class="fw-bold text-muted">Rue</label>
+                                <p class="mb-0" th:text="${client.address}">123 Rue de la Paix</p>
+                            </div>
+                            <div class="col-md-4 mb-3" th:if="${client.postalCode != null}">
+                                <label class="fw-bold text-muted">Code postal</label>
+                                <p class="mb-0" th:text="${client.postalCode}">75001</p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.city != null}">
+                                <label class="fw-bold text-muted">Ville</label>
+                                <p class="mb-0" th:text="${client.city}">Paris</p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${client.country != null}">
+                                <label class="fw-bold text-muted">Pays</label>
+                                <p class="mb-0" th:text="${client.country}">France</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Historique des commandes -->
+                <div class="section-card card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Commandes Récentes</h5>
+                        <a th:href="@{'/orders?clientId=' + ${client.id}}" class="btn btn-sm btn-outline-primary">Voir toutes</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                <tr>
+                                    <th>N° Commande</th>
+                                    <th>Date</th>
+                                    <th>Statut</th>
+                                    <th>Montant</th>
+                                    <th>Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <!-- Exemple de données - à remplacer par les vraies commandes -->
+                                <tr>
+                                    <td><a href="#" class="text-decoration-none">CMD-2025-001</a></td>
+                                    <td>25/07/2025</td>
+                                    <td><span class="badge bg-success">Livrée</span></td>
+                                    <td class="fw-bold">299,99 €</td>
+                                    <td>
+                                        <a href="#" class="btn btn-sm btn-outline-primary" title="Voir">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><a href="#" class="text-decoration-none">CMD-2025-002</a></td>
+                                    <td>20/07/2025</td>
+                                    <td><span class="badge bg-warning">En cours</span></td>
+                                    <td class="fw-bold">156,50 €</td>
+                                    <td>
+                                        <a href="#" class="btn btn-sm btn-outline-primary" title="Voir">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="section-card card" th:if="${client.notes != null and #strings.length(client.notes) > 0}">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-sticky-note me-2"></i>Notes</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0" th:text="${client.notes}">Notes sur le client...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne latérale -->
+            <div class="col-lg-4">
+                <!-- Statistiques client -->
+                <div class="section-card card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Statistiques</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <h4 class="text-primary mb-0">12</h4>
+                                <small class="text-muted">Commandes</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <h4 class="text-success mb-0">€ 2,456</h4>
+                                <small class="text-muted">CA total</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-info mb-0">€ 204</h4>
+                                <small class="text-muted">Panier moyen</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-warning mb-0">95 j</h4>
+                                <small class="text-muted">Dernière cmd</small>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <small>Fidélité</small>
+                                <small>85%</small>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-success" style="width: 85%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gestion et suivi -->
+                <div class="section-card card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-user-cog me-2"></i>Gestion</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3" th:if="${client.assignedUser != null}">
+                            <label class="fw-bold text-muted small">Commercial assigné</label>
+                            <div class="d-flex align-items-center">
+                                <div class="me-2">
+                                    <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center"
+                                         style="width: 32px; height: 32px;">
+                                        <i class="fas fa-user text-primary small"></i>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="mb-0 fw-bold" th:text="${client.assignedUser.fullName}">Nom Commercial</p>
+                                    <small class="text-muted" th:text="${client.assignedUser.email}">email@commercial.com</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" th:if="${client.followUpDate != null}">
+                            <label class="fw-bold text-muted small">Prochaine relance</label>
+                            <p class="mb-0" th:class="${client.needsFollowUp} ? 'text-danger fw-bold' : ''"
+                               th:text="${#temporals.format(client.followUpDate, 'dd/MM/yyyy HH:mm')}">
+                                25/07/2025 14:00
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions rapides -->
+                <div class="section-card card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-bolt me-2"></i>Actions Rapides</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a th:href="@{'/orders/new?clientId=' + ${client.id}}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-shopping-cart me-2"></i>Nouvelle commande
+                            </a>
+                            <button class="btn btn-outline-info btn-sm" onclick="sendEmail()">
+                                <i class="fas fa-envelope me-2"></i>Envoyer un email
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="scheduleCall()">
+                                <i class="fas fa-phone me-2"></i>Programmer un appel
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="updateFollowUp()">
+                                <i class="fas fa-calendar me-2"></i>Planifier relance
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="generateReport()">
+                                <i class="fas fa-file-alt me-2"></i>Rapport client
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations système -->
+                <div class="section-card card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info me-2"></i>Informations Système</h6>
+                    </div>
+                    <div class="card-body">
+                        <small class="text-muted" th:if="${client.createdAt != null}">
+                            <strong>Créé le :</strong><br>
+                            <span th:text="${#temporals.format(client.createdAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 10:30</span>
+                        </small><br>
+                        <small class="text-muted" th:if="${client.updatedAt != null}">
+                            <strong>Modifié le :</strong><br>
+                            <span th:text="${#temporals.format(client.updatedAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 14:15</span>
+                        </small><br>
+                        <small class="text-muted">
+                            <strong>ID :</strong> <span th:text="'#' + ${client.id}">#123</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de planification de relance -->
+<div class="modal fade" id="followUpModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Planifier une relance</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="followUpForm">
+                    <div class="mb-3">
+                        <label class="form-label">Date et heure de relance</label>
+                        <input type="datetime-local" class="form-control" id="followUpDateTime" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type de relance</label>
+                        <select class="form-select" id="followUpType">
+                            <option value="call">Appel téléphonique</option>
+                            <option value="email">Email</option>
+                            <option value="meeting">Rendez-vous</option>
+                            <option value="other">Autre</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes (optionnel)</label>
+                        <textarea class="form-control" rows="3" placeholder="Objectif de la relance..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveFollowUp()">Planifier</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer ce client ?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Cette action supprimera également toutes les commandes associées.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<th:block th:fragment="js_assets">
+    <script th:inline="javascript">
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            showNotification('Copié dans le presse-papiers !', 'success');
+        }).catch(function() {
+            showNotification('Erreur lors de la copie', 'error');
+        });
+    }
+
+    function copyAddress() {
+        var addressText = document.querySelector('.bg-light p').textContent;
+        copyToClipboard(addressText);
+    }
+
+    function openMap() {
+        var address = document.querySelector('.bg-light p').textContent;
+        var encodedAddress = encodeURIComponent(address);
+        window.open(`https://www.google.com/maps/search/${encodedAddress}`, '_blank');
+    }
+
+    function sendEmail() {
+        var email = document.querySelector('a[href^="mailto:"]');
+        if (email) {
+            window.location.href = email.href + '?subject=Contact depuis notre système';
+        } else {
+            showNotification('Aucun email configuré pour ce client', 'warning');
+        }
+    }
+
+    function scheduleCall() {
+        var phone = document.querySelector('a[href^="tel:"]');
+        if (phone) {
+            var phoneNumber = phone.textContent;
+            showNotification(`Appel programmé vers ${phoneNumber}`, 'info');
+            // Ici vous pourriez intégrer avec un système de téléphonie
+        } else {
+            showNotification('Aucun téléphone configuré pour ce client', 'warning');
+        }
+    }
+
+    function updateFollowUp() {
+        var followUpModal = new bootstrap.Modal(document.getElementById('followUpModal'));
+
+        // Initialiser avec une date dans 1 semaine
+        var nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        nextWeek.setMinutes(nextWeek.getMinutes() - nextWeek.getTimezoneOffset());
+        document.getElementById('followUpDateTime').value = nextWeek.toISOString().slice(0, 16);
+
+        followUpModal.show();
+    }
+
+    function saveFollowUp() {
+        var form = document.getElementById('followUpForm');
+        var formData = new FormData(form);
+
+        // Ici vous implémenteriez la sauvegarde
+        console.log('Relance programmée:', Object.fromEntries(formData));
+
+        bootstrap.Modal.getInstance(document.getElementById('followUpModal')).hide();
+        showNotification('Relance programmée avec succès !', 'success');
+    }
+
+    function generateReport() {
+        var clientId = window.location.pathname.split('/').pop();
+        window.open(`/clients/${clientId}/report`, '_blank');
+    }
+
+    function deleteClient() {
+        var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        deleteModal.show();
+    }
+
+    function confirmDelete() {
+        var clientId = window.location.pathname.split('/').pop();
+        window.location.href = `/clients/delete/${clientId}`;
+    }
+
+    function exportClient() {
+        var clientId = window.location.pathname.split('/').pop();
+        window.location.href = `/clients/export/${clientId}`;
+    }
+
+    function printClient() {
+        window.print();
+    }
+
+    function showNotification(message, type = 'info') {
+        var alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
+
+        var alertDiv = document.createElement('div');
+        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page de détails client chargée');
+
+        // Vérifier s'il y a une alerte de relance
+        var needsFollowUp = document.querySelector('.badge.bg-warning');
+        if (needsFollowUp && needsFollowUp.textContent.includes('Relance due')) {
+            setTimeout(() => {
+                showNotification('Ce client nécessite une relance !', 'warning');
+            }, 1000);
+        }
+    });
+</script>
+</th:block>
+</body>
+</html>

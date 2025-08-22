@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Components</title>
+</head>
+<body>
+
+<!-- Page Header Component -->
+<div th:fragment="page-header(title, subtitle, actions)" class="page-header">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h1 class="page-title" th:text="${title}">Titre de la page</h1>
+            <p class="page-subtitle" th:if="${subtitle}" th:text="${subtitle}">Sous-titre</p>
+        </div>
+        <div class="d-flex gap-2" th:if="${actions}">
+            <th:block th:replace="${actions}"></th:block>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Card Component -->
+<div th:fragment="stats-card(value, label, change, changeType, icon, iconColor)" class="stats-card">
+    <div class="stats-icon" th:style="'background: var(--' + ${iconColor} + '-50); color: var(--' + ${iconColor} + '-500);'">
+        <i th:class="${icon}"></i>
+    </div>
+    <div class="stats-value" th:text="${value}">0</div>
+    <div class="stats-label" th:text="${label}">Label</div>
+    <div th:if="${change}" 
+         th:class="'stats-change ' + ${changeType}" 
+         th:text="${change}">+0%</div>
+</div>
+
+<!-- Data Table Component -->
+<div th:fragment="data-table(headers, data, actions)" class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th th:each="header : ${headers}" th:text="${header}">Header</th>
+                        <th th:if="${actions}" class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="row : ${data}">
+                        <td th:each="cell : ${row}" th:text="${cell}">Cell</td>
+                        <td th:if="${actions}" class="text-center">
+                            <th:block th:replace="${actions}"></th:block>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Button Component -->
+<a th:fragment="btn(href, text, variant, size, icon)" 
+   th:href="${href}"
+   th:class="'btn btn-' + ${variant} + ' ' + (${size} ? 'btn-' + ${size} : '')">
+    <i th:if="${icon}" th:class="${icon}"></i>
+    <span th:text="${text}">Button</span>
+</a>
+
+<!-- Badge Component -->
+<span th:fragment="badge(text, variant)" 
+      th:class="'badge bg-' + ${variant}" 
+      th:text="${text}">Badge</span>
+
+<!-- Search Box Component -->
+<div th:fragment="search-box(placeholder, action)" class="search-box">
+    <form th:action="${action}" method="get" class="d-flex">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" 
+                   name="search" 
+                   class="form-control" 
+                   th:placeholder="${placeholder}"
+                   th:value="${param.search}">
+            <button class="btn btn-primary" type="submit">
+                Rechercher
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Filter Component -->
+<div th:fragment="filter-dropdown(label, options, name, selected)" class="filter-dropdown">
+    <label class="form-label" th:text="${label}">Filtre</label>
+    <select class="form-select" th:name="${name}" onchange="this.form.submit()">
+        <option value="">Tous</option>
+        <option th:each="option : ${options}" 
+                th:value="${option.value}" 
+                th:text="${option.text}"
+                th:selected="${option.value == selected}">Option</option>
+    </select>
+</div>
+
+<!-- Pagination Component -->
+<nav th:fragment="pagination(currentPage, totalPages, baseUrl)" aria-label="Pagination">
+    <ul class="pagination justify-content-center">
+        <!-- Previous -->
+        <li th:class="'page-item ' + (${currentPage == 0} ? 'disabled' : '')">
+            <a class="page-link" 
+               th:href="${currentPage > 0} ? ${baseUrl + '?page=' + (currentPage - 1)} : '#'">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+        </li>
+        
+        <!-- Pages -->
+        <li th:each="page : ${#numbers.sequence(0, totalPages - 1)}"
+            th:class="'page-item ' + (${page == currentPage} ? 'active' : '')">
+            <a class="page-link" 
+               th:href="${baseUrl + '?page=' + page}"
+               th:text="${page + 1}">1</a>
+        </li>
+        
+        <!-- Next -->
+        <li th:class="'page-item ' + (${currentPage == totalPages - 1} ? 'disabled' : '')">
+            <a class="page-link" 
+               th:href="${currentPage < totalPages - 1} ? ${baseUrl + '?page=' + (currentPage + 1)} : '#'">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<!-- Loading Spinner Component -->
+<div th:fragment="loading-spinner(size)" 
+     th:class="'d-flex justify-content-center align-items-center ' + (${size} ? 'p-' + ${size} : 'p-4')">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Chargement...</span>
+    </div>
+</div>
+
+<!-- Empty State Component -->
+<div th:fragment="empty-state(icon, title, message, action)" class="text-center py-5">
+    <div class="mb-3">
+        <i th:class="${icon} + ' fa-3x text-muted'"></i>
+    </div>
+    <h5 class="text-muted" th:text="${title}">Aucun élément</h5>
+    <p class="text-muted mb-3" th:text="${message}">Aucun élément à afficher pour le moment.</p>
+    <div th:if="${action}">
+        <th:block th:replace="${action}"></th:block>
+    </div>
+</div>
+
+<!-- Modal Component -->
+<div th:fragment="modal(id, title, size)" 
+     th:id="${id}" 
+     class="modal fade" 
+     tabindex="-1">
+    <div th:class="'modal-dialog ' + (${size} ? 'modal-' + ${size} : '')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" th:text="${title}">Titre du modal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary">Confirmer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Card Grid Component -->
+<div th:fragment="card-grid(items, columns)" th:class="'row row-cols-1 row-cols-md-' + ${columns} + ' g-4'">
+    <div class="col" th:each="item : ${items}">
+        <div class="card h-100">
+            <div class="card-body">
+                <th:block th:replace="${item}"></th:block>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Field Component -->
+<div th:fragment="form-field(label, name, type, value, required, placeholder)" class="mb-3">
+    <label th:for="${name}" 
+           class="form-label" 
+           th:text="${label}">Label</label>
+    <input th:type="${type ?: 'text'}" 
+           th:id="${name}"
+           th:name="${name}"
+           class="form-control" 
+           th:value="${value}"
+           th:placeholder="${placeholder}"
+           th:required="${required}">
+</div>
+
+<!-- Breadcrumb Component -->
+<nav th:fragment="breadcrumb(items)" aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="/dashboard">
+                <i class="fas fa-home"></i>
+            </a>
+        </li>
+        <li th:each="item, iterStat : ${items}"
+            th:class="'breadcrumb-item ' + (${iterStat.last} ? 'active' : '')">
+            <a th:if="!${iterStat.last}" 
+               th:href="${item.url}" 
+               th:text="${item.title}">Item</a>
+            <span th:if="${iterStat.last}" th:text="${item.title}">Active Item</span>
+        </li>
+    </ol>
+</nav>
+
+</body>
+</html>

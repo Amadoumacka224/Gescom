@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+
+<!-- Fragment pour les statistiques générales -->
+<div th:fragment="general-stats" class="row">
+    <div class="col-md-3 mb-4">
+        <div class="card metric-card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted mb-1">Chiffre d'affaires</h6>
+                        <h3 class="text-primary mb-0" th:text="${#numbers.formatCurrency(stats.totalRevenue)}">€0</h3>
+                        <small class="text-muted" th:text="'Sur ' + ${stats.period} + ' jours'">Sur 30 jours</small>
+                    </div>
+                    <div class="text-primary">
+                        <i class="fas fa-euro-sign fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card metric-card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted mb-1">Commandes</h6>
+                        <h3 class="text-success mb-0" th:text="${stats.totalOrders}">0</h3>
+                        <small class="text-success" th:if="${stats.ordersGrowth >= 0}">
+                            <i class="fas fa-arrow-up"></i> <span th:text="${stats.ordersGrowth} + '%'">+0%</span>
+                        </small>
+                        <small class="text-danger" th:if="${stats.ordersGrowth < 0}">
+                            <i class="fas fa-arrow-down"></i> <span th:text="${stats.ordersGrowth} + '%'">-0%</span>
+                        </small>
+                    </div>
+                    <div class="text-success">
+                        <i class="fas fa-shopping-cart fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card metric-card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted mb-1">Clients</h6>
+                        <h3 class="text-info mb-0" th:text="${stats.totalClients}">0</h3>
+                        <small class="text-muted">
+                            <span th:text="${stats.newClients}">0</span> nouveaux
+                        </small>
+                    </div>
+                    <div class="text-info">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="card metric-card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted mb-1">Taux conversion</h6>
+                        <h3 class="text-warning mb-0" th:text="${stats.conversionRate} + '%'">0%</h3>
+                        <small class="text-muted">Prospects → Clients</small>
+                    </div>
+                    <div class="text-warning">
+                        <i class="fas fa-chart-line fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment pour les statistiques de ventes -->
+<div th:fragment="sales-stats" class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Ventes par statut</h6>
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-success">Livrées</span>
+                        <span class="badge bg-success" th:text="${salesStats.delivered}">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-primary">En cours</span>
+                        <span class="badge bg-primary" th:text="${salesStats.processing}">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-warning">Confirmées</span>
+                        <span class="badge bg-warning" th:text="${salesStats.confirmed}">0</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary">Brouillons</span>
+                        <span class="badge bg-secondary" th:text="${salesStats.draft}">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Performance financière</h6>
+                <div class="mt-3">
+                    <div class="mb-3">
+                        <small class="text-muted">CA Objectif vs Réalisé</small>
+                        <div class="progress mt-1" style="height: 8px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 th:style="'width: ' + ${(salesStats.actualRevenue / salesStats.targetRevenue * 100)} + '%'"
+                                 th:aria-valuenow="${(salesStats.actualRevenue / salesStats.targetRevenue * 100)}"
+                                 aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <small th:text="${#numbers.formatCurrency(salesStats.actualRevenue)}">€0</small>
+                            <small th:text="${#numbers.formatCurrency(salesStats.targetRevenue)}">€0</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h5 class="text-success mb-0" th:text="${salesStats.margin} + '%'">0%</h5>
+                            <small class="text-muted">Marge</small>
+                        </div>
+                        <div class="col-6">
+                            <h5 class="text-primary mb-0" th:text="${#numbers.formatCurrency(salesStats.averageOrder)}">€0</h5>
+                            <small class="text-muted">Panier moyen</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Top Produits</h6>
+                <div class="mt-3">
+                    <div th:each="product, iterStat : ${topProducts}" class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-light text-dark me-2" th:text="${iterStat.count}">1</span>
+                            <small th:text="${product.name}">Produit</small>
+                        </div>
+                        <small class="text-muted" th:text="${product.quantity} + ' vendus'">0 vendus</small>
+                    </div>
+                    <div th:if="${#lists.isEmpty(topProducts)}" class="text-center text-muted">
+                        <i class="fas fa-box-open fa-2x mb-2"></i>
+                        <p class="mb-0">Aucune vente récente</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment pour les alertes -->
+<div th:fragment="alerts" class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-white">
+                <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Alertes Stock</h6>
+            </div>
+            <div class="card-body">
+                <div th:if="${#lists.isEmpty(lowStockProducts)}" class="text-center text-muted">
+                    <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                    <p class="mb-0">Tous les stocks sont corrects</p>
+                </div>
+                <div th:each="product : ${lowStockProducts}" class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong th:text="${product.name}">Produit</strong>
+                        <br>
+                        <small class="text-muted" th:text="${product.reference}">REF-001</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-warning" th:text="${product.stock} + ' / ' + ${product.minStock}">0/5</span>
+                        <br>
+                        <small class="text-muted">en stock</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="fas fa-clock me-2"></i>Factures en retard</h6>
+            </div>
+            <div class="card-body">
+                <div th:if="${#lists.isEmpty(overdueInvoices)}" class="text-center text-muted">
+                    <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                    <p class="mb-0">Aucune facture en retard</p>
+                </div>
+                <div th:each="invoice : ${overdueInvoices}" class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong th:text="${invoice.invoiceNumber}">FACT-001</strong>
+                        <br>
+                        <small class="text-muted" th:text="${invoice.client?.name}">Client</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-danger" th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€0</span>
+                        <br>
+                        <small class="text-muted" th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}">01/01/2024</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment pour les objectifs personnels -->
+<div th:fragment="personal-objectives" class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Mon objectif mensuel</h6>
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>Réalisé</span>
+                        <strong th:text="${#numbers.formatCurrency(personalStats.achievedAmount)}">€0</strong>
+                    </div>
+                    <div class="progress mb-2" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" 
+                             th:classappend="${personalStats.achievementPercentage >= 100} ? 'bg-success' : (${personalStats.achievementPercentage >= 75} ? 'bg-warning' : 'bg-primary')"
+                             th:style="'width: ' + ${personalStats.achievementPercentage} + '%'"
+                             th:aria-valuenow="${personalStats.achievementPercentage}"
+                             aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">
+                            <span th:text="${personalStats.achievementPercentage} + '%'">0%</span> atteint
+                        </small>
+                        <small class="text-muted" th:text="'Objectif: ' + ${#numbers.formatCurrency(personalStats.targetAmount)}">Objectif: €0</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Mes clients ce mois</h6>
+                <div class="row text-center mt-3">
+                    <div class="col-4">
+                        <h4 class="text-primary mb-0" th:text="${personalStats.myClients}">0</h4>
+                        <small class="text-muted">Total</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-success mb-0" th:text="${personalStats.newClients}">0</h4>
+                        <small class="text-muted">Nouveaux</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="text-warning mb-0" th:text="${personalStats.prospects}">0</h4>
+                        <small class="text-muted">Prospects</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment pour le classement équipe -->
+<div th:fragment="team-ranking" class="card border-0 shadow-sm">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="fas fa-trophy me-2"></i>Classement équipe</h6>
+    </div>
+    <div class="card-body">
+        <div th:each="member, iterStat : ${teamRanking}" class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex align-items-center">
+                <span class="badge me-3" 
+                      th:classappend="${iterStat.index == 0} ? 'bg-warning' : (${iterStat.index == 1} ? 'bg-secondary' : (${iterStat.index == 2} ? 'bg-dark' : 'bg-light text-dark'))"
+                      th:text="${iterStat.count}">1</span>
+                <div>
+                    <strong th:text="${member.fullName}">Commercial</strong>
+                    <br>
+                    <small class="text-muted" th:text="${member.achievementPercentage} + '% d\'objectif'">0% d'objectif</small>
+                </div>
+            </div>
+            <div class="text-end">
+                <strong th:text="${#numbers.formatCurrency(member.achievedAmount)}">€0</strong>
+                <br>
+                <small class="text-muted" th:text="${member.ordersCount} + ' commandes'">0 commandes</small>
+            </div>
+        </div>
+        <div th:if="${#lists.isEmpty(teamRanking)}" class="text-center text-muted">
+            <i class="fas fa-users fa-2x mb-2"></i>
+            <p class="mb-0">Aucune donnée disponible</p>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

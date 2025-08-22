@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Erreur interne - 500</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .error-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .error-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        .error-icon {
+            font-size: 6rem;
+            color: #fd7e14;
+            margin-bottom: 1rem;
+            animation: shake 2s infinite;
+        }
+        .error-code {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #fd7e14;
+            margin-bottom: 1rem;
+        }
+        .btn-back {
+            padding: 12px 30px;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            10% { transform: rotate(-1deg); }
+            20% { transform: rotate(1deg); }
+            30% { transform: rotate(0deg); }
+            40% { transform: rotate(1deg); }
+            50% { transform: rotate(-1deg); }
+            60% { transform: rotate(0deg); }
+            70% { transform: rotate(-1deg); }
+            80% { transform: rotate(1deg); }
+            90% { transform: rotate(0deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-card">
+        <i class="fas fa-exclamation-triangle error-icon"></i>
+        <div class="error-code">500</div>
+        <h2 class="mb-3">Erreur interne du serveur</h2>
+        <p class="lead mb-4">
+            Une erreur inattendue s'est produite sur le serveur.
+            Nos équipes techniques ont été automatiquement notifiées.
+        </p>
+        <div class="mb-4 p-3 bg-light rounded">
+            <h6><i class="fas fa-info-circle me-2"></i>Que pouvez-vous faire ?</h6>
+            <ul class="list-unstyled mb-0 text-start">
+                <li><i class="fas fa-refresh me-2 text-primary"></i>Rafraîchir la page</li>
+                <li><i class="fas fa-clock me-2 text-primary"></i>Réessayer dans quelques minutes</li>
+                <li><i class="fas fa-envelope me-2 text-primary"></i>Contacter le support si le problème persiste</li>
+            </ul>
+        </div>
+        <div class="d-flex flex-wrap justify-content-center">
+            <button onclick="location.reload()" class="btn btn-outline-primary btn-back">
+                <i class="fas fa-refresh me-2"></i>Rafraîchir
+            </button>
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-back">
+                <i class="fas fa-arrow-left me-2"></i>Retour
+            </a>
+            <a th:href="@{/dashboard}" class="btn btn-primary btn-back">
+                <i class="fas fa-home me-2"></i>Accueil
+            </a>
+        </div>
+        <div class="mt-4">
+            <small class="text-muted">
+                <i class="fas fa-envelope me-1"></i>
+                Support : support@gescom.com |
+                <i class="fas fa-phone me-1"></i>
+                +33 1 23 45 67 89
+            </small>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-reload après 30 secondes
+    setTimeout(() => {
+        if (confirm('Voulez-vous rafraîchir la page automatiquement ?')) {
+            location.reload();
+        }
+    }, 30000);
+</script>
+</body>
+</html>

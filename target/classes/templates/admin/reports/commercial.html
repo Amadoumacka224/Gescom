@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Rapport Commercial</title>
+</head>
+<body>
+<div th:fragment="content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1><i class="fas fa-users me-2"></i>Rapport Commercial</h1>
+            <p class="text-muted mb-0">Performance et analyse de l'équipe commerciale</p>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-download me-2"></i>Exporter
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" onclick="exportToPDF()"><i class="fas fa-file-pdf me-2"></i>PDF</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportToExcel()"><i class="fas fa-file-excel me-2"></i>Excel</a></li>
+                <li><a class="dropdown-item" href="#" onclick="window.print()"><i class="fas fa-print me-2"></i>Imprimer</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form th:action="@{/admin/reports/commercial}" method="get" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="period" class="form-label">Période</label>
+                    <select class="form-select" id="period" name="period">
+                        <option value="30" th:selected="${period == 30}">30 jours</option>
+                        <option value="90" th:selected="${period == 90}">90 jours</option>
+                        <option value="180" th:selected="${period == 180}">6 mois</option>
+                        <option value="365" th:selected="${period == 365}">1 an</option>
+                        <option value="custom" th:selected="${period == 'custom'}">Personnalisé</option>
+                    </select>
+                </div>
+                <div class="col-md-2" id="customDateFields" style="display: none;">
+                    <label for="startDate" class="form-label">Date début</label>
+                    <input type="date" class="form-control" id="startDate" name="startDate" th:value="${startDate}">
+                </div>
+                <div class="col-md-2" id="customDateFields2" style="display: none;">
+                    <label for="endDate" class="form-label">Date fin</label>
+                    <input type="date" class="form-control" id="endDate" name="endDate" th:value="${endDate}">
+                </div>
+                <div class="col-md-2">
+                    <label for="team" class="form-label">Équipe</label>
+                    <select class="form-select" id="team" name="team">
+                        <option value="" th:selected="${team == ''}">Toutes</option>
+                        <option value="A" th:selected="${team == 'A'}">Équipe A</option>
+                        <option value="B" th:selected="${team == 'B'}">Équipe B</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="sortBy" class="form-label">Trier par</label>
+                    <select class="form-select" id="sortBy" name="sortBy">
+                        <option value="revenue" th:selected="${sortBy == 'revenue'}">CA</option>
+                        <option value="orders" th:selected="${sortBy == 'orders'}">Commandes</option>
+                        <option value="clients" th:selected="${sortBy == 'clients'}">Clients</option>
+                        <option value="objective" th:selected="${sortBy == 'objective'}">Objectif</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i>Filtrer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Vue d'ensemble de l'équipe -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-1">CA Total Équipe</h6>
+                            <h3 class="text-primary mb-0" th:text="${#numbers.formatCurrency(teamReport.totalRevenue)}">€0</h3>
+                            <small class="text-muted" th:text="'Objectif: ' + ${#numbers.formatCurrency(teamReport.totalObjective)}">Objectif: €0</small>
+                        </div>
+                        <div class="text-primary">
+                            <i class="fas fa-euro-sign fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-1">Réalisation Objectif</h6>
+                            <h3 class="text-success mb-0" th:text="${teamReport.objectiveAchievement} + '%'">0%</h3>
+                            <div class="progress mt-2" style="height: 8px;">
+                                <div class="progress-bar bg-success" 
+                                     th:style="'width: ' + ${teamReport.objectiveAchievement} + '%'"></div>
+                            </div>
+                        </div>
+                        <div class="text-success">
+                            <i class="fas fa-target fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-1">Commerciaux</h6>
+                            <h3 class="text-info mb-0" th:text="${teamReport.totalSalespeople}">0</h3>
+                            <small class="text-success" th:text="${teamReport.activeSalespeople} + ' actifs'">0 actifs</small>
+                        </div>
+                        <div class="text-info">
+                            <i class="fas fa-user-tie fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <h6 class="card-title text-muted mb-1">Nouveaux Clients</h6>
+                            <h3 class="text-warning mb-0" th:text="${teamReport.newClients}">0</h3>
+                            <small class="text-muted">Cette période</small>
+                        </div>
+                        <div class="text-warning">
+                            <i class="fas fa-user-plus fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Classement des commerciaux -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Classement des commerciaux</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                            <tr>
+                                <th>Position</th>
+                                <th>Commercial</th>
+                                <th>CA Réalisé</th>
+                                <th>Objectif</th>
+                                <th>Réalisation</th>
+                                <th>Commandes</th>
+                                <th>Clients</th>
+                                <th>Taux Conversion</th>
+                                <th>Statut</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="salesperson, iterStat : ${teamReport.salespeople}">
+                                <td>
+                                    <span class="badge fs-6 fw-bold" 
+                                          th:classappend="${iterStat.index == 0} ? 'bg-warning text-dark' : (${iterStat.index == 1} ? 'bg-secondary' : (${iterStat.index == 2} ? 'bg-dark' : 'bg-light text-dark'))"
+                                          th:text="${iterStat.count}">1</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar me-3">
+                                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                <span th:text="${salesperson.initials}">AB</span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <strong th:text="${salesperson.fullName}">Nom Prénom</strong>
+                                            <br>
+                                            <small class="text-muted" th:text="${salesperson.email}">email@company.com</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <strong th:text="${#numbers.formatCurrency(salesperson.revenue)}">€0</strong>
+                                    <br>
+                                    <small class="text-muted" 
+                                           th:classappend="${salesperson.revenueGrowth >= 0} ? 'text-success' : 'text-danger'"
+                                           th:text="(${salesperson.revenueGrowth >= 0} ? '+' : '') + ${salesperson.revenueGrowth} + '%'">
+                                        +0%
+                                    </small>
+                                </td>
+                                <td th:text="${#numbers.formatCurrency(salesperson.objective)}">€0</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-grow-1 me-2" style="height: 20px;">
+                                            <div class="progress-bar fw-bold" 
+                                                 th:classappend="${salesperson.objectiveAchievement >= 100} ? 'bg-success' : (${salesperson.objectiveAchievement >= 80} ? 'bg-primary' : (${salesperson.objectiveAchievement >= 50} ? 'bg-warning' : 'bg-danger'))"
+                                                 th:style="'width: ' + ${T(java.lang.Math).min(salesperson.objectiveAchievement, 100)} + '%'"
+                                                 th:text="${salesperson.objectiveAchievement} + '%'">0%</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td th:text="${salesperson.ordersCount}">0</td>
+                                <td>
+                                    <span th:text="${salesperson.clientsCount}">0</span>
+                                    <br>
+                                    <small class="text-success" th:text="'+' + ${salesperson.newClients} + ' nouveaux'">+0 nouveaux</small>
+                                </td>
+                                <td>
+                                    <span class="badge" 
+                                          th:classappend="${salesperson.conversionRate >= 20} ? 'bg-success' : (${salesperson.conversionRate >= 10} ? 'bg-primary' : 'bg-warning')"
+                                          th:text="${salesperson.conversionRate} + '%'">0%</span>
+                                </td>
+                                <td>
+                                    <span class="badge" 
+                                          th:classappend="'bg-' + ${salesperson.statusClass}"
+                                          th:text="${salesperson.statusLabel}">Status</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Répartition du CA</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analyse détaillée par commercial -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Performance mensuelle</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="monthlyPerformanceChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Analyse des objectifs</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-3">
+                            <h5 class="text-success mb-0" th:text="${teamReport.objectivesAchieved}">0</h5>
+                            <small class="text-muted">Atteints</small>
+                        </div>
+                        <div class="col-3">
+                            <h5 class="text-warning mb-0" th:text="${teamReport.objectivesInProgress}">0</h5>
+                            <small class="text-muted">En cours</small>
+                        </div>
+                        <div class="col-3">
+                            <h5 class="text-danger mb-0" th:text="${teamReport.objectivesBehind}">0</h5>
+                            <small class="text-muted">En retard</small>
+                        </div>
+                        <div class="col-3">
+                            <h5 class="text-primary mb-0" th:text="${teamReport.averageAchievement} + '%'">0%</h5>
+                            <small class="text-muted">Moyenne</small>
+                        </div>
+                    </div>
+                    
+                    <canvas id="objectivesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analyses complémentaires -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Top 5 Commerciaux par Clients</h5>
+                </div>
+                <div class="card-body">
+                    <div th:each="salesperson, iterStat : ${teamReport.topClientAcquisition}" class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-light text-dark me-2" th:text="${iterStat.count}">1</span>
+                            <div>
+                                <strong th:text="${salesperson.name}">Commercial</strong>
+                                <br>
+                                <small class="text-muted" th:text="${salesperson.newClients} + ' nouveaux clients'">0 nouveaux clients</small>
+                            </div>
+                        </div>
+                        <span class="badge bg-primary" th:text="${salesperson.totalClients}">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Meilleurs Taux de Conversion</h5>
+                </div>
+                <div class="card-body">
+                    <div th:each="salesperson, iterStat : ${teamReport.topConversion}" class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-light text-dark me-2" th:text="${iterStat.count}">1</span>
+                            <div>
+                                <strong th:text="${salesperson.name}">Commercial</strong>
+                                <br>
+                                <small class="text-muted" th:text="${salesperson.prospects} + ' prospects'">0 prospects</small>
+                            </div>
+                        </div>
+                        <span class="badge bg-success" th:text="${salesperson.conversionRate} + '%'">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Alertes & Recommandations</h5>
+                </div>
+                <div class="card-body">
+                    <div th:if="${!#lists.isEmpty(teamReport.alerts)}">
+                        <div th:each="alert : ${teamReport.alerts}" class="alert alert-sm mb-2" 
+                             th:classappend="'alert-' + ${alert.type}">
+                            <i th:class="'fas ' + ${alert.icon} + ' me-2'"></i>
+                            <small th:text="${alert.message}">Message d'alerte</small>
+                        </div>
+                    </div>
+                    <div th:if="${#lists.isEmpty(teamReport.alerts)}" class="text-center text-muted">
+                        <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                        <p class="mb-0">Aucune alerte</p>
+                        <small>Équipe performante !</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:fragment="js_assets">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script th:inline="javascript">
+    const revenueDistribution = /*[[${teamReport.revenueDistribution}]]*/ [];
+    const monthlyPerformance = /*[[${teamReport.monthlyPerformance}]]*/ [];
+    const objectivesData = /*[[${teamReport.objectivesBreakdown}]]*/ [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des filtres personnalisés
+        document.getElementById('period').addEventListener('change', function() {
+            const customFields = document.getElementById('customDateFields');
+            const customFields2 = document.getElementById('customDateFields2');
+            if (this.value === 'custom') {
+                customFields.style.display = 'block';
+                customFields2.style.display = 'block';
+            } else {
+                customFields.style.display = 'none';
+                customFields2.style.display = 'none';
+            }
+        });
+
+        // Graphique répartition du CA
+        const revenueCtx = document.getElementById('revenueDistributionChart').getContext('2d');
+        new Chart(revenueCtx, {
+            type: 'doughnut',
+            data: {
+                labels: revenueDistribution.map(item => item.name),
+                datasets: [{
+                    data: revenueDistribution.map(item => item.revenue),
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 159, 64, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Graphique performance mensuelle
+        const monthlyCtx = document.getElementById('monthlyPerformanceChart').getContext('2d');
+        new Chart(monthlyCtx, {
+            type: 'line',
+            data: {
+                labels: monthlyPerformance.map(item => item.month),
+                datasets: monthlyPerformance[0]?.salespeople.map((sp, index) => ({
+                    label: sp.name,
+                    data: monthlyPerformance.map(month => month.salespeople[index]?.revenue || 0),
+                    borderColor: `hsl(${index * 60}, 70%, 50%)`,
+                    backgroundColor: `hsla(${index * 60}, 70%, 50%, 0.1)`,
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4
+                })) || []
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR'
+                                }).format(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Graphique objectifs
+        const objectivesCtx = document.getElementById('objectivesChart').getContext('2d');
+        new Chart(objectivesCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Atteints', 'En cours', 'En retard'],
+                datasets: [{
+                    data: [
+                        objectivesData.achieved || 0,
+                        objectivesData.inProgress || 0,
+                        objectivesData.behind || 0
+                    ],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.8)',
+                        'rgba(255, 193, 7, 0.8)',
+                        'rgba(220, 53, 69, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    });
+
+    // Fonctions d'export
+    function exportToPDF() {
+        alert('Export PDF à implémenter');
+    }
+
+    function exportToExcel() {
+        alert('Export Excel à implémenter');
+    }
+</script>
+</th:block>
+</body>
+</html>
