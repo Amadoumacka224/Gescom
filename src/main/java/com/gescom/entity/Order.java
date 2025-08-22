@@ -119,15 +119,14 @@ public class Order {
 
     // Enums
     public enum OrderStatus {
-        DRAFT("Brouillon"),
-        CONFIRMED("Confirmée"),
-        PROCESSING("En traitement"),
-        SHIPPED("Expédiée"),
-        DELIVERED("Livrée"),
-        CANCELLED("Annulée"),
-        RETURNED("Retournée"),
-        PENDING("En attente"); // Added constant
-
+        BROUILLON ("Brouillon "),
+        CONFIRMEE ("Confirmé "),
+        EN_COURS ("En cours de traitement "),
+        EXPEDIE ("Expédié "),
+        LIVREE ("Livré "),
+        ANNULEE ("Annulé "),
+        RETOURNEE ("Retourné"),
+        EN_ATTENTE ("En attente ") ; // Constante ajoutée
         private final String displayName;
 
         OrderStatus(String displayName) {
@@ -205,13 +204,13 @@ public class Order {
     }
 
     public boolean canBeModified() {
-        return status == OrderStatus.DRAFT || status == OrderStatus.CONFIRMED;
+        return status == OrderStatus.BROUILLON || status == OrderStatus.CONFIRMEE;
     }
 
     public boolean canBeCancelled() {
-        return status != OrderStatus.CANCELLED &&
-                status != OrderStatus.DELIVERED &&
-                status != OrderStatus.RETURNED;
+        return status != OrderStatus.ANNULEE &&
+                status != OrderStatus.LIVREE &&
+                status != OrderStatus.RETOURNEE;
     }
 
 

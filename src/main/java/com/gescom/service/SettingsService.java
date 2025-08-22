@@ -545,6 +545,75 @@ public class SettingsService {
         initializeIfNotExists("appearance.items_per_page", "20", "Éléments par page", 
                 Settings.SettingCategory.APPEARANCE, Settings.ValueType.INTEGER, false, 3);
         
+        initializeIfNotExists("appearance.show_tooltips", "true", "Afficher les info-bulles d'aide", 
+                Settings.SettingCategory.APPEARANCE, Settings.ValueType.BOOLEAN, false, 4);
+        
+        initializeIfNotExists("appearance.compact_mode", "false", "Mode compact pour les tableaux", 
+                Settings.SettingCategory.APPEARANCE, Settings.ValueType.BOOLEAN, false, 5);
+        
+        // Paramètres de performance
+        initializeIfNotExists("performance.cache_enabled", "true", "Cache activé", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.BOOLEAN, true, 4);
+        
+        initializeIfNotExists("performance.cache_duration", "300", "Durée du cache (secondes)", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.INTEGER, true, 5);
+        
+        initializeIfNotExists("performance.max_results", "1000", "Nombre maximum de résultats par requête", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.INTEGER, true, 6);
+        
+        // Paramètres d'audit et logs
+        initializeIfNotExists("audit.log_enabled", "true", "Journalisation des actions", 
+                Settings.SettingCategory.SECURITY, Settings.ValueType.BOOLEAN, false, 4);
+        
+        initializeIfNotExists("audit.log_level", "INFO", "Niveau de journalisation", 
+                Settings.SettingCategory.SECURITY, Settings.ValueType.STRING, false, 5);
+        
+        initializeIfNotExists("audit.retention_days", "90", "Durée de rétention des logs (jours)", 
+                Settings.SettingCategory.SECURITY, Settings.ValueType.INTEGER, false, 6);
+        
+        // Paramètres de sauvegarde
+        initializeIfNotExists("backup.auto_enabled", "false", "Sauvegarde automatique", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.BOOLEAN, false, 7);
+        
+        initializeIfNotExists("backup.frequency", "daily", "Fréquence de sauvegarde", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.STRING, false, 8);
+        
+        initializeIfNotExists("backup.retention_count", "7", "Nombre de sauvegardes à conserver", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.INTEGER, false, 9);
+        
+        // Paramètres de reporting
+        initializeIfNotExists("reports.default_format", "PDF", "Format par défaut des rapports", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.STRING, false, 4);
+        
+        initializeIfNotExists("reports.auto_archive", "true", "Archivage automatique des rapports", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.BOOLEAN, false, 5);
+        
+        initializeIfNotExists("reports.logo_watermark", "true", "Logo en filigrane sur les rapports", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.BOOLEAN, false, 6);
+        
+        // Paramètres d'intégration
+        initializeIfNotExists("integration.api_enabled", "false", "API REST activée", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.BOOLEAN, false, 10);
+        
+        initializeIfNotExists("integration.api_rate_limit", "100", "Limite de requêtes API par minute", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.INTEGER, false, 11);
+        
+        initializeIfNotExists("integration.webhook_enabled", "false", "Webhooks activés", 
+                Settings.SettingCategory.SYSTEM, Settings.ValueType.BOOLEAN, false, 12);
+        
+        // Paramètres de langue et localisation
+        initializeIfNotExists("localization.default_language", "fr", "Langue par défaut", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.STRING, false, 7);
+        
+        initializeIfNotExists("localization.timezone", "Europe/Paris", "Fuseau horaire", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.STRING, false, 8);
+        
+        initializeIfNotExists("localization.date_format", "dd/MM/yyyy", "Format de date", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.STRING, false, 9);
+        
+        initializeIfNotExists("localization.currency", "EUR", "Devise par défaut", 
+                Settings.SettingCategory.GENERAL, Settings.ValueType.STRING, false, 10);
+        
         // Rafraîchir le cache après initialisation
         refreshCache();
     }
@@ -567,5 +636,119 @@ public class SettingsService {
             
             settingsRepository.save(setting);
         }
+    }
+
+    // === MÉTHODES UTILITAIRES POUR LES NOUVEAUX PARAMÈTRES ===
+
+    /**
+     * Vérifie si les tooltips sont activés
+     */
+    public boolean areTooltipsEnabled() {
+        return getBooleanValue("appearance.show_tooltips", true);
+    }
+
+    /**
+     * Vérifie si le mode compact est activé
+     */
+    public boolean isCompactModeEnabled() {
+        return getBooleanValue("appearance.compact_mode", false);
+    }
+
+    /**
+     * Récupère la langue par défaut
+     */
+    public String getDefaultLanguage() {
+        return getValue("localization.default_language", "fr");
+    }
+
+    /**
+     * Récupère le fuseau horaire
+     */
+    public String getTimezone() {
+        return getValue("localization.timezone", "Europe/Paris");
+    }
+
+    /**
+     * Récupère le format de date
+     */
+    public String getDateFormat() {
+        return getValue("localization.date_format", "dd/MM/yyyy");
+    }
+
+    /**
+     * Récupère la devise par défaut
+     */
+    public String getDefaultCurrency() {
+        return getValue("localization.currency", "EUR");
+    }
+
+    /**
+     * Vérifie si l'audit est activé
+     */
+    public boolean isAuditLogEnabled() {
+        return getBooleanValue("audit.log_enabled", true);
+    }
+
+    /**
+     * Récupère le niveau de log
+     */
+    public String getLogLevel() {
+        return getValue("audit.log_level", "INFO");
+    }
+
+    /**
+     * Vérifie si la sauvegarde automatique est activée
+     */
+    public boolean isAutoBackupEnabled() {
+        return getBooleanValue("backup.auto_enabled", false);
+    }
+
+    /**
+     * Récupère la fréquence de sauvegarde
+     */
+    public String getBackupFrequency() {
+        return getValue("backup.frequency", "daily");
+    }
+
+    /**
+     * Vérifie si l'API est activée
+     */
+    public boolean isApiEnabled() {
+        return getBooleanValue("integration.api_enabled", false);
+    }
+
+    /**
+     * Récupère la limite de requêtes API
+     */
+    public Integer getApiRateLimit() {
+        return getIntegerValue("integration.api_rate_limit", 100);
+    }
+
+    /**
+     * Récupère le format par défaut des rapports
+     */
+    public String getDefaultReportFormat() {
+        return getValue("reports.default_format", "PDF");
+    }
+
+    /**
+     * Vérifie si l'archivage automatique des rapports est activé
+     */
+    public boolean isReportAutoArchiveEnabled() {
+        return getBooleanValue("reports.auto_archive", true);
+    }
+
+    /**
+     * Récupère la durée du cache en secondes
+     */
+    public Integer getCacheDuration() {
+        return getIntegerValue("performance.cache_duration", 300);
+    }
+
+    /**
+     * Récupère le nombre maximum de résultats par requête
+     */
+    public Integer getMaxResults() {
+        return getIntegerValue("performance.max_results", 1000);
     }
 }

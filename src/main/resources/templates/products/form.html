@@ -853,7 +853,7 @@
         <!-- Formulaire principal -->
         <div class="form-container">
             <div class="container-fluid">
-                <form id="productForm" th:action="@{/products}" th:object="${product}" method="post" novalidate>
+                <form id="productForm" th:action="@{/products}" th:object="${product}" method="post" enctype="multipart/form-data" novalidate>
                     <input type="hidden" th:field="*{id}">
                     
                     <!-- Section: Informations Générales -->
@@ -1083,7 +1083,7 @@
                                     </div>
 
                                     <!-- Input file caché -->
-                                    <input type="file" id="imageFile" accept="image/*" style="display: none;">
+                                    <input type="file" id="imageFile" name="imageFile" accept="image/*" style="display: none;">
 
                                     <!-- Alternative URL -->
                                     <div class="mt-4">

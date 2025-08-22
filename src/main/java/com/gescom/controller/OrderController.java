@@ -5,11 +5,14 @@ import com.gescom.entity.OrderItem;
 import com.gescom.entity.Product;
 import com.gescom.entity.User;
 import com.gescom.entity.Client;
+import com.gescom.entity.Invoice;
+import com.gescom.entity.InvoiceItem;
 import com.gescom.repository.OrderRepository;
 import com.gescom.repository.OrderItemsRepository;
 import com.gescom.repository.ProductRepository;
 import com.gescom.repository.UserRepository;
 import com.gescom.repository.ClientRepository;
+import com.gescom.repository.InvoiceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -43,6 +46,9 @@ public class OrderController {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
 
 
     @GetMapping
@@ -79,6 +85,14 @@ public class OrderController {
                         .filter(order -> order.getUser().getId().equals(currentUser.getId()))
                         .collect(Collectors.toList());
             }
+            
+            // Recalculer les totaux pour chaque commande (pour affichage correct)
+            allOrders.forEach(order -> {
+                if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
+                    order.getOrderItems().forEach(OrderItem::calculateTotals);
+                    order.calculateTotals();
+                }
+            });
 
             // Filtrage par recherche
             if (search != null && !search.trim().isEmpty()) {
@@ -144,9 +158,9 @@ public class OrderController {
 
             // Statistiques
             long totalOrders = allOrders.size();
-            long draftOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.DRAFT).count();
-            long confirmedOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.CONFIRMED).count();
-            long deliveredOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.DELIVERED).count();
+            long draftOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.BROUILLON).count();
+            long confirmedOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.CONFIRMEE).count();
+            long deliveredOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.LIVREE).count();
 
             // Montant total
             BigDecimal totalAmount = allOrders.stream()
@@ -257,9 +271,9 @@ public class OrderController {
                 
                 // Définir le statut selon l'action
                 if ("confirm".equals(action)) {
-                    order.setStatus(Order.OrderStatus.CONFIRMED);
+                    order.setStatus(Order.OrderStatus.CONFIRMEE);
                 } else {
-                    order.setStatus(Order.OrderStatus.DRAFT);
+                    order.setStatus(Order.OrderStatus.BROUILLON);
                 }
             } else {
                 // Pour une mise à jour, rediriger vers la méthode spécifique
@@ -337,8 +351,8 @@ public class OrderController {
             Order existingOrder = existingOrderOpt.get();
             
             // Vérifier si la commande peut être modifiée
-            if (existingOrder.getStatus() == Order.OrderStatus.DELIVERED || 
-                existingOrder.getStatus() == Order.OrderStatus.CANCELLED) {
+            if (existingOrder.getStatus() == Order.OrderStatus.LIVREE ||
+                existingOrder.getStatus() == Order.OrderStatus.ANNULEE) {
                 redirectAttributes.addFlashAttribute("error", "Cette commande ne peut plus être modifiée");
                 return "redirect:/orders/" + id;
             }
@@ -353,13 +367,23 @@ public class OrderController {
             existingOrder.setDiscountRate(order.getDiscountRate());
             existingOrder.setShippingCost(order.getShippingCost());
             
-            // Traiter les OrderItems mis à jour
-            processOrderItems(existingOrder, allParams);
-            
-            // Définir le statut selon l'action
-            if ("confirm".equals(action) && existingOrder.getStatus() == Order.OrderStatus.DRAFT) {
-                existingOrder.setStatus(Order.OrderStatus.CONFIRMED);
+            // Mettre à jour le statut - IMPORTANT: faire AVANT de traiter les items
+            if (order.getStatus() != null) {
+                existingOrder.setStatus(order.getStatus());
+                System.out.println("✅ Statut mis à jour vers: " + order.getStatus());
             }
+            
+            // Action spéciale pour confirmation
+            if ("confirm".equals(action)) {
+                existingOrder.setStatus(Order.OrderStatus.CONFIRMEE);
+                System.out.println("✅ Commande confirmée via action");
+            }
+            
+            // Traiter les OrderItems mis à jour
+            System.out.println("🔄 DÉBUT traitement OrderItems pour commande ID: " + id);
+            System.out.println("📊 OrderItems AVANT traitement: " + existingOrder.getOrderItems().size());
+            processOrderItems(existingOrder, allParams);
+            System.out.println("📊 OrderItems APRÈS traitement: " + existingOrder.getOrderItems().size());
 
             // Calculer les totaux des items individuels puis de la commande
             validateAndCalculateOrderItems(existingOrder);
@@ -425,9 +449,17 @@ public class OrderController {
             order.getOrderItems().forEach(OrderItem::calculateTotals);
             order.calculateTotals();
 
+            // Vérifier si on peut facturer - possible pour CONFIRMED, PROCESSING, SHIPPED, DELIVERED
+            boolean canInvoice = (order.getStatus() == Order.OrderStatus.CONFIRMEE ||
+                                  order.getStatus() == Order.OrderStatus.EN_COURS ||
+                                  order.getStatus() == Order.OrderStatus.EXPEDIE ||
+                                  order.getStatus() == Order.OrderStatus.LIVREE) &&
+                                  order.getInvoice() == null;
+
             // Ajouter les données au modèle
             model.addAttribute("order", order);
             model.addAttribute("orderItems", order.getOrderItems());
+            model.addAttribute("canInvoice", canInvoice);
             return "orders/detail";
             
         } catch (Exception e) {
@@ -472,6 +504,7 @@ public class OrderController {
                     .collect(Collectors.toList());
             model.addAttribute("clients", clients);
 
+            //************************************************************
             List<Product> products = productRepository.findAll().stream()
                     .filter(Product::getIsActive)
                     .collect(Collectors.toList());
@@ -482,11 +515,11 @@ public class OrderController {
             model.addAttribute("possibleStatuses", possibleStatuses);
 
             // Vérifier si on peut facturer - possible pour CONFIRMED, PROCESSING, SHIPPED, DELIVERED
-            boolean canInvoice = (order.getStatus() == Order.OrderStatus.CONFIRMED || 
-                                order.getStatus() == Order.OrderStatus.PROCESSING ||
-                                order.getStatus() == Order.OrderStatus.SHIPPED ||
-                                order.getStatus() == Order.OrderStatus.DELIVERED) && 
-                               order.getInvoice() == null;
+            boolean canInvoice = (order.getStatus() == Order.OrderStatus.CONFIRMEE ||
+                                  order.getStatus() == Order.OrderStatus.EN_COURS ||
+                                  order.getStatus() == Order.OrderStatus.EXPEDIE ||
+                                  order.getStatus() == Order.OrderStatus.LIVREE) &&
+                                  order.getInvoice() == null;
             model.addAttribute("canInvoice", canInvoice);
 
             return "orders/edit";
@@ -544,7 +577,7 @@ public class OrderController {
             Order order = orderOpt.get();
 
             // Vérifier si la commande peut être supprimée
-            if (order.getStatus() != Order.OrderStatus.DRAFT) {
+            if (order.getStatus() != Order.OrderStatus.BROUILLON) {
                 redirectAttributes.addFlashAttribute("error", "Seules les commandes en brouillon peuvent être supprimées");
                 return "redirect:/orders/" + id;
             }
@@ -574,7 +607,7 @@ public class OrderController {
             Order newOrder = new Order();
             newOrder.setClient(originalOrder.getClient());
             newOrder.setUser(originalOrder.getUser());
-            newOrder.setStatus(Order.OrderStatus.DRAFT);
+            newOrder.setStatus(Order.OrderStatus.BROUILLON);
             newOrder.setOrderDate(LocalDateTime.now());
             newOrder.setBillingAddress(originalOrder.getBillingAddress());
             newOrder.setShippingAddress(originalOrder.getShippingAddress());
@@ -674,28 +707,28 @@ public class OrderController {
 
     private boolean isValidStatusTransition(Order.OrderStatus from, Order.OrderStatus to) {
         return switch (from) {
-            case DRAFT -> to == Order.OrderStatus.CONFIRMED || to == Order.OrderStatus.CANCELLED || to == Order.OrderStatus.PENDING;
-            case PENDING -> to == Order.OrderStatus.CONFIRMED || to == Order.OrderStatus.CANCELLED;
-            case CONFIRMED -> to == Order.OrderStatus.PROCESSING || to == Order.OrderStatus.CANCELLED || to == Order.OrderStatus.PENDING;
-            case PROCESSING -> to == Order.OrderStatus.SHIPPED || to == Order.OrderStatus.CANCELLED || to == Order.OrderStatus.PENDING;
-            case SHIPPED -> to == Order.OrderStatus.DELIVERED || to == Order.OrderStatus.RETURNED;
-            case DELIVERED -> to == Order.OrderStatus.RETURNED; // Possibilité de retour après livraison
-            case RETURNED -> false; // Aucune transition possible depuis RETURNED
-            case CANCELLED -> false; // Aucune transition possible depuis CANCELLED
+            case BROUILLON -> to == Order.OrderStatus.CONFIRMEE || to == Order.OrderStatus.ANNULEE || to == Order.OrderStatus.EN_ATTENTE;
+            case EN_ATTENTE -> to == Order.OrderStatus.CONFIRMEE || to == Order.OrderStatus.ANNULEE;
+            case CONFIRMEE -> to == Order.OrderStatus.EN_COURS || to == Order.OrderStatus.ANNULEE || to == Order.OrderStatus.EN_ATTENTE;
+            case EN_COURS -> to == Order.OrderStatus.EXPEDIE || to == Order.OrderStatus.ANNULEE || to == Order.OrderStatus.EN_ATTENTE;
+            case EXPEDIE -> to == Order.OrderStatus.LIVREE || to == Order.OrderStatus.RETOURNEE;
+            case LIVREE -> to == Order.OrderStatus.RETOURNEE; // Possibilité de retour après livraison
+            case RETOURNEE -> false; // Aucune transition possible depuis RETURNED
+            case ANNULEE -> false; // Aucune transition possible depuis CANCELLED
             default -> false;
         };
     }
 
     private String getStatusDisplayName(Order.OrderStatus status) {
         return switch (status) {
-            case DRAFT -> "Brouillon";
-            case CONFIRMED -> "Confirmée";
-            case PROCESSING -> "En traitement";
-            case SHIPPED -> "Expédiée";
-            case DELIVERED -> "Livrée";
-            case CANCELLED -> "Annulée";
-            case RETURNED -> "Retournée";
-            case PENDING -> "En attente";
+            case BROUILLON   -> "Brouillon";
+            case CONFIRMEE -> "Confirmée";
+            case EN_COURS -> "En traitement";
+            case EXPEDIE -> "Expédiée";
+            case LIVREE -> "Livrée";
+            case ANNULEE -> "Annulée";
+            case RETOURNEE -> "Retournée";
+            case EN_ATTENTE -> "En attente";
             default -> status.name();
         };
     }
@@ -912,34 +945,34 @@ public class OrderController {
         List<Order.OrderStatus> possibleStatuses = new ArrayList<>();
         
         switch (currentStatus) {
-            case DRAFT:
-                possibleStatuses.add(Order.OrderStatus.CONFIRMED);
-                possibleStatuses.add(Order.OrderStatus.PENDING);
-                possibleStatuses.add(Order.OrderStatus.CANCELLED);
+            case BROUILLON:
+                possibleStatuses.add(Order.OrderStatus.CONFIRMEE);
+                possibleStatuses.add(Order.OrderStatus.EN_ATTENTE);
+                possibleStatuses.add(Order.OrderStatus.ANNULEE);
                 break;
-            case PENDING:
-                possibleStatuses.add(Order.OrderStatus.CONFIRMED);
-                possibleStatuses.add(Order.OrderStatus.CANCELLED);
+            case EN_ATTENTE:
+                possibleStatuses.add(Order.OrderStatus.CONFIRMEE);
+                possibleStatuses.add(Order.OrderStatus.ANNULEE);
                 break;
-            case CONFIRMED:
-                possibleStatuses.add(Order.OrderStatus.PROCESSING);
-                possibleStatuses.add(Order.OrderStatus.PENDING);
-                possibleStatuses.add(Order.OrderStatus.CANCELLED);
+            case CONFIRMEE:
+                possibleStatuses.add(Order.OrderStatus.EN_COURS);
+                possibleStatuses.add(Order.OrderStatus.EN_ATTENTE);
+                possibleStatuses.add(Order.OrderStatus.ANNULEE);
                 break;
-            case PROCESSING:
-                possibleStatuses.add(Order.OrderStatus.SHIPPED);
-                possibleStatuses.add(Order.OrderStatus.PENDING);
-                possibleStatuses.add(Order.OrderStatus.CANCELLED);
+            case EN_COURS:
+                possibleStatuses.add(Order.OrderStatus.EXPEDIE);
+                possibleStatuses.add(Order.OrderStatus.EN_ATTENTE);
+                possibleStatuses.add(Order.OrderStatus.ANNULEE);
                 break;
-            case SHIPPED:
-                possibleStatuses.add(Order.OrderStatus.DELIVERED);
-                possibleStatuses.add(Order.OrderStatus.RETURNED);
+            case EXPEDIE:
+                possibleStatuses.add(Order.OrderStatus.LIVREE);
+                possibleStatuses.add(Order.OrderStatus.ANNULEE);
                 break;
-            case DELIVERED:
-                possibleStatuses.add(Order.OrderStatus.RETURNED);
+            case LIVREE:
+                possibleStatuses.add(Order.OrderStatus.RETOURNEE);
                 break;
-            case RETURNED:
-            case CANCELLED:
+            case RETOURNEE:
+            case ANNULEE:
                 // Aucune transition possible
                 break;
         }
@@ -965,7 +998,7 @@ public class OrderController {
             Order order = orderOpt.get();
 
             // Vérifier si la commande peut être modifiée
-            if (order.getStatus() == Order.OrderStatus.DELIVERED || order.getStatus() == Order.OrderStatus.CANCELLED) {
+            if (order.getStatus() == Order.OrderStatus.LIVREE || order.getStatus() == Order.OrderStatus.ANNULEE) {
                 redirectAttributes.addFlashAttribute("error", "Cette commande ne peut plus être modifiée");
                 return "redirect:/orders/" + id;
             }
@@ -975,9 +1008,7 @@ public class OrderController {
             if (clientIdStr != null && !clientIdStr.trim().isEmpty()) {
                 Long clientId = Long.parseLong(clientIdStr);
                 Optional<Client> clientOpt = clientRepository.findById(clientId);
-                if (clientOpt.isPresent()) {
-                    order.setClient(clientOpt.get());
-                }
+                clientOpt.ifPresent(order::setClient);
             }
 
             // Mettre à jour le statut si changé
@@ -1005,6 +1036,195 @@ public class OrderController {
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Erreur lors de la modification: " + e.getMessage());
             return "redirect:/orders/" + id + "/edit";
+        }
+    }
+
+    /**
+     * Créer une facture à partir d'une commande
+     */
+    @PostMapping("/{id}/create-invoice")
+    public String createInvoiceFromOrder(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            System.out.println("=== CRÉATION FACTURE À PARTIR DE LA COMMANDE " + id + " ===");
+
+            // Vérifier que la commande existe
+            Optional<Order> orderOpt = orderRepository.findById(id);
+            if (orderOpt.isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Commande non trouvée");
+                return "redirect:/orders";
+            }
+
+            Order order = orderOpt.get();
+            System.out.println("Commande trouvée: " + order.getOrderNumber());
+            
+            // S'assurer que les OrderItems sont chargés
+            if (order.getOrderItems().isEmpty()) {
+                System.out.println("⚠️ OrderItems vides dans la relation, chargement direct...");
+                List<OrderItem> itemsFromRepo = orderItemsRepository.findByOrderId(order.getId());
+                if (!itemsFromRepo.isEmpty()) {
+                    order.getOrderItems().clear();
+                    order.getOrderItems().addAll(itemsFromRepo);
+                    itemsFromRepo.forEach(item -> item.setOrder(order));
+                    System.out.println("✅ " + itemsFromRepo.size() + " OrderItems rechargés");
+                }
+            }
+            
+            System.out.println("Commande avec " + order.getOrderItems().size() + " articles");
+            
+            // Recalculer les totaux pour s'assurer qu'ils sont corrects
+            if (!order.getOrderItems().isEmpty()) {
+                order.getOrderItems().forEach(OrderItem::calculateTotals);
+                order.calculateTotals();
+                System.out.println("Totaux recalculés - Total TTC: " + order.getTotalAmount());
+            }
+
+            // Vérifier que la commande n'a pas déjà une facture
+            if (order.getInvoice() != null) {
+                redirectAttributes.addFlashAttribute("warning", "Cette commande a déjà une facture");
+                return "redirect:/invoices/" + order.getInvoice().getId();
+            }
+
+            // Vérifier que la commande est dans un état permettant la facturation
+            if (!(order.getStatus() == Order.OrderStatus.CONFIRMEE ||
+                  order.getStatus() == Order.OrderStatus.EN_COURS ||
+                  order.getStatus() == Order.OrderStatus.EXPEDIE ||
+                  order.getStatus() == Order.OrderStatus.LIVREE)) {
+                redirectAttributes.addFlashAttribute("error", 
+                    "La commande doit être confirmée, en traitement, expédiée ou livrée pour être facturée");
+                return "redirect:/orders/" + id;
+            }
+
+            // Créer la facture
+            Invoice invoice = new Invoice();
+            
+            // Générer un numéro de facture
+            invoice.setInvoiceNumber(generateInvoiceNumber());
+            
+            // Dates
+            invoice.setInvoiceDate(java.time.LocalDate.now());
+            invoice.setDueDate(java.time.LocalDate.now().plusDays(30)); // 30 jours par défaut
+            
+            // Statut - SENT pour permettre le paiement immédiatement
+            invoice.setStatus(Invoice.InvoiceStatus.SENT);
+            
+            // Lier à la commande
+            invoice.setOrder(order);
+            
+            // Copier les informations de facturation
+            invoice.setBillingAddress(order.getBillingAddress());
+            invoice.setNotes("Facture générée automatiquement à partir de la commande " + order.getOrderNumber());
+            
+            // Copier les totaux financiers
+            invoice.setDiscountRate(order.getDiscountRate() != null ? order.getDiscountRate() : BigDecimal.ZERO);
+            invoice.setShippingCost(order.getShippingCost() != null ? order.getShippingCost() : BigDecimal.ZERO);
+            invoice.setTotalAmountHT(order.getTotalAmountHT());
+            invoice.setTotalVatAmount(order.getTotalVatAmount());
+            invoice.setTotalAmount(order.getTotalAmount());
+            invoice.setDiscountAmount(order.getDiscountAmount());
+            
+            // *** COPIER LES ARTICLES DE LA COMMANDE VERS LA FACTURE ***
+            if (order.getOrderItems() != null && !order.getOrderItems().isEmpty()) {
+                System.out.println("Copie de " + order.getOrderItems().size() + " articles vers la facture");
+                
+                for (OrderItem orderItem : order.getOrderItems()) {
+                    InvoiceItem invoiceItem = new InvoiceItem();
+                    
+                    // Copier les informations du produit
+                    invoiceItem.setDescription(orderItem.getProduct().getName());
+                    invoiceItem.setReference(orderItem.getProduct().getReference());
+                    invoiceItem.setUnit(orderItem.getProduct().getUnit());
+                    
+                    // Copier les quantités et prix
+                    invoiceItem.setQuantity(orderItem.getQuantity());
+                    invoiceItem.setUnitPrice(orderItem.getUnitPrice());
+                    invoiceItem.setDiscountRate(orderItem.getDiscountRate());
+                    invoiceItem.setDiscountAmount(orderItem.getDiscountAmount());
+                    invoiceItem.setVatRate(orderItem.getVatRate());
+                    
+                    // Copier les totaux calculés
+                    invoiceItem.setTotalPriceHT(orderItem.getTotalPriceHT());
+                    invoiceItem.setTotalVatAmount(orderItem.getTotalVatAmount());
+                    invoiceItem.setTotalPrice(orderItem.getTotalPrice());
+                    
+                    // Lier à la facture
+                    invoiceItem.setInvoice(invoice);
+                    invoice.getInvoiceItems().add(invoiceItem);
+                    
+                    System.out.println("  → Article copié: " + invoiceItem.getDescription() + 
+                                     " (Qté: " + invoiceItem.getQuantity() + 
+                                     ", Prix HT: " + invoiceItem.getTotalPriceHT() + ")");
+                }
+            } else {
+                System.out.println("⚠️ Aucun OrderItem trouvé dans la commande!");
+            }
+            
+            System.out.println("Facture préparée avec " + invoice.getInvoiceItems().size() + 
+                             " articles, montant total: " + invoice.getTotalAmount());
+            
+            // Sauvegarder la facture
+            Invoice savedInvoice = invoiceRepository.save(invoice);
+            System.out.println("Facture sauvegardée avec ID: " + savedInvoice.getId());
+            
+            // Lier la facture à la commande
+            order.setInvoice(savedInvoice);
+            orderRepository.save(order);
+            System.out.println("Commande mise à jour avec facture liée");
+            
+            redirectAttributes.addFlashAttribute("success", 
+                "Facture " + savedInvoice.getInvoiceNumber() + " créée avec succès à partir de la commande " + order.getOrderNumber());
+            
+            return "redirect:/invoices/" + savedInvoice.getId();
+
+        } catch (Exception e) {
+            System.err.println("ERREUR lors de la création de facture: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error", "Erreur lors de la création de la facture: " + e.getMessage());
+            return "redirect:/orders/" + id;
+        }
+    }
+
+    /**
+     * Génère un numéro de facture unique
+     */
+    private String generateInvoiceNumber() {
+        java.time.LocalDate now = java.time.LocalDate.now();
+        String datePrefix = now.toString().substring(0, 7).replace("-", ""); // YYYYMM
+        
+        try {
+            // Compter les factures du mois actuel
+            String monthPattern = "FACT-" + datePrefix;
+            long monthlyCount = invoiceRepository.findAll().stream()
+                    .filter(inv -> inv.getInvoiceNumber() != null)
+                    .filter(inv -> inv.getInvoiceNumber().startsWith(monthPattern))
+                    .count();
+            
+            // Générer et vérifier l'unicité
+            int nextNumber = (int) monthlyCount + 1;
+            String proposedNumber;
+            boolean exists;
+            
+            do {
+                proposedNumber = String.format("FACT-%s-%04d", datePrefix, nextNumber);
+                final String checkNumber = proposedNumber;
+                exists = invoiceRepository.findAll().stream()
+                        .anyMatch(inv -> inv.getInvoiceNumber() != null && inv.getInvoiceNumber().equals(checkNumber));
+                if (exists) {
+                    nextNumber++;
+                }
+            } while (exists);
+            
+            System.out.println("Numéro de facture généré: " + proposedNumber);
+            return proposedNumber;
+            
+        } catch (Exception e) {
+            // Fallback simple avec timestamp
+            String fallback = String.format("FACT-%s-%d", datePrefix, System.currentTimeMillis() % 10000);
+            System.out.println("Numéro de facture fallback: " + fallback);
+            return fallback;
         }
     }
 }

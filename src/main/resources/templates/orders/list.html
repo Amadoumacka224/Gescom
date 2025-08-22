@@ -8,7 +8,7 @@
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
         'Gestion des Commandes', 
-        'Gérez vos commandes clients', 
+        'Suivez et traitez les commandes clients de la création à la livraison', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/orders/new}" class="btn btn-primary">
@@ -91,14 +91,14 @@
                     <label for="status" class="form-label">Statut</label>
                     <select class="form-select" id="status" name="status">
                         <option value="">Tous les statuts</option>
-                        <option value="DRAFT" th:selected="${selectedStatus == 'DRAFT'}">Brouillon</option>
-                        <option value="PENDING" th:selected="${selectedStatus == 'PENDING'}">En attente</option>
-                        <option value="CONFIRMED" th:selected="${selectedStatus == 'CONFIRMED'}">Confirmée</option>
-                        <option value="PROCESSING" th:selected="${selectedStatus == 'PROCESSING'}">En traitement</option>
-                        <option value="SHIPPED" th:selected="${selectedStatus == 'SHIPPED'}">Expédiée</option>
-                        <option value="DELIVERED" th:selected="${selectedStatus == 'DELIVERED'}">Livrée</option>
-                        <option value="RETURNED" th:selected="${selectedStatus == 'RETURNED'}">Retournée</option>
-                        <option value="CANCELLED" th:selected="${selectedStatus == 'CANCELLED'}">Annulée</option>
+                        <option value="BROUILLON" th:selected="${selectedStatus == 'BROUILLON'}">Brouillon</option>
+                        <option value="EN_ATTENTE" th:selected="${selectedStatus == 'EN_ATTENTE'}">En attente</option>
+                        <option value="CONFIRMEE" th:selected="${selectedStatus == 'CONFIRMEE'}">Confirmée</option>
+                        <option value="EN_COURS" th:selected="${selectedStatus == 'EN_COURS'}">En traitement</option>
+                        <option value="EXPEDIE" th:selected="${selectedStatus == 'EXPEDIE'}">Expédiée</option>
+                        <option value="LIVREE" th:selected="${selectedStatus == 'LIVREE'}">Livrée</option>
+                        <option value="RETOURNEE" th:selected="${selectedStatus == 'RETOURNEE'}">Retournée</option>
+                        <option value="ANNULEE" th:selected="${selectedStatus == 'ANNULEE'}">Annulée</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -239,14 +239,14 @@
                         </td>
                         <td>
                             <span th:switch="${order.status?.name()}" class="badge rounded-pill">
-                                <span th:case="'DRAFT'" class="bg-secondary">Brouillon</span>
-                                <span th:case="'PENDING'" class="bg-warning text-dark">En attente</span>
-                                <span th:case="'CONFIRMED'" class="bg-primary">Confirmée</span>
-                                <span th:case="'PROCESSING'" class="bg-info">En traitement</span>
-                                <span th:case="'SHIPPED'" class="bg-warning text-dark">Expédiée</span>
-                                <span th:case="'DELIVERED'" class="bg-success">Livrée</span>
-                                <span th:case="'RETURNED'" class="bg-danger">Retournée</span>
-                                <span th:case="'CANCELLED'" class="bg-dark">Annulée</span>
+                                <span th:case="'BROUILLON'" class="bg-secondary">Brouillon</span>
+                                <span th:case="'EN_ATTENTE'" class="bg-warning text-dark">En attente</span>
+                                <span th:case="'CONFIRMEE'" class="bg-primary">Confirmée</span>
+                                <span th:case="'EN_COURS'" class="bg-info">En traitement</span>
+                                <span th:case="'EXPEDIE'" class="bg-warning text-dark">Expédiée</span>
+                                <span th:case="'LIVREE'" class="bg-success">Livrée</span>
+                                <span th:case="'RETOURNEE'" class="bg-danger">Retournée</span>
+                                <span th:case="'ANNULEE'" class="bg-dark">Annulée</span>
                             </span>
                         </td>
                         <td>
@@ -260,7 +260,7 @@
                                             <i class="fas fa-eye me-2 text-info"></i>Voir détails
                                         </a>
                                     </li>
-                                    <li th:if="${canEdit and (order.status?.name() == 'DRAFT' or order.status?.name() == 'CONFIRMED')}">
+                                    <li th:if="${canEdit and (order.status?.name() == 'BROUILLON' or order.status?.name() == 'CONFIRMEE')}">
                                         <a class="dropdown-item" th:href="@{/orders/{id}/edit(id=${order.id})}">
                                             <i class="fas fa-edit me-2 text-primary"></i>Modifier
                                         </a>
@@ -271,10 +271,18 @@
                                         </a>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <li th:if="${(order.status?.name() == 'CONFIRMED' or order.status?.name() == 'PROCESSING' or order.status?.name() == 'SHIPPED' or order.status?.name() == 'DELIVERED') and order.invoice == null}">
+                                    <li th:if="${(order.status?.name() == 'CONFIRMEE' or order.status?.name() == 'EN_COURS' or order.status?.name() == 'EXPEDIE' or order.status?.name() == 'LIVREE') and order.invoice == null}">
                                         <a class="dropdown-item" th:href="@{/invoices/new(orderId=${order.id})}">
-                                            <i class="fas fa-file-invoice-dollar me-2 text-success"></i>Générer facture
+                                            <i class="fas fa-file-invoice-dollar me-2 text-info"></i>Créer facture
                                         </a>
+                                    </li>
+                                    <li th:if="${(order.status?.name() == 'CONFIRMEE' or order.status?.name() == 'EN_COURS' or order.status?.name() == 'EXPEDIE' or order.status?.name() == 'LIVREE') and order.invoice == null}">
+                                        <form th:action="@{/orders/{id}/create-invoice(id=${order.id})}" method="post" class="d-inline">
+                                            <button type="submit" class="dropdown-item text-success" 
+                                                    onclick="return confirm('Créer une facture automatiquement à partir de la commande ' + this.closest('tr').querySelector('td:first-child strong').textContent + ' ?')">
+                                                <i class="fas fa-bolt me-2"></i>Facture automatique
+                                            </button>
+                                        </form>
                                     </li>
                                     <li th:if="${order.invoice != null}">
                                         <a class="dropdown-item" th:href="@{/invoices/{id}(id=${order.invoice.id})}">
@@ -286,8 +294,8 @@
                                             <i class="fas fa-copy me-2 text-info"></i>Dupliquer
                                         </a>
                                     </li>
-                                    <li th:if="${canDelete and order.status?.name() == 'DRAFT'}"><hr class="dropdown-divider"></li>
-                                    <li th:if="${canDelete and order.status?.name() == 'DRAFT'}">
+                                    <li th:if="${canDelete and order.status?.name() == 'BROUILLON'}"><hr class="dropdown-divider"></li>
+                                    <li th:if="${canDelete and order.status?.name() == 'BROUILLON'}">
                                         <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" th:data-bs-target="'#deleteModal' + ${order.id}">
                                             <i class="fas fa-trash me-2"></i>Supprimer
                                         </a>
@@ -343,14 +351,14 @@
                         <p>Commande: <strong th:text="${order.orderNumber}">CMD-001</strong></p>
                         <p>Statut actuel:
                             <span th:switch="${order.status?.name()}">
-                                <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
-                                <span th:case="'PENDING'" class="badge bg-warning text-dark">En attente</span>
-                                <span th:case="'CONFIRMED'" class="badge bg-primary">Confirmée</span>
-                                <span th:case="'PROCESSING'" class="badge bg-info">En traitement</span>
-                                <span th:case="'SHIPPED'" class="badge bg-warning">Expédiée</span>
-                                <span th:case="'DELIVERED'" class="badge bg-success">Livrée</span>
-                                <span th:case="'RETURNED'" class="badge bg-danger">Retournée</span>
-                                <span th:case="'CANCELLED'" class="badge bg-dark">Annulée</span>
+                                <span th:case="'BROUILLON'" class="badge bg-secondary">Brouillon</span>
+                                <span th:case="'EN_ATTENTE'" class="badge bg-warning text-dark">En attente</span>
+                                <span th:case="'CONFIRMEE'" class="badge bg-primary">Confirmée</span>
+                                <span th:case="'EN_COURS'" class="badge bg-info">En traitement</span>
+                                <span th:case="'EXPEDIE'" class="badge bg-warning">Expédiée</span>
+                                <span th:case="'LIVREE'" class="badge bg-success">Livrée</span>
+                                <span th:case="'RETOURNEE'" class="badge bg-danger">Retournée</span>
+                                <span th:case="'ANNULEE'" class="badge bg-dark">Annulée</span>
                             </span>
                         </p>
 

@@ -179,10 +179,10 @@ public class DashboardService {
             // Calcul basé sur les commandes confirmées dans la période
             List<Order> orders = orderRepository.findAll().stream()
                     .filter(order -> order.getOrderDate().isAfter(startDate))
-                    .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT &&
-                            order.getStatus() != Order.OrderStatus.CANCELLED)
+                    .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON &&
+                            order.getStatus() != Order.OrderStatus.ANNULEE)
                     .filter(order -> user == null || order.getUser().getId().equals(user.getId()))
-                    .collect(Collectors.toList());
+                    .toList();
 
             return orders.stream()
                     .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
@@ -195,10 +195,9 @@ public class DashboardService {
     private Double calculateRevenueGrowth(LocalDateTime startDate, int periodDays, User user) {
         try {
             LocalDateTime previousStartDate = startDate.minusDays(periodDays);
-            LocalDateTime previousEndDate = startDate;
 
             BigDecimal currentRevenue = calculateTotalRevenue(startDate, user);
-            BigDecimal previousRevenue = calculateRevenueForPeriod(previousStartDate, previousEndDate, user);
+            BigDecimal previousRevenue = calculateRevenueForPeriod(previousStartDate, startDate, user);
 
             if (previousRevenue.compareTo(BigDecimal.ZERO) == 0) {
                 return currentRevenue.compareTo(BigDecimal.ZERO) > 0 ? 100.0 : 0.0;
@@ -218,10 +217,10 @@ public class DashboardService {
         try {
             List<Order> orders = orderRepository.findAll().stream()
                     .filter(order -> order.getOrderDate().isAfter(startDate) && order.getOrderDate().isBefore(endDate))
-                    .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT &&
-                            order.getStatus() != Order.OrderStatus.CANCELLED)
+                    .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON &&
+                            order.getStatus() != Order.OrderStatus.ANNULEE)
                     .filter(order -> user == null || order.getUser().getId().equals(user.getId()))
-                    .collect(Collectors.toList());
+                    .toList();
 
             return orders.stream()
                     .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
@@ -234,8 +233,8 @@ public class DashboardService {
     private Long countPendingOrders(User user) {
         try {
             return orderRepository.findAll().stream()
-                    .filter(order -> order.getStatus() == Order.OrderStatus.DRAFT ||
-                            order.getStatus() == Order.OrderStatus.CONFIRMED)
+                    .filter(order -> order.getStatus() == Order.OrderStatus.BROUILLON ||
+                            order.getStatus() == Order.OrderStatus.CONFIRMEE)
                     .filter(order -> user == null || order.getUser().getId().equals(user.getId()))
                     .count();
         } catch (Exception e) {
@@ -257,8 +256,8 @@ public class DashboardService {
                         BigDecimal userRevenue = orderRepository.findAll().stream()
                                 .filter(order -> order.getUser().getId().equals(user.getId()))
                                 .filter(order -> order.getOrderDate().isAfter(startDate))
-                                .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT &&
-                                        order.getStatus() != Order.OrderStatus.CANCELLED)
+                                .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON &&
+                                        order.getStatus() != Order.OrderStatus.ANNULEE)
                                 .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -281,7 +280,7 @@ public class DashboardService {
     private List<DashboardDto.LowStockProduct> getLowStockProducts() {
         try {
             return productRepository.findAll().stream()
-                    .filter(product -> product.getStock() != null && product.getMinStock() != null)
+                    .filter(product -> product.getMinStock() != null)
                     .filter(product -> product.getStock() <= product.getMinStock())
                     .map(product -> new DashboardDto.LowStockProduct(product.getName(), product.getStock()))
                     .limit(10)
@@ -303,8 +302,8 @@ public class DashboardService {
 
                 BigDecimal dayRevenue = orderRepository.findAll().stream()
                         .filter(order -> order.getOrderDate().isAfter(dayStart) && order.getOrderDate().isBefore(dayEnd))
-                        .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT &&
-                                order.getStatus() != Order.OrderStatus.CANCELLED)
+                        .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON &&
+                                order.getStatus() != Order.OrderStatus.ANNULEE)
                         .filter(order -> user == null || order.getUser().getId().equals(user.getId()))
                         .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -366,12 +365,12 @@ public class DashboardService {
 
     private String getStatusDisplayName(Order.OrderStatus status) {
         switch (status) {
-            case DRAFT: return "Brouillon";
-            case CONFIRMED: return "Confirmée";
-            case PROCESSING: return "En cours";
-            case SHIPPED: return "Expédiée";
-            case DELIVERED: return "Livrée";
-            case CANCELLED: return "Annulée";
+            case BROUILLON: return "Brouillon";
+            case CONFIRMEE: return "Confirmée";
+            case EN_COURS: return "En cours";
+            case EXPEDIE: return "Expédiée";
+            case LIVREE: return "Livrée";
+            case ANNULEE: return "Annulée";
             default: return status.name();
         }
     }

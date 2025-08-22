@@ -7,7 +7,11 @@ import com.gescom.entity.User;
 import com.gescom.repository.InvoiceRepository;
 import com.gescom.repository.OrderRepository;
 import com.gescom.repository.UserRepository;
+import com.gescom.service.InvoicePdfService;
+import com.gescom.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,18 +19,23 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import jakarta.mail.MessagingException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 // Annotation qui indique que cette classe est un contrôleur Spring MVC
 @Controller
 // Définit que toutes les URL de ce contrôleur commencent par "/invoices"
 @RequestMapping("/invoices")
 public class InvoiceController {
+
+    private static final Logger logger = LoggerFactory.getLogger(InvoiceController.class);
 
     // Injection automatique du repository des factures
     @Autowired
@@ -39,6 +48,14 @@ public class InvoiceController {
     // Injection automatique du repository des commandes
     @Autowired
     private OrderRepository orderRepository;
+    
+    // Injection du service PDF
+    @Autowired
+    private InvoicePdfService pdfService;
+    
+    // Injection du service Email
+    @Autowired
+    private EmailService emailService;
 
     // Méthode qui gère les requêtes GET vers "/invoices"
     @GetMapping
@@ -364,6 +381,7 @@ public class InvoiceController {
     public String viewInvoice(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes) {
         // Recherche de la facture par son ID
         Optional<Invoice> invoiceOpt = invoiceRepository.findById(id);
+        System.out.printf("=======================|%d=======================|%n", id);
 
         // Vérification si la facture existe
         if (invoiceOpt.isEmpty()) {
@@ -500,15 +518,94 @@ public class InvoiceController {
         return "redirect:/invoices";
     }
 
-    // Méthode pour télécharger le PDF (à implémenter)
+    // Méthode pour télécharger le PDF
     @GetMapping("/{id}/pdf")
-    public String downloadInvoicePdf(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        // TODO: Implémenter la génération PDF
-        redirectAttributes.addFlashAttribute("info", "Génération PDF en cours de développement");
-        return "redirect:/invoices/" + id;
+    public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        try {
+            // Recherche de la facture
+            Optional<Invoice> invoiceOpt = invoiceRepository.findById(id);
+            if (invoiceOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Invoice invoice = invoiceOpt.get();
+            
+            // Génération du PDF
+            byte[] pdfBytes = pdfService.generateInvoicePdf(invoice);
+            
+            // Configuration des headers HTTP
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "Facture_" + invoice.getInvoiceNumber() + ".pdf");
+            headers.setContentLength(pdfBytes.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(pdfBytes);
+                    
+        } catch (Exception e) {
+            logger.error("Erreur lors de la génération du PDF pour la facture {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
-    // Méthode pour envoyer une relance (à implémenter)
+    // Méthode pour envoyer la facture par email
+    @PostMapping("/{id}/send-email")
+    public String sendInvoiceByEmail(
+            @PathVariable Long id,
+            @RequestParam(required = false) String email,
+            @RequestParam(defaultValue = "true") boolean attachPdf,
+            RedirectAttributes redirectAttributes) {
+        
+        try {
+            // Recherche de la facture
+            Optional<Invoice> invoiceOpt = invoiceRepository.findById(id);
+            if (invoiceOpt.isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Facture non trouvée");
+                return "redirect:/invoices";
+            }
+            
+            Invoice invoice = invoiceOpt.get();
+            
+            // Déterminer l'email du destinataire
+            String recipientEmail = email;
+            if (recipientEmail == null || recipientEmail.trim().isEmpty()) {
+                if (invoice.getOrder() != null && invoice.getOrder().getClient() != null) {
+                    recipientEmail = invoice.getOrder().getClient().getEmail();
+                } else {
+                    redirectAttributes.addFlashAttribute("error", "Aucun email de destinataire trouvé");
+                    return "redirect:/invoices/" + id;
+                }
+            }
+            
+            // Envoi de l'email
+            emailService.sendInvoiceEmail(invoice, recipientEmail, attachPdf);
+            
+            // Mise à jour du statut et de la date d'envoi
+            invoice.setEmailSent(true);
+            invoice.setEmailSentDate(java.time.LocalDateTime.now());
+            if (invoice.getStatus() == Invoice.InvoiceStatus.DRAFT) {
+                invoice.setStatus(Invoice.InvoiceStatus.SENT);
+            }
+            invoiceRepository.save(invoice);
+            
+            redirectAttributes.addFlashAttribute("success", 
+                "Facture envoyée avec succès à " + recipientEmail);
+                
+        } catch (MessagingException e) {
+            logger.error("Erreur lors de l'envoi de l'email pour la facture {}", id, e);
+            redirectAttributes.addFlashAttribute("error", 
+                "Erreur lors de l'envoi de l'email: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Erreur générale lors de l'envoi de l'email pour la facture {}", id, e);
+            redirectAttributes.addFlashAttribute("error", 
+                "Erreur lors de l'envoi: " + e.getMessage());
+        }
+        
+        return "redirect:/invoices/" + id;
+    }
+    
+    // Méthode pour envoyer une relance
     @PostMapping("/{id}/remind")
     public String sendReminder(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         try {
@@ -523,19 +620,43 @@ public class InvoiceController {
 
             // Vérification que la facture nécessite une relance
             if (invoice.getStatus() == Invoice.InvoiceStatus.SENT ||
-                    invoice.getStatus() == Invoice.InvoiceStatus.OVERDUE) {
-
-                // TODO: Implémenter l'envoi de relance par email
-                redirectAttributes.addFlashAttribute("success", "Relance envoyée avec succès");
+                    invoice.getStatus() == Invoice.InvoiceStatus.OVERDUE ||
+                    invoice.getStatus() == Invoice.InvoiceStatus.PARTIAL) {
+                
+                // Déterminer l'email du client
+                String clientEmail = null;
+                if (invoice.getOrder() != null && invoice.getOrder().getClient() != null) {
+                    clientEmail = invoice.getOrder().getClient().getEmail();
+                }
+                
+                if (clientEmail == null || clientEmail.trim().isEmpty()) {
+                    redirectAttributes.addFlashAttribute("error", "Aucun email client trouvé pour envoyer la relance");
+                    return "redirect:/invoices/" + id;
+                }
+                
+                // Envoi de la relance
+                emailService.sendInvoiceReminder(invoice, clientEmail);
+                
+                // Mise à jour du statut si nécessaire
+                if (invoice.isOverdue() && invoice.getStatus() != Invoice.InvoiceStatus.OVERDUE) {
+                    invoice.setStatus(Invoice.InvoiceStatus.OVERDUE);
+                    invoiceRepository.save(invoice);
+                }
+                
+                redirectAttributes.addFlashAttribute("success", "Relance envoyée avec succès à " + clientEmail);
             } else {
-                redirectAttributes.addFlashAttribute("warning", "Cette facture ne nécessite pas de relance");
+                redirectAttributes.addFlashAttribute("warning", "Cette facture ne nécessite pas de relance (statut: " + invoice.getStatus().getDisplayName() + ")");
             }
 
+        } catch (MessagingException e) {
+            logger.error("Erreur lors de l'envoi de la relance pour la facture {}", id, e);
+            redirectAttributes.addFlashAttribute("error", "Erreur lors de l'envoi de la relance: " + e.getMessage());
         } catch (Exception e) {
+            logger.error("Erreur générale lors de l'envoi de la relance pour la facture {}", id, e);
             redirectAttributes.addFlashAttribute("error", "Erreur lors de l'envoi de la relance: " + e.getMessage());
         }
 
-        return "redirect:/invoices";
+        return "redirect:/invoices/" + id;
     }
 
     @GetMapping("/new")
@@ -583,10 +704,10 @@ public class InvoiceController {
             
             // Liste des commandes disponibles pour facturation (confirmées, en traitement, expédiées ou livrées sans facture)
             List<Order> availableOrders = orderRepository.findAll().stream()
-                    .filter(order -> (order.getStatus() == Order.OrderStatus.CONFIRMED || 
-                                    order.getStatus() == Order.OrderStatus.PROCESSING ||
-                                    order.getStatus() == Order.OrderStatus.SHIPPED ||
-                                    order.getStatus() == Order.OrderStatus.DELIVERED) && 
+                    .filter(order -> (order.getStatus() == Order.OrderStatus.CONFIRMEE ||
+                                    order.getStatus() == Order.OrderStatus.EN_COURS ||
+                                    order.getStatus() == Order.OrderStatus.EXPEDIE ||
+                                    order.getStatus() == Order.OrderStatus.LIVREE) &&
                                    order.getInvoice() == null)
                     .collect(Collectors.toList());
             model.addAttribute("availableOrders", availableOrders);
