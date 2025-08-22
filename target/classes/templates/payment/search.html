@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement de Facture - GESCOM</title>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            min-height: 100vh;
+        }
+        .simulation-card {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .simulation-header {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px 15px 0 0;
+            text-align: center;
+        }
+        .alert-simulation {
+            background-color: #fff3cd;
+            border: 2px dashed #856404;
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid d-flex align-items-center justify-content-center min-vh-100 py-5">
+        <div class="row w-100 justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+                
+                <!-- Alert de simulation -->
+                <div class="alert alert-simulation text-center mb-4">
+                    <h5 class="mb-2">
+                        <i class="fas fa-play-circle text-warning me-2"></i>
+                        MODE SIMULATION
+                    </h5>
+                    <p class="mb-0">
+                        <strong>Aucune transaction réelle ne sera effectuée.</strong><br>
+                        Ceci est uniquement une démonstration du processus de paiement.
+                    </p>
+                </div>
+
+                <!-- Carte principale -->
+                <div class="card simulation-card">
+                    <!-- Header -->
+                    <div class="simulation-header">
+                        <h1 class="mb-3">
+                            <i class="fas fa-credit-card me-2"></i>
+                            Simulation de Paiement
+                        </h1>
+                        <p class="mb-0">Testez le processus de paiement en toute sécurité</p>
+                    </div>
+
+                    <!-- Corps de la carte -->
+                    <div class="card-body p-4">
+                        
+                        <!-- Messages d'erreur/succès -->
+                        <div th:if="${error}" class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <span th:text="${error}">Message d'erreur</span>
+                        </div>
+                        
+                        <div th:if="${success}" class="alert alert-success" role="alert">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <span th:text="${success}">Message de succès</span>
+                        </div>
+
+                        <!-- Formulaire de recherche -->
+                        <form method="post" th:action="@{/payment/search}">
+                            <div class="mb-4">
+                                <label for="invoiceNumber" class="form-label fw-bold">
+                                    <i class="fas fa-search me-2 text-primary"></i>
+                                    Numéro de facture
+                                </label>
+                                <input type="text" 
+                                       class="form-control form-control-lg" 
+                                       id="invoiceNumber" 
+                                       name="invoiceNumber" 
+                                       placeholder="Ex: FAC-2024-001" 
+                                       required>
+                                <div class="form-text">
+                                    Saisissez le numéro de facture que vous souhaitez simuler
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-search me-2"></i>
+                                    Rechercher et Simuler
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Liens d'aide -->
+                        <div class="text-center mt-4">
+                            <hr>
+                            <h6 class="text-muted mb-3">
+                                <i class="fas fa-question-circle me-2"></i>
+                                Besoin d'aide ?
+                            </h6>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <a href="/payment/invoices" 
+                                       class="btn btn-outline-secondary btn-sm w-100">
+                                        <i class="fas fa-list me-1"></i>
+                                        Voir les factures
+                                    </a>
+                                </div>
+                                <div class="col-6">
+                                    <a href="/login" 
+                                       class="btn btn-outline-secondary btn-sm w-100">
+                                        <i class="fas fa-cog me-1"></i>
+                                        Admin
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                    <small class="text-white-50">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        GESCOM - Simulation de Paiement Sécurisée
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const input = document.getElementById('invoiceNumber');
+            if (input) {
+                input.focus();
+                
+                // Formater le numéro de facture
+                input.addEventListener('input', function(e) {
+                    let value = e.target.value.toUpperCase();
+                    value = value.replace(/[^A-Z0-9\-_]/g, '');
+                    e.target.value = value;
+                });
+            }
+        });
+    </script>
+</body>
+</html>

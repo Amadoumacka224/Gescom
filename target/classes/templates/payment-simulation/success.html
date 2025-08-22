@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Réussie - GESCOM</title>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            min-height: 100vh;
+        }
+        .success-card {
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .success-header {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+            position: relative;
+        }
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        .simulation-badge {
+            background-color: rgba(255,193,7,0.2);
+            border: 2px solid #ffc107;
+            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            color: #856404;
+            font-weight: bold;
+            display: inline-block;
+            margin: 1rem 0;
+        }
+        .info-row {
+            border-bottom: 1px solid #e9ecef;
+            padding: 0.75rem 0;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid d-flex align-items-center justify-content-center min-vh-100 py-5">
+        <div class="row w-100 justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+                
+                <!-- Messages Flash -->
+                <div th:if="${success}" class="alert alert-success text-center mb-4">
+                    <h5 class="mb-2" th:text="${success}">Message de succès</h5>
+                    <p class="mb-0" th:if="${simulationInfo}" th:text="${simulationInfo}">Informations de simulation</p>
+                </div>
+
+                <!-- Carte de succès -->
+                <div class="card success-card">
+                    <!-- Header de succès -->
+                    <div class="success-header">
+                        <div class="success-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <h1 class="mb-2">Simulation Réussie !</h1>
+                        <p class="mb-3">Le processus de paiement a été simulé avec succès</p>
+                        
+                        <div class="simulation-badge">
+                            <i class="fas fa-play-circle me-2"></i>
+                            MODE SIMULATION
+                        </div>
+                    </div>
+
+                    <!-- Corps de la carte -->
+                    <div class="card-body p-4">
+                        
+                        <!-- Informations de la facture -->
+                        <div th:if="${invoice}" class="mb-4">
+                            <h5 class="mb-3">
+                                <i class="fas fa-file-invoice-dollar me-2 text-success"></i>
+                                Détails de la simulation
+                            </h5>
+                            
+                            <div class="bg-light rounded p-3">
+                                <div class="info-row">
+                                    <div class="row">
+                                        <div class="col-6 fw-bold">Numéro de facture:</div>
+                                        <div class="col-6" th:text="${invoice.invoiceNumber}">FAC-001</div>
+                                    </div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="row">
+                                        <div class="col-6 fw-bold">Montant simulé:</div>
+                                        <div class="col-6 text-success fw-bold" th:text="${#numbers.formatCurrency(invoice.totalAmount)}">120,00 €</div>
+                                    </div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="row">
+                                        <div class="col-6 fw-bold">Nouveau statut:</div>
+                                        <div class="col-6">
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check me-1"></i>
+                                                Payée (simulation)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="info-row">
+                                    <div class="row">
+                                        <div class="col-6 fw-bold">Date de simulation:</div>
+                                        <div class="col-6" th:text="${#temporals.format(#temporals.createNow(), 'dd/MM/yyyy HH:mm')}">01/01/2024 10:00</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Informations importantes -->
+                        <div class="alert alert-info">
+                            <h6 class="mb-2">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Important à retenir
+                            </h6>
+                            <ul class="mb-0">
+                                <li>Aucune transaction financière réelle n'a eu lieu</li>
+                                <li>Le statut de la facture a été modifié pour la démonstration</li>
+                                <li>Cette simulation montre le flux de paiement complet</li>
+                                <li>En production, un vrai paiement serait traité ici</li>
+                            </ul>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-grid gap-2">
+                            <a th:href="@{/payment-simulation}" class="btn btn-primary btn-lg">
+                                <i class="fas fa-redo me-2"></i>
+                                Nouvelle simulation
+                            </a>
+                            <a th:href="@{/payment-simulation/invoices}" class="btn btn-outline-secondary">
+                                <i class="fas fa-list me-2"></i>
+                                Voir toutes les factures
+                            </a>
+                            <a th:href="@{/dashboard}" class="btn btn-outline-secondary">
+                                <i class="fas fa-home me-2"></i>
+                                Retour au tableau de bord
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-4">
+                    <small class="text-white">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        GESCOM - Système de Simulation de Paiement
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Animation de confettis (optionnel)
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Simulation de paiement terminée avec succès!');
+            
+            // Auto-redirect après 30 secondes (optionnel)
+            setTimeout(function() {
+                if (confirm('Voulez-vous effectuer une nouvelle simulation ?')) {
+                    window.location.href = '/payment-simulation';
+                }
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

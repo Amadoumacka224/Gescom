@@ -8,7 +8,7 @@
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
         'Gestion des Produits', 
-        'Gérez votre catalogue de produits', 
+        'Administrez votre catalogue produits, gérez les stocks et surveillez les prix en temps réel', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/products/new}" class="btn btn-primary">
@@ -186,7 +186,20 @@
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="me-3">
-                                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <div th:if="${product.imageUrl != null and !#strings.isEmpty(product.imageUrl)}" 
+                                         class="rounded" style="width: 50px; height: 50px; overflow: hidden;">
+                                        <img th:src="${product.imageUrl}" 
+                                             th:alt="${product.name}"
+                                             style="width: 100%; height: 100%; object-fit: cover;"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                        <div class="rounded bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" 
+                                             style="width: 50px; height: 50px; display: none;">
+                                            <i class="fas fa-box text-primary"></i>
+                                        </div>
+                                    </div>
+                                    <div th:unless="${product.imageUrl != null and !#strings.isEmpty(product.imageUrl)}"
+                                         class="rounded bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" 
+                                         style="width: 50px; height: 50px;">
                                         <i class="fas fa-box text-primary"></i>
                                     </div>
                                 </div>

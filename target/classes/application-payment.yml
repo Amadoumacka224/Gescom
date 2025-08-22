@@ -1,0 +1,234 @@
+# Configuration pour les paiements externes
+# Ce fichier contient les paramètres de configuration pour le système de paiement
+
+# Configuration Stripe
+stripe:
+  api:
+    # Clés Stripe (à configurer selon l'environnement)
+    secret-key: ${STRIPE_SECRET_KEY:sk_test_your_test_secret_key_here}
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY:pk_test_your_test_publishable_key_here}
+  
+  webhook:
+    # Secret pour valider les webhooks Stripe
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_your_webhook_secret_here}
+  
+  # Configuration des paiements
+  payment:
+    currency: EUR
+    timeout-minutes: 15
+    max-amount: 50000.00  # Montant maximum en euros
+    min-amount: 0.01      # Montant minimum en euros
+
+# Configuration de l'application
+app:
+  # URL de base de l'application (importante pour les redirections)
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  
+  # Configuration des paiements
+  payment:
+    enabled: ${PAYMENT_ENABLED:true}
+    session-timeout-hours: 1
+    max-attempts-per-session: 3
+
+# Configuration de sécurité pour les paiements
+security:
+  payment:
+    # Limite de tentatives par IP
+    max-attempts-per-ip: 5
+    rate-limit-window: 3600  # en secondes (1 heure)
+    suspicious-threshold: 10
+    
+    # Configuration CORS pour les paiements
+    cors:
+      allowed-origins:
+        - ${APP_BASE_URL:http://localhost:8080}
+        - https://checkout.stripe.com
+        - https://js.stripe.com
+      allowed-methods:
+        - GET
+        - POST
+        - OPTIONS
+      allowed-headers:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+        - Stripe-Signature
+    
+    # Headers de sécurité
+    headers:
+      frame-options: DENY
+      content-type-options: nosniff
+      xss-protection: "1; mode=block"
+      strict-transport-security: "max-age=31536000; includeSubDomains"
+
+# Configuration Redis pour la gestion des sessions et du rate limiting
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 1  # Base dédiée aux paiements
+      timeout: 2000ms
+      
+      # Configuration du pool de connexions
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+# Configuration des logs spécifiques aux paiements
+logging:
+  level:
+    com.gescom.service.ExternalPaymentService: INFO
+    com.gescom.service.StripePaymentService: INFO
+    com.gescom.service.SecurityService: WARN
+    com.gescom.controller.PublicPaymentController: INFO
+    
+    # Logs Stripe (en mode debug pour le développement)
+    com.stripe: ${STRIPE_LOG_LEVEL:WARN}
+  
+  # Fichier de log spécifique pour les paiements
+  file:
+    name: logs/payments.log
+  
+  # Pattern pour inclure plus d'informations de sécurité
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-},%X{spanId:-}] %logger{36} - %msg%n"
+
+# Configuration de monitoring pour les paiements
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  
+  endpoint:
+    health:
+      show-details: when-authorized
+      show-components: always
+  
+  metrics:
+    tags:
+      application: gescom-payments
+    export:
+      prometheus:
+        enabled: true
+
+# Configuration des tâches planifiées
+scheduler:
+  payment:
+    # Nettoyage des paiements expirés (toutes les heures)
+    cleanup-expired: "0 0 * * * *"
+    
+    # Nettoyage des données de sécurité (tous les jours à 3h)
+    cleanup-security: "0 0 3 * * *"
+    
+    # Rapport de sécurité (tous les jours à 8h)
+    security-report: "0 0 8 * * *"
+
+# Configuration des notifications
+notification:
+  payment:
+    # Email de notification pour les administrateurs
+    admin-email: ${ADMIN_EMAIL:admin@gescom.fr}
+    
+    # Seuils d'alerte
+    failed-payment-threshold: 10
+    suspicious-activity-threshold: 5
+    
+    # Configuration SMTP pour les notifications
+    smtp:
+      host: ${SMTP_HOST:smtp.gmail.com}
+      port: ${SMTP_PORT:587}
+      username: ${SMTP_USERNAME:}
+      password: ${SMTP_PASSWORD:}
+      auth: true
+      starttls: true
+
+# Configuration de base de données spécifique aux paiements
+datasource:
+  payment:
+    # Pool de connexions optimisé pour les paiements
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 20000
+      leak-detection-threshold: 60000
+
+# Configuration des environnements
+---
+spring:
+  config:
+    activate:
+      on-profile: development
+
+# Environnement de développement
+stripe:
+  api:
+    secret-key: sk_test_51234567890abcdef
+    publishable-key: pk_test_51234567890abcdef
+
+app:
+  base-url: http://localhost:8080
+
+logging:
+  level:
+    com.gescom: DEBUG
+    com.stripe: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+# Environnement de production
+stripe:
+  api:
+    # Clés de production (doivent être dans les variables d'environnement)
+    secret-key: ${STRIPE_SECRET_KEY}
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY}
+
+app:
+  base-url: ${APP_BASE_URL}
+
+# Sécurité renforcée en production
+security:
+  payment:
+    max-attempts-per-ip: 3
+    rate-limit-window: 1800  # 30 minutes
+    suspicious-threshold: 5
+
+logging:
+  level:
+    com.gescom: INFO
+    com.stripe: WARN
+    root: WARN
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+
+# Environnement de test
+stripe:
+  api:
+    secret-key: sk_test_mock_key
+    publishable-key: pk_test_mock_key
+
+app:
+  payment:
+    enabled: false  # Désactiver en test
+
+# Configuration Redis en mode embedded pour les tests
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6370  # Port différent pour les tests
