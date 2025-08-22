@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Paramètres système - GESCOM</title>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" th:href="@{/css/admin/settings.css}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+<div th:fragment="content">
+    <div class="settings-container">
+        <!-- Header professionnel -->
+        <header class="settings-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="page-title">
+                        <i class="fas fa-cogs"></i>
+                        <div>
+                            <h1>Configuration Système</h1>
+                            <p class="subtitle">Gérez les paramètres de votre application GESCOM</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-outline" onclick="exportSettings()">
+                        <i class="fas fa-download"></i> Exporter
+                    </button>
+                    <a th:href="@{/admin/settings/new}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Nouveau paramètre
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Messages flash -->
+        <div class="alerts-container">
+            <div th:if="${success}" class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                <span th:text="${success}"></span>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div th:if="${error}" class="alert alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                <span th:text="${error}"></span>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div th:if="${warning}" class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span th:text="${warning}"></span>
+                <button type="button" class="alert-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard avec métriques -->
+        <div class="metrics-dashboard" th:if="${stats}">
+            <div class="metric-card primary">
+                <div class="metric-icon">
+                    <i class="fas fa-cogs"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" th:text="${stats.totalSettings ?: 0}">0</div>
+                    <div class="metric-label">Total paramètres</div>
+                </div>
+            </div>
+            <div class="metric-card success">
+                <div class="metric-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" th:text="${stats.systemSettings ?: 0}">0</div>
+                    <div class="metric-label">Système</div>
+                </div>
+            </div>
+            <div class="metric-card info">
+                <div class="metric-icon">
+                    <i class="fas fa-user-cog"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" th:text="${stats.userSettings ?: 0}">0</div>
+                    <div class="metric-label">Utilisateur</div>
+                </div>
+            </div>
+            <div class="metric-card warning">
+                <div class="metric-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="metric-content">
+                    <div class="metric-value" th:text="${stats.recentlyModifiedCount ?: 0}">0</div>
+                    <div class="metric-label">Modifiés (7j)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barre d'outils et filtres -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <div class="search-container">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="quickSearch" class="search-input" placeholder="Recherche rapide..." 
+                           th:value="${searchQuery}" onkeyup="performQuickSearch(this.value)">
+                </div>
+                <div class="filters">
+                    <select class="filter-select" id="categoryFilter" onchange="applyFilters()">
+                        <option value="">Toutes les catégories</option>
+                        <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat.displayName}" 
+                                th:selected="${selectedCategory == cat}"></option>
+                    </select>
+                    <select class="filter-select" id="typeFilter" onchange="applyFilters()">
+                        <option value="">Tous les types</option>
+                        <option value="true" th:selected="${isSystemFilter == true}">Système</option>
+                        <option value="false" th:selected="${isSystemFilter == false}">Utilisateur</option>
+                    </select>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <div class="view-controls">
+                    <button class="view-btn" th:classappend="${currentView == 'grouped'} ? 'active' : ''" 
+                            onclick="switchView('grouped')">
+                        <i class="fas fa-layer-group"></i> Groupé
+                    </button>
+                    <button class="view-btn" th:classappend="${currentView == 'list'} ? 'active' : ''" 
+                            onclick="switchView('list')">
+                        <i class="fas fa-list"></i> Liste
+                    </button>
+                </div>
+                <div class="quick-actions">
+                    <button class="action-btn" onclick="initializeDefaults()" title="Initialiser les paramètres par défaut">
+                        <i class="fas fa-database"></i>
+                    </button>
+                    <button class="action-btn" onclick="validateSettings()" title="Valider tous les paramètres">
+                        <i class="fas fa-check-double"></i>
+                    </button>
+                    <button class="action-btn" onclick="refreshCache()" title="Rafraîchir le cache">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="action-btn" onclick="showSettingsHelp()" title="Aide">
+                        <i class="fas fa-question-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenu principal -->
+        <div class="settings-content">
+            <!-- Vue groupée par catégories -->
+            <div th:if="${currentView == 'grouped'}" class="grouped-view">
+                <div th:each="category : ${groupedSettings}" class="category-section">
+                    <div class="category-header">
+                        <div class="category-info">
+                            <i th:class="${category.key.icon}" class="category-icon"></i>
+                            <div class="category-details">
+                                <h3 th:text="${category.key.displayName}">Catégorie</h3>
+                                <p th:text="${category.key.description}">Description</p>
+                            </div>
+                        </div>
+                        <div class="category-badge" th:text="${category.value.size()}">0</div>
+                    </div>
+                    
+                    <div class="settings-grid">
+                        <div th:each="setting : ${category.value}" class="setting-card">
+                            <div class="setting-header">
+                                <div class="setting-key-info">
+                                    <span class="setting-key" th:text="${setting.key}">setting.key</span>
+                                    <span th:if="${setting.isSystem}" class="system-badge">
+                                        <i class="fas fa-shield-alt"></i> Système
+                                    </span>
+                                </div>
+                                <div class="setting-actions">
+                                    <button class="action-btn small edit" th:onclick="'editSetting(' + ${setting.id} + ')'" title="Modifier">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="action-btn small duplicate" th:onclick="'duplicateSetting(' + ${setting.id} + ')'" title="Dupliquer">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    <button th:if="!${setting.isSystem}" class="action-btn small delete" 
+                                            th:onclick="'deleteSetting(' + ${setting.id} + ', \'' + ${setting.key} + '\')'" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-body">
+                                <p class="setting-description" th:text="${setting.description}">Description du paramètre</p>
+                                <div class="setting-value-container">
+                                    <div class="value-type" th:text="${setting.valueType.displayName}">Type</div>
+                                    <div class="setting-value" th:text="${setting.displayValue}">Valeur</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vue liste -->
+            <div th:if="${currentView == 'list'}" class="list-view">
+                <div class="settings-table-container">
+                    <table class="settings-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="key">
+                                    Clé <i class="fas fa-sort"></i>
+                                </th>
+                                <th class="sortable" data-sort="category">
+                                    Catégorie <i class="fas fa-sort"></i>
+                                </th>
+                                <th>Type</th>
+                                <th>Valeur</th>
+                                <th class="sortable" data-sort="updated">
+                                    Modifié <i class="fas fa-sort"></i>
+                                </th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="setting : ${settings}" class="setting-row">
+                                <td class="key-cell">
+                                    <div class="key-info">
+                                        <span class="setting-key" th:text="${setting.key}">setting.key</span>
+                                        <span th:if="${setting.isSystem}" class="system-indicator">
+                                            <i class="fas fa-shield-alt"></i>
+                                        </span>
+                                    </div>
+                                    <div class="setting-description" th:text="${setting.description}">Description</div>
+                                </td>
+                                <td class="category-cell">
+                                    <div class="category-tag">
+                                        <i th:class="${setting.category.icon}"></i>
+                                        <span th:text="${setting.category.displayName}">Catégorie</span>
+                                    </div>
+                                </td>
+                                <td class="type-cell">
+                                    <span class="type-badge" th:text="${setting.valueType.displayName}">Type</span>
+                                </td>
+                                <td class="value-cell">
+                                    <div class="value-display" th:text="${setting.displayValue}">Valeur</div>
+                                </td>
+                                <td class="date-cell">
+                                    <span th:text="${#temporals.format(setting.updatedAt, 'dd/MM/yyyy HH:mm')}">Date</span>
+                                </td>
+                                <td class="actions-cell">
+                                    <div class="action-buttons">
+                                        <button class="action-btn small edit" th:onclick="'editSetting(' + ${setting.id} + ')'" title="Modifier">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="action-btn small duplicate" th:onclick="'duplicateSetting(' + ${setting.id} + ')'" title="Dupliquer">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                        <button th:if="!${setting.isSystem}" class="action-btn small delete" 
+                                                th:onclick="'deleteSetting(' + ${setting.id} + ', \'' + ${setting.key} + '\')'" title="Supprimer">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- État vide -->
+            <div th:if="${(currentView == 'grouped' and groupedSettings.isEmpty()) or (currentView == 'list' and settings.isEmpty())}" 
+                 class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-cogs"></i>
+                </div>
+                <h3>Aucun paramètre trouvé</h3>
+                <p>Il n'y a aucun paramètre correspondant à vos critères de recherche.</p>
+                <div class="empty-actions">
+                    <a th:href="@{/admin/settings/new}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Créer un paramètre
+                    </a>
+                    <button class="btn btn-outline" onclick="clearFilters()">
+                        <i class="fas fa-eraser"></i> Effacer les filtres
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pagination moderne -->
+        <div th:if="${settingsPage != null and settingsPage.totalPages > 1}" class="pagination-container">
+            <div class="pagination-info">
+                <span th:text="'Affichage ' + (${currentPage * settingsPage.size + 1}) + '-' + 
+                              (${currentPage * settingsPage.size + settingsPage.numberOfElements}) + ' sur ' + ${settingsPage.totalElements} + ' éléments'">
+                    Affichage 1-20 sur 100 éléments
+                </span>
+            </div>
+            <div class="pagination-controls">
+                <button class="pagination-btn" th:disabled="${!settingsPage.hasPrevious()}"
+                        th:onclick="'goToPage(' + (${currentPage - 1}) + ')'">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                
+                <div class="pagination-pages">
+                    <button th:each="page : ${#numbers.sequence(0, settingsPage.totalPages - 1)}" 
+                            class="pagination-page" th:classappend="${page == currentPage} ? 'active' : ''"
+                            th:onclick="'goToPage(' + ${page} + ')'"
+                            th:text="${page + 1}">1</button>
+                </div>
+                
+                <button class="pagination-btn" th:disabled="${!settingsPage.hasNext()}"
+                        th:onclick="'goToPage(' + (${currentPage + 1}) + ')'">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal d'aide -->
+    <div class="modal" id="helpModal">
+        <div class="modal-backdrop" onclick="closeModal('helpModal')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-question-circle"></i> Guide des paramètres</h3>
+                <button class="modal-close" onclick="closeModal('helpModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h4><i class="fas fa-cog"></i> Types de paramètres</h4>
+                    <ul>
+                        <li><strong>Paramètres système :</strong> Protégés contre la suppression, seule la valeur peut être modifiée</li>
+                        <li><strong>Paramètres utilisateur :</strong> Entièrement modifiables et supprimables</li>
+                        <li><strong>Paramètres cryptés :</strong> Les mots de passe sont automatiquement cryptés</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-list"></i> Catégories disponibles</h4>
+                    <div class="categories-grid">
+                        <div th:each="cat : ${categories}" class="category-help">
+                            <i th:class="${cat.icon}"></i>
+                            <div>
+                                <strong th:text="${cat.displayName}">Catégorie</strong>
+                                <p th:text="${cat.description}">Description</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-keyboard"></i> Raccourcis clavier</h4>
+                    <div class="shortcuts">
+                        <div class="shortcut">
+                            <kbd>Ctrl</kbd> + <kbd>N</kbd> <span>Nouveau paramètre</span>
+                        </div>
+                        <div class="shortcut">
+                            <kbd>Ctrl</kbd> + <kbd>F</kbd> <span>Recherche</span>
+                        </div>
+                        <div class="shortcut">
+                            <kbd>Escape</kbd> <span>Fermer les modales</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('helpModal')">Fermer</button>
+                <a th:href="@{/admin/help/settings}" class="btn btn-primary">Documentation complète</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:fragment="js_assets">
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script th:src="@{/js/admin/settings.js}"></script>
+</div>
+</body>
+</html>

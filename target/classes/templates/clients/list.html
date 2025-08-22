@@ -7,8 +7,8 @@
 <div th:fragment="content">
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
-        'Gestion des Clients', 
-        'Gérez vos clients et prospects', 
+        'Gestion des Clients',
+        'Gérez vos clients et prospects',
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/clients/new}" class="btn btn-primary">
@@ -34,38 +34,38 @@
     <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${totalClients}, 
-                'Total Clients', 
-                null, 
-                null, 
-                'fas fa-users', 
+                ${totalClients},
+                'Total Clients',
+                null,
+                null,
+                'fas fa-users',
                 'primary')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${activeClients}, 
-                'Clients Actifs', 
-                null, 
-                null, 
-                'fas fa-user-check', 
+                ${activeClients},
+                'Clients Actifs',
+                null,
+                null,
+                'fas fa-user-check',
                 'success')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${prospects}, 
-                'Prospects', 
-                null, 
-                null, 
-                'fas fa-user-clock', 
+                ${prospects},
+                'Prospects',
+                null,
+                null,
+                'fas fa-user-clock',
                 'warning')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${companies}, 
-                'Entreprises', 
-                null, 
-                null, 
-                'fas fa-building', 
+                ${companies},
+                'Entreprises',
+                null,
+                null,
+                'fas fa-building',
                 'info')}"></div>
         </div>
     </div>
@@ -279,10 +279,10 @@
 
             <!-- Pagination -->
             <div th:if="${totalPages > 1}" th:replace="~{fragments/components :: pagination(
-                ${currentPage}, 
-                ${totalPages}, 
-                '/clients?size=' + ${size} + '&sortBy=' + ${sortBy} + '&sortDir=' + ${sortDir} + 
-                (${search} != null ? '&search=' + ${search} : '') + 
+                ${currentPage},
+                ${totalPages},
+                '/clients?size=' + ${size} + '&sortBy=' + ${sortBy} + '&sortDir=' + ${sortDir} +
+                (${search} != null ? '&search=' + ${search} : '') +
                 (${selectedStatus} != null ? '&status=' + ${selectedStatus} : '') +
                 (${selectedClientType} != null ? '&clientType=' + ${selectedClientType} : '')
             )}"></div>

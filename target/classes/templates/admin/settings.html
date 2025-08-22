@@ -1,921 +1,477 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
-    <title>Paramètres système - GESCOM</title>
-    <meta name="_csrf" th:content="${_csrf.token}"/>
-    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <title>Paramètres système — GESCOM</title>
+    <meta name="_csrf" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
     <style>
         :root {
-            --primary-color: #0d6efd;
-            --secondary-color: #6c757d;
-            --success-color: #198754;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-            --info-color: #0dcaf0;
-            --light-color: #f8f9fa;
-            --dark-color: #212529;
-            --border-radius: 8px;
-            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.15);
+            --bg: #f8f9fa;
+            --text: #333;
+            --muted: #666;
+            --muted-2: #999;
+            --white: #fff;
+            --card: #fff;
+            --border: #eee;
+            --primary: #007bff;
+            --primary-700: #0069d9;
+            --header: #343a40;
+            --shadow-1: 0 2px 6px rgba(0,0,0,.08);
+            --shadow-2: 0 6px 18px rgba(0,0,0,.08);
+            --radius: .75rem;
         }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; color: var(--text); }
 
-        body {
-            background-color: #f5f7fa;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
+        /* Header */
+        .settings-header { background: var(--header); color: var(--white); padding: 1.5rem; border-radius: 0 0 var(--radius) var(--radius); box-shadow: var(--shadow-2); }
+        .settings-title { margin: 0; font-size: 1.8rem; font-weight: 700; letter-spacing: .2px; }
+        .settings-subtitle { margin: .25rem 0 0; font-size: .95rem; color: #e6e6e6; }
+        .settings-header-content { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        .settings-header-actions .btn { margin-left: .5rem; display: inline-flex; align-items: center; gap: .5rem; border-radius: .5rem; padding: .5rem .9rem; box-shadow: none; text-decoration: none; }
+        .btn.btn-outline-light { background: transparent; color: var(--white); border: 1px solid rgba(255,255,255,.45); }
+        .btn.btn-light { background: var(--white); color: #222; border: 1px solid rgba(0,0,0,.06); }
+        .btn:hover { filter: brightness(0.98); }
 
-        .main-content {
-            padding: 2rem;
-        }
+        /* Layout blocks */
+        .settings-container { padding: 1rem; max-width: 1200px; margin: 0 auto; }
 
-        /* Header Section */
-        .page-header {
-            background: linear-gradient(135deg, var(--primary-color), #4285f4);
-            color: white;
-            padding: 2rem;
-            border-radius: var(--border-radius);
-            margin-bottom: 2rem;
-            box-shadow: var(--shadow);
-        }
+        /* Metrics */
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+        .metric-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-1); padding: 1rem; }
+        .metric-content { display: flex; align-items: center; justify-content: space-between; }
+        .metric-value { font-size: 1.6rem; margin: 0; font-weight: 800; }
+        .metric-label { margin: .25rem 0 0; font-size: .86rem; color: var(--muted); }
+        .metric-icon { font-size: 1.4rem; color: var(--muted-2); }
 
-        .page-header h1 {
-            margin: 0;
-            font-size: 2.5rem;
-            font-weight: 600;
-        }
+        /* Toolbar */
+        .settings-toolbar { background: var(--card); padding: 1rem; border-radius: var(--radius); box-shadow: var(--shadow-1); margin-bottom: 1.5rem; }
+        .toolbar-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+        .search-container { position: relative; }
+        .search-input { padding: .6rem 2.25rem .6rem .85rem; border: 1px solid #dcdcdc; border-radius: .6rem; outline: none; min-width: 260px; }
+        .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,123,255,.12); }
+        .search-icon { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+        .filters-container { display: flex; align-items: center; gap: .5rem; }
+        .filter-select { padding: .55rem .7rem; border-radius: .6rem; border: 1px solid #dcdcdc; background: var(--white); }
+        .view-controls .view-btn { border: 1px solid #e5e5e5; background: #f6f7f9; border-radius: .6rem; padding: .5rem .75rem; margin-left: .25rem; cursor: pointer; display: inline-flex; align-items: center; gap: .4rem; }
+        .view-btn.active { background: var(--primary); color: var(--white); border-color: var(--primary); }
+        .quick-actions .action-btn { border: none; background: transparent; margin-left: .3rem; cursor: pointer; color: #444; font-size: 1.05rem; padding: .45rem .55rem; border-radius: .5rem; }
+        .quick-actions .action-btn:hover { background: #f0f3ff; color: var(--primary); }
 
-        .page-header p {
-            margin: 0.5rem 0 0 0;
-            opacity: 0.9;
-            font-size: 1.1rem;
-        }
+        /* Group view */
+        .settings-groups { display: grid; gap: 1rem; }
+        .settings-group { background: var(--card); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow-1); }
+        .group-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: .6rem; margin-bottom: 1rem; }
+        .group-title { display: flex; align-items: flex-start; gap: .75rem; }
+        .group-title h3 { margin: 0; font-size: 1.2rem; }
+        .group-description { margin: .25rem 0 0; font-size: .85rem; color: var(--muted); }
+        .group-count { font-weight: 700; font-size: .95rem; color: var(--muted); }
 
-        /* Stats Cards */
-        .stats-card {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 1.5rem;
-            box-shadow: var(--shadow);
-            border-left: 4px solid var(--primary-color);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
+        .setting-card { border: 1px solid var(--border); border-radius: .6rem; padding: .85rem; margin-bottom: .75rem; background: #fafafa; transition: box-shadow .15s ease; }
+        .setting-card:hover { box-shadow: var(--shadow-1); }
+        .setting-header { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+        .setting-key { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; }
+        .system-badge { background: var(--primary); color: var(--white); font-size: .7rem; padding: .2rem .45rem; border-radius: .35rem; margin-left: .5rem; }
+        .setting-actions { display: inline-flex; gap: .35rem; }
+        .setting-action { border: none; background: transparent; cursor: pointer; color: #444; padding: .35rem .45rem; border-radius: .4rem; }
+        .setting-action:hover { background: #eef5ff; color: var(--primary); }
+        .setting-description { font-size: .88rem; color: #555; margin: .5rem 0; }
+        .setting-footer { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--muted); }
+        .type-badge { background: #eef2ff; color: #2a3d8f; padding: .25rem .5rem; border-radius: .4rem; font-weight: 600; }
+        .setting-value { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
-        .stats-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
-        }
+        /* List view */
+        .settings-table-container { background: var(--card); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow-1); }
+        .settings-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+        .settings-table th, .settings-table td { padding: .75rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+        .settings-table th { background: #f9fafb; font-weight: 700; color: #222; }
+        .sortable-header { user-select: none; cursor: default; }
+        .key-info { display: inline-flex; align-items: center; gap: .45rem; }
+        .system-indicator { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; background: #eef2ff; color: #2a3d8f; border-radius: .35rem; }
+        .table-setting-description { color: var(--muted); font-size: .86rem; margin-top: .25rem; }
+        .table-actions { display: inline-flex; align-items: center; gap: .25rem; }
+        .table-action-btn { border: none; background: transparent; cursor: pointer; color: #555; padding: .35rem .45rem; border-radius: .4rem; text-decoration: none; }
+        .table-action-btn:hover { background: #eef5ff; color: var(--primary); }
+        .value-display { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
-        .stats-card .icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .stats-card .number {
-            font-size: 2rem;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .stats-card .label {
-            color: var(--secondary-color);
-            font-size: 0.9rem;
-            margin: 0;
-        }
-
-        /* Search and Filters */
-        .search-filters {
-            background: white;
-            padding: 1.5rem;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 2rem;
-        }
-
-        .search-filters .form-control, .search-filters .form-select {
-            border-radius: var(--border-radius);
-            border: 1px solid #e0e6ed;
-            padding: 0.75rem 1rem;
-        }
-
-        .search-filters .btn {
-            border-radius: var(--border-radius);
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-        }
-
-        /* Settings Cards */
-        .settings-section {
-            background: white;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 2rem;
-            overflow: hidden;
-        }
-
-        .settings-section-header {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            padding: 1.5rem;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .settings-section-header h4 {
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            color: var(--dark-color);
-            font-weight: 600;
-        }
-
-        .settings-section-header .icon {
-            color: var(--primary-color);
-            font-size: 1.25rem;
-        }
-
-        .settings-section-body {
-            padding: 0;
-        }
-
-        .setting-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #f8f9fa;
-            transition: background-color 0.2s;
-        }
-
-        .setting-item:last-child {
-            border-bottom: none;
-        }
-
-        .setting-item:hover {
-            background-color: #f8f9fa;
-        }
-
-        .setting-info {
-            flex: 1;
-        }
-
-        .setting-key {
-            font-weight: 600;
-            color: var(--dark-color);
-            margin-bottom: 0.25rem;
-        }
-
-        .setting-description {
-            color: var(--secondary-color);
-            font-size: 0.9rem;
-            margin: 0;
-        }
-
-        .setting-value {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            min-width: 200px;
-        }
-
-        .setting-display-value {
-            background: #f8f9fa;
-            padding: 0.5rem 0.75rem;
-            border-radius: var(--border-radius);
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            max-width: 150px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .setting-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .btn-setting {
-            padding: 0.375rem 0.75rem;
-            font-size: 0.875rem;
-            border-radius: var(--border-radius);
-            border: none;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-edit {
-            background-color: var(--warning-color);
-            color: white;
-        }
-
-        .btn-edit:hover {
-            background-color: #e0a800;
-            transform: translateY(-1px);
-        }
-
-        .btn-delete {
-            background-color: var(--danger-color);
-            color: white;
-        }
-
-        .btn-delete:hover {
-            background-color: #bb2d3b;
-            transform: translateY(-1px);
-        }
-
-        .btn-duplicate {
-            background-color: var(--info-color);
-            color: white;
-        }
-
-        .btn-duplicate:hover {
-            background-color: #0bb4d6;
-            transform: translateY(-1px);
-        }
-
-        /* System Setting Badge */
-        .system-badge {
-            background-color: var(--info-color);
-            color: white;
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 10px;
-            margin-left: 0.5rem;
-        }
+        /* Empty state */
+        .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow-1); }
+        .empty-state-icon { font-size: 2rem; margin-bottom: 1rem; color: #c9ccd1; }
 
         /* Pagination */
-        .pagination {
-            justify-content: center;
+        .pagination-container { margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; }
+        .pagination { display: flex; list-style: none; padding: 0; margin: 0; gap: .35rem; }
+        .page-item .page-link { border: 1px solid #dcdcdc; border-radius: .5rem; padding: .45rem .75rem; color: var(--primary); text-decoration: none; display: inline-block; }
+        .page-item.active .page-link { background: var(--primary); color: var(--white); border-color: var(--primary); }
+        .page-item.disabled .page-link { color: var(--muted-2); pointer-events: none; }
+
+        /* Modal overrides */
+        .modal-content { border-radius: var(--radius); }
+        .modal-header { border-bottom: 1px solid var(--border); }
+        .modal-footer { border-top: 1px solid var(--border); }
+
+        @media (max-width: 640px) {
+            .settings-header-content { align-items: flex-start; }
+            .search-input { min-width: 100%; }
         }
 
-        .page-link {
-            border-radius: var(--border-radius);
-            margin: 0 0.125rem;
-            border: 1px solid #dee2e6;
-            color: var(--primary-color);
-        }
-
-        .page-link:hover {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-            color: white;
-        }
-
-        .page-item.active .page-link {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-            border-radius: var(--border-radius);
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-        }
-
-        .btn-outline-primary {
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-            border-radius: var(--border-radius);
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-        }
-
-        /* Loading States */
-        .loading {
-            opacity: 0.6;
-            pointer-events: none;
-        }
-
-        .spinner-border-sm {
-            width: 1rem;
-            height: 1rem;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
-            color: var(--secondary-color);
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            color: #dee2e6;
-        }
-
-        /* Quick Actions */
-        .quick-actions {
-            background: white;
-            padding: 1.5rem;
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow);
-            margin-bottom: 2rem;
-        }
-
-        .quick-actions h5 {
-            margin-bottom: 1rem;
-            color: var(--dark-color);
-            font-weight: 600;
-        }
-
-        /* Compact Mode Styles */
-        .compact-mode .setting-item {
-            padding: 0.75rem 1rem;
-        }
-
-        .compact-mode .setting-key {
-            font-size: 0.9rem;
-        }
-
-        .compact-mode .setting-description {
-            font-size: 0.8rem;
-        }
-
-        .compact-mode .setting-display-value {
-            font-size: 0.8rem;
-            padding: 0.25rem 0.5rem;
-        }
-
-        /* Help Modal Styles */
-        .modal-lg {
-            max-width: 900px;
-        }
-
-        .help-category {
-            border-left: 4px solid var(--primary-color);
-            padding-left: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .help-category h6 {
-            color: var(--primary-color);
-            font-weight: 600;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .main-content {
-                padding: 1rem;
-            }
-
-            .page-header {
-                padding: 1.5rem;
-            }
-
-            .page-header h1 {
-                font-size: 2rem;
-            }
-
-            .setting-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 1rem;
-            }
-
-            .setting-value {
-                width: 100%;
-                justify-content: space-between;
-            }
-
-            .action-buttons {
-                flex-direction: column;
-            }
-        }
+        /* Utility */
+        kbd { background: #f0f1f3; border: 1px solid #d9dadd; border-bottom-width: 2px; padding: .1rem .35rem; border-radius: .35rem; font-size: .85em; }
     </style>
 </head>
 <body>
 <div th:fragment="content">
-    <div class="main-content">
-        <!-- Page Header -->
-        <div class="page-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1><i class="fas fa-cogs me-3"></i>Paramètres Système</h1>
-                    <p>Gérez la configuration de votre application GESCOM</p>
+    <main class="settings-container settings-page" role="main">
+        <!-- En-tête -->
+        <header class="settings-header" aria-labelledby="pageTitle">
+            <div class="settings-header-content">
+                <div class="page-title">
+                    <i class="fas fa-cogs" aria-hidden="true"></i>
+                    <div>
+                        <h1 id="pageTitle" class="settings-title">Configuration du système</h1>
+                        <p class="settings-subtitle">Gérez les paramètres de l'application GESCOM</p>
+                    </div>
                 </div>
-                <div class="d-flex gap-3">
-                    <button class="btn btn-light" onclick="refreshCache()">
-                        <i class="fas fa-sync-alt me-2"></i>Rafraîchir Cache
+                <div class="settings-header-actions">
+                    <button type="button" class="btn btn-outline-light" onclick="exportSettings()" aria-label="Exporter les paramètres">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                        <span>Exporter</span>
                     </button>
-                    <a th:href="@{/admin/settings/new}" class="btn btn-light">
-                        <i class="fas fa-plus me-2"></i>Nouveau Paramètre
+                    <a th:href="@{/admin/settings/new}" class="btn btn-light" aria-label="Créer un nouveau paramètre">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>Nouveau paramètre</span>
                     </a>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <!-- Flash Messages -->
-        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="fas fa-check-circle me-2"></i>
-            <span th:text="${success}"></span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
+        <!-- Messages flash -->
+        <section aria-live="polite" aria-atomic="true">
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2" aria-hidden="true"></i>
+                <span th:text="${success}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+            </div>
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-circle me-2" aria-hidden="true"></i>
+                <span th:text="${error}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+            </div>
+        </section>
 
-        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            <span th:text="${error}"></span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-
-        <div th:if="${warning}" class="alert alert-warning alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            <span th:text="${warning}"></span>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-
-        <!-- Statistics Cards -->
-        <div class="row mb-4" th:if="${stats}">
-            <div class="col-lg-3 col-md-6 mb-4">
-                <div class="stats-card">
-                    <div class="icon text-primary">
-                        <i class="fas fa-cogs"></i>
+        <!-- Indicateurs -->
+        <section th:if="${stats}" class="metrics-grid" aria-label="Indicateurs de configuration">
+            <div class="metric-card primary">
+                <div class="metric-content">
+                    <div class="metric-info">
+                        <h3 class="metric-value" th:text="${stats.totalSettings ?: 0}">0</h3>
+                        <p class="metric-label">Paramètres au total</p>
                     </div>
-                    <p class="number text-primary" th:text="${stats.totalSettings ?: 0}">0</p>
-                    <p class="label">Total Paramètres</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6 mb-4">
-                <div class="stats-card">
-                    <div class="icon text-info">
-                        <i class="fas fa-shield-alt"></i>
+                    <div class="metric-icon">
+                        <i class="fas fa-cogs" aria-hidden="true"></i>
                     </div>
-                    <p class="number text-info" th:text="${stats.systemSettings ?: 0}">0</p>
-                    <p class="label">Paramètres Système</p>
                 </div>
             </div>
-            <div class="col-lg-3 col-md-6 mb-4">
-                <div class="stats-card">
-                    <div class="icon text-success">
-                        <i class="fas fa-user-cog"></i>
+            <div class="metric-card success">
+                <div class="metric-content">
+                    <div class="metric-info">
+                        <h3 class="metric-value" th:text="${stats.systemSettings ?: 0}">0</h3>
+                        <p class="metric-label">Paramètres système</p>
                     </div>
-                    <p class="number text-success" th:text="${stats.userSettings ?: 0}">0</p>
-                    <p class="label">Paramètres Utilisateur</p>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6 mb-4">
-                <div class="stats-card">
-                    <div class="icon text-warning">
-                        <i class="fas fa-clock"></i>
+                    <div class="metric-icon">
+                        <i class="fas fa-shield-alt" aria-hidden="true"></i>
                     </div>
-                    <p class="number text-warning" th:text="${stats.recentlyModifiedCount ?: 0}">0</p>
-                    <p class="label">Modifiés (7j)</p>
                 </div>
             </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="quick-actions">
-            <h5><i class="fas fa-bolt me-2"></i>Actions Rapides</h5>
-            <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-outline-primary btn-sm" onclick="initializeDefaults()">
-                    <i class="fas fa-database me-2"></i>Initialiser Défauts
-                </button>
-                <button class="btn btn-outline-success btn-sm" onclick="validateSettings()">
-                    <i class="fas fa-check-double me-2"></i>Valider Paramètres
-                </button>
-                <a th:href="@{/admin/settings/export}" class="btn btn-outline-info btn-sm">
-                    <i class="fas fa-download me-2"></i>Exporter
-                </a>
-                <button class="btn btn-outline-warning btn-sm" onclick="refreshCache()">
-                    <i class="fas fa-sync-alt me-2"></i>Rafraîchir Cache
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="toggleCompactMode()">
-                    <i class="fas fa-compress-alt me-2"></i>Mode Compact
-                </button>
-                <button class="btn btn-outline-dark btn-sm" onclick="showSettingsHelp()">
-                    <i class="fas fa-question-circle me-2"></i>Aide
-                </button>
+            <div class="metric-card info">
+                <div class="metric-content">
+                    <div class="metric-info">
+                        <h3 class="metric-value" th:text="${stats.userSettings ?: 0}">0</h3>
+                        <p class="metric-label">Paramètres utilisateur</p>
+                    </div>
+                    <div class="metric-icon">
+                        <i class="fas fa-user-cog" aria-hidden="true"></i>
+                    </div>
+                </div>
             </div>
-        </div>
+            <div class="metric-card warning">
+                <div class="metric-content">
+                    <div class="metric-info">
+                        <h3 class="metric-value" th:text="${stats.recentlyModifiedCount ?: 0}">0</h3>
+                        <p class="metric-label">Modifiés sur 7 jours</p>
+                    </div>
+                    <div class="metric-icon">
+                        <i class="fas fa-clock" aria-hidden="true"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-        <!-- Search and Filters -->
-        <div class="search-filters">
-            <form th:action="@{/admin/settings}" method="get" class="d-flex gap-3 align-items-end">
-                <div class="flex-fill">
-                    <label for="search" class="form-label">Rechercher</label>
-                    <input type="text" class="form-control" id="search" name="search" 
-                           th:value="${searchQuery}" placeholder="Clé, description...">
+        <!-- Barre d'outils -->
+        <section class="settings-toolbar" aria-label="Barre d'outils des paramètres">
+            <div class="toolbar-content">
+                <div class="toolbar-left">
+                    <div class="search-container">
+                        <i class="fas fa-search search-icon" aria-hidden="true"></i>
+                        <input
+                                type="search"
+                                id="quickSearch"
+                                class="search-input"
+                                placeholder="Recherche rapide…"
+                                th:value="${searchQuery}"
+                                onkeyup="performQuickSearch(this.value)"
+                                aria-label="Recherche rapide"
+                                autocomplete="off"
+                        />
+                    </div>
+                    <div class="filters-container" role="group" aria-label="Filtres">
+                        <select class="filter-select" id="categoryFilter" onchange="applyFilters()" aria-label="Filtrer par catégorie">
+                            <option value="">Toutes les catégories</option>
+                            <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat.displayName}"
+                                    th:selected="${selectedCategory == cat}"></option>
+                        </select>
+                        <select class="filter-select" id="typeFilter" onchange="applyFilters()" aria-label="Filtrer par type">
+                            <option value="">Tous les types</option>
+                            <option value="true" th:selected="${isSystemFilter == true}">Système</option>
+                            <option value="false" th:selected="${isSystemFilter == false}">Utilisateur</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="col-auto">
-                    <label for="category" class="form-label">Catégorie</label>
-                    <select class="form-select" id="category" name="category">
-                        <option value="">Toutes les catégories</option>
-                        <option th:each="cat : ${categories}" 
-                                th:value="${cat}" 
-                                th:text="${cat.displayName}"
-                                th:selected="${selectedCategory == cat}">
-                        </option>
-                    </select>
+                <div class="toolbar-right">
+                    <div class="view-controls" role="group" aria-label="Affichage">
+                        <button type="button" class="view-btn" th:classappend="${currentView == 'grouped'} ? 'active' : ''" onclick="switchView('grouped')">
+                            <i class="fas fa-layer-group" aria-hidden="true"></i><span>Groupé</span>
+                        </button>
+                        <button type="button" class="view-btn" th:classappend="${currentView == 'list'} ? 'active' : ''" onclick="switchView('list')">
+                            <i class="fas fa-list" aria-hidden="true"></i><span>Liste</span>
+                        </button>
+                    </div>
+                    <div class="quick-actions" role="group" aria-label="Actions rapides">
+                        <button type="button" class="action-btn" onclick="initializeDefaults()" title="Initialiser les valeurs par défaut">
+                            <i class="fas fa-database" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="action-btn" onclick="validateSettings()" title="Valider l'ensemble des paramètres">
+                            <i class="fas fa-check-double" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="action-btn" onclick="refreshCache()" title="Rafraîchir le cache">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                        </button>
+                        <button type="button" class="action-btn" onclick="showSettingsHelp()" title="Aide">
+                            <i class="fas fa-question-circle" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="col-auto">
-                    <label for="isSystem" class="form-label">Type</label>
-                    <select class="form-select" id="isSystem" name="isSystem">
-                        <option value="">Tous</option>
-                        <option value="true" th:selected="${isSystemFilter == true}">Système</option>
-                        <option value="false" th:selected="${isSystemFilter == false}">Utilisateur</option>
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <label for="view" class="form-label">Affichage</label>
-                    <select class="form-select" id="view" name="view">
-                        <option value="grouped" th:selected="${currentView == 'grouped'}">Groupé</option>
-                        <option value="list" th:selected="${currentView == 'list'}">Liste</option>
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-search me-2"></i>Rechercher
-                    </button>
-                </div>
-            </form>
-        </div>
+            </div>
+        </section>
 
-        <!-- Settings Content -->
-        <div th:if="${currentView == 'grouped'}">
-            <!-- Grouped View -->
-            <div th:each="category : ${groupedSettings}" class="settings-section">
-                <div class="settings-section-header">
-                    <h4>
-                        <i th:class="${category.key.icon}"></i>
-                        <span th:text="${category.key.displayName}"></span>
-                        <small class="text-muted">(<span th:text="${category.value.size()}"></span>)</small>
-                    </h4>
-                </div>
-                <div class="settings-section-body">
-                    <div th:each="setting : ${category.value}" class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-key">
-                                <span th:text="${setting.key}"></span>
-                                <span th:if="${setting.isSystem}" class="system-badge">Système</span>
-                            </div>
-                            <p class="setting-description" th:text="${setting.description}"></p>
+        <!-- Vue groupée -->
+        <section th:if="${currentView == 'grouped'}" class="settings-groups" aria-label="Paramètres par catégorie">
+            <div th:each="category : ${groupedSettings}" class="settings-group">
+                <div class="group-header">
+                    <div class="group-title">
+                        <i th:class="${category.key.icon}" class="group-icon" aria-hidden="true"></i>
+                        <div>
+                            <h3 th:text="${category.key.displayName}">Catégorie</h3>
+                            <p class="group-description" th:text="${category.key.description}">Description</p>
                         </div>
-                        <div class="setting-value">
-                            <div class="setting-display-value" th:text="${setting.displayValue}"></div>
+                    </div>
+                    <span class="group-count" th:text="${category.value.size()}">0</span>
+                </div>
+
+                <div class="group-settings">
+                    <article th:each="setting : ${category.value}" class="setting-card" aria-label="Carte paramètre">
+                        <div class="setting-header">
+                            <div class="setting-key-info">
+                                <span class="setting-key">
+                                    <i class="fas fa-key key-icon" aria-hidden="true"></i>
+                                    <span th:text="${setting.key}">setting.key</span>
+                                </span>
+                                <span th:if="${setting.isSystem}" class="system-badge" title="Paramètre système">
+                                    <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                                    <span> Système</span>
+                                </span>
+                            </div>
                             <div class="setting-actions">
-                                <button class="btn-setting btn-edit" th:onclick="'editSetting(' + ${setting.id} + ')'">
-                                    <i class="fas fa-edit"></i>
+                                <button type="button" class="setting-action edit" th:onclick="'editSetting(' + ${setting.id} + ')'" title="Modifier le paramètre">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
                                 </button>
-                                <button class="btn-setting btn-duplicate" th:onclick="'duplicateSetting(' + ${setting.id} + ')'">
-                                    <i class="fas fa-copy"></i>
+                                <button type="button" class="setting-action duplicate" th:onclick="'duplicateSetting(' + ${setting.id} + ')'" title="Dupliquer le paramètre">
+                                    <i class="fas fa-copy" aria-hidden="true"></i>
                                 </button>
-                                <button th:if="!${setting.isSystem}" class="btn-setting btn-delete" 
-                                        th:onclick="'deleteSetting(' + ${setting.id} + ', \'' + ${setting.key} + '\')'">
-                                    <i class="fas fa-trash"></i>
+                                <button type="button" th:if="!${setting.isSystem}" class="setting-action delete"
+                                        th:onclick="'deleteSetting(' + ${setting.id} + ', \\' + ${'\''} + ${setting.key} + ${'\''} + \\' )'" title="Supprimer le paramètre">
+                                    <i class="fas fa-trash" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
-                    </div>
+                        <p class="setting-description" th:text="${setting.description}">Description du paramètre</p>
+                        <div class="setting-footer">
+                            <span class="type-badge" th:text="${setting.valueType.displayName}">Type</span>
+                            <span class="setting-value" th:text="${setting.displayValue}">Valeur</span>
+                        </div>
+                    </article>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div th:if="${currentView == 'list'}">
-            <!-- List View -->
-            <div class="settings-section">
-                <div class="settings-section-body">
-                    <div th:each="setting : ${settings}" class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-key">
-                                <i th:class="${setting.category.icon} + ' me-2'"></i>
-                                <span th:text="${setting.key}"></span>
-                                <span th:if="${setting.isSystem}" class="system-badge">Système</span>
-                            </div>
-                            <p class="setting-description" th:text="${setting.description}"></p>
+        <!-- Vue liste -->
+        <section th:if="${currentView == 'list'}" class="settings-table-container" aria-label="Paramètres en liste">
+            <table class="settings-table">
+                <thead>
+                <tr>
+                    <th class="sortable-header" data-sort="key" scope="col">Clé <i class="fas fa-sort sort-icon" aria-hidden="true"></i></th>
+                    <th class="sortable-header" data-sort="category" scope="col">Catégorie <i class="fas fa-sort sort-icon" aria-hidden="true"></i></th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Valeur</th>
+                    <th class="sortable-header" data-sort="updated" scope="col">Modifié le <i class="fas fa-sort sort-icon" aria-hidden="true"></i></th>
+                    <th scope="col" width="140">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="setting : ${settings}" class="setting-row">
+                    <td class="key-cell">
+                        <div class="key-info">
+                            <span class="table-setting-key" th:text="${setting.key}">setting.key</span>
+                            <span th:if="${setting.isSystem}" class="system-indicator" title="Paramètre système">
+                                    <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                                </span>
                         </div>
-                        <div class="setting-value">
-                            <div class="setting-display-value" th:text="${setting.displayValue}"></div>
-                            <div class="setting-actions">
-                                <button class="btn-setting btn-edit" th:onclick="'editSetting(' + ${setting.id} + ')'">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-setting btn-duplicate" th:onclick="'duplicateSetting(' + ${setting.id} + ')'">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <button th:if="!${setting.isSystem}" class="btn-setting btn-delete" 
-                                        th:onclick="'deleteSetting(' + ${setting.id} + ', \'' + ${setting.key} + '\')'">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
+                        <div class="table-setting-description" th:text="${setting.description}">Description</div>
+                    </td>
+                    <td>
+                        <div class="table-category">
+                            <i th:class="${setting.category.icon}" class="table-category-icon" aria-hidden="true"></i>
+                            <span th:text="${setting.category.displayName}">Catégorie</span>
                         </div>
-                    </div>
-                </div>
+                    </td>
+                    <td>
+                        <span class="type-badge" th:text="${setting.valueType.displayName}">Type</span>
+                    </td>
+                    <td>
+                        <div class="value-display" th:text="${setting.displayValue}">Valeur</div>
+                    </td>
+                    <td>
+                        <time class="date-cell" th:text="${#temporals.format(setting.updatedAt, 'dd/MM/yyyy HH:mm')}" th:datetime="${#temporals.format(setting.updatedAt, 'yyyy-MM-dd''T''HH:mm:ss')}">Date</time>
+                    </td>
+                    <td>
+                        <div class="table-actions" role="group" aria-label="Actions sur la ligne">
+                            <a class="table-action-btn edit" th:href="@{'/admin/settings/edit/' + ${setting.id}}" title="Modifier">
+                                <i class="fas fa-edit" aria-hidden="true"></i>
+                            </a>
+                            <a class="table-action-btn duplicate" th:href="@{'/admin/settings/duplicate/' + ${setting.id}}" title="Dupliquer">
+                                <i class="fas fa-copy" aria-hidden="true"></i>
+                            </a>
+                            <button type="button" th:if="!${setting.isSystem}" class="table-action-btn delete"
+                                    th:onclick="'deleteSetting(' + ${setting.id} + ', \\' + ${'\''} + ${setting.key} + ${'\''} + \\' )'" title="Supprimer">
+                                <i class="fas fa-trash" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- État vide -->
+        <section th:if="${(currentView == 'grouped' and groupedSettings.isEmpty()) or (currentView == 'list' and settings.isEmpty())}"
+                 class="empty-state" aria-label="Aucun paramètre">
+            <div class="empty-state-icon">
+                <i class="fas fa-cogs" aria-hidden="true"></i>
             </div>
-        </div>
-
-        <!-- Empty State -->
-        <div th:if="${(currentView == 'grouped' and groupedSettings.isEmpty()) or (currentView == 'list' and settings.isEmpty())}" 
-             class="empty-state">
-            <i class="fas fa-cogs"></i>
             <h4>Aucun paramètre trouvé</h4>
-            <p>Créez votre premier paramètre ou modifiez vos critères de recherche</p>
-            <a th:href="@{/admin/settings/new}" class="btn btn-primary">
-                <i class="fas fa-plus me-2"></i>Créer un paramètre
-            </a>
-        </div>
+            <p>Aucun résultat ne correspond à vos critères de recherche.</p>
+            <div class="empty-state-actions">
+                <a th:href="@{/admin/settings/new}" class="btn btn-primary">
+                    <i class="fas fa-plus" aria-hidden="true"></i> <span>Créer un paramètre</span>
+                </a>
+                <button type="button" class="btn btn-outline-primary" onclick="clearFilters()">
+                    <i class="fas fa-eraser" aria-hidden="true"></i> <span>Effacer les filtres</span>
+                </button>
+            </div>
+        </section>
 
         <!-- Pagination -->
-        <nav th:if="${settingsPage != null and settingsPage.totalPages > 1}" aria-label="Navigation des paramètres">
+        <nav th:if="${settingsPage != null and settingsPage.totalPages > 1}"
+             class="pagination-container" aria-label="Pagination">
+            <div class="pagination-info">
+                <span th:text="'Affichage ' + (${currentPage * settingsPage.size + 1}) + '-' +
+                              (${currentPage * settingsPage.size + settingsPage.numberOfElements}) + ' sur ' + ${settingsPage.totalElements} + ' éléments'">
+                    Affichage 1–20 sur 100 éléments
+                </span>
+            </div>
             <ul class="pagination">
                 <li class="page-item" th:classappend="${!settingsPage.hasPrevious()} ? 'disabled'">
-                    <a class="page-link" th:href="@{/admin/settings(page=${currentPage - 1}, search=${searchQuery}, category=${selectedCategory}, isSystem=${isSystemFilter}, view=${currentView})}">
-                        <i class="fas fa-chevron-left"></i> Précédent
-                    </a>
+                    <a class="page-link" href="#" th:onclick="'goToPage(' + (${currentPage - 1}) + ')'">Précédent</a>
                 </li>
-                
-                <li th:each="page : ${#numbers.sequence(0, settingsPage.totalPages - 1)}" 
+                <li th:each="page : ${#numbers.sequence(0, settingsPage.totalPages - 1)}"
                     class="page-item" th:classappend="${page == currentPage} ? 'active'">
-                    <a class="page-link" th:href="@{/admin/settings(page=${page}, search=${searchQuery}, category=${selectedCategory}, isSystem=${isSystemFilter}, view=${currentView})}" 
-                       th:text="${page + 1}"></a>
+                    <a class="page-link" href="#" th:onclick="'goToPage(' + ${page} + ')'" th:text="${page + 1}">1</a>
                 </li>
-                
                 <li class="page-item" th:classappend="${!settingsPage.hasNext()} ? 'disabled'">
-                    <a class="page-link" th:href="@{/admin/settings(page=${currentPage + 1}, search=${searchQuery}, category=${selectedCategory}, isSystem=${isSystemFilter}, view=${currentView})}">
-                        Suivant <i class="fas fa-chevron-right"></i>
-                    </a>
+                    <a class="page-link" href="#" th:onclick="'goToPage(' + (${currentPage + 1}) + ')'">Suivant</a>
                 </li>
             </ul>
         </nav>
+    </main>
 
-        <!-- Help Modal -->
-        <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="helpModalLabel">
-                            <i class="fas fa-question-circle me-2"></i>
-                            Aide - Gestion des Paramètres
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Modale d'aide -->
+    <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 id="helpModalTitle" class="modal-title">
+                        <i class="fas fa-question-circle me-2" aria-hidden="true"></i>
+                        <span>Guide des paramètres</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-4">
+                        <h6><i class="fas fa-cog me-2" aria-hidden="true"></i> Types de paramètres</h6>
+                        <ul>
+                            <li><strong>Paramètres système :</strong> protégés contre la suppression ; seule la valeur est modifiable.</li>
+                            <li><strong>Paramètres utilisateur :</strong> entièrement modifiables et supprimables.</li>
+                            <li><strong>Paramètres chiffrés :</strong> les mots de passe sont automatiquement chiffrés.</li>
+                        </ul>
                     </div>
-                    <div class="modal-body">
-                        <div class="help-category">
-                            <h6><i class="fas fa-cog me-2"></i>Types de Paramètres</h6>
-                            <ul>
-                                <li><strong>Paramètres Système :</strong> Protégés contre la suppression, seule la valeur peut être modifiée</li>
-                                <li><strong>Paramètres Utilisateur :</strong> Entièrement modifiables et supprimables</li>
-                                <li><strong>Paramètres Cryptés :</strong> Les mots de passe sont automatiquement cryptés</li>
-                            </ul>
-                        </div>
 
-                        <div class="help-category">
-                            <h6><i class="fas fa-list me-2"></i>Catégories Disponibles</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <ul class="list-unstyled">
-                                        <li><i class="fas fa-cog text-muted me-2"></i>Général - Paramètres de base</li>
-                                        <li><i class="fas fa-building text-muted me-2"></i>Entreprise - Informations société</li>
-                                        <li><i class="fas fa-envelope text-muted me-2"></i>Email - Configuration SMTP</li>
-                                        <li><i class="fas fa-file-invoice text-muted me-2"></i>Facturation - Paramètres factures</li>
-                                        <li><i class="fas fa-percent text-muted me-2"></i>Fiscalité - Gestion TVA</li>
-                                    </ul>
-                                </div>
-                                <div class="col-md-6">
-                                    <ul class="list-unstyled">
-                                        <li><i class="fas fa-shield-alt text-muted me-2"></i>Sécurité - Paramètres sécurisés</li>
-                                        <li><i class="fas fa-bell text-muted me-2"></i>Notifications - Alertes système</li>
-                                        <li><i class="fas fa-server text-muted me-2"></i>Système - Configuration avancée</li>
-                                        <li><i class="fas fa-plug text-muted me-2"></i>Intégrations - Services tiers</li>
-                                        <li><i class="fas fa-palette text-muted me-2"></i>Apparence - Interface utilisateur</li>
-                                    </ul>
+                    <div class="mb-4">
+                        <h6><i class="fas fa-list me-2" aria-hidden="true"></i> Catégories disponibles</h6>
+                        <div class="row">
+                            <div th:each="cat : ${categories}" class="col-md-6 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i th:class="${cat.icon}" class="me-2" aria-hidden="true"></i>
+                                    <div>
+                                        <strong th:text="${cat.displayName}">Catégorie</strong><br />
+                                        <small class="text-muted" th:text="${cat.description}">Description</small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="help-category">
-                            <h6><i class="fas fa-edit me-2"></i>Types de Valeurs Supportés</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <ul class="list-unstyled">
-                                        <li><strong>Texte :</strong> Chaîne simple</li>
-                                        <li><strong>Texte Long :</strong> Multi-lignes</li>
-                                        <li><strong>Nombre Entier :</strong> 42, -10</li>
-                                        <li><strong>Nombre Décimal :</strong> 3.14, 19.6</li>
-                                        <li><strong>Booléen :</strong> Vrai/Faux</li>
-                                        <li><strong>Email :</strong> Adresse valide</li>
-                                        <li><strong>URL :</strong> Adresse web</li>
-                                    </ul>
-                                </div>
-                                <div class="col-md-6">
-                                    <ul class="list-unstyled">
-                                        <li><strong>Mot de Passe :</strong> Crypté automatiquement</li>
-                                        <li><strong>Couleur :</strong> Code hexadécimal</li>
-                                        <li><strong>Date :</strong> Format YYYY-MM-DD</li>
-                                        <li><strong>Heure :</strong> Format HH:MM</li>
-                                        <li><strong>JSON :</strong> Objet structuré</li>
-                                        <li><strong>Chemin :</strong> Fichier/dossier</li>
-                                        <li><strong>Liste :</strong> Valeurs séparées</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="help-category">
-                            <h6><i class="fas fa-bolt me-2"></i>Actions Rapides</h6>
-                            <ul>
-                                <li><strong>Initialiser Défauts :</strong> Crée les paramètres système de base</li>
-                                <li><strong>Valider Paramètres :</strong> Vérifie la cohérence des valeurs</li>
-                                <li><strong>Exporter :</strong> Télécharge tous les paramètres en JSON</li>
-                                <li><strong>Rafraîchir Cache :</strong> Recharge le cache des paramètres</li>
-                                <li><strong>Mode Compact :</strong> Affichage condensé pour plus de paramètres</li>
-                            </ul>
-                        </div>
-
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <strong>Conseil :</strong> Utilisez des clés structurées comme <code>categorie.nom</code> pour organiser vos paramètres (ex: <code>company.name</code>, <code>email.smtp_host</code>).
+                    <div>
+                        <h6><i class="fas fa-keyboard me-2" aria-hidden="true"></i> Raccourcis clavier</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6"><kbd>Ctrl</kbd> + <kbd>N</kbd> <span class="ms-2">Nouveau paramètre</span></div>
+                            <div class="col-md-6"><kbd>Ctrl</kbd> + <kbd>F</kbd> <span class="ms-2">Recherche</span></div>
+                            <div class="col-md-6"><kbd>Escape</kbd> <span class="ms-2">Fermer les fenêtres modales</span></div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-                        <a th:href="@{/admin/help/settings}" class="btn btn-primary">
-                            <i class="fas fa-book me-2"></i>Documentation Complète
-                        </a>
-                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    <a th:href="@{/admin/help/settings}" class="btn btn-primary">Documentation complète</a>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Scripts -->
 <div th:fragment="js_assets">
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script>
-        // Vérifie si jQuery est disponible, sinon utilise du JavaScript vanilla
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Select2 si disponible
-            if (typeof $ !== 'undefined' && $.fn.select2) {
-                $('.form-select').select2({
-                    theme: 'bootstrap-5',
-                    width: '100%'
-                });
-            }
-            
-            // Validation des fonctionnalités
-            validatePageFunctionality();
-        });
-        
-        function validatePageFunctionality() {
-            console.log('✅ Page de paramètres chargée');
-            
-            // Vérifier que les boutons sont fonctionnels
-            const buttons = {
-                'refreshCache': document.querySelector('button[onclick="refreshCache()"]'),
-                'initializeDefaults': document.querySelector('button[onclick="initializeDefaults()"]'),
-                'validateSettings': document.querySelector('button[onclick="validateSettings()"]'),
-                'toggleCompactMode': document.querySelector('button[onclick="toggleCompactMode()"]'),
-                'showSettingsHelp': document.querySelector('button[onclick="showSettingsHelp()"]')
-            };
-            
-            Object.entries(buttons).forEach(([name, button]) => {
-                if (button) {
-                    console.log(`✅ Bouton ${name} trouvé et fonctionnel`);
-                } else {
-                    console.warn(`⚠️ Bouton ${name} non trouvé`);
-                }
-            });
-            
-            // Vérifier que les liens sont corrects
-            const links = document.querySelectorAll('a[href*="/admin/settings"]');
-            console.log(`✅ ${links.length} liens vers /admin/settings trouvés`);
-            
-            // Vérifier que les formulaires ont les CSRF tokens
-            const csrfMeta = document.querySelector('meta[name="_csrf"]');
-            if (csrfMeta) {
-                console.log('✅ CSRF token configuré');
-            } else {
-                console.warn('⚠️ CSRF token manquant');
-            }
-        }
-
-        function editSetting(id) {
-            window.location.href = /*[[@{/admin/settings/edit/}]]*/ '/admin/settings/edit/' + id;
-        }
-
-        function duplicateSetting(id) {
-            window.location.href = /*[[@{/admin/settings/duplicate/}]]*/ '/admin/settings/duplicate/' + id;
-        }
-
-        function deleteSetting(id, key) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer le paramètre "' + key + '" ?')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = /*[[@{/admin/settings/delete/}]]*/ '/admin/settings/delete/' + id;
-                
-                const csrfToken = document.querySelector('meta[name="_csrf"]');
-                if (csrfToken) {
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = '_csrf';
-                    csrfInput.value = csrfToken.getAttribute('content');
-                    form.appendChild(csrfInput);
-                }
-                
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-
-        function refreshCache() {
-            if (confirm('Rafraîchir le cache des paramètres ?')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = /*[[@{/admin/settings/refresh-cache}]]*/ '/admin/settings/refresh-cache';
-                
-                const csrfToken = document.querySelector('meta[name="_csrf"]');
-                if (csrfToken) {
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = '_csrf';
-                    csrfInput.value = csrfToken.getAttribute('content');
-                    form.appendChild(csrfInput);
-                }
-                
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-
-        function initializeDefaults() {
-            if (confirm('Initialiser les paramètres par défaut ? Cela ne modifiera pas les paramètres existants.')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = /*[[@{/admin/settings/initialize}]]*/ '/admin/settings/initialize';
-                
-                const csrfToken = document.querySelector('meta[name="_csrf"]');
-                if (csrfToken) {
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = '_csrf';
-                    csrfInput.value = csrfToken.getAttribute('content');
-                    form.appendChild(csrfInput);
-                }
-                
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-
-        function validateSettings() {
-            if (confirm('Valider tous les paramètres ?')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = /*[[@{/admin/settings/validate}]]*/ '/admin/settings/validate';
-                
-                const csrfToken = document.querySelector('meta[name="_csrf"]');
-                if (csrfToken) {
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = '_csrf';
-                    csrfInput.value = csrfToken.getAttribute('content');
-                    form.appendChild(csrfInput);
-                }
-                
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-
-        function toggleCompactMode() {
-            const body = document.body;
-            const button = event.target.closest('button');
-            
-            if (body.classList.contains('compact-mode')) {
-                body.classList.remove('compact-mode');
-                button.innerHTML = '<i class="fas fa-compress-alt me-2"></i>Mode Compact';
-                localStorage.setItem('settings-compact-mode', 'false');
-            } else {
-                body.classList.add('compact-mode');
-                button.innerHTML = '<i class="fas fa-expand-alt me-2"></i>Mode Normal';
-                localStorage.setItem('settings-compact-mode', 'true');
-            }
-        }
-
-        function showSettingsHelp() {
-            const helpModal = new bootstrap.Modal(document.getElementById('helpModal'));
-            helpModal.show();
-        }
-
-        // Restore compact mode preference
-        document.addEventListener('DOMContentLoaded', function() {
-            if (localStorage.getItem('settings-compact-mode') === 'true') {
-                document.body.classList.add('compact-mode');
-                const button = document.querySelector('button[onclick="toggleCompactMode()"]');
-                if (button) {
-                    button.innerHTML = '<i class="fas fa-expand-alt me-2"></i>Mode Normal';
-                }
-            }
-        });
-    </script>
+    <script th:src="@{/js/admin/settings.js}"></script>
 </div>
 </body>
 </html>
