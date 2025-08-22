@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Administration - Utilisateurs</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête avec boutons d'action -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h5><i class="fas fa-users-cog me-2"></i>Administration des Utilisateurs</h5>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/templates/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/templates/admin}">Administration</a></li>
+                    <li class="breadcrumb-item active">Utilisateurs</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a th:href="@{/admin/users/new}" class="btn btn-primary">
+                <i class="fas fa-user-plus me-2"></i>Nouvel Utilisateur
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary">Total Utilisateurs</h5>
+                    <h2 th:text="${totalUsers}" class="text-primary">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-success">Actifs</h5>
+                    <h2 th:text="${activeUsers}" class="text-success">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-warning">Commerciaux</h5>
+                    <h2 th:text="${commercialUsers}" class="text-warning">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-info">Managers</h5>
+                    <h2 th:text="${managerUsers}" class="text-info">0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form th:action="@{/admin/users}" method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="search" class="form-label">Rechercher</label>
+                    <input type="text" class="form-control" id="search" name="search"
+                           th:value="${search}" placeholder="Nom, email, nom d'utilisateur...">
+                </div>
+                <div class="col-md-2">
+                    <label for="role" class="form-label">Rôle</label>
+                    <select class="form-select" id="role" name="role">
+                        <option value="">Tous les rôles</option>
+                        <option th:each="r : ${allRoles}"
+                                th:value="${r.name}"
+                                th:text="${r.name}"
+                                th:selected="${selectedRole == r.name}">Rôle</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="active" class="form-label">Statut</label>
+                    <select class="form-select" id="active" name="active">
+                        <option value="">Tous les statuts</option>
+                        <option value="true" th:selected="${activeFilter == true}">Actif</option>
+                        <option value="false" th:selected="${activeFilter == false}">Inactif</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="size" class="form-label">Par page</label>
+                    <select class="form-select" id="size" name="size">
+                        <option value="10" th:selected="${size == 10}">10</option>
+                        <option value="25" th:selected="${size == 25}">25</option>
+                        <option value="50" th:selected="${size == 50}">50</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-search me-1"></i>Filtrer
+                    </button>
+                    <a th:href="@{/admin/users}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Reset
+                    </a>
+                </div>
+                <!-- Champs cachés pour maintenir le tri -->
+                <input type="hidden" name="sortBy" th:value="${sortBy}">
+                <input type="hidden" name="sortDir" th:value="${sortDir}">
+            </form>
+        </div>
+    </div>
+
+    <!-- Table des utilisateurs -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Liste des Utilisateurs</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                    <tr>
+                        <th>Avatar</th>
+                        <th>
+                            <a th:href="@{/admin/users(sortBy='lastName', sortDir=${sortBy == 'lastName' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, role=${selectedRole}, active=${activeFilter}, size=${size})}"
+                               class="text-decoration-none">
+                                Nom
+                                <i th:if="${sortBy == 'lastName'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'lastName'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a th:href="@{/admin/users(sortBy='username', sortDir=${sortBy == 'username' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, role=${selectedRole}, active=${activeFilter}, size=${size})}"
+                               class="text-decoration-none">
+                                Nom d'utilisateur
+                                <i th:if="${sortBy == 'username'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'username'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a th:href="@{/admin/users(sortBy='email', sortDir=${sortBy == 'email' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, role=${selectedRole}, active=${activeFilter}, size=${size})}"
+                               class="text-decoration-none">
+                                Email
+                                <i th:if="${sortBy == 'email'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'email'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>Rôles</th>
+                        <th>
+                            <a th:href="@{/admin/users(sortBy='createdAt', sortDir=${sortBy == 'createdAt' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, role=${selectedRole}, active=${activeFilter}, size=${size})}"
+                               class="text-decoration-none">
+                                Créé le
+                                <i th:if="${sortBy == 'createdAt'}"
+                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
+                                <i th:unless="${sortBy == 'createdAt'}" class="fas fa-sort text-muted"></i>
+                            </a>
+                        </th>
+                        <th>Dernière connexion</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="user : ${users}">
+                        <td>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                                     style="width: 40px; height: 40px;"
+                                     th:text="${#strings.substring(user.firstName, 0, 1) + #strings.substring(user.lastName, 0, 1)}">
+                                    AB
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <strong th:text="${user.fullName}">Nom Complet</strong>
+                                <br>
+                                <small class="text-muted" th:text="${user.firstName} + ' ' + ${user.lastName}">Prénom Nom</small>
+                            </div>
+                        </td>
+                        <td>
+                            <code th:text="${user.username}">username</code>
+                        </td>
+                        <td>
+                            <a th:href="'mailto:' + ${user.email}" th:text="${user.email}">email@example.com</a>
+                        </td>
+                        <td>
+                                <span th:each="role : ${user.roles}"
+                                      th:class="${role.name == 'ADMIN'} ? 'badge bg-danger me-1' : (${role.name == 'MANAGER'} ? 'badge bg-warning me-1' : 'badge bg-primary me-1')"
+                                      th:text="${role.name}">ROLE</span>
+                            <span th:if="${#sets.isEmpty(user.roles)}" class="text-muted">Aucun rôle</span>
+                        </td>
+                        <td>
+                            <small th:if="${user.createdAt}"
+                                   th:text="${#temporals.format(user.createdAt, 'dd/MM/yyyy')}"
+                                   class="text-muted">01/01/2024</small>
+                        </td>
+                        <td>
+                            <small th:if="${user.lastLogin}"
+                                   th:text="${#temporals.format(user.lastLogin, 'dd/MM/yyyy HH:mm')}"
+                                   class="text-muted">01/01/2024 10:00</small>
+                            <small th:unless="${user.lastLogin}" class="text-muted">Jamais connecté</small>
+                        </td>
+                        <td>
+                            <span th:if="${user.enabled}" class="badge bg-success">Actif</span>
+                            <span th:unless="${user.enabled}" class="badge bg-secondary">Inactif</span>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a th:href="@{/admin/users/{id}(id=${user.id})}"
+                                   class="btn btn-sm btn-outline-info" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a th:href="@{/admin/users/{id}/edit(id=${user.id})}"
+                                   class="btn btn-sm btn-outline-primary" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-warning"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#passwordModal' + ${user.id}"
+                                        title="Reset mot de passe">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                <form th:action="@{/admin/users/{id}/toggle-status(id=${user.id})}"
+                                      method="post"
+                                      class="d-inline">
+                                    <button type="submit"
+                                            th:class="${user.enabled} ? 'btn btn-sm btn-outline-warning' : 'btn btn-sm btn-outline-success'"
+                                            th:title="${user.enabled} ? 'Désactiver' : 'Activer'">
+                                        <i th:class="${user.enabled} ? 'fas fa-user-slash' : 'fas fa-user-check'"></i>
+                                    </button>
+                                </form>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal"
+                                        th:data-bs-target="'#deleteModal' + ${user.id}"
+                                        title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(users)}">
+                        <td colspan="9" class="text-center text-muted py-4">
+                            <i class="fas fa-users fa-3x mb-3"></i>
+                            <br>Aucun utilisateur trouvé
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <nav th:if="${totalPages > 1}" aria-label="Navigation utilisateurs">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/admin/users(page=${currentPage -1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, role=${selectedRole}, active=${activeFilter})}">
+                            Précédent
+                        </a>
+                    </li>
+
+                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+                        class="page-item"
+                        th:classappend="${i == currentPage} ? 'active'">
+                        <a class="page-link"
+                           th:text="${i+1}"
+                           th:href="@{/admin/users(page=${i}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, role=${selectedRole}, active=${activeFilter})}">1</a>
+                    </li>
+
+                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
+                        <a class="page-link"
+                           th:href="@{/admin/users(page=${currentPage+1}, size=${size}, sortBy=${sortBy}, sortDir=${sortDir}, search=${search}, role=${selectedRole}, active=${activeFilter})}">
+                            Suivant
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Modals de réinitialisation de mot de passe -->
+    <div th:each="user : ${users}"
+         th:id="'passwordModal' + ${user.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Réinitialiser le mot de passe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form th:action="@{/admin/users/{id}/reset-password(id=${user.id})}" method="post">
+                    <div class="modal-body">
+                        <p>Utilisateur: <strong th:text="${user.fullName}">Utilisateur</strong></p>
+
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">Nouveau mot de passe</label>
+                            <input type="password" class="form-control" id="newPassword" name="newPassword" required
+                                   minlength="6" placeholder="Minimum 6 caractères">
+                            <small class="form-text text-muted">L'utilisateur devra changer ce mot de passe à sa prochaine connexion.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-warning">Réinitialiser</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals de suppression -->
+    <div th:each="user : ${users}"
+         th:id="'deleteModal' + ${user.id}"
+         class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmer la suppression</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Êtes-vous sûr de vouloir supprimer l'utilisateur <strong th:text="${user.fullName}">Utilisateur</strong> ?</p>
+                    <p class="text-warning"><small>L'utilisateur sera désactivé plutôt que supprimé pour préserver l'intégrité des données.</small></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <form th:action="@{/admin/users/{id}/delete(id=${user.id})}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-danger">Désactiver</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:fragment="js_assets">
+    <!-- Specific JS for user admin list -->
+</div>
+</body>
+</html>

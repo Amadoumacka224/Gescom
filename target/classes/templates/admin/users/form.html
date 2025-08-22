@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title th:text="${isEdit} ? 'Modifier l\'Utilisateur' : 'Nouvel Utilisateur'">Formulaire Utilisateur</title>
+</head>
+<body>
+<style>
+    .form-check-input:checked + .form-check-label {
+        color: #0d6efd;
+        font-weight: 600;
+    }
+
+    .card.border-light:hover {
+        border-color: #0d6efd !important;
+        background-color: #f8f9ff;
+    }
+
+    .progress {
+        background-color: #e9ecef;
+    }
+
+    .input-group .btn {
+        border-color: #ced4da;
+    }
+
+    .font-monospace {
+        font-family: 'Courier New', monospace !important;
+    }
+
+    .form-switch .form-check-input {
+        width: 3em;
+        height: 1.5em;
+    }
+
+    .form-switch .form-check-input:checked {
+        background-color: #198754;
+        border-color: #198754;
+    }
+
+    #previewCard {
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .alert {
+        animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .badge {
+        font-size: 0.75em;
+    }
+
+    .btn-group .btn:hover {
+        z-index: 1;
+    }
+</style>
+<div th:fragment="content">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>
+                <i class="fas fa-user-plus me-2" th:unless="${isEdit}"></i>
+                <i class="fas fa-user-edit me-2" th:if="${isEdit}"></i>
+                <span th:text="${isEdit} ? 'Modifier l\'Utilisateur' : 'Nouvel Utilisateur'">Formulaire Utilisateur</span>
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/users}">Utilisateurs</a></li>
+                    <li class="breadcrumb-item active" th:text="${isEdit} ? 'Modifier' : 'Nouveau'">Formulaire</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a th:href="@{/users}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulaire -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Informations de l'Utilisateur</h5>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/users}" th:object="${user}" method="post" id="userForm" novalidate>
+                        <!-- ID caché pour modification -->
+                        <input type="hidden" th:field="*{id}">
+
+                        <!-- Informations personnelles -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-user me-2"></i>Informations Personnelles
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="firstName" class="form-label">Prénom <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="firstName" th:field="*{firstName}"
+                                       th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'"
+                                       placeholder="Prénom" required maxlength="50">
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('firstName')}" th:errors="*{firstName}">
+                                    Erreur prénom
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="lastName" class="form-label">Nom <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="lastName" th:field="*{lastName}"
+                                       th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'"
+                                       placeholder="Nom de famille" required maxlength="50">
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('lastName')}" th:errors="*{lastName}">
+                                    Erreur nom
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" id="email" th:field="*{email}"
+                                       th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'"
+                                       placeholder="email@company.com" required>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('email')}" th:errors="*{email}">
+                                    Erreur email
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    L'email doit être unique dans le système
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">Nom d'utilisateur <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text">@</span>
+                                    <input type="text" class="form-control" id="username" th:field="*{username}"
+                                           th:classappend="${#fields.hasErrors('username')} ? 'is-invalid'"
+                                           placeholder="nom_utilisateur" required minlength="3" maxlength="50">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="generateUsername()" title="Générer automatiquement">
+                                        <i class="fas fa-magic"></i>
+                                    </button>
+                                </div>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('username')}" th:errors="*{username}">
+                                    Erreur nom d'utilisateur
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    3-50 caractères, lettres, chiffres et underscore uniquement
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Authentification -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-key me-2"></i>Authentification
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="password" class="form-label">
+                                    Mot de passe <span class="text-danger" th:unless="${isEdit}">*</span>
+                                    <span class="text-muted" th:if="${isEdit}">(laisser vide pour ne pas changer)</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="password" name="password"
+                                           placeholder="••••••••" th:required="${!isEdit}" minlength="8">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('password')" title="Afficher/Masquer">
+                                        <i class="fas fa-eye" id="password-eye"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info" onclick="generatePassword()" title="Générer un mot de passe">
+                                        <i class="fas fa-random"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-shield-alt me-1"></i>
+                                    Minimum 8 caractères, incluant majuscules, minuscules et chiffres
+                                </div>
+                                <!-- Indicateur de force du mot de passe -->
+                                <div class="mt-2">
+                                    <div class="progress" style="height: 5px;">
+                                        <div class="progress-bar" id="password-strength" style="width: 0%"></div>
+                                    </div>
+                                    <small id="password-strength-text" class="text-muted"></small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="confirmPassword" class="form-label">
+                                    Confirmer le mot de passe <span class="text-danger" th:unless="${isEdit}">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="confirmPassword" name="confirmPassword"
+                                           placeholder="••••••••" th:required="${!isEdit}">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('confirmPassword')" title="Afficher/Masquer">
+                                        <i class="fas fa-eye" id="confirmPassword-eye"></i>
+                                    </button>
+                                </div>
+                                <div class="invalid-feedback" id="password-mismatch" style="display: none;">
+                                    Les mots de passe ne correspondent pas
+                                </div>
+                                <div class="valid-feedback" id="password-match" style="display: none;">
+                                    Les mots de passe correspondent
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rôles et Permissions -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-users-cog me-2"></i>Rôles et Permissions
+                                </h6>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Rôles assignés <span class="text-danger">*</span></label>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="card border-light">
+                                            <div class="card-body p-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="roleAdmin" name="roles" value="ADMIN">
+                                                    <label class="form-check-label fw-bold" for="roleAdmin">
+                                                        <i class="fas fa-crown text-warning me-2"></i>Administrateur
+                                                    </label>
+                                                </div>
+                                                <small class="text-muted">Accès complet au système</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card border-light">
+                                            <div class="card-body p-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="roleManager" name="roles" value="MANAGER">
+                                                    <label class="form-check-label fw-bold" for="roleManager">
+                                                        <i class="fas fa-user-tie text-primary me-2"></i>Manager
+                                                    </label>
+                                                </div>
+                                                <small class="text-muted">Gestion d'équipe et rapports</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card border-light">
+                                            <div class="card-body p-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="roleCommercial" name="roles" value="COMMERCIAL" onchange="toggleCommercialFields()">
+                                                    <label class="form-check-label fw-bold" for="roleCommercial">
+                                                        <i class="fas fa-handshake text-success me-2"></i>Commercial
+                                                    </label>
+                                                </div>
+                                                <small class="text-muted">Vente et gestion client</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Au moins un rôle doit être sélectionné
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Objectifs commerciaux (si commercial) -->
+                        <div class="row mb-4" id="commercialFields" style="display: none;">
+                            <div class="col-12">
+                                <h6 class="text-success border-bottom pb-2 mb-3">
+                                    <i class="fas fa-bullseye me-2"></i>Objectifs Commerciaux
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="personalTarget" class="form-label">Objectif personnel (€)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">€</span>
+                                    <input type="number" class="form-control" id="personalTarget" th:field="*{personalTarget}"
+                                           step="1000" min="0" placeholder="20000">
+                                    <span class="input-group-text">.00</span>
+                                </div>
+                                <div class="form-text">Objectif de vente mensuel</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="targetPeriod" class="form-label">Période d'évaluation</label>
+                                <select class="form-select" id="targetPeriod" name="targetPeriod">
+                                    <option value="monthly">Mensuel</option>
+                                    <option value="quarterly">Trimestriel</option>
+                                    <option value="yearly">Annuel</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Statut du compte -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary border-bottom pb-2 mb-3">
+                                    <i class="fas fa-shield-alt me-2"></i>Statut du Compte
+                                </h6>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="enabled" th:field="*{enabled}" checked>
+                                    <label class="form-check-label" for="enabled">
+                                        <strong>Compte activé</strong>
+                                    </label>
+                                </div>
+                                <small class="text-muted">L'utilisateur peut se connecter</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="accountNonExpired" th:field="*{accountNonExpired}" checked>
+                                    <label class="form-check-label" for="accountNonExpired">
+                                        <strong>Non expiré</strong>
+                                    </label>
+                                </div>
+                                <small class="text-muted">Le compte n'a pas expiré</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="accountNonLocked" th:field="*{accountNonLocked}" checked>
+                                    <label class="form-check-label" for="accountNonLocked">
+                                        <strong>Non verrouillé</strong>
+                                    </label>
+                                </div>
+                                <small class="text-muted">Le compte n'est pas verrouillé</small>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="credentialsNonExpired" th:field="*{credentialsNonExpired}" checked>
+                                    <label class="form-check-label" for="credentialsNonExpired">
+                                        <strong>Identifiants valides</strong>
+                                    </label>
+                                </div>
+                                <small class="text-muted">Les identifiants n'ont pas expiré</small>
+                            </div>
+                        </div>
+
+                        <!-- Boutons -->
+                        <div class="row">
+                            <div class="col-12">
+                                <hr>
+                                <div class="d-flex justify-content-between">
+                                    <a th:href="@{/users}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times me-2"></i>Annuler
+                                    </a>
+                                    <div>
+                                        <button type="button" class="btn btn-outline-info me-2" onclick="previewUser()" th:if="${!isEdit}">
+                                            <i class="fas fa-eye me-2"></i>Aperçu
+                                        </button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save me-2"></i>
+                                            <span th:text="${isEdit} ? 'Modifier' : 'Créer'">Enregistrer</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel d'aide -->
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Aide</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Champs obligatoires :</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-danger me-2">*</span> Prénom et nom</li>
+                        <li><span class="badge bg-danger me-2">*</span> Email unique</li>
+                        <li><span class="badge bg-danger me-2">*</span> Nom d'utilisateur</li>
+                        <li><span class="badge bg-danger me-2">*</span> Mot de passe (création)</li>
+                        <li><span class="badge bg-danger me-2">*</span> Au moins un rôle</li>
+                    </ul>
+
+                    <h6 class="mt-3">Rôles disponibles :</h6>
+                    <ul class="list-unstyled">
+                        <li><span class="badge bg-warning me-2">Admin</span> Accès complet</li>
+                        <li><span class="badge bg-primary me-2">Manager</span> Gestion équipe</li>
+                        <li><span class="badge bg-success me-2">Commercial</span> Vente client</li>
+                    </ul>
+
+                    <div class="alert alert-info mt-3">
+                        <small>
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>Conseil :</strong> Utilisez le générateur de mot de passe pour plus de sécurité.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Générateur de données -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-magic me-2"></i>Générateurs</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="generateUsername()">
+                            <i class="fas fa-user me-2"></i>Nom d'utilisateur
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" onclick="generatePassword()">
+                            <i class="fas fa-key me-2"></i>Mot de passe sécurisé
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" onclick="generateEmail()">
+                            <i class="fas fa-envelope me-2"></i>Email professionnel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prévisualisation -->
+            <div class="card" id="previewCard" style="display: none;">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-eye me-2"></i>Aperçu</h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center"
+                             style="width: 60px; height: 60px;">
+                            <i class="fas fa-user fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <h6 class="text-center mb-1" id="previewName">Nom Complet</h6>
+                    <p class="text-center text-muted small mb-3" id="previewUsername">@username</p>
+                    <div id="previewRoles" class="text-center mb-3"></div>
+                    <small class="text-muted" id="previewEmail">email@company.com</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de génération de mot de passe -->
+<div class="modal fade" id="passwordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Générateur de Mot de Passe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Options de génération</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="includeUppercase" checked>
+                                <label class="form-check-label" for="includeUppercase">
+                                    Majuscules (A-Z)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="includeLowercase" checked>
+                                <label class="form-check-label" for="includeLowercase">
+                                    Minuscules (a-z)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="includeNumbers" checked>
+                                <label class="form-check-label" for="includeNumbers">
+                                    Chiffres (0-9)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="includeSymbols">
+                                <label class="form-check-label" for="includeSymbols">
+                                    Symboles (!@#$%)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="passwordLength" class="form-label">Longueur : <span id="lengthValue">12</span> caractères</label>
+                    <input type="range" class="form-range" id="passwordLength" min="8" max="32" value="12"
+                           oninput="document.getElementById('lengthValue').textContent = this.value">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mot de passe généré</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="generatedPassword" readonly>
+                        <button type="button" class="btn btn-outline-secondary" onclick="copyPassword()" title="Copier">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" onclick="regeneratePassword()" title="Régénérer">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="useGeneratedPassword()">Utiliser ce mot de passe</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript pour la gestion du formulaire -->
+<th:block th:fragment="js_assets">
+    <script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        // Event listeners
+        document.getElementById('password').addEventListener('input', checkPasswordStrength);
+        document.getElementById('confirmPassword').addEventListener('input', checkPasswordMatch);
+        document.getElementById('firstName').addEventListener('input', updatePreview);
+        document.getElementById('lastName').addEventListener('input', updatePreview);
+        document.getElementById('username').addEventListener('input', updatePreview);
+        document.getElementById('email').addEventListener('input', updatePreview);
+
+        // Event listeners pour les rôles
+        document.querySelectorAll('input[name="roles"]').forEach(function(checkbox) {
+            checkbox.addEventListener('change', updatePreview);
+        });
+
+        // Validation du formulaire
+        document.getElementById('userForm').addEventListener('submit', validateForm);
+    });
+
+    function checkPasswordStrength() {
+        var password = document.getElementById('password').value;
+        var strengthBar = document.getElementById('password-strength');
+        var strengthText = document.getElementById('password-strength-text');
+
+        var strength = 0;
+        var feedback = [];
+
+        if (password.length >= 8) strength += 20;
+        else feedback.push('au moins 8 caractères');
+
+        if (/[a-z]/.test(password)) strength += 20;
+        else feedback.push('minuscules');
+
+        if (/[A-Z]/.test(password)) strength += 20;
+        else feedback.push('majuscules');
+
+        if (/[0-9]/.test(password)) strength += 20;
+        else feedback.push('chiffres');
+
+        if (/[^A-Za-z0-9]/.test(password)) strength += 20;
+        else feedback.push('caractères spéciaux');
+
+        strengthBar.style.width = strength + '%';
+
+        if (strength < 40) {
+            strengthBar.className = 'progress-bar bg-danger';
+            strengthText.textContent = 'Faible - Ajouter: ' + feedback.join(', ');
+        } else if (strength < 80) {
+            strengthBar.className = 'progress-bar bg-warning';
+            strengthText.textContent = 'Moyen - Améliorer: ' + feedback.join(', ');
+        } else {
+            strengthBar.className = 'progress-bar bg-success';
+            strengthText.textContent = 'Fort - Excellent mot de passe !';
+        }
+
+        checkPasswordMatch();
+    }
+
+    function checkPasswordMatch() {
+        var password = document.getElementById('password').value;
+        var confirmPassword = document.getElementById('confirmPassword').value;
+        var mismatchDiv = document.getElementById('password-mismatch');
+        var matchDiv = document.getElementById('password-match');
+        var confirmInput = document.getElementById('confirmPassword');
+
+        if (confirmPassword.length > 0) {
+            if (password === confirmPassword) {
+                confirmInput.classList.remove('is-invalid');
+                confirmInput.classList.add('is-valid');
+                mismatchDiv.style.display = 'none';
+                matchDiv.style.display = 'block';
+            } else {
+                confirmInput.classList.remove('is-valid');
+                confirmInput.classList.add('is-invalid');
+                mismatchDiv.style.display = 'block';
+                matchDiv.style.display = 'none';
+            }
+        } else {
+            confirmInput.classList.remove('is-valid', 'is-invalid');
+            mismatchDiv.style.display = 'none';
+            matchDiv.style.display = 'none';
+        }
+    }
+
+    function togglePassword(fieldId) {
+        var field = document.getElementById(fieldId);
+        var eyeIcon = document.getElementById(fieldId + '-eye');
+
+        if (field.type === 'password') {
+            field.type = 'text';
+            eyeIcon.className = 'fas fa-eye-slash';
+        } else {
+            field.type = 'password';
+            eyeIcon.className = 'fas fa-eye';
+        }
+    }
+
+    function generateUsername() {
+        var firstName = document.getElementById('firstName').value.toLowerCase();
+        var lastName = document.getElementById('lastName').value.toLowerCase();
+
+        if (firstName && lastName) {
+            var username = firstName.charAt(0) + lastName + Math.floor(Math.random() * 100);
+            document.getElementById('username').value = username;
+            updatePreview();
+        } else {
+            alert('Veuillez d\'abord renseigner le prénom et le nom');
+        }
+    }
+
+    function generateEmail() {
+        var firstName = document.getElementById('firstName').value.toLowerCase();
+        var lastName = document.getElementById('lastName').value.toLowerCase();
+
+        if (firstName && lastName) {
+            var email = firstName + '.' + lastName + '@company.com';
+            document.getElementById('email').value = email;
+            updatePreview();
+        } else {
+            alert('Veuillez d\'abord renseigner le prénom et le nom');
+        }
+    }
+
+    function generatePassword() {
+        var passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
+        regeneratePassword();
+        passwordModal.show();
+    }
+
+    function regeneratePassword() {
+        var length = parseInt(document.getElementById('passwordLength').value);
+        var includeUppercase = document.getElementById('includeUppercase').checked;
+        var includeLowercase = document.getElementById('includeLowercase').checked;
+        var includeNumbers = document.getElementById('includeNumbers').checked;
+        var includeSymbols = document.getElementById('includeSymbols').checked;
+
+        var charset = '';
+        if (includeUppercase) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        if (includeLowercase) charset += 'abcdefghijklmnopqrstuvwxyz';
+        if (includeNumbers) charset += '0123456789';
+        if (includeSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+        if (charset === '') {
+            alert('Veuillez sélectionner au moins un type de caractère');
+            return;
+        }
+
+        var password = '';
+        for (var i = 0; i < length; i++) {
+            password += charset.charAt(Math.floor(Math.random() * charset.length));
+        }
+
+        document.getElementById('generatedPassword').value = password;
+    }
+
+    function copyPassword() {
+        var passwordField = document.getElementById('generatedPassword');
+        passwordField.select();
+        document.execCommand('copy');
+        showNotification('Mot de passe copié !', 'success');
+    }
+
+    function useGeneratedPassword() {
+        var generatedPassword = document.getElementById('generatedPassword').value;
+        document.getElementById('password').value = generatedPassword;
+        document.getElementById('confirmPassword').value = generatedPassword;
+
+        checkPasswordStrength();
+        bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
+        showNotification('Mot de passe appliqué !', 'success');
+    }
+
+    function toggleCommercialFields() {
+        var isCommercial = document.getElementById('roleCommercial').checked;
+        var commercialFields = document.getElementById('commercialFields');
+
+        if (isCommercial) {
+            commercialFields.style.display = 'block';
+        } else {
+            commercialFields.style.display = 'none';
+        }
+    }
+
+    function updatePreview() {
+        var firstName = document.getElementById('firstName').value;
+        var lastName = document.getElementById('lastName').value;
+        var username = document.getElementById('username').value;
+        var email = document.getElementById('email').value;
+
+        var fullName = (firstName + ' ' + lastName).trim();
+
+        document.getElementById('previewName').textContent = fullName || 'Nom Complet';
+        document.getElementById('previewUsername').textContent = username ? '@' + username : '@username';
+        document.getElementById('previewEmail').textContent = email || 'email@company.com';
+
+        // Mise à jour des rôles
+        var roles = [];
+        document.querySelectorAll('input[name="roles"]:checked').forEach(function(checkbox) {
+            var roleName = checkbox.value;
+            var roleClass = roleName === 'ADMIN' ? 'bg-warning' :
+                roleName === 'MANAGER' ? 'bg-primary' : 'bg-success';
+            roles.push('<span class="badge ' + roleClass + ' me-1">' + roleName + '</span>');
+        });
+
+        document.getElementById('previewRoles').innerHTML = roles.length > 0 ? roles.join('') : '<span class="text-muted small">Aucun rôle</span>';
+
+        // Afficher la prévisualisation si des données sont saisies
+        if (firstName || lastName || username || email) {
+            document.getElementById('previewCard').style.display = 'block';
+        }
+    }
+
+    function previewUser() {
+        updatePreview();
+        document.getElementById('previewCard').style.display = 'block';
+        document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function validateForm(event) {
+        var isValid = true;
+        var errors = [];
+
+        // Vérification des champs obligatoires
+        var requiredFields = ['firstName', 'lastName', 'email', 'username'];
+        requiredFields.forEach(function(fieldId) {
+            var field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                errors.push('Le champ ' + field.previousElementSibling.textContent + ' est obligatoire');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+
+        // Vérification du mot de passe (si création)
+        var isEdit = document.querySelector('input[type="hidden"][name="id"]').value !== '';
+        if (!isEdit) {
+            var password = document.getElementById('password').value;
+            if (!password || password.length < 8) {
+                document.getElementById('password').classList.add('is-invalid');
+                errors.push('Le mot de passe doit contenir au moins 8 caractères');
+                isValid = false;
+            }
+        }
+
+        // Vérification de la correspondance des mots de passe
+        var password = document.getElementById('password').value;
+        var confirmPassword = document.getElementById('confirmPassword').value;
+        if (password && password !== confirmPassword) {
+            errors.push('Les mots de passe ne correspondent pas');
+            isValid = false;
+        }
+
+        // Vérification des rôles
+        var rolesChecked = document.querySelectorAll('input[name="roles"]:checked').length;
+        if (rolesChecked === 0) {
+            errors.push('Au moins un rôle doit être sélectionné');
+            isValid = false;
+        }
+
+        if (!isValid) {
+            event.preventDefault();
+            showNotification('Erreurs de validation :\n' + errors.join('\n'), 'error');
+        }
+    }
+
+    function showNotification(message, type = 'info') {
+        var alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
+
+        var alertDiv = document.createElement('div');
+        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px; white-space: pre-line;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+
+    // Initialisation
+    toggleCommercialFields();
+</script>
+</th:block>
+
+</body>
+</html>

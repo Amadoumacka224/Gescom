@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title th:text="${isEdit} ? 'Modifier la Facture' : 'Nouvelle Facture'">Formulaire Facture</title>
+    <style>
+        /* Styles pour la prévisualisation de facture */
+        .invoice-document {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .invoice-document .company-info h2 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .invoice-document .invoice-header h1 {
+            font-size: 2.5rem;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+
+        .invoice-document .invoice-meta p {
+            margin-bottom: 0.25rem;
+            font-size: 0.95rem;
+        }
+
+        .invoice-document .client-info h6 {
+            font-size: 1.1rem;
+            color: #2c3e50;
+        }
+
+        .invoice-document .address-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .invoice-document .table {
+            font-size: 0.9rem;
+        }
+
+        .invoice-document .table thead th {
+            background-color: #2c3e50 !important;
+            color: white;
+            border: none;
+            font-weight: 600;
+            padding: 12px 8px;
+        }
+
+        .invoice-document .table tbody td {
+            padding: 10px 8px;
+            border-color: #dee2e6;
+            vertical-align: middle;
+        }
+
+        .invoice-document .totals-section .table td {
+            padding: 8px 12px;
+            font-size: 0.95rem;
+        }
+
+        .invoice-document .totals-section .table tr:last-child td {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+
+        /* Styles spécifiques pour l'impression */
+        @media print {
+            .modal-header, .modal-footer {
+                display: none !important;
+            }
+
+            .modal-dialog {
+                max-width: 100% !important;
+                margin: 0 !important;
+            }
+
+            .modal-content {
+                border: none !important;
+                box-shadow: none !important;
+            }
+
+            .invoice-document {
+                padding: 20px !important;
+            }
+        }
+
+        /* Animation pour le modal */
+        .modal.fade .modal-dialog {
+            transition: transform 0.3s ease-out;
+        }
+
+        /* MODAL SIMPLE STYLE */
+        .modal-xl {
+            max-width: 1200px;
+        }
+
+        /* Modal personnalisée pour l'aperçu de facture - MÊME CSS QUE LE MODAL D'AJOUT D'ARTICLE */
+        .custom-modal {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 99999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(0, 0, 0, 0.8) !important;
+            backdrop-filter: blur(4px);
+            pointer-events: auto !important;
+        }
+        
+        .custom-modal-dialog {
+            position: relative !important;
+            width: 95% !important;
+            max-width: 1400px !important;
+            max-height: 95vh !important;
+            overflow: hidden;
+            margin: auto !important;
+            z-index: 100000 !important;
+            transform: translate(0, 0) !important;
+        }
+        
+        .custom-modal-content {
+            background: white !important;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+            max-height: 95vh !important;
+            overflow: hidden;
+            z-index: 100001 !important;
+        }
+        
+        .custom-modal-header {
+            padding: 20px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .custom-modal-title {
+            margin: 0;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 600;
+            flex: 1;
+        }
+        
+        .custom-btn-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .custom-btn-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .custom-modal-body {
+            padding: 0;
+            overflow-y: auto;
+            flex: 1;
+            max-height: calc(95vh - 200px);
+        }
+        
+        .custom-modal-footer {
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            border-radius: 0 0 12px 12px;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        /* Animation d'ouverture */
+        .custom-modal.show {
+            display: flex !important;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .custom-modal.show .custom-modal-dialog {
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .custom-modal-dialog {
+                width: 95%;
+                margin: 10px;
+            }
+            
+            .custom-modal-content {
+                max-height: 95vh;
+            }
+            
+            .custom-modal-header {
+                padding: 16px 20px;
+            }
+            
+            .custom-modal-body {
+                padding: 20px;
+            }
+            
+            .custom-modal-footer {
+                padding: 12px 20px;
+            }
+        }
+
+        /* Responsive pour mobile */
+        @media (max-width: 768px) {
+            .invoice-document .table {
+                font-size: 0.8rem;
+            }
+
+            .invoice-document .invoice-header h1 {
+                font-size: 2rem;
+            }
+
+            .invoice-document .company-info h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>
+                <i class="fas fa-file-invoice-dollar me-2" th:unless="${isEdit}"></i>
+                <i class="fas fa-edit me-2" th:if="${isEdit}"></i>
+                <span th:text="${isEdit} ? 'Modifier la Facture' : 'Nouvelle Facture'">Formulaire Facture</span>
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a th:href="@{/invoices}">Factures</a></li>
+                    <li class="breadcrumb-item active" th:text="${isEdit} ? 'Modifier' : 'Nouvelle'">Formulaire</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a th:href="@{/invoices}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulaire -->
+    <form th:action="@{/invoices}" th:object="${invoice}" method="post" novalidate>
+        <!-- ID caché pour modification -->
+        <input type="hidden" th:field="*{id}">
+
+        <div class="row">
+            <!-- Colonne principale -->
+            <div class="col-lg-8">
+                <!-- Informations de base -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informations de la Facture</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="invoiceNumber" class="form-label">Numéro de facture <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="invoiceNumber" th:field="*{invoiceNumber}"
+                                       th:classappend="${#fields.hasErrors('invoiceNumber')} ? 'is-invalid'"
+                                       placeholder="FACT-001" required readonly>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('invoiceNumber')}" th:errors="*{invoiceNumber}">
+                                    Erreur numéro facture
+                                </div>
+                                <small class="text-muted">Généré automatiquement</small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="invoiceDate" class="form-label">Date de facture <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="invoiceDate" th:field="*{invoiceDate}"
+                                       th:classappend="${#fields.hasErrors('invoiceDate')} ? 'is-invalid'"
+                                       required>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('invoiceDate')}" th:errors="*{invoiceDate}">
+                                    Erreur date facture
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="dueDate" class="form-label">Date d'échéance <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="dueDate" th:field="*{dueDate}"
+                                       th:classappend="${#fields.hasErrors('dueDate')} ? 'is-invalid'"
+                                       required>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('dueDate')}" th:errors="*{dueDate}">
+                                    Erreur date échéance
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="order" class="form-label">Commande associée <span class="text-danger">*</span></label>
+                                <select class="form-select" id="order" th:field="*{order.id}" required>
+                                    <option value="">Sélectionner une commande</option>
+                                    <option th:each="order : ${availableOrders}"
+                                            th:value="${order.id}"
+                                            th:text="${order.orderNumber + ' - ' + order.client.name + ' (' + #numbers.formatCurrency(order.totalAmount) + ')'}">
+                                        CMD-001 - Client (€0)
+                                    </option>
+                                </select>
+                                <small class="text-muted">Obligatoire - sélectionnez la commande à facturer</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client et adresses -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informations Client</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="invoiceType" class="form-label">Type de facture</label>
+                                <select class="form-select" id="invoiceType" th:field="*{invoiceType}">
+                                    <option th:each="type : ${T(com.gescom.entity.Invoice.InvoiceType).values()}"
+                                            th:value="${type}"
+                                            th:text="${type.displayName}">
+                                        Type
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Client (depuis commande)</label>
+                                <input type="text" class="form-control" id="clientDisplay" readonly placeholder="Sélectionnez d'abord une commande">
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="paymentMethod" class="form-label">Méthode de paiement</label>
+                                <select class="form-select" id="paymentMethod" th:field="*{paymentMethod}">
+                                    <option value="">Sélectionner</option>
+                                    <option th:each="method : ${T(com.gescom.entity.Invoice.PaymentMethod).values()}"
+                                            th:value="${method}"
+                                            th:text="${method.displayName}">
+                                        Méthode
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 mb-3">
+                                <label for="billingAddress" class="form-label">Adresse de facturation <span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="billingAddress" th:field="*{billingAddress}"
+                                          th:classappend="${#fields.hasErrors('billingAddress')} ? 'is-invalid'"
+                                          rows="3" placeholder="Adresse complète de facturation" required></textarea>
+                                <div class="invalid-feedback" th:if="${#fields.hasErrors('billingAddress')}" th:errors="*{billingAddress}">
+                                    Erreur adresse facturation
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lignes de facture -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Lignes de la Facture</h5>
+                        <button type="button" class="btn btn-primary btn-sm" onclick="addInvoiceItem()">
+                            <i class="fas fa-plus me-2"></i>Ajouter une ligne
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="invoiceItemsTable">
+                                <thead class="table-light">
+                                <tr>
+                                    <th style="width: 30%">Description</th>
+                                    <th style="width: 10%">Qté</th>
+                                    <th style="width: 15%">Prix unitaire</th>
+                                    <th style="width: 10%">Remise %</th>
+                                    <th style="width: 10%">TVA %</th>
+                                    <th style="width: 15%">Total HT</th>
+                                    <th style="width: 10%">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="invoiceItemsBody">
+                                <!-- Template de ligne -->
+                                <tr class="invoice-item-row d-none" id="itemRowTemplate">
+                                    <td>
+                                        <input type="text" class="form-control item-description"
+                                               placeholder="Description du produit/service" required>
+                                        <input type="hidden" class="item-reference">
+                                        <input type="hidden" class="item-unit">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control item-quantity"
+                                               min="1" value="1" required>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control item-unit-price"
+                                               step="0.01" min="0" placeholder="0.00" required>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control item-discount"
+                                               step="0.01" min="0" max="100" value="0">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control item-vat-rate"
+                                               step="0.01" min="0" value="20">
+                                    </td>
+                                    <td>
+                                        <span class="item-total-ht fw-bold">0.00 €</span>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="removeInvoiceItem(this)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="alert alert-info mt-3" id="noItemsAlert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Aucune ligne ajoutée. Cliquez sur "Ajouter une ligne" pour commencer.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes et conditions -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Notes et Conditions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="notes" class="form-label">Notes internes</label>
+                                <textarea class="form-control" id="notes" th:field="*{notes}"
+                                          rows="3" placeholder="Notes internes (non visibles sur la facture)"></textarea>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="termsConditions" class="form-label">Conditions de paiement</label>
+                                <textarea class="form-control" id="termsConditions" th:field="*{termsConditions}"
+                                          rows="3" placeholder="Conditions générales et modalités de paiement"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne latérale -->
+            <div class="col-lg-4">
+                <!-- Récapitulatif financier -->
+                <div class="card mb-4 position-sticky" style="top: 20px;">
+                    <div class="card-header">
+                        <h5 class="mb-0">Récapitulatif</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Remises et frais -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label for="discountRate" class="form-label small">Remise %</label>
+                                <input type="number" class="form-control form-control-sm" id="discountRate"
+                                       th:field="*{discountRate}" step="0.01" min="0" max="100"
+                                       placeholder="0.00" onchange="calculateTotals()">
+                            </div>
+                            <div class="col-6">
+                                <label for="shippingCost" class="form-label small">Frais de port €</label>
+                                <input type="number" class="form-control form-control-sm" id="shippingCost"
+                                       th:field="*{shippingCost}" step="0.01" min="0"
+                                       placeholder="0.00" onchange="calculateTotals()">
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Sous-total HT :</span>
+                            <span id="subtotalHT" class="fw-bold">0.00 €</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2" id="discountRow" style="display: none;">
+                            <span>Remise :</span>
+                            <span id="discountDisplay" class="text-danger">-0.00 €</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total HT :</span>
+                            <span id="totalHT" class="fw-bold">0.00 €</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total TVA :</span>
+                            <span id="totalVAT" class="fw-bold">0.00 €</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2" id="shippingRow" style="display: none;">
+                            <span>Frais de port :</span>
+                            <span id="shippingDisplay">0.00 €</span>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="fs-5 fw-bold">Total TTC :</span>
+                            <span id="totalTTC" class="fs-5 fw-bold text-primary">0.00 €</span>
+                        </div>
+
+                        <!-- Champs cachés pour les totaux -->
+                        <input type="hidden" th:field="*{discountAmount}" id="hiddenDiscountAmount">
+                        <input type="hidden" th:field="*{totalAmountHT}" id="hiddenTotalHT">
+                        <input type="hidden" th:field="*{totalVatAmount}" id="hiddenTotalVAT">
+                        <input type="hidden" th:field="*{totalAmount}" id="hiddenTotalTTC">
+
+                        <!-- Statut -->
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Statut</label>
+                            <select class="form-select" id="status" th:field="*{status}">
+                                <option th:each="status : ${T(com.gescom.entity.Invoice.InvoiceStatus).values()}"
+                                        th:value="${status}"
+                                        th:text="${status.displayName}">
+                                    Statut
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Paiement -->
+                        <div id="paymentSection" style="display: none;">
+                            <div class="mb-3">
+                                <label for="paidAmount" class="form-label">Montant payé</label>
+                                <input type="number" class="form-control" id="paidAmount" th:field="*{paidAmount}"
+                                       step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="mb-3">
+                                <label for="paymentDate" class="form-label">Date de paiement</label>
+                                <input type="date" class="form-control" id="paymentDate" th:field="*{paymentDate}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="paymentReference" class="form-label">Référence paiement</label>
+                                <input type="text" class="form-control" id="paymentReference" th:field="*{paymentReference}"
+                                       placeholder="Numéro de transaction, chèque...">
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-2"></i>
+                                <span th:text="${isEdit} ? 'Mettre à jour' : 'Créer la facture'">Sauvegarder</span>
+                            </button>
+
+                            <button type="button" class="btn btn-outline-primary" onclick="window.openInvoicePreviewModal()">
+                                <i class="fas fa-eye me-2"></i>Aperçu
+                            </button>
+
+                            <button type="button" class="btn btn-outline-secondary" onclick="generatePDF()" th:if="${isEdit}">
+                                <i class="fas fa-file-pdf me-2"></i>Générer PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aide -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-question-circle me-2"></i>Aide</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2">
+                                <i class="fas fa-lightbulb text-warning me-2"></i>
+                                <small>Le numéro de facture est généré automatiquement</small>
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-lightbulb text-warning me-2"></i>
+                                <small>Liez une commande pour remplir automatiquement les lignes</small>
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-lightbulb text-warning me-2"></i>
+                                <small>Le statut "Brouillon" permet de modifier la facture</small>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- MODAL APERÇU FACTURE - STRUCTURE IDENTIQUE AU MODAL D'AJOUT D'ARTICLE -->
+    <div id="invoicePreviewModal" class="custom-modal" style="display: none;" onclick="window.closeInvoicePreviewModal()">
+        <div class="custom-modal-dialog" onclick="event.stopPropagation()">
+            <div class="custom-modal-content">
+                <div class="custom-modal-header">
+                    <h5 class="custom-modal-title">
+                        <i class="fas fa-file-invoice me-2"></i>Aperçu de la Facture
+                    </h5>
+                    <button type="button" class="custom-btn-close" onclick="window.closeInvoicePreviewModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="custom-modal-body">
+                    <div id="invoiceContent" class="invoice-document" style="background: white; padding: 30px;">
+                        <!-- Le contenu sera généré dynamiquement par JavaScript -->
+                    </div>
+                </div>
+                <div class="custom-modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.closeInvoicePreviewModal()">
+                        <i class="fas fa-times me-2"></i>Fermer
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="printInvoice()">
+                        <i class="fas fa-print me-2"></i>Imprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<th:block th:fragment="js_assets">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const statusSelect = document.getElementById('status');
+            const paymentSection = document.getElementById('paymentSection');
+            const orderSelect = document.getElementById('order');
+            const clientDisplay = document.getElementById('clientDisplay');
+
+            // Gestion de l'affichage des champs de paiement
+            function togglePaymentFields() {
+                const status = statusSelect.value;
+                const isPaidOrPartial = status === 'PAID' || status === 'PARTIAL';
+                paymentSection.style.display = isPaidOrPartial ? 'block' : 'none';
+
+                if (isPaidOrPartial) {
+                    document.getElementById('paidAmount').required = true;
+                    document.getElementById('paymentDate').required = true;
+                } else {
+                    document.getElementById('paidAmount').required = false;
+                    document.getElementById('paymentDate').required = false;
+                }
+            }
+
+            // Charger les données de la commande sélectionnée
+            function loadOrderData() {
+                const orderId = orderSelect.value;
+                if (orderId) {
+                    // Appel AJAX pour charger les données de la commande
+                    fetch(`/api/orders/${orderId}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Erreur lors du chargement de la commande');
+                            return response.json();
+                        })
+                        .then(order => {
+                            // Remplir les informations client
+                            const clientDisplay = document.getElementById('clientDisplay');
+                            if (clientDisplay) {
+                                clientDisplay.value = `${order.client.name} (${order.client.email})`;
+                            }
+
+                            // Remplir l'adresse de facturation
+                            const billingAddress = document.getElementById('billingAddress');
+                            if (billingAddress && order.billingAddress) {
+                                billingAddress.value = order.billingAddress;
+                            }
+
+                            // Charger les lignes de commande dans la facture
+                            if (order.orderItems && order.orderItems.length > 0) {
+                                loadOrderItemsIntoInvoice(order.orderItems);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Erreur:', error);
+                            // Fallback : affichage basique
+                            const selectedOption = orderSelect.options[orderSelect.selectedIndex];
+                            if (selectedOption && selectedOption.text) {
+                                const parts = selectedOption.text.split(' - ');
+                                if (parts.length > 1) {
+                                    document.getElementById('clientDisplay').value = parts[1].split(' (')[0];
+                                }
+                            }
+                        });
+                }
+            }
+
+            // Event listeners
+            statusSelect.addEventListener('change', togglePaymentFields);
+            orderSelect.addEventListener('change', loadOrderData);
+
+            // Délégation d'événements pour les lignes dynamiques
+            document.getElementById('invoiceItemsBody').addEventListener('input', function(e) {
+                if (e.target.matches('.item-quantity, .item-unit-price, .item-discount, .item-vat-rate')) {
+                    calculateTotals();
+                }
+            });
+
+            // Initialiser les calculs au chargement
+            calculateTotals();
+
+            // Initialisation
+            togglePaymentFields();
+            updateNoItemsAlert();
+
+            // Initialiser la date de facture à aujourd'hui
+            const today = new Date().toISOString().split('T')[0];
+            if (!document.getElementById('invoiceDate').value) {
+                document.getElementById('invoiceDate').value = today;
+            }
+
+            // Calculer la date d'échéance (30 jours par défaut)
+            if (!document.getElementById('dueDate').value) {
+                const dueDate = new Date();
+                dueDate.setDate(dueDate.getDate() + 30);
+                document.getElementById('dueDate').value = dueDate.toISOString().split('T')[0];
+            }
+        });
+
+        // Fonctions globales pour la gestion des lignes
+        function addInvoiceItem() {
+            const template = document.getElementById('itemRowTemplate');
+            const tbody = document.getElementById('invoiceItemsBody');
+            const newRow = template.cloneNode(true);
+
+            // Générer un ID unique
+            const uniqueId = 'item_' + Date.now();
+            newRow.id = uniqueId;
+            newRow.classList.remove('d-none');
+
+            // Ajouter les attributs name pour la soumission du formulaire
+            const inputs = newRow.querySelectorAll('input');
+            const rowIndex = getRowIndex();
+            inputs.forEach((input) => {
+                const className = input.className.split(' ').find(cls => cls.startsWith('item-'));
+                if (className) {
+                    let fieldName;
+                    switch(className) {
+                        case 'item-description': fieldName = 'description'; break;
+                        case 'item-reference': fieldName = 'reference'; break;
+                        case 'item-unit': fieldName = 'unit'; break;
+                        case 'item-quantity': fieldName = 'quantity'; break;
+                        case 'item-unit-price': fieldName = 'unitPrice'; break;
+                        case 'item-discount': fieldName = 'discountRate'; break;
+                        case 'item-vat-rate': fieldName = 'vatRate'; break;
+                        default: fieldName = className.replace('item-', '').replace('-', '');
+                    }
+                    input.name = `invoiceItems[${rowIndex}].${fieldName}`;
+                }
+            });
+
+            tbody.appendChild(newRow);
+            updateNoItemsAlert();
+
+            // Focus sur la description
+            newRow.querySelector('.item-description').focus();
+        }
+
+        function removeInvoiceItem(button) {
+            const row = button.closest('tr');
+            row.remove();
+            updateNoItemsAlert();
+            calculateTotals();
+        }
+
+        function updateNoItemsAlert() {
+            const tbody = document.getElementById('invoiceItemsBody');
+            const alert = document.getElementById('noItemsAlert');
+
+            // Vérifier que les éléments existent
+            if (!tbody || !alert) {
+                return; // Elements not found, probably in preview mode
+            }
+
+            const visibleRows = tbody.querySelectorAll('.invoice-item-row:not(.d-none)').length;
+            alert.style.display = visibleRows === 0 ? 'block' : 'none';
+        }
+
+        function getRowIndex() {
+            const tbody = document.getElementById('invoiceItemsBody');
+            const visibleRows = tbody.querySelectorAll('.invoice-item-row:not(.d-none)');
+            return visibleRows.length;
+        }
+
+        // Calcul automatique des totaux
+        function calculateTotals() {
+            // Vérifier si on est en mode formulaire (pas en prévisualisation)
+            const discountRateElement = document.getElementById('discountRate');
+            if (!discountRateElement) {
+                return; // Not in form mode, probably in preview
+            }
+
+            let subtotalHT = 0;
+            let totalVAT = 0;
+
+            document.querySelectorAll('.invoice-item-row:not(.d-none)').forEach(row => {
+                const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+                const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
+                const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
+                const vatRate = parseFloat(row.querySelector('.item-vat-rate').value) || 0;
+
+                const lineSubtotal = quantity * unitPrice;
+                const lineDiscount = lineSubtotal * (discount / 100);
+                const lineTotal = lineSubtotal - lineDiscount;
+                const lineVAT = lineTotal * vatRate / 100;
+
+                subtotalHT += lineTotal;
+                totalVAT += lineVAT;
+
+                // Mettre à jour l'affichage de la ligne
+                row.querySelector('.item-total-ht').textContent = lineTotal.toFixed(2) + ' €';
+            });
+
+            // Récupérer la remise globale et les frais de port
+            const globalDiscountRate = parseFloat(document.getElementById('discountRate').value) || 0;
+            const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+
+            // Calcul des remises et totaux
+            const globalDiscountAmount = subtotalHT * (globalDiscountRate / 100);
+            const totalHT = subtotalHT - globalDiscountAmount;
+            const totalTTC = totalHT + totalVAT + shippingCost;
+
+            // Mettre à jour l'affichage
+            document.getElementById('subtotalHT').textContent = subtotalHT.toFixed(2) + ' €';
+            document.getElementById('totalHT').textContent = totalHT.toFixed(2) + ' €';
+            document.getElementById('totalVAT').textContent = totalVAT.toFixed(2) + ' €';
+            document.getElementById('totalTTC').textContent = totalTTC.toFixed(2) + ' €';
+
+            // Afficher/masquer les lignes conditionnelles
+            const discountRow = document.getElementById('discountRow');
+            const discountDisplay = document.getElementById('discountDisplay');
+            if (globalDiscountAmount > 0) {
+                discountRow.style.display = 'flex';
+                discountDisplay.textContent = '-' + globalDiscountAmount.toFixed(2) + ' €';
+            } else {
+                discountRow.style.display = 'none';
+            }
+
+            const shippingRow = document.getElementById('shippingRow');
+            const shippingDisplay = document.getElementById('shippingDisplay');
+            if (shippingCost > 0) {
+                shippingRow.style.display = 'flex';
+                shippingDisplay.textContent = shippingCost.toFixed(2) + ' €';
+            } else {
+                shippingRow.style.display = 'none';
+            }
+
+            // Mettre à jour les champs cachés
+            document.getElementById('hiddenDiscountAmount').value = globalDiscountAmount.toFixed(2);
+            document.getElementById('hiddenTotalHT').value = totalHT.toFixed(2);
+            document.getElementById('hiddenTotalVAT').value = totalVAT.toFixed(2);
+            document.getElementById('hiddenTotalTTC').value = totalTTC.toFixed(2);
+        }
+
+        // Fonctions globales exactement comme dans orders/form.html
+        window.openInvoicePreviewModal = function() {
+            console.log('Ouverture du modal d\'aperçu facture');
+            loadInvoiceData();
+            
+            const modalElement = document.getElementById('invoicePreviewModal');
+            if (modalElement) {
+                // Force tous les styles exactement comme dans orders
+                modalElement.style.cssText = `
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100vw !important;
+                    height: 100vh !important;
+                    z-index: 99999 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    background: rgba(0, 0, 0, 0.8) !important;
+                    backdrop-filter: blur(4px);
+                    pointer-events: auto !important;
+                `;
+                
+                modalElement.classList.add('show');
+                console.log('Modal d\'aperçu ouvert avec succès');
+            }
+        };
+
+        window.closeInvoicePreviewModal = function() {
+            console.log('Fermeture du modal d\'aperçu facture');
+            const modalElement = document.getElementById('invoicePreviewModal');
+            
+            if (modalElement) {
+                modalElement.classList.remove('show');
+                setTimeout(() => {
+                    modalElement.style.display = 'none';
+                }, 200);
+            }
+        };
+
+        // Fermer avec Échap
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('invoicePreviewModal');
+                if (modal && modal.style.display !== 'none') {
+                    window.closeInvoicePreviewModal();
+                }
+            }
+        });
+
+        // Fonction pour charger les données dans l'aperçu
+        function loadInvoiceData() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value || 'FACT-NEW';
+            const invoiceDate = formatDateFr(document.getElementById('invoiceDate').value);
+            const dueDate = formatDateFr(document.getElementById('dueDate').value);
+            const status = document.getElementById('status');
+            const statusText = status.options[status.selectedIndex].text;
+
+            // Client info
+            const clientDisplay = document.getElementById('clientDisplay').value || 'Client non sélectionné';
+            const billingAddress = document.getElementById('billingAddress').value || 'Adresse non renseignée';
+
+            // Order info
+            const orderSelect = document.getElementById('order');
+            let orderInfo = '';
+            if (orderSelect.value) {
+                const selectedOption = orderSelect.options[orderSelect.selectedIndex];
+                orderInfo = selectedOption.text.split(' - ')[0];
+            } else {
+                orderInfo = 'Aucune commande liée';
+            }
+
+            // Payment method
+            const paymentMethod = document.getElementById('paymentMethod');
+            const paymentText = paymentMethod.value ? paymentMethod.options[paymentMethod.selectedIndex].text : 'À définir';
+
+            // Notes et conditions
+            const notes = document.getElementById('notes').value;
+            const terms = document.getElementById('termsConditions').value;
+
+            // Construire le HTML de la facture
+            let html = `
+        <!-- En-tête de la facture -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="company-info">
+                    <h2 class="text-primary fw-bold">GESCOM</h2>
+                    <p class="mb-1">Système de Gestion Commerciale</p>
+                    <p class="mb-1">123 Rue de l'Entreprise</p>
+                    <p class="mb-1">75001 Paris, France</p>
+                    <p class="mb-1">Tél: 01 23 45 67 89</p>
+                    <p class="mb-0">Email: contact@gescom.fr</p>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="invoice-header">
+                    <h1 class="text-dark mb-3">FACTURE</h1>
+                    <div class="invoice-meta">
+                        <p class="mb-1"><strong>N° Facture:</strong> ${invoiceNumber}</p>
+                        <p class="mb-1"><strong>Date:</strong> ${invoiceDate}</p>
+                        <p class="mb-1"><strong>Échéance:</strong> ${dueDate}</p>
+                        <p class="mb-0"><strong>Statut:</strong> <span class="badge ${getStatusBadgeClass(status.value)}">${statusText}</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informations client -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="billing-address">
+                    <h5 class="text-primary mb-3">Facturé à:</h5>
+                    <div class="client-info">
+                        <h6 class="mb-2">${clientDisplay}</h6>
+                        <div class="address-text">
+                            <p class="mb-0">${billingAddress.replace(/\n/g, '<br>')}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="invoice-details">
+                    <h5 class="text-primary mb-3">Détails de la commande:</h5>
+                    <p class="mb-1"><strong>N° Commande:</strong> ${orderInfo}</p>
+                    <p class="mb-0"><strong>Mode de paiement:</strong> ${paymentText}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau des articles -->
+        <div class="table-responsive mb-4">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 35%">Description</th>
+                        <th style="width: 10%" class="text-center">Qté</th>
+                        <th style="width: 15%" class="text-end">Prix unitaire</th>
+                        <th style="width: 10%" class="text-center">Remise %</th>
+                        <th style="width: 10%" class="text-center">TVA %</th>
+                        <th style="width: 20%" class="text-end">Total HT</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            // Ajouter les lignes de facture
+            const visibleRows = document.querySelectorAll('.invoice-item-row:not(.d-none)');
+            if (visibleRows.length === 0) {
+                html += `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Aucun article ajouté à la facture
+                </td>
+            </tr>`;
+            } else {
+                visibleRows.forEach(row => {
+                    const description = row.querySelector('.item-description').value || 'Produit sans nom';
+                    const quantity = row.querySelector('.item-quantity').value || '0';
+                    const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
+                    const discount = parseFloat(row.querySelector('.item-discount').value) || 0;
+                    const vatRate = parseFloat(row.querySelector('.item-vat-rate').value) || 0;
+
+                    const lineSubtotal = quantity * unitPrice;
+                    const lineDiscount = lineSubtotal * (discount / 100);
+                    const lineTotal = lineSubtotal - lineDiscount;
+
+                    html += `
+                <tr>
+                    <td class="align-middle">${description}</td>
+                    <td class="text-center align-middle">${quantity}</td>
+                    <td class="text-end align-middle">${formatCurrency(unitPrice)}</td>
+                    <td class="text-center align-middle">${discount}%</td>
+                    <td class="text-center align-middle">${vatRate}%</td>
+                    <td class="text-end align-middle fw-bold">${formatCurrency(lineTotal)}</td>
+                </tr>`;
+                });
+            }
+
+            html += `
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totaux -->
+        <div class="row">
+            <div class="col-md-8">`;
+
+            // Notes
+            if (notes.trim()) {
+                html += `
+                <div>
+                    <h6 class="text-primary mb-2">Notes:</h6>
+                    <div class="text-muted small">${notes.replace(/\n/g, '<br>')}</div>
+                </div>`;
+            }
+
+            // Conditions de paiement
+            if (terms.trim()) {
+                html += `
+                <div class="mt-3">
+                    <h6 class="text-primary mb-2">Conditions de paiement:</h6>
+                    <div class="text-muted small">${terms.replace(/\n/g, '<br>')}</div>
+                </div>`;
+            }
+
+            html += `
+            </div>
+            <div class="col-md-4">
+                <div class="totals-section">
+                    <table class="table table-sm">`;
+
+            // Récupérer les totaux
+            const subtotalHT = parseFloat(document.getElementById('subtotalHT').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const totalHT = parseFloat(document.getElementById('totalHT').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const totalVAT = parseFloat(document.getElementById('totalVAT').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const totalTTC = parseFloat(document.getElementById('totalTTC').textContent.replace(/[€\s]/g, '').replace(',', '.')) || 0;
+            const discountRate = parseFloat(document.getElementById('discountRate').value) || 0;
+            const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+
+            html += `
+                        <tr>
+                            <td class="border-0 fw-bold">Sous-total HT:</td>
+                            <td class="border-0 text-end fw-bold">${formatCurrency(subtotalHT)}</td>
+                        </tr>`;
+
+            if (discountRate > 0) {
+                const discountAmount = subtotalHT * (discountRate / 100);
+                html += `
+                        <tr>
+                            <td class="border-0 text-danger">Remise (${discountRate}%):</td>
+                            <td class="border-0 text-end text-danger">-${formatCurrency(discountAmount)}</td>
+                        </tr>`;
+            }
+
+            html += `
+                        <tr>
+                            <td class="border-0 fw-bold">Total HT:</td>
+                            <td class="border-0 text-end fw-bold">${formatCurrency(totalHT)}</td>
+                        </tr>
+                        <tr>
+                            <td class="border-0">TVA:</td>
+                            <td class="border-0 text-end">${formatCurrency(totalVAT)}</td>
+                        </tr>`;
+
+            if (shippingCost > 0) {
+                html += `
+                        <tr>
+                            <td class="border-0">Frais de port:</td>
+                            <td class="border-0 text-end">${formatCurrency(shippingCost)}</td>
+                        </tr>`;
+            }
+
+            html += `
+                        <tr class="table-dark">
+                            <td class="fw-bold fs-5">TOTAL TTC:</td>
+                            <td class="text-end fw-bold fs-5">${formatCurrency(totalTTC)}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pied de page -->
+        <div class="mt-5 pt-4 border-top">
+            <div class="row">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        <strong>GESCOM</strong> - Système de Gestion Commerciale<br>
+                        SIRET: 123 456 789 00012 - TVA: FR12345678901<br>
+                        Capital social: 10 000 €
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted">
+                        Facture générée le ${new Date().toLocaleDateString('fr-FR')}<br>
+                        Page 1/1
+                    </small>
+                </div>
+            </div>
+        </div>`;
+
+            // Injecter le HTML dans le modal
+            document.getElementById('invoiceContent').innerHTML = html;
+        }
+
+        function formatDateFr(dateString) {
+            if (!dateString) return 'Non définie';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fr-FR');
+        }
+
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(amount);
+        }
+
+        function getStatusBadgeClass(status) {
+            switch(status) {
+                case 'DRAFT': return 'bg-secondary';
+                case 'SENT': return 'bg-primary';
+                case 'PAID': return 'bg-success';
+                case 'PARTIAL': return 'bg-warning text-dark';
+                case 'OVERDUE': return 'bg-danger';
+                case 'CANCELLED': return 'bg-dark';
+                default: return 'bg-secondary';
+            }
+        }
+
+        function printInvoice() {
+            // Créer une nouvelle fenêtre pour l'impression
+            const printWindow = window.open('', '_blank');
+            const invoiceContent = document.getElementById('invoiceContent').innerHTML;
+
+            printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Facture - Impression</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+            <style>
+                @media print {
+                    body { margin: 0; padding: 20px; font-size: 12px; }
+                    .invoice-document { box-shadow: none; border: none; }
+                    @page { margin: 1cm; }
+                }
+                body { font-family: Arial, sans-serif; }
+                .invoice-document { max-width: 210mm; margin: 0 auto; }
+            </style>
+        </head>
+        <body>
+            <div class="invoice-document">
+                ${invoiceContent}
+            </div>
+        </body>
+        </html>
+    `);
+
+            printWindow.document.close();
+
+            // Attendre que le contenu soit chargé avant d'imprimer
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 250);
+        }
+
+        function generatePDF() {
+            alert('Génération PDF à implémenter');
+        }
+
+        // Fonction pour charger les articles de commande dans la facture
+        function loadOrderItemsIntoInvoice(orderItems) {
+            // Vider les lignes existantes
+            const tbody = document.getElementById('invoiceItemsBody');
+            const existingRows = tbody.querySelectorAll('.invoice-item-row:not(.d-none)');
+            existingRows.forEach(row => row.remove());
+
+            // Ajouter chaque article de commande
+            orderItems.forEach(orderItem => {
+                const template = document.getElementById('itemRowTemplate');
+                const newRow = template.cloneNode(true);
+
+                // Générer un ID unique
+                const uniqueId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                newRow.id = uniqueId;
+                newRow.classList.remove('d-none');
+
+                // Remplir les données
+                newRow.querySelector('.item-description').value = orderItem.product.name || orderItem.description || '';
+                newRow.querySelector('.item-reference').value = orderItem.product.reference || '';
+                newRow.querySelector('.item-unit').value = orderItem.product.unit || 'pièce';
+                newRow.querySelector('.item-quantity').value = orderItem.quantity || 1;
+                newRow.querySelector('.item-unit-price').value = orderItem.unitPrice || 0;
+                newRow.querySelector('.item-discount').value = orderItem.discountRate || 0;
+                newRow.querySelector('.item-vat-rate').value = orderItem.vatRate || 20;
+
+                // Ajouter les attributs name pour la soumission
+                const rowIndex = tbody.querySelectorAll('.invoice-item-row:not(.d-none)').length;
+                const inputs = newRow.querySelectorAll('input');
+                inputs.forEach((input) => {
+                    const className = input.className.split(' ').find(cls => cls.startsWith('item-'));
+                    if (className) {
+                        let fieldName;
+                        switch(className) {
+                            case 'item-description': fieldName = 'description'; break;
+                            case 'item-reference': fieldName = 'reference'; break;
+                            case 'item-unit': fieldName = 'unit'; break;
+                            case 'item-quantity': fieldName = 'quantity'; break;
+                            case 'item-unit-price': fieldName = 'unitPrice'; break;
+                            case 'item-discount': fieldName = 'discountRate'; break;
+                            case 'item-vat-rate': fieldName = 'vatRate'; break;
+                            default: fieldName = className.replace('item-', '').replace('-', '');
+                        }
+                        input.name = `invoiceItems[${rowIndex}].${fieldName}`;
+                    }
+                });
+
+                tbody.appendChild(newRow);
+            });
+
+            updateNoItemsAlert();
+            calculateTotals();
+        }
+
+        // Event listeners pour les changements de remise et frais de port
+        document.addEventListener('DOMContentLoaded', function() {
+            const discountRate = document.getElementById('discountRate');
+            const shippingCost = document.getElementById('shippingCost');
+
+            if (discountRate) {
+                discountRate.addEventListener('input', calculateTotals);
+            }
+
+            if (shippingCost) {
+                shippingCost.addEventListener('input', calculateTotals);
+            }
+        });
+    </script>
+</th:block>
+</body>
+</html>

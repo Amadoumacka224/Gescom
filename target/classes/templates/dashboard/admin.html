@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Tableau de bord Administrateur</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête avec période -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Tableau de bord Administrateur</h1>
+        <div class="btn-group" role="group">
+            <a th:href="@{/dashboard(days=7)}" class="btn btn-outline-primary"
+               th:classappend="${dashboardData != null and dashboardData.periodDays == 7} ? 'active' : ''">7 jours</a>
+            <a th:href="@{/dashboard(days=30)}" class="btn btn-outline-primary"
+               th:classappend="${dashboardData != null and dashboardData.periodDays == 30} ? 'active' : ''">30 jours</a>
+            <a th:href="@{/dashboard(days=90)}" class="btn btn-outline-primary"
+               th:classappend="${dashboardData != null and dashboardData.periodDays == 90} ? 'active' : ''">90 jours</a>
+        </div>
+    </div>
+
+    <!-- Métriques principales -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center border-primary">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">Chiffre d'affaires</h5>
+                    <h2 th:text="${dashboardData != null and dashboardData.totalRevenue != null ? #numbers.formatCurrency(dashboardData.totalRevenue) : '0 €'}" class="text-primary">0 €</h2>
+                    <small class="text-muted" th:if="${dashboardData != null and dashboardData.revenueGrowth != null}">
+                        <i th:class="${dashboardData.revenueGrowth >= 0} ? 'fas fa-arrow-up text-success' : 'fas fa-arrow-down text-danger'"></i>
+                        <span th:text="${#numbers.formatDecimal(dashboardData.revenueGrowth, 1, 1)} + '%'">0%</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-success">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Commandes</h5>
+                    <h2 th:text="${dashboardData != null ? dashboardData.totalOrders : 0}" class="text-success">0</h2>
+                    <small class="text-muted">
+                        <span th:text="${dashboardData != null ? dashboardData.pendingOrders : 0}">0</span> en attente
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-info">
+                <div class="card-body">
+                    <h5 class="card-title text-info">Clients</h5>
+                    <h2 th:text="${dashboardData != null ? dashboardData.totalClients : 0}" class="text-info">0</h2>
+                    <small class="text-muted">Total actifs</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center border-warning">
+                <div class="card-body">
+                    <h5 class="card-title text-warning">Utilisateurs</h5>
+                    <h2 th:text="${dashboardData != null ? dashboardData.totalUsers : 0}" class="text-warning">0</h2>
+                    <small class="text-muted">Équipe commerciale</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphiques -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Évolution du chiffre d'affaires</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Commandes par statut</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="ordersStatusChart" width="200" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableaux de données -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Top Vendeurs</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                            <tr>
+                                <th>Vendeur</th>
+                                <th>CA</th>
+                                <th>Commandes</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="seller : ${dashboardData != null and dashboardData.topSellers != null ? dashboardData.topSellers : {}}">
+                                <td th:text="${seller.name}">Nom</td>
+                                <td th:text="${#numbers.formatCurrency(seller.revenue)}">0 €</td>
+                                <td th:text="${seller.orders}">0</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Alertes Stock</h5>
+                </div>
+                <div class="card-body">
+                    <div th:if="${dashboardData == null or dashboardData.lowStockProducts == null or #lists.isEmpty(dashboardData.lowStockProducts)}" class="text-center text-muted">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                        <p class="mt-2">Aucune alerte stock</p>
+                    </div>
+                    <div th:if="${dashboardData != null and dashboardData.lowStockProducts != null and !#lists.isEmpty(dashboardData.lowStockProducts)}">
+                        <div class="alert alert-warning" th:each="product : ${dashboardData.lowStockProducts}">
+                            <strong th:text="${product.name}">Produit</strong><br>
+                            <small>Stock restant: <span th:text="${product.stock}">0</span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts pour les graphiques -->
+<th:block th:fragment="js_assets">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script th:inline="javascript">
+    // Données des graphiques passées depuis le serveur
+    const revenueData = /*[[${dashboardData != null and dashboardData.revenueByDay != null ? dashboardData.revenueByDay : {}}]]*/ [];
+    const ordersStatusData = /*[[${dashboardData != null and dashboardData.ordersByStatus != null ? dashboardData.ordersByStatus : {}}]]*/ [];
+
+    // Configuration des graphiques Chart.js
+    document.addEventListener('DOMContentLoaded', function() {
+        // Graphique CA
+        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+        new Chart(revenueCtx, {
+            type: 'line',
+            data: {
+                labels: revenueData.map(item => item.date),
+                datasets: [{
+                    label: 'Chiffre d\'affaires',
+                    data: revenueData.map(item => item.revenue),
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'EUR'
+                                }).format(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Graphique statuts commandes
+        const statusCtx = document.getElementById('ordersStatusChart').getContext('2d');
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ordersStatusData.map(item => item.status),
+                datasets: [{
+                    data: ordersStatusData.map(item => item.count),
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    });
+</script>
+</th:block>
+</body>
+</html>

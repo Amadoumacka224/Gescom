@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title th:text="'Détails - ' + ${user?.fullName ?: 'Utilisateur'}">Détails de l'Utilisateur</title>
+</head>
+<body>
+<style>
+    @media print {
+        .btn, .dropdown, nav, .card-header .btn, .modal {
+            display: none !important;
+        }
+
+        .card {
+            border: 1px solid #dee2e6 !important;
+            box-shadow: none !important;
+        }
+    }
+
+    .progress {
+        background-color: #e9ecef;
+    }
+
+    .badge {
+        font-size: 0.75em;
+    }
+
+    .card-body h4, .card-body h6 {
+        font-weight: 600;
+    }
+
+    .card {
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .table th {
+        border-top: none;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .btn-sm {
+        font-size: 0.8rem;
+    }
+
+    /* Indicateurs de statut */
+    .fa-power-off.text-success, .fa-lock.text-success,
+    .fa-calendar-times.text-success, .fa-key.text-success {
+        filter: drop-shadow(0 0 3px rgba(40, 167, 69, 0.3));
+    }
+
+    .fa-power-off.text-danger, .fa-lock.text-danger,
+    .fa-calendar-times.text-danger, .fa-key.text-danger {
+        filter: drop-shadow(0 0 3px rgba(220, 53, 69, 0.3));
+    }
+
+    /* Animation des notifications */
+    .alert {
+        animation: slideInRight 0.3s ease;
+    }
+
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+</style>
+<div th:fragment="content">
+    <!-- Vérification que l'utilisateur existe -->
+    <div th:if="${user == null}" class="alert alert-danger">
+        <h4><i class="fas fa-exclamation-triangle me-2"></i>Utilisateur introuvable</h4>
+        <p>L'utilisateur demandé n'existe pas ou a été supprimé.</p>
+        <a th:href="@{/users}" class="btn btn-primary">Retour à la liste des utilisateurs</a>
+    </div>
+
+    <!-- Contenu principal si l'utilisateur existe -->
+    <div th:if="${user != null}">
+        <!-- En-tête -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1>
+                    <i class="fas fa-user-tie me-2"></i>
+                    <span th:text="${user.fullName ?: 'Nom non défini'}">Nom de l'Utilisateur</span>
+                    <span class="badge ms-2"
+                          th:class="'badge ' + (${user.enabled} ? 'bg-success' : 'bg-danger')"
+                          th:text="${user.enabled} ? 'Actif' : 'Inactif'">Statut</span>
+                    <span class="badge bg-info ms-1" th:if="${user.hasRole('ADMIN')}">
+                        <i class="fas fa-crown me-1"></i>Admin
+                    </span>
+                    <span class="badge bg-primary ms-1" th:if="${user.hasRole('COMMERCIAL')}">
+                        <i class="fas fa-handshake me-1"></i>Commercial
+                    </span>
+                    <span class="badge bg-warning ms-1" th:if="${!user.accountNonLocked}">
+                        <i class="fas fa-lock me-1"></i>Verrouillé
+                    </span>
+                </h1>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/users}">Utilisateurs</a></li>
+                        <li class="breadcrumb-item active" th:text="${user.fullName ?: 'Utilisateur'}">Utilisateur</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="btn-group">
+                <a th:href="@{/users}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+                </a>
+                <a th:href="@{'/users/edit/' + ${user.id}}" class="btn btn-primary">
+                    <i class="fas fa-edit me-2"></i>Modifier
+                </a>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#" onclick="resetPassword()">
+                            <i class="fas fa-key me-2"></i>Réinitialiser mot de passe
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="toggleAccount()">
+                            <i class="fas fa-user-slash me-2"></i>
+                            <span th:text="${user.enabled} ? 'Désactiver' : 'Activer'">Désactiver</span>
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="unlockAccount()" th:if="${!user.accountNonLocked}">
+                            <i class="fas fa-unlock me-2"></i>Déverrouiller
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="exportUser()">
+                            <i class="fas fa-download me-2"></i>Exporter
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" onclick="printUser()">
+                            <i class="fas fa-print me-2"></i>Imprimer
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteUser()">
+                            <i class="fas fa-trash me-2"></i>Supprimer
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Colonne principale -->
+            <div class="col-lg-8">
+                <!-- Informations générales -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informations Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Nom complet</label>
+                                <p class="mb-0" th:text="${user.fullName}">Prénom Nom</p>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Nom d'utilisateur</label>
+                                <p class="mb-0 font-monospace" th:text="${user.username}">username</p>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Email</label>
+                                <p class="mb-0">
+                                    <a th:href="'mailto:' + ${user.email}" th:text="${user.email}" class="text-decoration-none">
+                                        email@company.com
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="Copier">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </p>
+                            </div>
+                            <div class="col-md-6 mb-3" th:if="${user.lastLogin != null}">
+                                <label class="fw-bold text-muted">Dernière connexion</label>
+                                <p class="mb-0" th:text="${#temporals.format(user.lastLogin, 'dd/MM/yyyy HH:mm')}">25/07/2025 14:30</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statut du compte -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Statut du Compte</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="fas fa-power-off fa-2x" th:class="'fas fa-power-off fa-2x ' + (${user.enabled} ? 'text-success' : 'text-danger')"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Compte</h6>
+                                        <span th:text="${user.enabled} ? 'Activé' : 'Désactivé'"
+                                              th:class="${user.enabled} ? 'text-success' : 'text-danger'">Activé</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="fas fa-lock fa-2x" th:class="'fas fa-lock fa-2x ' + (${user.accountNonLocked} ? 'text-success' : 'text-danger')"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Verrouillage</h6>
+                                        <span th:text="${user.accountNonLocked} ? 'Non verrouillé' : 'Verrouillé'"
+                                              th:class="${user.accountNonLocked} ? 'text-success' : 'text-danger'">Non verrouillé</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="fas fa-calendar-times fa-2x" th:class="'fas fa-calendar-times fa-2x ' + (${user.accountNonExpired} ? 'text-success' : 'text-danger')"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Expiration</h6>
+                                        <span th:text="${user.accountNonExpired} ? 'Non expiré' : 'Expiré'"
+                                              th:class="${user.accountNonExpired} ? 'text-success' : 'text-danger'">Non expiré</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="fas fa-key fa-2x" th:class="'fas fa-key fa-2x ' + (${user.credentialsNonExpired} ? 'text-success' : 'text-danger')"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-0">Identifiants</h6>
+                                        <span th:text="${user.credentialsNonExpired} ? 'Valides' : 'Expirés'"
+                                              th:class="${user.credentialsNonExpired} ? 'text-success' : 'text-danger'">Valides</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rôles et Permissions -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-users-cog me-2"></i>Rôles et Permissions</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="manageRoles()">
+                            <i class="fas fa-cog me-1"></i>Gérer
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Rôles assignés</label>
+                                <div class="mt-2">
+                                    <span th:each="role : ${user.roles}"
+                                          class="badge bg-primary me-2 mb-2"
+                                          th:text="${role.name}">ROLE_USER</span>
+                                    <span th:if="${#lists.isEmpty(user.roles)}" class="text-muted">Aucun rôle assigné</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="fw-bold text-muted">Permissions</label>
+                                <div class="mt-2" style="max-height: 150px; overflow-y: auto;">
+                                    <!-- Les permissions seront listées ici -->
+                                    <small class="text-muted">
+                                        <div th:each="authority : ${user.authorities}">
+                                            <i class="fas fa-check text-success me-1"></i>
+                                            <span th:text="${authority.authority}">PERMISSION</span>
+                                        </div>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Objectifs commerciaux -->
+                <div class="card mb-4" th:if="${user.hasRole('COMMERCIAL')}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-bullseye me-2"></i>Objectifs Commerciaux</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="updateTargets()">
+                            <i class="fas fa-edit me-1"></i>Modifier
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h4 class="text-primary mb-1" th:text="${#numbers.formatDecimal(user.personalTarget, 1, 0)} + ' €'">20 000 €</h4>
+                                    <small class="text-muted">Objectif personnel</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="text-center p-3 bg-light rounded">
+                                    <h4 class="text-info mb-1" th:text="${#numbers.formatDecimal(user.teamTarget, 1, 0)} + ' €'">100 000 €</h4>
+                                    <small class="text-muted">Objectif équipe</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Progression -->
+                        <div class="row">
+                            <div class="col-12">
+                                <label class="fw-bold text-muted small">Progression personnelle</label>
+                                <div class="progress mb-2" style="height: 10px;">
+                                    <div class="progress-bar bg-success" style="width: 65%" title="65% de l'objectif atteint"></div>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <small class="text-muted">13 000 € réalisés</small>
+                                    <small class="text-success">65%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activité récente -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-history me-2"></i>Activité Récente</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Action</th>
+                                    <th>Détails</th>
+                                    <th>Statut</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <!-- Exemple d'activité -->
+                                <tr>
+                                    <td>25/07/2025 14:30</td>
+                                    <td><i class="fas fa-sign-in-alt text-success me-1"></i>Connexion</td>
+                                    <td>Connexion depuis 192.168.1.100</td>
+                                    <td><span class="badge bg-success">Succès</span></td>
+                                </tr>
+                                <tr>
+                                    <td>25/07/2025 10:15</td>
+                                    <td><i class="fas fa-shopping-cart text-primary me-1"></i>Commande</td>
+                                    <td>Création commande CMD-2025-001</td>
+                                    <td><span class="badge bg-primary">Créée</span></td>
+                                </tr>
+                                <tr>
+                                    <td>24/07/2025 16:45</td>
+                                    <td><i class="fas fa-user-plus text-info me-1"></i>Client</td>
+                                    <td>Nouveau client: Jean Dupont</td>
+                                    <td><span class="badge bg-info">Ajouté</span></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne latérale -->
+            <div class="col-lg-4">
+                <!-- Photo et infos rapides -->
+                <div class="card mb-4">
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center"
+                                 style="width: 80px; height: 80px;">
+                                <i class="fas fa-user fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <h5 class="mb-1" th:text="${user.fullName}">Nom Complet</h5>
+                        <p class="text-muted mb-3" th:text="${user.username}">@username</p>
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h6 class="text-primary mb-0">12</h6>
+                                <small class="text-muted">Clients</small>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="text-success mb-0">34</h6>
+                                <small class="text-muted">Commandes</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance -->
+                <div class="card mb-4" th:if="${user.hasRole('COMMERCIAL')}">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Performance</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <h4 class="text-success mb-0">€ 13k</h4>
+                                <small class="text-muted">CA ce mois</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <h4 class="text-primary mb-0">€ 156k</h4>
+                                <small class="text-muted">CA total</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-info mb-0">€ 458</h4>
+                                <small class="text-muted">Panier moyen</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="text-warning mb-0">92%</h4>
+                                <small class="text-muted">Taux de conversion</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions de gestion -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-tools me-2"></i>Actions de Gestion</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary btn-sm" onclick="sendMessage()">
+                                <i class="fas fa-envelope me-2"></i>Envoyer un message
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="viewClients()">
+                                <i class="fas fa-users me-2"></i>Voir ses clients
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="viewOrders()">
+                                <i class="fas fa-shopping-cart me-2"></i>Voir ses commandes
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="generateReport()">
+                                <i class="fas fa-chart-bar me-2"></i>Rapport d'activité
+                            </button>
+                            <hr>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="impersonateUser()" th:if="${!user.hasRole('ADMIN')}">
+                                <i class="fas fa-user-secret me-2"></i>Se connecter en tant que
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations système -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info me-2"></i>Informations Système</h6>
+                    </div>
+                    <div class="card-body">
+                        <small class="text-muted" th:if="${user.createdAt != null}">
+                            <strong>Créé le :</strong><br>
+                            <span th:text="${#temporals.format(user.createdAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 10:30</span>
+                        </small><br>
+                        <small class="text-muted" th:if="${user.updatedAt != null}">
+                            <strong>Modifié le :</strong><br>
+                            <span th:text="${#temporals.format(user.updatedAt, 'dd/MM/yyyy HH:mm')}">25/07/2025 14:15</span>
+                        </small><br>
+                        <small class="text-muted">
+                            <strong>ID :</strong> <span th:text="'#' + ${user.id}">#123</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de gestion des rôles -->
+<div class="modal fade" id="rolesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Gérer les Rôles</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="rolesForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Rôles disponibles</h6>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="roleAdmin" value="ADMIN">
+                                <label class="form-check-label" for="roleAdmin">
+                                    Administrateur
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="roleCommercial" value="COMMERCIAL">
+                                <label class="form-check-label" for="roleCommercial">
+                                    Commercial
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="roleManager" value="MANAGER">
+                                <label class="form-check-label" for="roleManager">
+                                    Manager
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Permissions spéciales</h6>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="permViewReports" value="VIEW_REPORTS">
+                                <label class="form-check-label" for="permViewReports">
+                                    Voir les rapports
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="permManageUsers" value="MANAGE_USERS">
+                                <label class="form-check-label" for="permManageUsers">
+                                    Gérer les utilisateurs
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveRoles()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de modification des objectifs -->
+<div class="modal fade" id="targetsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Modifier les Objectifs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="targetsForm">
+                    <div class="mb-3">
+                        <label class="form-label">Objectif personnel (€)</label>
+                        <input type="number" class="form-control" id="personalTarget"
+                               th:value="${user.personalTarget}" step="1000" min="0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Période</label>
+                        <select class="form-select" id="targetPeriod">
+                            <option value="monthly">Mensuel</option>
+                            <option value="quarterly">Trimestriel</option>
+                            <option value="yearly">Annuel</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" rows="3" placeholder="Commentaires sur l'objectif..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="saveTargets()">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Êtes-vous sûr de vouloir supprimer cet utilisateur ?</p>
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Attention :</strong> Cette action supprimera également toutes les données associées.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Supprimer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<th:block th:fragment="js_assets">
+    <script th:inline="javascript">
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+            showNotification('Copié dans le presse-papiers !', 'success');
+        }).catch(function() {
+            showNotification('Erreur lors de la copie', 'error');
+        });
+    }
+
+    function resetPassword() {
+        if (confirm('Êtes-vous sûr de vouloir réinitialiser le mot de passe ?')) {
+            var userId = window.location.pathname.split('/').pop();
+            // Envoyer la requête de réinitialisation
+            fetch(`/users/${userId}/reset-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Mot de passe réinitialisé avec succès !', 'success');
+                    } else {
+                        showNotification('Erreur lors de la réinitialisation', 'error');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Erreur de connexion', 'error');
+                });
+        }
+    }
+
+    function toggleAccount() {
+        var userId = window.location.pathname.split('/').pop();
+        var isEnabled = document.querySelector('.badge.bg-success, .badge.bg-danger').textContent === 'Actif';
+        var action = isEnabled ? 'disable' : 'enable';
+
+        if (confirm(`Êtes-vous sûr de vouloir ${isEnabled ? 'désactiver' : 'activer'} ce compte ?`)) {
+            showNotification(`Compte ${isEnabled ? 'désactivé' : 'activé'} avec succès !`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        }
+    }
+
+    function unlockAccount() {
+        var userId = window.location.pathname.split('/').pop();
+        if (confirm('Êtes-vous sûr de vouloir déverrouiller ce compte ?')) {
+            showNotification('Compte déverrouillé avec succès !', 'success');
+            setTimeout(() => location.reload(), 1000);
+        }
+    }
+
+    function manageRoles() {
+        var rolesModal = new bootstrap.Modal(document.getElementById('rolesModal'));
+        rolesModal.show();
+    }
+
+    function saveRoles() {
+        var form = document.getElementById('rolesForm');
+        var formData = new FormData(form);
+
+        console.log('Rôles mis à jour:', Object.fromEntries(formData));
+
+        bootstrap.Modal.getInstance(document.getElementById('rolesModal')).hide();
+        showNotification('Rôles mis à jour avec succès !', 'success');
+    }
+
+    function updateTargets() {
+        var targetsModal = new bootstrap.Modal(document.getElementById('targetsModal'));
+        targetsModal.show();
+    }
+
+    function saveTargets() {
+        var form = document.getElementById('targetsForm');
+        var formData = new FormData(form);
+
+        console.log('Objectifs mis à jour:', Object.fromEntries(formData));
+
+        bootstrap.Modal.getInstance(document.getElementById('targetsModal')).hide();
+        showNotification('Objectifs mis à jour avec succès !', 'success');
+    }
+
+    function sendMessage() {
+        var email = document.querySelector('a[href^="mailto:"]');
+        if (email) {
+            window.location.href = email.href + '?subject=Message depuis le système de gestion';
+        }
+    }
+
+    function viewClients() {
+        var userId = window.location.pathname.split('/').pop();
+        window.location.href = `/clients?assignedUserId=${userId}`;
+    }
+
+    function viewOrders() {
+        var userId = window.location.pathname.split('/').pop();
+        window.location.href = `/orders?userId=${userId}`;
+    }
+
+    function generateReport() {
+        var userId = window.location.pathname.split('/').pop();
+        window.open(`/users/${userId}/report`, '_blank');
+    }
+
+    function impersonateUser() {
+        var userId = window.location.pathname.split('/').pop();
+        if (confirm('Vous allez vous connecter en tant que cet utilisateur. Continuer ?')) {
+            window.location.href = `/admin/impersonate/${userId}`;
+        }
+    }
+
+    function deleteUser() {
+        var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        deleteModal.show();
+    }
+
+    function confirmDelete() {
+        var userId = window.location.pathname.split('/').pop();
+        window.location.href = `/users/delete/${userId}`;
+    }
+
+    function exportUser() {
+        var userId = window.location.pathname.split('/').pop();
+        window.location.href = `/users/export/${userId}`;
+    }
+
+    function printUser() {
+        window.print();
+    }
+
+    function showNotification(message, type = 'info') {
+        var alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
+
+        var alertDiv = document.createElement('div');
+        alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 350px;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+        document.body.appendChild(alertDiv);
+
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page de détails utilisateur chargée');
+
+        // Vérifier les alertes de sécurité
+        var isEnabled = document.querySelector('.badge.bg-success, .badge.bg-danger').textContent === 'Actif';
+        var isLocked = document.querySelector('.badge.bg-warning');
+
+        if (!isEnabled) {
+            setTimeout(() => {
+                showNotification('Ce compte est désactivé !', 'warning');
+            }, 1000);
+        }
+
+        if (isLocked && isLocked.textContent.includes('Verrouillé')) {
+            setTimeout(() => {
+                showNotification('Ce compte est verrouillé !', 'error');
+            }, 1500);
+        }
+    });
+</script>
+ </th:block>
+</body>
+</html>

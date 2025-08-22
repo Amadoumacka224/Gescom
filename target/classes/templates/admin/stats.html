@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Fragment pour les statistiques de revenus -->
+<div th:fragment="revenueStats">
+    <div class="row">
+        <div th:each="data : ${stats}" class="col-md-3 mb-2">
+            <div class="card border-primary">
+                <div class="card-body text-center">
+                    <small th:text="${data.date}">Date</small>
+                    <h6 th:text="${#numbers.formatCurrency(data.revenue)}" class="text-primary">€0</h6>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment pour les statistiques de commandes -->
+<div th:fragment="ordersStats">
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead>
+            <tr>
+                <th>Statut</th>
+                <th>Nombre</th>
+                <th>%</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="data : ${stats}">
+                <td th:text="${data.status}">Statut</td>
+                <td th:text="${data.count}">0</td>
+                <td>
+                    <div class="progress progress-sm">
+                        <div class="progress-bar"
+                             th:style="|width: ${(data.count * 100.0 / stats.size())}%|"
+                             th:text="${#numbers.formatDecimal((data.count * 100.0 / stats.size()), 1, 1)} + '%'">0%</div>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Fragment pour les statistiques de clients -->
+<div th:fragment="clientsStats">
+    <div class="row">
+        <div th:each="client : ${stats}" class="col-md-6 mb-2">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h6 th:text="${client.name}" class="card-title">Nom Client</h6>
+                    <small th:text="${client.email}" class="text-muted">Email</small>
+                    <br>
+                    <span th:text="${client.clientType}"
+                          class="badge bg-info">Type</span>
+                    <span th:text="${client.status}"
+                          th:class="${client.status == 'ACTIVE'} ? 'badge bg-success' : 'badge bg-warning'">Status</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment pour les statistiques de produits (alertes stock) -->
+<div th:fragment="productsStats">
+    <div th:if="${#lists.isEmpty(stats)}" class="text-center text-muted">
+        <i class="fas fa-check-circle fa-3x mb-3"></i>
+        <h5>Aucune alerte stock</h5>
+        <p>Tous les produits sont en stock suffisant</p>
+    </div>
+
+    <div th:if="${!#lists.isEmpty(stats)}">
+        <div th:each="product : ${stats}" class="alert alert-warning mb-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong th:text="${product.name}">Produit</strong>
+                    <br>
+                    <small class="text-muted">
+                        Stock restant:
+                        <span th:text="${product.stock}" class="fw-bold">0</span>
+                    </small>
+                </div>
+                <div>
+                    <span class="badge bg-warning">Stock bas</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Fragment générique pour affichage de données JSON -->
+<div th:fragment="jsonStats">
+    <pre th:text="${#strings.toString(stats)}" class="bg-light p-3 rounded">
+        Données JSON
+    </pre>
+</div>
+
+</body>
+</html>
