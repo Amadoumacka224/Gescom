@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
-    <title>Gestion des Factures</title>
+    <title>Gestion des Factures - GESCOM</title>
+    <link rel="stylesheet" th:href="@{/css/invoices/list.css}" />
 </head>
 <body>
 <div th:fragment="content">
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
-        'Gestion des Factures', 
-        'Gérez vos factures et encaissements', 
+        'Gestion des Factures',
+        'Pilotez votre facturation, suivez les encaissements et gérez les relances clients',
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/invoices/new}" class="btn btn-primary">
@@ -34,38 +35,38 @@
     <div class="row g-4 mb-4">
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${totalInvoices}, 
-                'Total Factures', 
-                null, 
-                null, 
-                'fas fa-file-invoice', 
+                ${totalInvoices ?: 0},
+                'Total Factures',
+                null,
+                null,
+                'fas fa-file-invoice',
                 'primary')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${paidInvoices}, 
-                'Payées', 
-                null, 
-                null, 
-                'fas fa-check-circle', 
+                ${paidInvoices ?: 0},
+                'Payées',
+                null,
+                null,
+                'fas fa-check-circle',
                 'success')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${overdueInvoices}, 
-                'En Retard', 
-                null, 
-                null, 
-                'fas fa-exclamation-triangle', 
+                ${overdueInvoices ?: 0},
+                'En Retard',
+                null,
+                null,
+                'fas fa-exclamation-triangle',
                 'warning')}"></div>
         </div>
         <div class="col-lg-3 col-md-6">
             <div th:replace="~{fragments/components :: stats-card(
-                ${#numbers.formatCurrency(outstandingAmount)}, 
-                'Impayés', 
-                null, 
-                null, 
-                'fas fa-euro-sign', 
+                ${#numbers.formatCurrency(outstandingAmount ?: 0)},
+                'Impayés',
+                null,
+                null,
+                'fas fa-euro-sign',
                 'info')}"></div>
         </div>
     </div>
@@ -78,24 +79,27 @@
                     <div class="row text-center">
                         <div class="col-md-4">
                             <h6 class="text-muted">Montant Total</h6>
-                            <h4 th:text="${#numbers.formatCurrency(totalAmount)}" class="text-primary">€0</h4>
+                            <h4 th:text="${#numbers.formatCurrency(totalAmount ?: 0)}" class="text-primary">€0</h4>
                         </div>
                         <div class="col-md-4">
                             <h6 class="text-muted">Montant Encaissé</h6>
-                            <h4 th:text="${#numbers.formatCurrency(paidAmount)}" class="text-success">€0</h4>
+                            <h4 th:text="${#numbers.formatCurrency(paidAmount ?: 0)}" class="text-success">€0</h4>
                         </div>
                         <div class="col-md-4">
                             <h6 class="text-muted">Reste à Encaisser</h6>
-                            <h4 th:text="${#numbers.formatCurrency(outstandingAmount)}" class="text-warning">€0</h4>
+                            <h4 th:text="${#numbers.formatCurrency(outstandingAmount ?: 0)}" class="text-warning">€0</h4>
                         </div>
                     </div>
-                    <div class="progress-bar bg-success"
-                         th:with="percentage=${totalAmount != null and paidAmount != null and totalAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0 ? (paidAmount.multiply(T(java.math.BigDecimal).valueOf(100))).divide(totalAmount, 2, T(java.math.RoundingMode).HALF_UP) : T(java.math.BigDecimal).ZERO}"
-                         th:style="${'width: ' + #numbers.formatDecimal(percentage, 1, 2) + '%'}"
-                         role="progressbar"
-                         aria-valuenow="0"
-                         aria-valuemin="0"
-                         aria-valuemax="100">
+                    <div class="progress mt-3">
+                        <div class="progress-bar bg-success"
+                             th:style="'width: ' + (${paymentPercentage} ?: 0) + '%'"
+                             role="progressbar"
+                             th:aria-valuenow="${paymentPercentage} ?: 0"
+                             aria-valuemin="0"
+                             aria-valuemax="100"
+                             th:text="${#numbers.formatDecimal(paymentPercentage ?: 0, 1, 1)} + '%'">
+                            0%
+                        </div>
                     </div>
                 </div>
             </div>
@@ -126,7 +130,7 @@
                         <option value="DRAFT" th:selected="${selectedStatus == 'DRAFT'}">Brouillon</option>
                         <option value="SENT" th:selected="${selectedStatus == 'SENT'}">Envoyée</option>
                         <option value="PAID" th:selected="${selectedStatus == 'PAID'}">Payée</option>
-                        <option value="PARTIALLY_PAID" th:selected="${selectedStatus == 'PARTIALLY_PAID'}">Partiellement payée</option>
+                        <option value="PARTIAL" th:selected="${selectedStatus == 'PARTIAL'}">Partiellement payée</option>
                         <option value="OVERDUE" th:selected="${selectedStatus == 'OVERDUE'}">En retard</option>
                         <option value="CANCELLED" th:selected="${selectedStatus == 'CANCELLED'}">Annulée</option>
                     </select>
@@ -218,7 +222,7 @@
                                    th:text="'Cmd: ' + ${invoice.order.orderNumber}"
                                    class="text-muted">Commande</small>
                         </td>
-                        <td th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</td>
+                        <td th:text="${invoice.invoiceDate != null ? #temporals.format(invoice.invoiceDate, 'dd/MM/yyyy') : 'N/A'}">01/01/2024</td>
                         <td>
                             <div th:if="${invoice.order}">
                                 <strong th:text="${invoice.order.client.name}">Client</strong>
@@ -230,31 +234,36 @@
                         </td>
                         <td>
                             <div>
-                                <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€0.00</strong>
+                                <strong th:text="${invoice.totalAmount != null ? #numbers.formatCurrency(invoice.totalAmount) : 'N/A'}">€0.00</strong>
                                 <br>
-                                <small th:if="${invoice.paidAmount and invoice.paidAmount.compareTo(java.math.BigDecimal.ZERO) > 0}"
+                                <small th:if="${invoice.paidAmount != null and invoice.paidAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}"
                                        th:text="'Payé: ' + ${#numbers.formatCurrency(invoice.paidAmount)}"
                                        class="text-success">Payé</small>
                             </div>
                         </td>
                         <td>
+                            <div th:if="${invoice.dueDate != null}">
                                 <span th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}"
-                                      th:class="${invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID} ? 'text-danger fw-bold' : ''">01/01/2024</span>
-                            <br>
-                            <small th:if="${invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID}"
-                                   class="text-danger">
-                                <i class="fas fa-exclamation-triangle"></i> En retard
-                            </small>
+                                      th:class="${invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status.name() != 'PAID'} ? 'text-danger fw-bold' : ''"></span>
+                                <br>
+                                <small th:if="${invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status.name() != 'PAID'}"
+                                       class="text-danger">
+                                    <i class="fas fa-exclamation-triangle"></i> En retard
+                                </small>
+                            </div>
+                            <div th:unless="${invoice.dueDate != null}">
+                                N/A
+                            </div>
                         </td>
                         <td>
-                                <span th:switch="${invoice.status}">
-                                    <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
-                                    <span th:case="'SENT'" class="badge bg-primary">Envoyée</span>
-                                    <span th:case="'PAID'" class="badge bg-success">Payée</span>
-                                    <span th:case="'PARTIALLY_PAID'" class="badge bg-warning">Partiellement payée</span>
-                                    <span th:case="'OVERDUE'" class="badge bg-danger">En retard</span>
-                                    <span th:case="'CANCELLED'" class="badge bg-dark">Annulée</span>
-                                </span>
+                            <span th:switch="${invoice.status.name()}">
+                                <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
+                                <span th:case="'SENT'" class="badge bg-primary">Envoyée</span>
+                                <span th:case="'PAID'" class="badge bg-success">Payée</span>
+                                <span th:case="'PARTIAL'" class="badge bg-warning">Partiellement payée</span>
+                                <span th:case="'OVERDUE'" class="badge bg-danger">En retard</span>
+                                <span th:case="'CANCELLED'" class="badge bg-dark">Annulée</span>
+                            </span>
                         </td>
                         <td>
                             <div class="btn-group" role="group">
@@ -266,7 +275,7 @@
                                    class="btn btn-sm btn-outline-primary" title="PDF">
                                     <i class="fas fa-file-pdf"></i>
                                 </a>
-                                <button th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).DRAFT}"
+                                <button th:if="${invoice.status.name() == 'DRAFT'}"
                                         type="button"
                                         class="btn btn-sm btn-outline-success"
                                         data-bs-toggle="modal"
@@ -274,7 +283,7 @@
                                         title="Envoyer">
                                     <i class="fas fa-paper-plane"></i>
                                 </button>
-                                <button th:if="${invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).CANCELLED}"
+                                <button th:if="${invoice.status.name() != 'PAID' and invoice.status.name() != 'CANCELLED'}"
                                         type="button"
                                         class="btn btn-sm btn-outline-warning"
                                         data-bs-toggle="modal"
@@ -282,7 +291,7 @@
                                         title="Encaisser">
                                     <i class="fas fa-euro-sign"></i>
                                 </button>
-                                <button th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).SENT or invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).OVERDUE}"
+                                <button th:if="${invoice.status.name() == 'SENT' or invoice.status.name() == 'OVERDUE'}"
                                         type="button"
                                         class="btn btn-sm btn-outline-info"
                                         data-bs-toggle="modal"
@@ -290,7 +299,7 @@
                                         title="Relancer">
                                     <i class="fas fa-bell"></i>
                                 </button>
-                                <button th:if="${canEdit and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID}"
+                                <button th:if="${canEdit and invoice.status.name() != 'PAID'}"
                                         type="button"
                                         class="btn btn-sm btn-outline-danger"
                                         data-bs-toggle="modal"
@@ -304,7 +313,7 @@
                     <tr th:if="${#lists.isEmpty(invoices)}">
                         <td colspan="7" class="text-center text-muted py-4">
                             <i class="fas fa-file-invoice fa-3x mb-3"></i>
-                            <br>Aucune facture trouvée
+                            <br><strong>Aucune facture trouvée</strong>
                         </td>
                     </tr>
                     </tbody>
@@ -328,7 +337,6 @@
                            overdue=${overdueFilter})}">
                             Précédent
                         </a>
-
                     </li>
 
                     <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
@@ -364,7 +372,7 @@
                         <p>Envoyer la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
                         <form th:action="@{/invoices/{id}/send(id=${invoice.id})}" method="post" class="d-inline">
                             <button type="submit" class="btn btn-success">Envoyer</button>
                         </form>
@@ -399,7 +407,7 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
                             <button type="submit" class="btn btn-success">Enregistrer</button>
                         </div>
                     </form>
@@ -419,9 +427,9 @@
                         <p>Envoyer une relance pour la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
                         <form th:action="@{/invoices/{id}/remind(id=${invoice.id})}" method="post" class="d-inline">
-                            <button type="submit" class="btn btn-warning">Envoyer relance</button>
+                            <button type="submit" class="btn btn-outline-warning">Envoyer relance</button>
                         </form>
                     </div>
                 </div>
@@ -441,7 +449,7 @@
                         <p class="text-danger"><small>Cette action est irréversible.</small></p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
                         <form th:action="@{/invoices/{id}/cancel(id=${invoice.id})}" method="post" class="d-inline">
                             <button type="submit" class="btn btn-danger">Confirmer l'annulation</button>
                         </form>

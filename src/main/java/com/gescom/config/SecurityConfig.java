@@ -5,6 +5,7 @@ import com.gescom.service.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -18,8 +19,6 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import java.io.IOException;
-
-import static org.springframework.web.servlet.function.RequestPredicates.headers;
 
 @Configuration
 @EnableWebSecurity
@@ -58,6 +57,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 // Désactiver CSRF pour H2 Console (development seulement)
@@ -79,7 +79,8 @@ public class SecurityConfig {
                                 "/images/**",
                                 "/webjars/**",
                                 "/h2-console/**",
-                                "/error**"
+                                "/error**",
+                                "/payment/**"
                         ).permitAll()
 
                         // Pages d'administration
@@ -127,14 +128,10 @@ public class SecurityConfig {
                         .expiredUrl("/login?expired=true")
                 )
 
-
                 // Configuration des headers pour H2 Console
                 .headers(headers -> headers
                         .frameOptions(frameOptions -> frameOptions.sameOrigin())
                 )
-
-
-
 
                 // Gestion des exceptions
                 .exceptionHandling(exceptions -> exceptions

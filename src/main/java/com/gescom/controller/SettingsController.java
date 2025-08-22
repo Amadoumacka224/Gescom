@@ -35,7 +35,10 @@ public class SettingsController {
     private SettingsService settingsService;
 
     /**
-     * Page principale des paramètres avec recherche et pagination
+     * Affiche la page principale des paramètres.
+     * Gère la recherche par mot-clé, le filtrage par catégorie et par type (système/utilisateur),
+     * la pagination, le tri, et deux modes d'affichage (groupé par catégorie ou liste simple).
+     * Construit également les URLs de pagination et les statistiques pour l'affichage.
      */
     @GetMapping
     public String index(@RequestParam(value = "page", defaultValue = "0") int page,
@@ -171,18 +174,18 @@ public class SettingsController {
     }
 
     /**
-     * Sauvegarde d'un paramètre (nouveau ou modification)
+     * Sauvegarde d'un nouveau paramètre
      */
-    @PostMapping("/save")
-    public String saveSetting(@Valid @ModelAttribute Settings setting, 
-                             BindingResult bindingResult,
-                             Model model, 
-                             RedirectAttributes redirectAttributes) {
+    @PostMapping
+    public String createSetting(@Valid @ModelAttribute Settings setting, 
+                               BindingResult bindingResult,
+                               Model model, 
+                               RedirectAttributes redirectAttributes) {
         
         if (bindingResult.hasErrors()) {
             model.addAttribute("categories", Settings.SettingCategory.values());
             model.addAttribute("valueTypes", Settings.ValueType.values());
-            model.addAttribute("isEdit", setting.getId() != null);
+            model.addAttribute("isEdit", false);
             return "admin/settings-form";
         }
 
@@ -192,41 +195,23 @@ public class SettingsController {
                 model.addAttribute("error", "La valeur est invalide pour le type sélectionné");
                 model.addAttribute("categories", Settings.SettingCategory.values());
                 model.addAttribute("valueTypes", Settings.ValueType.values());
-                model.addAttribute("isEdit", setting.getId() != null);
+                model.addAttribute("isEdit", false);
                 return "admin/settings-form";
             }
             
-            // Vérification d'unicité de la clé (pour nouveaux paramètres)
-            if (setting.getId() == null) {
-                Optional<Settings> existing = settingsService.getSettingByKey(setting.getKey());
-                if (existing.isPresent()) {
-                    model.addAttribute("error", "Un paramètre avec cette clé existe déjà");
-                    model.addAttribute("categories", Settings.SettingCategory.values());
-                    model.addAttribute("valueTypes", Settings.ValueType.values());
-                    model.addAttribute("isEdit", false);
-                    return "admin/settings-form";
-                }
+            // Vérification d'unicité de la clé
+            Optional<Settings> existing = settingsService.getSettingByKey(setting.getKey());
+            if (existing.isPresent()) {
+                model.addAttribute("error", "Un paramètre avec cette clé existe déjà");
+                model.addAttribute("categories", Settings.SettingCategory.values());
+                model.addAttribute("valueTypes", Settings.ValueType.values());
+                model.addAttribute("isEdit", false);
+                return "admin/settings-form";
             }
             
-            // Gestion des paramètres système (protection)
-            if (setting.getId() != null) {
-                Optional<Settings> existingOpt = settingsService.getSettingById(setting.getId());
-                if (existingOpt.isPresent()) {
-                    Settings existing = existingOpt.get();
-                    if (existing.getIsSystem()) {
-                        // Pour les paramètres système, on ne peut modifier que la valeur
-                        existing.setValue(setting.getValue());
-                        settingsService.saveSetting(existing);
-                        redirectAttributes.addFlashAttribute("success", "Paramètre système mis à jour avec succès");
-                        return "redirect:/admin/settings";
-                    }
-                }
-            }
-            
-            // Sauvegarde normale
+            // Sauvegarde
             settingsService.saveSetting(setting);
-            redirectAttributes.addFlashAttribute("success", 
-                setting.getId() != null ? "Paramètre mis à jour avec succès" : "Paramètre créé avec succès");
+            redirectAttributes.addFlashAttribute("success", "Paramètre créé avec succès");
             
             return "redirect:/admin/settings";
             
@@ -234,7 +219,74 @@ public class SettingsController {
             model.addAttribute("error", "Erreur lors de la sauvegarde : " + e.getMessage());
             model.addAttribute("categories", Settings.SettingCategory.values());
             model.addAttribute("valueTypes", Settings.ValueType.values());
-            model.addAttribute("isEdit", setting.getId() != null);
+            model.addAttribute("isEdit", false);
+            return "admin/settings-form";
+        }
+    }
+
+    /**
+     * Modification d'un paramètre existant
+     */
+    @PostMapping("/edit/{id}")
+    public String updateSetting(@PathVariable Long id,
+                               @Valid @ModelAttribute Settings setting, 
+                               BindingResult bindingResult,
+                               Model model, 
+                               RedirectAttributes redirectAttributes) {
+        
+        if (bindingResult.hasErrors()) {
+            model.addAttribute("categories", Settings.SettingCategory.values());
+            model.addAttribute("valueTypes", Settings.ValueType.values());
+            model.addAttribute("isEdit", true);
+            return "admin/settings-form";
+        }
+
+        try {
+            // Validation spécifique
+            if (!setting.isValidValue()) {
+                model.addAttribute("error", "La valeur est invalide pour le type sélectionné");
+                model.addAttribute("categories", Settings.SettingCategory.values());
+                model.addAttribute("valueTypes", Settings.ValueType.values());
+                model.addAttribute("isEdit", true);
+                return "admin/settings-form";
+            }
+            
+            // Récupérer le paramètre existant
+            Optional<Settings> existingOpt = settingsService.getSettingById(id);
+            if (existingOpt.isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Paramètre introuvable");
+                return "redirect:/admin/settings";
+            }
+            
+            Settings existing = existingOpt.get();
+            
+            // Gestion des paramètres système (protection)
+            if (existing.getIsSystem()) {
+                // Pour les paramètres système, on ne peut modifier que la valeur
+                existing.setValue(setting.getValue());
+                settingsService.saveSetting(existing);
+                redirectAttributes.addFlashAttribute("success", "Paramètre système mis à jour avec succès");
+                return "redirect:/admin/settings";
+            }
+            
+            // Pour les paramètres non-système, copier toutes les propriétés
+            existing.setValue(setting.getValue());
+            existing.setDescription(setting.getDescription());
+            existing.setCategory(setting.getCategory());
+            existing.setValueType(setting.getValueType());
+            existing.setSortOrder(setting.getSortOrder());
+            
+            // Sauvegarde
+            settingsService.saveSetting(existing);
+            redirectAttributes.addFlashAttribute("success", "Paramètre mis à jour avec succès");
+            
+            return "redirect:/admin/settings";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Erreur lors de la sauvegarde : " + e.getMessage());
+            model.addAttribute("categories", Settings.SettingCategory.values());
+            model.addAttribute("valueTypes", Settings.ValueType.values());
+            model.addAttribute("isEdit", true);
             return "admin/settings-form";
         }
     }

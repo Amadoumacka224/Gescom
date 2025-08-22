@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Debug Template</title>
+</head>
+<body>
+    <h1>Debug des articles de commande</h1>
+    
+    <!-- Test simple d'affichage -->
+    <div>
+        <h2>Articles bruts :</h2>
+        <div th:each="item : ${order.orderItems}">
+            <p>Article: <span th:text="${item.product.name}">N/A</span> - Quantité: <span th:text="${item.quantity}">0</span></p>
+        </div>
+    </div>
+    
+    <div>
+        <h2>Test conditionnel :</h2>
+        <div th:if="${order.orderItems != null}">
+            <p>Order items n'est pas null - Taille: <span th:text="${#lists.size(order.orderItems)}">0</span></p>
+        </div>
+        <div th:if="${order.orderItems == null}">
+            <p>Order items est null !</p>
+        </div>
+        
+        <div th:if="${#lists.isEmpty(order.orderItems)}">
+            <p>Order items est vide !</p>
+        </div>
+        <div th:if="${not #lists.isEmpty(order.orderItems)}">
+            <p>Order items contient des éléments</p>
+        </div>
+    </div>
+</body>
+</html>

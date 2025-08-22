@@ -379,8 +379,8 @@ public class DatabaseConfig {
                 Order savedOrder = orderRepository.save(order);
 
                 // Créer une facture si la commande est confirmée
-                if (savedOrder.getStatus() != Order.OrderStatus.DRAFT &&
-                        savedOrder.getStatus() != Order.OrderStatus.CANCELLED) {
+                if (savedOrder.getStatus() != Order.OrderStatus.BROUILLON &&
+                        savedOrder.getStatus() != Order.OrderStatus.ANNULEE) {
                     createInvoiceForOrder(savedOrder, random);
                 }
             }
@@ -486,11 +486,11 @@ public class DatabaseConfig {
 
     private Order.OrderStatus getRandomOrderStatus(int daysOld) {
         Random random = new Random();
-        if (daysOld > 60) return Order.OrderStatus.DELIVERED;
-        if (daysOld > 30) return random.nextDouble() < 0.9 ? Order.OrderStatus.DELIVERED : Order.OrderStatus.SHIPPED;
-        if (daysOld > 7) return random.nextDouble() < 0.7 ? Order.OrderStatus.DELIVERED : Order.OrderStatus.PROCESSING;
-        if (daysOld > 3) return random.nextDouble() < 0.8 ? Order.OrderStatus.CONFIRMED : Order.OrderStatus.PROCESSING;
-        return random.nextDouble() < 0.6 ? Order.OrderStatus.CONFIRMED : Order.OrderStatus.DRAFT;
+        if (daysOld > 60) return Order.OrderStatus.LIVREE;
+        if (daysOld > 30) return random.nextDouble() < 0.9 ? Order.OrderStatus.LIVREE : Order.OrderStatus.EXPEDIE;
+        if (daysOld > 7) return random.nextDouble() < 0.7 ? Order.OrderStatus.LIVREE : Order.OrderStatus.EN_COURS;
+        if (daysOld > 3) return random.nextDouble() < 0.8 ? Order.OrderStatus.CONFIRMEE : Order.OrderStatus.EN_COURS;
+        return random.nextDouble() < 0.6 ? Order.OrderStatus.CONFIRMEE : Order.OrderStatus.BROUILLON;
     }
 
     private void printDefaultAccounts() {

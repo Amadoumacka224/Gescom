@@ -4,6 +4,7 @@ import com.gescom.entity.Product;
 import com.gescom.entity.User;
 import com.gescom.repository.ProductRepository;
 import com.gescom.repository.UserRepository;
+import com.gescom.service.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +31,9 @@ public class ProductController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ImageService imageService;
 
     @GetMapping
     public String listProducts(
@@ -198,6 +203,7 @@ public class ProductController {
     public String saveProduct(
             @Valid @ModelAttribute Product product,
             BindingResult result,
+            @RequestParam(value = "imageFile", required = false) MultipartFile imageFile,
             Model model,
             RedirectAttributes redirectAttributes) {
 
@@ -212,6 +218,40 @@ public class ProductController {
                 result.rejectValue("unitPrice", "error.product", "Le prix de vente doit être supérieur au prix d'achat");
                 model.addAttribute("isEdit", product.getId() != null);
                 return "products/form";
+            }
+
+            // Gestion de l'image
+            String oldImageUrl = null;
+            if (product.getId() != null) {
+                // Récupérer l'ancienne image pour suppression éventuelle
+                Optional<Product> existingProduct = productRepository.findById(product.getId());
+                if (existingProduct.isPresent()) {
+                    oldImageUrl = existingProduct.get().getImageUrl();
+                }
+            }
+
+            // Upload de la nouvelle image si un fichier est fourni
+            if (imageFile != null && !imageFile.isEmpty()) {
+                try {
+                    String imageUrl = imageService.saveImage(imageFile);
+                    product.setImageUrl(imageUrl);
+                    
+                    // Supprimer l'ancienne image si elle existe
+                    if (oldImageUrl != null && !oldImageUrl.isEmpty()) {
+                        imageService.deleteImage(oldImageUrl);
+                    }
+                } catch (Exception e) {
+                    redirectAttributes.addFlashAttribute("error", "Erreur lors de l'upload de l'image: " + e.getMessage());
+                    model.addAttribute("isEdit", product.getId() != null);
+                    return "products/form";
+                }
+            } else if (product.getImageUrl() != null && !product.getImageUrl().trim().isEmpty()) {
+                // Valider l'URL si fournie
+                if (!imageService.isValidImageUrl(product.getImageUrl())) {
+                    redirectAttributes.addFlashAttribute("error", "URL d'image invalide");
+                    model.addAttribute("isEdit", product.getId() != null);
+                    return "products/form";
+                }
             }
 
             // Générer une référence si elle n'existe pas
@@ -243,6 +283,13 @@ public class ProductController {
             if (productOpt.isEmpty()) {
                 redirectAttributes.addFlashAttribute("error", "Produit non trouvé");
                 return "redirect:/products";
+            }
+
+            Product product = productOpt.get();
+            
+            // Supprimer l'image associée si elle existe
+            if (product.getImageUrl() != null && !product.getImageUrl().isEmpty()) {
+                imageService.deleteImage(product.getImageUrl());
             }
 
             productRepository.deleteById(id);

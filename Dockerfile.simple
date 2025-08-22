@@ -1,0 +1,44 @@
+# Dockerfile simple pour GESCOM
+# Utilise une image avec Maven intégré pour éviter les problèmes de construction
+
+FROM maven:3.9.4-eclipse-temurin-17 as builder
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier le projet complet
+COPY . .
+
+# Construire l'application
+RUN mvn clean package -DskipTests
+
+# Image finale
+FROM eclipse-temurin:17-jre-alpine
+
+# Métadonnées
+LABEL maintainer="GESCOM Team"
+LABEL description="Application de gestion commerciale GESCOM"
+LABEL version="1.0"
+
+# Installer curl pour le health check
+RUN apk add --no-cache curl
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier le JAR depuis l'étape de build
+COPY --from=builder /app/target/*.jar app.jar
+
+# Exposer le port
+EXPOSE 8080
+
+# Variables d'environnement
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+ENV SPRING_PROFILES_ACTIVE=docker
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# Point d'entrée
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

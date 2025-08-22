@@ -7,16 +7,37 @@
 <body>
 
 <!-- Page Header Component -->
-<div th:fragment="page-header(title, subtitle, actions)" class="page-header">
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <h1 class="page-title" th:text="${title}">Titre de la page</h1>
-            <p class="page-subtitle" th:if="${subtitle}" th:text="${subtitle}">Sous-titre</p>
-        </div>
-        <div class="d-flex gap-2" th:if="${actions}">
-            <th:block th:replace="${actions}"></th:block>
+<div th:fragment="page-header(title, subtitle, actions)" class="page-header mb-4">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <div class="page-header-content">
+                    <div class="page-breadcrumb mb-2">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb mb-0">
+                                <li class="breadcrumb-item">
+                                    <a href="/dashboard" class="text-decoration-none">
+                                        <i class="fas fa-home me-1"></i>Accueil
+                                    </a>
+                                </li>
+                                <li class="breadcrumb-item active" aria-current="page" th:text="${title}">Page actuelle</li>
+                            </ol>
+                        </nav>
+                    </div>
+                    <div class="page-title-wrapper">
+                        <h1 class="page-title h2 mb-1 fw-bold text-dark" th:text="${title}">Titre de la page</h1>
+                        <p class="page-subtitle text-muted mb-0" th:if="${subtitle}" th:text="${subtitle}">Sous-titre de la page avec plus de contexte</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4" th:if="${actions}">
+                <div class="page-header-actions d-flex justify-content-end gap-2 flex-wrap">
+                    <th:block th:replace="${actions}"></th:block>
+                </div>
+            </div>
         </div>
     </div>
+    <hr class="page-header-divider mt-3 mb-0">
 </div>
 
 <!-- Stats Card Component -->
@@ -212,6 +233,175 @@
         </li>
     </ol>
 </nav>
+
+<!-- Modal de changement de mot de passe -->
+<div th:fragment="change-password-modal" class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changePasswordModalLabel">
+                    <i class="fas fa-key me-2"></i>
+                    Changer le mot de passe
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="changePasswordForm" method="post" th:action="@{/profile/change-password}">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Votre mot de passe doit contenir au moins 8 caractères avec des lettres et des chiffres.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">
+                            <i class="fas fa-lock me-1"></i>
+                            Mot de passe actuel
+                        </label>
+                        <input type="password" class="form-control" id="currentPassword" name="currentPassword" required>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">
+                            <i class="fas fa-key me-1"></i>
+                            Nouveau mot de passe
+                        </label>
+                        <input type="password" class="form-control" id="newPassword" name="newPassword" required minlength="8">
+                        <div class="form-text">
+                            <small>Minimum 8 caractères, avec lettres et chiffres</small>
+                        </div>
+                        <div class="invalid-feedback"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">
+                            <i class="fas fa-check me-1"></i>
+                            Confirmer le nouveau mot de passe
+                        </label>
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required minlength="8">
+                        <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Zone d'erreur/succès -->
+                    <div id="passwordChangeAlert" class="alert" style="display: none;">
+                        <span id="passwordChangeMessage"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>
+                        Annuler
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="savePasswordBtn">
+                        <i class="fas fa-save me-1"></i>
+                        Changer le mot de passe
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script th:fragment="change-password-modal-js">
+    // Script pour le modal de changement de mot de passe
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('changePasswordForm');
+        const modal = document.getElementById('changePasswordModal');
+        const newPassword = document.getElementById('newPassword');
+        const confirmPassword = document.getElementById('confirmPassword');
+        const alertDiv = document.getElementById('passwordChangeAlert');
+        const alertMessage = document.getElementById('passwordChangeMessage');
+        
+        // Validation en temps réel
+        function validatePasswords() {
+            if (newPassword.value && confirmPassword.value) {
+                if (newPassword.value !== confirmPassword.value) {
+                    confirmPassword.setCustomValidity('Les mots de passe ne correspondent pas');
+                    confirmPassword.classList.add('is-invalid');
+                } else {
+                    confirmPassword.setCustomValidity('');
+                    confirmPassword.classList.remove('is-invalid');
+                    confirmPassword.classList.add('is-valid');
+                }
+            }
+        }
+        
+        newPassword.addEventListener('input', validatePasswords);
+        confirmPassword.addEventListener('input', validatePasswords);
+        
+        // Soumission du formulaire
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (!form.checkValidity()) {
+                form.classList.add('was-validated');
+                return;
+            }
+            
+            const formData = new FormData(form);
+            const saveBtn = document.getElementById('savePasswordBtn');
+            const originalText = saveBtn.innerHTML;
+            
+            // État de chargement
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Changement en cours...';
+            saveBtn.disabled = true;
+            
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alertDiv.className = 'alert alert-success';
+                    alertDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+                    alertDiv.style.display = 'block';
+                    
+                    // Réinitialiser le formulaire
+                    form.reset();
+                    form.classList.remove('was-validated');
+                    
+                    // Fermer le modal après 2 secondes
+                    setTimeout(() => {
+                        if (modal._bsModal) {
+                            modal._bsModal.hide();
+                        }
+                        alertDiv.style.display = 'none';
+                    }, 2000);
+                } else {
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + data.message;
+                    alertDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                alertDiv.className = 'alert alert-danger';
+                alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Erreur lors du changement de mot de passe';
+                alertDiv.style.display = 'block';
+                console.error('Erreur:', error);
+            })
+            .finally(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
+        });
+        
+        // Réinitialiser le modal à la fermeture
+        if (modal) {
+            modal.addEventListener('hidden.bs.modal', function() {
+                form.reset();
+                form.classList.remove('was-validated');
+                alertDiv.style.display = 'none';
+                document.querySelectorAll('.is-invalid, .is-valid').forEach(el => {
+                    el.classList.remove('is-invalid', 'is-valid');
+                });
+            });
+        }
+    });
+</script>
 
 </body>
 </html>

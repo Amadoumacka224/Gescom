@@ -7,251 +7,183 @@
 
 <div th:fragment="content" class="order-detail-page">
     <style>
-        /* === VARIABLES CSS MODERNES === */
+        /* === VARIABLES CSS === */
         .order-detail-page {
-            --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
-            --success-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            --warning-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            --info-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            --dark-gradient: linear-gradient(135deg, #2c3e50 0%, #4a6741 100%);
-
-            --primary-color: #3b82f6;
-            --primary-dark: #2563eb;
-            --success-color: #48bb78;
-            --warning-color: #ed8936;
-            --danger-color: #f56565;
-            --info-color: #0ea5e9;
+            --primary-color: #2563eb;
+            --primary-light: #3b82f6;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --danger-color: #dc2626;
+            --info-color: #0891b2;
 
             --gray-50: #f9fafb;
-            --gray-100: #f7fafc;
-            --gray-200: #edf2f7;
-            --gray-300: #e2e8f0;
-            --gray-400: #cbd5e0;
-            --gray-500: #a0aec0;
-            --gray-600: #718096;
-            --gray-700: #4a5568;
-            --gray-800: #2d3748;
-            --gray-900: #1a202c;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
 
-            --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --shadow-large: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            --shadow-elegant: 0 8px 30px rgba(0, 0, 0, 0.12);
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 
-            --border-radius-sm: 0.375rem;
-            --border-radius: 0.75rem;
-            --border-radius-lg: 1rem;
-            --border-radius-xl: 1.5rem;
-
-            --transition-all: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            --transition-transform: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --border-radius: 0.5rem;
+            --border-radius-lg: 0.75rem;
 
             min-height: 100vh;
-            background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 100%);
-            position: relative;
+            background-color: var(--gray-50);
             color: var(--gray-900);
-            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
         }
 
-        /* === TYPOGRAPHIE MODERNE === */
+        /* === TYPOGRAPHIE === */
         .order-detail-page h1, .order-detail-page h2, .order-detail-page h3,
         .order-detail-page h4, .order-detail-page h5, .order-detail-page h6 {
             font-weight: 600;
-            line-height: 1.2;
-            letter-spacing: -0.025em;
+            line-height: 1.3;
+            color: var(--gray-900);
         }
 
         .order-detail-page p {
-            line-height: 1.6;
             color: var(--gray-700);
         }
 
-        /* === HEADER PRINCIPAL ÉLÉGANT === */
+        /* === HEADER PRINCIPAL === */
         .order-header {
-            background: var(--primary-gradient);
-            color: white;
-            border-radius: var(--border-radius-xl);
-            padding: 3rem 2.5rem;
-            margin-bottom: 2.5rem;
-            box-shadow: var(--shadow-elegant);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .order-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100%;
-            height: 100%;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="2" fill="white" opacity="0.1"/><circle cx="80" cy="80" r="1.5" fill="white" opacity="0.08"/><circle cx="40" cy="70" r="1" fill="white" opacity="0.06"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-            pointer-events: none;
+            background-color: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius-lg);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
         }
 
         .order-number {
-            font-size: 3rem;
-            font-weight: 800;
+            font-size: 2.5rem;
+            font-weight: 700;
             margin-bottom: 1rem;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            letter-spacing: -0.05em;
+            color: var(--gray-900);
         }
 
         .order-status {
             display: inline-flex;
             align-items: center;
-            padding: 0.75rem 1.5rem;
-            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
             font-size: 0.875rem;
-            background: rgba(255,255,255,0.25);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.3);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            background-color: var(--primary-color);
+            color: white;
         }
 
         .info-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 2rem;
-            margin-top: 2.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
         }
 
         .info-item {
-            background: rgba(255,255,255,0.15);
-            padding: 1.5rem;
-            border-radius: var(--border-radius-lg);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: var(--transition-all);
-        }
-
-        .info-item:hover {
-            background: rgba(255,255,255,0.25);
-            transform: translateY(-2px);
+            background-color: var(--gray-50);
+            padding: 1.25rem;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--gray-200);
         }
 
         .info-label {
             display: flex;
             align-items: center;
             font-size: 0.875rem;
-            opacity: 0.9;
-            margin-bottom: 0.75rem;
+            color: var(--gray-600);
+            margin-bottom: 0.5rem;
             font-weight: 500;
         }
 
         .info-label i {
-            margin-right: 0.75rem;
-            width: 18px;
-            font-size: 1.1rem;
+            margin-right: 0.5rem;
+            width: 16px;
+            color: var(--primary-color);
         }
 
         .info-value {
-            font-size: 1.25rem;
-            font-weight: 700;
-            line-height: 1.2;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--gray-900);
         }
 
         .total-amount {
-            font-size: 2.5rem;
-            font-weight: 800;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-900);
         }
 
-        /* === CARTES MODERNES === */
+        /* === CARTES DE SECTION === */
         .section-card {
-            background: white;
-            border-radius: var(--border-radius-xl);
-            box-shadow: var(--shadow-soft);
-            margin-bottom: 2.5rem;
-            overflow: hidden;
-            transition: var(--transition-all);
+            background-color: white;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
             border: 1px solid var(--gray-200);
-            position: relative;
-        }
-
-        .section-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: var(--primary-gradient);
-        }
-
-        .section-card:hover {
-            box-shadow: var(--shadow-medium);
-            transform: translateY(-4px);
         }
 
         .section-header {
-            background: var(--gray-50);
-            padding: 2rem;
+            background-color: var(--gray-50);
+            padding: 1.5rem;
             border-bottom: 1px solid var(--gray-200);
+            border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: relative;
         }
 
         .section-title {
             display: flex;
             align-items: center;
-            font-size: 1.5rem;
-            font-weight: 700;
+            font-size: 1.25rem;
+            font-weight: 600;
             color: var(--gray-900);
             margin: 0;
         }
 
         .section-title i {
-            margin-right: 1rem;
+            margin-right: 0.75rem;
             color: var(--primary-color);
-            font-size: 1.25rem;
-            width: 24px;
-            text-align: center;
+            width: 20px;
         }
 
         .section-content {
-            padding: 2rem;
+            padding: 1.5rem;
         }
 
-        /* === TABLEAU ÉLÉGANT === */
+        /* === TABLEAU === */
         .products-table {
-            border-radius: var(--border-radius-lg);
+            border-radius: var(--border-radius);
             overflow: hidden;
-            box-shadow: var(--shadow-soft);
             border: 1px solid var(--gray-200);
         }
 
         .products-table th {
-            background: var(--primary-gradient) !important;
+            background-color: var(--primary-color) !important;
             color: white !important;
             font-weight: 600;
-            text-transform: uppercase;
             font-size: 0.875rem;
-            letter-spacing: 0.5px;
-            padding: 1.5rem 1.25rem !important;
+            padding: 1rem !important;
             border: none !important;
-            position: relative;
         }
 
         .products-table td {
-            padding: 1.5rem 1.25rem !important;
+            padding: 1rem !important;
             border-bottom: 1px solid var(--gray-200) !important;
-            transition: var(--transition-all);
             vertical-align: middle;
         }
 
-        .product-row {
-            transition: var(--transition-all);
-        }
-
         .product-row:hover {
-            background: linear-gradient(90deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%) !important;
-            transform: scale(1.01);
+            background-color: var(--gray-50) !important;
         }
 
         .product-info {
@@ -260,137 +192,109 @@
         }
 
         .product-image {
-            width: 56px;
-            height: 56px;
-            background: var(--primary-gradient);
+            width: 48px;
+            height: 48px;
+            background-color: var(--primary-color);
             border-radius: var(--border-radius);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 1.25rem;
+            margin-right: 1rem;
             color: white;
-            box-shadow: var(--shadow-soft);
-            font-size: 1.25rem;
         }
 
         .product-name {
-            font-weight: 700;
+            font-weight: 600;
             color: var(--gray-900);
-            margin-bottom: 0.5rem;
-            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
         }
 
         .product-ref {
             font-size: 0.875rem;
             color: var(--gray-500);
-            font-weight: 500;
         }
 
-        /* === TIMELINE MODERNE === */
+        /* === TIMELINE === */
         .timeline {
             position: relative;
-            padding-left: 3rem;
+            padding-left: 2rem;
         }
 
         .timeline::before {
             content: '';
             position: absolute;
-            left: 1.25rem;
+            left: 0.75rem;
             top: 0;
             bottom: 0;
-            width: 4px;
-            background: var(--primary-gradient);
-            border-radius: 2px;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            width: 2px;
+            background-color: var(--gray-300);
         }
 
         .timeline-item {
             position: relative;
-            background: white;
+            background-color: white;
             border: 1px solid var(--gray-200);
-            border-radius: var(--border-radius-lg);
-            padding: 1.75rem;
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow-soft);
-            transition: var(--transition-all);
-        }
-
-        .timeline-item:hover {
-            transform: translateX(8px);
-            box-shadow: var(--shadow-medium);
-            border-color: var(--primary-color);
+            border-radius: var(--border-radius);
+            padding: 1.25rem;
+            margin-bottom: 1rem;
         }
 
         .timeline-item::before {
             content: '';
             position: absolute;
-            left: -2.25rem;
-            top: 1.75rem;
-            width: 20px;
-            height: 20px;
+            left: -1.5rem;
+            top: 1.25rem;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            background: var(--primary-gradient);
-            border: 4px solid white;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);
-            transition: var(--transition-all);
+            background-color: var(--gray-300);
+            border: 3px solid white;
         }
 
         .timeline-item.completed::before {
-            background: var(--success-gradient);
-            box-shadow: 0 0 0 4px rgba(72, 187, 120, 0.2);
+            background-color: var(--success-color);
         }
 
-        .timeline-item.inactive::before {
-            background: var(--gray-300);
-            box-shadow: 0 0 0 3px rgba(160, 174, 192, 0.2);
+        .timeline-item h6 {
+            margin-bottom: 0.5rem;
+            font-weight: 600;
         }
 
-        /* === RÉSUMÉ FINANCIER ÉLÉGANT === */
+        /* === RÉSUMÉ FINANCIER === */
         .financial-summary {
-            background: linear-gradient(135deg, var(--gray-50) 0%, white 100%);
-            border-radius: var(--border-radius-lg);
-            padding: 2rem;
+            background-color: var(--gray-50);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
             border: 1px solid var(--gray-200);
-            box-shadow: var(--shadow-soft);
         }
 
         .summary-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem 0;
+            padding: 0.75rem 0;
             border-bottom: 1px solid var(--gray-200);
-            transition: var(--transition-all);
-        }
-
-        .summary-row:hover {
-            background: rgba(102, 126, 234, 0.05);
-            margin: 0 -1rem;
-            padding: 1rem;
-            border-radius: var(--border-radius);
         }
 
         .summary-row:last-child {
             border-bottom: none;
-            border-top: 3px solid var(--primary-color);
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
-            font-weight: 800;
-            font-size: 1.5rem;
-            background: var(--primary-gradient);
+            border-top: 2px solid var(--primary-color);
+            margin-top: 1rem;
+            padding-top: 1rem;
+            font-weight: 700;
+            background-color: var(--primary-color);
             color: white;
-            border-radius: var(--border-radius);
-            margin: 1.5rem -1rem 0;
-            padding: 1.5rem;
+            margin: 1rem -1.5rem 0;
+            padding: 1rem 1.5rem;
         }
 
         .summary-label {
             color: var(--gray-700);
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .summary-value {
-            font-weight: 700;
+            font-weight: 600;
             color: var(--gray-900);
         }
 
@@ -399,411 +303,210 @@
             color: white;
         }
 
-        /* === ADRESSES MODERNES === */
+        /* === ADRESSES === */
         .address-card {
-            background: linear-gradient(135deg, white 0%, var(--gray-50) 100%);
-            border-radius: var(--border-radius-lg);
-            padding: 2rem;
+            background-color: var(--gray-50);
+            border-radius: var(--border-radius);
+            padding: 1.25rem;
             border: 1px solid var(--gray-200);
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow-soft);
-            transition: var(--transition-all);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .address-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: var(--primary-gradient);
-        }
-
-        .address-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-medium);
+            margin-bottom: 1rem;
         }
 
         .address-title {
-            font-weight: 700;
+            font-weight: 600;
             color: var(--gray-900);
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
             display: flex;
             align-items: center;
-            font-size: 1.1rem;
         }
 
         .address-title i {
-            margin-right: 0.75rem;
+            margin-right: 0.5rem;
             color: var(--primary-color);
-            font-size: 1.25rem;
         }
 
         .address-content {
             white-space: pre-line;
             color: var(--gray-700);
-            font-family: inherit;
             margin: 0;
-            line-height: 1.6;
-            font-weight: 500;
         }
 
-        /* === BOUTONS MODERNES === */
+        /* === BOUTONS === */
         .action-buttons {
             display: flex;
             flex-wrap: wrap;
-            gap: 1rem;
-            margin-bottom: 2rem;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
         }
 
         .btn-action {
             display: inline-flex;
             align-items: center;
-            padding: 1rem 1.75rem;
+            padding: 0.75rem 1.25rem;
             border-radius: var(--border-radius);
-            font-weight: 600;
+            font-weight: 500;
             text-decoration: none;
-            transition: var(--transition-all);
-            border: none;
+            border: 1px solid transparent;
             cursor: pointer;
-            box-shadow: var(--shadow-soft);
-            font-size: 0.95rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-action::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn-action:hover::before {
-            left: 100%;
+            font-size: 0.875rem;
         }
 
         .btn-action i {
-            margin-right: 0.75rem;
-            font-size: 1.1rem;
+            margin-right: 0.5rem;
         }
 
         .btn-primary-action {
-            background: var(--primary-gradient);
+            background-color: var(--primary-color);
             color: white;
         }
 
         .btn-primary-action:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-large);
+            background-color: var(--primary-light);
             color: white;
             text-decoration: none;
         }
 
         .btn-success-action {
-            background: var(--success-gradient);
+            background-color: var(--success-color);
             color: white;
         }
 
         .btn-success-action:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-large);
+            background-color: #047857;
             color: white;
             text-decoration: none;
         }
 
         .btn-outline-action {
-            background: white;
+            background-color: white;
             color: var(--gray-700);
-            border: 2px solid var(--gray-300);
+            border-color: var(--gray-300);
         }
 
         .btn-outline-action:hover {
-            background: var(--gray-50);
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-            transform: translateY(-3px);
-            box-shadow: var(--shadow-medium);
+            background-color: var(--gray-50);
+            color: var(--gray-900);
             text-decoration: none;
         }
 
-        /* === BADGES MODERNES === */
+        /* === BADGES === */
         .badge {
-            border-radius: 50px;
-            padding: 0.5rem 1rem;
-            font-weight: 600;
+            border-radius: var(--border-radius);
+            padding: 0.375rem 0.75rem;
+            font-weight: 500;
             font-size: 0.875rem;
-            box-shadow: var(--shadow-soft);
         }
 
         .bg-primary {
-            background: var(--primary-gradient) !important;
+            background-color: var(--primary-color) !important;
+            color: white !important;
         }
 
-        /* === INFORMATIONS CLIENT === */
+        /* === CLIENT INFO === */
         .client-info {
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-            border: 2px solid rgba(102, 126, 234, 0.15);
-            border-radius: var(--border-radius-lg);
-            padding: 2rem;
-            margin-bottom: 1.5rem;
+            background-color: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius);
+            padding: 1.25rem;
+            margin-bottom: 1rem;
         }
 
         .client-name {
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 700;
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 1rem;
+            color: var(--primary-color);
+            margin-bottom: 0.75rem;
         }
 
         .client-detail {
             color: var(--gray-700);
-            margin-bottom: 0.75rem;
-            font-size: 1rem;
-            font-weight: 500;
+            margin-bottom: 0.5rem;
             display: flex;
             align-items: center;
         }
 
         .client-detail i {
-            margin-right: 0.75rem;
+            margin-right: 0.5rem;
             color: var(--primary-color);
-            width: 20px;
+            width: 16px;
         }
 
-        /* === RESPONSIVE AMÉLIORÉ === */
+        /* === RESPONSIVE === */
         @media (max-width: 768px) {
             .order-header {
-                padding: 2rem 1.5rem;
+                padding: 1.5rem;
             }
 
             .order-number {
-                font-size: 2.25rem;
+                font-size: 2rem;
             }
 
             .total-amount {
-                font-size: 2rem;
+                font-size: 1.5rem;
             }
 
             .info-grid {
                 grid-template-columns: 1fr;
-                gap: 1.5rem;
             }
 
             .section-content {
-                padding: 1.5rem;
+                padding: 1rem;
             }
 
             .section-header {
-                padding: 1.5rem;
+                padding: 1rem;
             }
 
             .action-buttons {
-                justify-content: center;
+                justify-content: stretch;
             }
 
             .btn-action {
                 flex: 1;
-                min-width: 140px;
                 justify-content: center;
             }
         }
 
-        @media (max-width: 576px) {
-            .order-header {
-                padding: 1.5rem;
-            }
-
-            .section-header {
-                padding: 1.25rem;
-            }
-
-            .btn-action {
-                padding: 0.75rem 1.25rem;
-                font-size: 0.875rem;
-            }
-
-            .timeline {
-                padding-left: 2.5rem;
-            }
-        }
-
-        /* === ANIMATIONS ÉLÉGANTES === */
-        @keyframes slideInUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes fadeInScale {
-            from {
-                opacity: 0;
-                transform: scale(0.95);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .section-card {
-            animation: slideInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .order-header {
-            animation: fadeInScale 1s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .section-card:nth-child(2) { animation-delay: 0.1s; }
-        .section-card:nth-child(3) { animation-delay: 0.2s; }
-        .section-card:nth-child(4) { animation-delay: 0.3s; }
-        .section-card:nth-child(5) { animation-delay: 0.4s; }
-
-        /* === IMPRESSION OPTIMISÉE === */
+        /* === IMPRESSION === */
         @media print {
-            .action-buttons, .btn-action {
+            .action-buttons {
                 display: none !important;
+            }
+
+            .order-detail-page {
+                background-color: white !important;
             }
 
             .section-card {
                 break-inside: avoid;
                 box-shadow: none !important;
-                border: 2px solid var(--gray-300) !important;
-            }
-
-            .order-header {
-                background: white !important;
-                color: var(--gray-900) !important;
-                border: 3px solid var(--primary-color) !important;
-            }
-
-            .order-header * {
-                color: var(--gray-900) !important;
-            }
-
-            .order-detail-page {
-                font-size: 12px;
-                background: white !important;
-            }
-
-            .section-title {
-                font-size: 1.1rem;
-            }
-
-            .timeline::before {
-                background: var(--gray-800) !important;
+                border: 1px solid var(--gray-300) !important;
             }
         }
 
-        /* === COULEURS DE TEXTE OPTIMISÉES === */
+        /* === COULEURS DE TEXTE === */
         .order-detail-page * {
             color: inherit;
         }
 
-        .order-detail-page h1, .order-detail-page h2, .order-detail-page h3,
-        .order-detail-page h4, .order-detail-page h5, .order-detail-page h6,
-        .order-detail-page p, .order-detail-page span, .order-detail-page div,
-        .order-detail-page td {
+        .order-detail-page .products-table tbody td,
+        .order-detail-page .product-name,
+        .order-detail-page .section-title {
             color: var(--gray-900) !important;
         }
 
-        .order-detail-page .btn, .order-detail-page .badge, .order-detail-page .status-badge,
-        .order-detail-page .text-primary, .order-detail-page .text-success,
-        .order-detail-page .text-danger, .order-detail-page .text-warning,
-        .order-detail-page .order-header, .order-detail-page .order-header * {
-            color: inherit !important;
-        }
-
-        /* === CORRECTIONS SPÉCIFIQUES TEXTES BLANCS === */
-        .order-detail-page .order-header .order-number,
-        .order-detail-page .order-header .order-status,
-        .order-detail-page .order-header .info-label,
-        .order-detail-page .order-header .info-value {
-            color: #ffffff !important;
-            font-weight: 600 !important;
-        }
-
-        .order-detail-page .order-header .info-grid .info-item {
-            color: #ffffff !important;
-        }
-
-        .order-detail-page .order-header .info-grid .info-item i {
-            color: rgba(255, 255, 255, 0.9) !important;
-        }
-
-        /* Corrections pour le tableau des articles */
-        .order-detail-page .products-table tbody td {
-            color: #1a202c !important;
-        }
-
-        .order-detail-page .product-name {
-            color: #1a202c !important;
-            font-weight: 700 !important;
-        }
-
         .order-detail-page .product-ref {
-            color: #718096 !important;
-        }
-
-        .order-detail-page .products-table tbody td strong,
-        .order-detail-page .products-table tbody td span {
-            color: #1a202c !important;
-        }
-
-        /* Corrections pour les sections */
-        .order-detail-page .section-title {
-            color: #1a202c !important;
-        }
-
-        .order-detail-page .section-title i {
-            color: #3b82f6 !important;
-        }
-
-        /* Améliorations esthétiques avec le nouveau bleu */
-        .order-detail-page .badge.bg-primary {
-            background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%) !important;
-            color: #ffffff !important;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3) !important;
-        }
-
-        .order-detail-page .btn-primary {
-            background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%) !important;
-            border: none !important;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3) !important;
-        }
-
-        .order-detail-page .btn-primary:hover {
-            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4) !important;
+            color: var(--gray-500) !important;
         }
 
         .order-detail-page a {
             color: var(--primary-color) !important;
             text-decoration: none;
-            font-weight: 600;
-            transition: var(--transition-all);
         }
 
         .order-detail-page a:hover {
-            color: var(--primary-dark) !important;
-            text-decoration: none;
-            transform: translateY(-1px);
+            color: var(--primary-light) !important;
+            text-decoration: underline;
         }
     </style>
 
@@ -827,8 +530,8 @@
                 Envoyer par email
             </button>
             <a th:href="@{/orders/{id}/edit(id=${order.id})}"
-               th:if="${order.status.name() == 'DRAFT' or order.status.name() == 'CONFIRMED'}"
-               class="btn-action btn-primary-action">
+               th:if="${order.status.name() == 'BROUILLON' or order.status.name() == 'CONFIRMEE'}"
+               class="btn-action btn-outline-primary" style="color:white">
                 <i class="fas fa-edit"></i>
                 Modifier
             </a>
@@ -842,14 +545,14 @@
                 <div class="order-number" th:text="${order.orderNumber}">CMD-202401-001</div>
 
                 <div class="order-status" th:switch="${order.status.name()}">
-                    <span th:case="'DRAFT'">📝 Brouillon</span>
-                    <span th:case="'PENDING'">⏳ En attente</span>
-                    <span th:case="'CONFIRMED'">✅ Confirmée</span>
-                    <span th:case="'PROCESSING'">🔄 En traitement</span>
-                    <span th:case="'SHIPPED'">🚚 Expédiée</span>
-                    <span th:case="'DELIVERED'">📦 Livrée</span>
-                    <span th:case="'RETURNED'">↩️ Retournée</span>
-                    <span th:case="'CANCELLED'">❌ Annulée</span>
+                    <span th:case="'BROUILLON'">📝 Brouillon</span>
+                    <span th:case="'EN_ATTENTE'">⏳ En attente</span>
+                    <span th:case="'CONFIRMEE'">✅ Confirmée</span>
+                    <span th:case="'EN_COURS'">🔄 En traitement</span>
+                    <span th:case="'EXPEDIE'">🚚 Expédiée</span>
+                    <span th:case="'LIVREE'">📦 Livrée</span>
+                    <span th:case="'RETOURNEE'">↩️ Retournée</span>
+                    <span th:case="'ANNULEE'">❌ Annulée</span>
                     <span th:case="*">❓ Statut inconnu</span>
                 </div>
 
@@ -893,7 +596,7 @@
                     1 234,56 €
                 </div>
                 <div class="mt-3">
-                    <span class="status-badge badge" th:switch="${order.paymentStatus.name()}">
+                    <span class="badge bg-primary" th:switch="${order.paymentStatus.name()}">
                         <span th:case="'PENDING'">💰 Paiement en attente</span>
                         <span th:case="'PARTIAL'">💳 Partiellement payé</span>
                         <span th:case="'PAID'">✅ Payé</span>
@@ -924,12 +627,12 @@
                     <div class="table-responsive">
                         <table class="table table-hover products-table mb-0">
                             <thead>
-                            <tr>
+                            <tr class="text-dark-emphasis text-dark" style="color:black">
                                 <th style="width: 45%;">Produit</th>
-                                <th class="text-center" style="width: 10%;">Quantité</th>
-                                <th class="text-end" style="width: 15%;">Prix unitaire</th>
-                                <th class="text-end" style="width: 15%;">Remise</th>
-                                <th class="text-end" style="width: 15%;">Total HT</th>
+                                <th class="text-center" style="width: 10%; color:black;">Quantité</th>
+                                <th class="text-end" style="width: 15%;color:black;">Prix unitaire</th>
+                                <th class="text-end" style="width: 15%;color:black;">Remise</th>
+                                <th class="text-end" style="width: 15%;color:black;">Total HT</th>
                             </tr>
                             </thead>
                             <tbody>
@@ -1002,37 +705,37 @@
                         </div>
 
                         <div class="timeline-item"
-                             th:class="${order.status.name() == 'CONFIRMED' or order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                             th:class="${order.status.name() == 'CONFIRMEE' or order.status.name() == 'EN_COURS' or order.status.name() == 'EXPEDIE' or order.status.name() == 'LIVREE'} ? 'timeline-item completed' : 'timeline-item'">
                             <h6 class="mb-2">✅ Commande confirmée</h6>
                             <p class="mb-0 text-muted small"
-                               th:text="${order.status.name() == 'CONFIRMED' or order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'Commande validée et prête pour traitement' : 'En attente de confirmation'">
+                               th:text="${order.status.name() == 'CONFIRMEE' or order.status.name() == 'EN_COURS' or order.status.name() == 'EXPEDIE' or order.status.name() == 'LIVREE'} ? 'Commande validée et prête pour traitement' : 'En attente de confirmation'">
                                 En attente de confirmation
                             </p>
                         </div>
 
                         <div class="timeline-item"
-                             th:class="${order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                             th:class="${order.status.name() == 'EN_COURS' or order.status.name() == 'EXPEDIE' or order.status.name() == 'LIVREE'} ? 'timeline-item completed' : 'timeline-item'">
                             <h6 class="mb-2">🔄 En cours de traitement</h6>
                             <p class="mb-0 text-muted small"
-                               th:text="${order.status.name() == 'PROCESSING' or order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'Commande en cours de préparation' : 'En attente de traitement'">
+                               th:text="${order.status.name() == 'EN_COURS' or order.status.name() == 'EXPEDIE' or order.status.name() == 'LIVREE'} ? 'Commande en cours de préparation' : 'En attente de traitement'">
                                 En attente de traitement
                             </p>
                         </div>
 
                         <div class="timeline-item"
-                             th:class="${order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                             th:class="${order.status.name() == 'EXPEDIE' or order.status.name() == 'LIVREE'} ? 'timeline-item completed' : 'timeline-item'">
                             <h6 class="mb-2">🚚 Expédiée</h6>
                             <p class="mb-0 text-muted small"
-                               th:text="${order.status.name() == 'SHIPPED' or order.status.name() == 'DELIVERED'} ? 'Commande expédiée' : 'En attente d\'expédition'">
+                               th:text="${order.status.name() == 'EXPEDIE' or order.status.name() == 'LIVREE'} ? 'Commande expédiée' : 'En attente d\'expédition'">
                                 En attente d'expédition
                             </p>
                         </div>
 
                         <div class="timeline-item"
-                             th:class="${order.status.name() == 'DELIVERED'} ? 'timeline-item completed' : 'timeline-item inactive'">
+                             th:class="${order.status.name() == 'LIVREE'} ? 'timeline-item completed' : 'timeline-item'">
                             <h6 class="mb-2">📦 Livrée</h6>
                             <p class="mb-0 text-muted small"
-                               th:text="${order.status.name() == 'DELIVERED'} ? 'Commande livrée avec succès' : 'En attente de livraison'">
+                               th:text="${order.status.name() == 'LIVREE'} ? 'Commande livrée avec succès' : 'En attente de livraison'">
                                 En attente de livraison
                             </p>
                         </div>
@@ -1147,23 +850,33 @@
 
                         <div class="summary-row">
                             <span class="summary-label">Total TTC :</span>
-                            <span class="summary-value">1 234,56 €</span>
+                            <span class="summary-value" th:text="${#numbers.formatCurrency(order.totalAmount ?: 0)}">1 234,56 €</span>
                         </div>
                     </div>
 
                     <!-- Actions de facturation -->
                     <div class="mt-4">
                         <div class="d-grid gap-2">
+                            <!-- Bouton de génération de facture - Méthode GET (formulaire) -->
                             <a th:href="@{/invoices/new(orderId=${order.id})}"
-                               th:if="${order.invoice == null and (order.status.name() == 'CONFIRMED' or order.status.name() == 'DELIVERED' or order.status.name() == 'SHIPPED')}"
-                               class="btn-action btn-warning text-white">
+                               th:if="${canInvoice}"
+                               class="btn-action btn-primary-action w-100 text-center">
                                 <i class="fas fa-file-invoice-dollar"></i>
-                                Générer une facture
+                                Créer une facture
                             </a>
+
+                            <!-- Bouton de génération rapide - Méthode POST (direct) -->
+                            <form th:if="${canInvoice}" th:action="@{/orders/{id}/create-invoice(id=${order.id})}" method="post" class="mt-2">
+                                <button type="submit" class="btn-action btn-success-action w-100"
+                                        onclick="return confirm('Créer une facture automatiquement à partir de cette commande ?')">
+                                    <i class="fas fa-bolt"></i>
+                                    Facture automatique
+                                </button>
+                            </form>
 
                             <a th:href="@{/invoices/{id}(id=${order.invoice.id})}"
                                th:if="${order.invoice != null}"
-                               class="btn-action btn-primary-action">
+                               class="btn-action btn-outline-success w-100 text-center">
                                 <i class="fas fa-file-invoice"></i>
                                 Voir la facture
                             </a>
@@ -1215,201 +928,24 @@
 
 <th:block th:fragment="js_assets">
     <script>
-        // === FONCTIONS UTILITAIRES AMÉLIORÉES ===
+        // === FONCTIONS BASIQUES ===
         function printOrder() {
-            const actionButtons = document.querySelectorAll('.action-buttons');
-            actionButtons.forEach(btn => {
-                btn.style.display = 'none';
-                btn.style.transition = 'opacity 0.3s ease';
-            });
-
             window.print();
-
-            setTimeout(() => {
-                actionButtons.forEach(btn => {
-                    btn.style.display = '';
-                    btn.style.opacity = '0';
-                    setTimeout(() => btn.style.opacity = '1', 10);
-                });
-            }, 100);
         }
 
         function sendByEmail() {
             const orderNumber = /*[[${order.orderNumber}]]*/ 'CMD-001';
             const clientEmail = /*[[${order.client.email}]]*/ 'client@example.com';
 
-            // Animation du bouton
-            const button = event.target.closest('.btn-action');
-            button.style.transform = 'scale(0.95)';
-
-            setTimeout(() => {
-                button.style.transform = '';
-                if (confirm(`Envoyer la commande ${orderNumber} par email à ${clientEmail} ?`)) {
-                    showNotification('Fonctionnalité d\'envoi par email à implémenter', 'info');
-                }
-            }, 150);
-        }
-
-        function duplicateOrder() {
-            const orderId = /*[[${order.id}]]*/ '1';
-            const orderNumber = /*[[${order.orderNumber}]]*/ 'CMD-001';
-
-            if (confirm(`Voulez-vous créer une nouvelle commande basée sur ${orderNumber} ?`)) {
-                showNotification('Création de la nouvelle commande...', 'success');
-                setTimeout(() => {
-                    window.location.href = `/orders/${orderId}/duplicate`;
-                }, 1000);
+            if (confirm(`Envoyer la commande ${orderNumber} par email à ${clientEmail} ?`)) {
+                alert('Fonctionnalité d\'envoi par email à implémenter');
             }
         }
 
-        function cancelOrder() {
-            const orderNumber = /*[[${order.orderNumber}]]*/ 'CMD-001';
-
-            if (confirm(`Êtes-vous sûr de vouloir annuler la commande ${orderNumber} ?\n\nCette action ne peut pas être annulée.`)) {
-                showNotification('Fonctionnalité d\'annulation à implémenter', 'warning');
-            }
-        }
-
-        // === SYSTÈME DE NOTIFICATIONS ===
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `notification notification-${type}`;
-            notification.innerHTML = `
-            <div class="notification-content">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
-                <span>${message}</span>
-            </div>
-        `;
-
-            // Styles pour les notifications
-            const style = document.createElement('style');
-            style.textContent = `
-            .notification {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 1rem 1.5rem;
-                border-radius: 0.75rem;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-                z-index: 1000;
-                transform: translateX(100%);
-                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                backdrop-filter: blur(20px);
-            }
-            .notification-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
-            .notification-info { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; }
-            .notification-warning { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; }
-            .notification-content { display: flex; align-items: center; gap: 0.75rem; font-weight: 600; }
-            .notification.show { transform: translateX(0); }
-        `;
-            document.head.appendChild(style);
-
-            document.body.appendChild(notification);
-
-            setTimeout(() => notification.classList.add('show'), 10);
-            setTimeout(() => {
-                notification.classList.remove('show');
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
-        }
-
-        // === ANIMATIONS ET INTERACTIONS ===
-        function initializeAnimations() {
-            // Observer pour les animations d'entrée
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.opacity = '1';
-                        entry.target.style.transform = 'translateY(0)';
-                    }
-                });
-            }, { threshold: 0.1 });
-
-            document.querySelectorAll('.section-card').forEach(card => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(30px)';
-                card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-                observer.observe(card);
-            });
-
-            // Hover effects pour les boutons
-            document.querySelectorAll('.btn-action').forEach(button => {
-                button.addEventListener('mouseenter', function() {
-                    this.style.transform = 'translateY(-2px) scale(1.02)';
-                });
-
-                button.addEventListener('mouseleave', function() {
-                    this.style.transform = '';
-                });
-            });
-
-            // Effets sur les cartes de produits
-            document.querySelectorAll('.product-row').forEach(row => {
-                row.addEventListener('mouseenter', function() {
-                    this.style.background = 'linear-gradient(90deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)';
-                });
-
-                row.addEventListener('mouseleave', function() {
-                    this.style.background = '';
-                });
-            });
-        }
-
-        // === INITIALISATION ===
+        // === INITIALISATION SIMPLE ===
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🎉 Page de détail de commande chargée avec succès');
-
-            initializeAnimations();
-
-            // Animation du header
-            const header = document.querySelector('.order-header');
-            if (header) {
-                header.style.opacity = '0';
-                header.style.transform = 'scale(0.95)';
-
-                setTimeout(() => {
-                    header.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
-                    header.style.opacity = '1';
-                    header.style.transform = 'scale(1)';
-                }, 100);
-            }
-
-            // Effet de parallaxe subtil sur le scroll
-            let ticking = false;
-            function updateParallax() {
-                const scrolled = window.pageYOffset;
-                const parallax = document.querySelector('.order-header');
-                if (parallax) {
-                    parallax.style.transform = `translateY(${scrolled * 0.1}px)`;
-                }
-                ticking = false;
-            }
-
-            window.addEventListener('scroll', function() {
-                if (!ticking) {
-                    requestAnimationFrame(updateParallax);
-                    ticking = true;
-                }
-            });
-
-            // Message de bienvenue
-            setTimeout(() => {
-                showNotification('Page chargée avec succès', 'success');
-            }, 500);
+            console.log('Page de détail de commande chargée');
         });
-
-        // === RESPONSIVE ENHANCEMENTS ===
-        function handleResize() {
-            const isMobile = window.innerWidth < 768;
-            const actionButtons = document.querySelector('.action-buttons');
-
-            if (actionButtons) {
-                actionButtons.style.flexDirection = isMobile ? 'column' : 'row';
-            }
-        }
-
-        window.addEventListener('resize', handleResize);
-        handleResize(); // Appel initial
     </script>
 </th:block>
 

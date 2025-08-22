@@ -172,8 +172,8 @@ public class AdminReportsController {
 
         List<Order> orders = orderRepository.findAll().stream()
                 .filter(order -> order.getOrderDate().isAfter(startDate) && order.getOrderDate().isBefore(endDate))
-                .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT && order.getStatus() != Order.OrderStatus.CANCELLED)
-                .collect(Collectors.toList());
+                .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON && order.getStatus() != Order.OrderStatus.ANNULEE)
+                .toList();
 
         // Chiffre d'affaires total
         BigDecimal totalRevenue = orders.stream()
@@ -217,19 +217,19 @@ public class AdminReportsController {
 
         List<User> commercials = userRepository.findAll().stream()
                 .filter(user -> user.hasRole("USER"))
-                .collect(Collectors.toList());
+                .toList();
 
         List<Order> orders = orderRepository.findAll().stream()
                 .filter(order -> order.getOrderDate().isAfter(startDate) && order.getOrderDate().isBefore(endDate))
-                .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT && order.getStatus() != Order.OrderStatus.CANCELLED)
-                .collect(Collectors.toList());
+                .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON && order.getStatus() != Order.OrderStatus.ANNULEE)
+                .toList();
 
         // Performance par commercial
         List<Map<String, Object>> commercialPerformance = commercials.stream()
                 .map(commercial -> {
                     List<Order> commercialOrders = orders.stream()
                             .filter(order -> order.getUser().getId().equals(commercial.getId()))
-                            .collect(Collectors.toList());
+                            .toList();
 
                     BigDecimal revenue = commercialOrders.stream()
                             .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
@@ -388,8 +388,8 @@ public class AdminReportsController {
 
         List<Order> orders = orderRepository.findAll().stream()
                 .filter(order -> order.getOrderDate().isAfter(startDate) && order.getOrderDate().isBefore(endDate))
-                .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT && order.getStatus() != Order.OrderStatus.CANCELLED)
-                .collect(Collectors.toList());
+                .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON && order.getStatus() != Order.OrderStatus.ANNULEE)
+                .toList();
 
         // Analyse par statut de commande
         Map<Order.OrderStatus, Long> ordersByStatus = orders.stream()
@@ -433,7 +433,7 @@ public class AdminReportsController {
                     BigDecimal achievedRevenue = orderRepository.findAll().stream()
                             .filter(order -> order.getUser().getId().equals(commercial.getId()))
                             .filter(order -> order.getOrderDate().isAfter(startDate) && order.getOrderDate().isBefore(endDate))
-                            .filter(order -> order.getStatus() != Order.OrderStatus.DRAFT && order.getStatus() != Order.OrderStatus.CANCELLED)
+                            .filter(order -> order.getStatus() != Order.OrderStatus.BROUILLON && order.getStatus() != Order.OrderStatus.ANNULEE)
                             .map(order -> order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation de Paiement - GESCOM</title>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            min-height: 100vh;
+        }
+        .simulation-card {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .invoice-info {
+            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 15px 15px 0 0;
+        }
+        .payment-method {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .payment-method:hover {
+            border-color: #0984e3;
+            background-color: #f8f9fa;
+        }
+        .payment-method.selected {
+            border-color: #00b894;
+            background-color: #d1ecf1;
+        }
+        .alert-simulation {
+            background-color: #fff3cd;
+            border: 2px dashed #856404;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-5">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-10 col-lg-8 col-xl-6">
+                
+                <!-- Alert de simulation -->
+                <div class="alert alert-simulation text-center mb-4">
+                    <h5 class="mb-2">
+                        <i class="fas fa-play-circle text-warning me-2"></i>
+                        MODE SIMULATION ACTIVÉ
+                    </h5>
+                    <p class="mb-0">
+                        Aucune transaction financière réelle ne sera effectuée
+                    </p>
+                </div>
+
+                <!-- Carte principale -->
+                <div class="card simulation-card">
+                    <!-- Informations de la facture -->
+                    <div class="invoice-info">
+                        <div class="row align-items-center">
+                            <div class="col-8">
+                                <h4 class="mb-1">
+                                    <i class="fas fa-file-invoice-dollar me-2"></i>
+                                    Facture <span th:text="${invoice.invoiceNumber}">FAC-001</span>
+                                </h4>
+                                <p class="mb-0">
+                                    Date: <span th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</span>
+                                </p>
+                            </div>
+                            <div class="col-4 text-end">
+                                <h3 class="mb-0">
+                                    <span th:text="${#numbers.formatCurrency(invoice.totalAmount)}">120,00 €</span>
+                                </h3>
+                                <small>Montant à simuler</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Corps de la carte -->
+                    <div class="card-body p-4">
+                        
+                        <!-- Formulaire de simulation -->
+                        <form method="post" th:action="@{/payment-simulation/process}" id="simulationForm">
+                            <input type="hidden" name="invoiceId" th:value="${invoice.id}">
+
+                            <!-- Informations client -->
+                            <div class="mb-4">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-user me-2 text-primary"></i>
+                                    Informations client (simulation)
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="customerName" class="form-label">Nom complet</label>
+                                        <input type="text" class="form-control" id="customerName" name="customerName" 
+                                               placeholder="Jean Dupont" value="Client Test">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="customerEmail" class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="customerEmail" name="customerEmail" 
+                                               placeholder="jean@example.com" value="test@simulation.com">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Méthodes de paiement -->
+                            <div class="mb-4">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-credit-card me-2 text-primary"></i>
+                                    Méthode de paiement (simulation)
+                                </h5>
+
+                                <!-- Carte bancaire -->
+                                <div class="payment-method" data-method="card">
+                                    <div class="d-flex align-items-center">
+                                        <input type="radio" name="paymentMethod" value="card" id="card" class="me-3" checked>
+                                        <div class="flex-fill">
+                                            <h6 class="mb-1">
+                                                <i class="fas fa-credit-card text-primary me-2"></i>
+                                                Carte bancaire (simulation)
+                                            </h6>
+                                            <small class="text-muted">Visa, Mastercard, etc. - Simulation seulement</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PayPal -->
+                                <div class="payment-method" data-method="paypal">
+                                    <div class="d-flex align-items-center">
+                                        <input type="radio" name="paymentMethod" value="paypal" id="paypal" class="me-3">
+                                        <div class="flex-fill">
+                                            <h6 class="mb-1">
+                                                <i class="fab fa-paypal text-info me-2"></i>
+                                                PayPal (simulation)
+                                            </h6>
+                                            <small class="text-muted">Paiement via PayPal - Simulation seulement</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Virement -->
+                                <div class="payment-method" data-method="transfer">
+                                    <div class="d-flex align-items-center">
+                                        <input type="radio" name="paymentMethod" value="transfer" id="transfer" class="me-3">
+                                        <div class="flex-fill">
+                                            <h6 class="mb-1">
+                                                <i class="fas fa-university text-success me-2"></i>
+                                                Virement bancaire (simulation)
+                                            </h6>
+                                            <small class="text-muted">Virement SEPA - Simulation seulement</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Résumé -->
+                            <div class="alert alert-info">
+                                <h6 class="mb-2">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Résumé de la simulation
+                                </h6>
+                                <div class="row">
+                                    <div class="col-6">Facture:</div>
+                                    <div class="col-6 fw-bold" th:text="${invoice.invoiceNumber}">FAC-001</div>
+                                    <div class="col-6">Montant:</div>
+                                    <div class="col-6 fw-bold" th:text="${#numbers.formatCurrency(invoice.totalAmount)}">120,00 €</div>
+                                    <div class="col-6">Type:</div>
+                                    <div class="col-6 fw-bold text-warning">SIMULATION</div>
+                                </div>
+                            </div>
+
+                            <!-- Boutons -->
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fas fa-play me-2"></i>
+                                    Lancer la simulation de paiement
+                                </button>
+                                <a th:href="@{/payment-simulation}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>
+                                    Retour à la recherche
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Gestion de la sélection des méthodes de paiement
+            const paymentMethods = document.querySelectorAll('.payment-method');
+            const radios = document.querySelectorAll('input[name="paymentMethod"]');
+
+            paymentMethods.forEach(method => {
+                method.addEventListener('click', function() {
+                    const radio = this.querySelector('input[type="radio"]');
+                    if (radio) {
+                        radio.checked = true;
+                        updateSelection();
+                    }
+                });
+            });
+
+            radios.forEach(radio => {
+                radio.addEventListener('change', updateSelection);
+            });
+
+            function updateSelection() {
+                paymentMethods.forEach(method => {
+                    const radio = method.querySelector('input[type="radio"]');
+                    if (radio && radio.checked) {
+                        method.classList.add('selected');
+                    } else {
+                        method.classList.remove('selected');
+                    }
+                });
+            }
+
+            // Initialiser la sélection
+            updateSelection();
+        });
+    </script>
+</body>
+</html>

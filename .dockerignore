@@ -1,0 +1,67 @@
+# Ignorer les répertoires de build et de cache
+target/
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# Ignorer les fichiers temporaires et de cache
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Ignorer les fichiers de logs
+logs/
+*.log
+
+# Ignorer les fichiers IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Ignorer les fichiers de configuration locaux
+application-local.yml
+application-local.properties
+application-dev.yml
+application-dev.properties
+
+# Ignorer les fichiers de base de données locales
+*.db
+*.sqlite
+*.h2.db
+
+# Ignorer les répertoires de dépendances
+node_modules/
+
+# Ignorer les fichiers de sécurité et secrets
+.env
+*.key
+*.pem
+*.crt
+secrets/
+
+# Ignorer les fichiers de documentation
+README.md
+docs/
+*.md
+
+# Ignorer les fichiers de test et de développement
+test-reports/
+coverage/
+
+# Ignorer les fichiers de déploiement non nécessaires
+docker-compose.override.yml
+docker-compose.dev.yml
+.git/
+.gitignore
+
+# Ignorer les fichiers de sauvegarde
+*.bak
+*.backup
+
+# Ignorer les uploads de développement
+uploads/
+
+# Ignorer les fichiers spécifiques à Windows
+*.lnk

@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: gescom-postgres
+    environment:
+      POSTGRES_DB: gescom
+      POSTGRES_USER: gescom_user
+      POSTGRES_PASSWORD: gescom_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - gescom-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gescom_user -d gescom"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Application GESCOM
+  app:
+    build: .
+    container_name: gescom-app
+    environment:
+      # Configuration de la base de données
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gescom
+      SPRING_DATASOURCE_USERNAME: gescom_user
+      SPRING_DATASOURCE_PASSWORD: gescom_password
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      
+      # Configuration JPA/Hibernate
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_SHOW_SQL: false
+      
+      # Configuration du profil
+      SPRING_PROFILES_ACTIVE: docker
+      
+      # Configuration des logs
+      LOGGING_LEVEL_COM_GESCOM: INFO
+      LOGGING_LEVEL_ROOT: WARN
+      
+      # Configuration de sécurité (à adapter selon vos besoins)
+      SERVER_PORT: 8080
+      
+      # Configuration des actionneurs Spring Boot
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: when_authorized
+    ports:
+      - "8080:8080"
+    networks:
+      - gescom-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    volumes:
+      # Volume pour les logs (optionnel)
+      - ./logs:/app/logs
+      # Volume pour les fichiers uploadés (si nécessaire)
+      - ./uploads:/app/uploads
+
+  # Interface d'administration de la base de données (optionnel)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: gescom-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gescom.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    networks:
+      - gescom-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  # Reverse proxy Nginx (optionnel pour la production)
+  nginx:
+    image: nginx:alpine
+    container_name: gescom-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - gescom-network
+    depends_on:
+      - app
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/ssl:/etc/nginx/ssl
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  gescom-network:
+    driver: bridge

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/public :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Paiement de Facture - Mode de Paiement</title>
+</head>
+<body>
+<div th:fragment="content">
+    <!-- En-tête avec informations de la facture -->
+    <div class="payment-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="payment-title">
+                        <i class="fas fa-credit-card text-warning me-2"></i>
+                        Mode de Paiement
+                    </h1>
+                    <p class="payment-subtitle">
+                        Choisissez votre mode de paiement préféré
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="invoice-summary">
+                        <div class="invoice-number">Facture: <strong th:text="${invoice.invoiceNumber}">FACT-001</strong></div>
+                        <div class="invoice-amount">
+                            <span th:text="${#numbers.formatCurrency(remainingAmount)}">€100.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Résumé de la facture -->
+                <div class="card invoice-summary-card mb-4">
+                    <div class="card-header">
+                        <h3 class="h5 mb-0">
+                            <i class="fas fa-file-invoice me-2"></i>
+                            Résumé de la facture
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <dl class="row">
+                                    <dt class="col-sm-5">Numéro:</dt>
+                                    <dd class="col-sm-7" th:text="${invoice.invoiceNumber}">FACT-001</dd>
+                                    
+                                    <dt class="col-sm-5">Date:</dt>
+                                    <dd class="col-sm-7" th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</dd>
+                                    
+                                    <dt class="col-sm-5">Échéance:</dt>
+                                    <dd class="col-sm-7" th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}">31/01/2024</dd>
+                                </dl>
+                            </div>
+                            <div class="col-md-6">
+                                <dl class="row">
+                                    <dt class="col-sm-6">Montant total:</dt>
+                                    <dd class="col-sm-6" th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€100.00</dd>
+                                    
+                                    <dt class="col-sm-6">Déjà payé:</dt>
+                                    <dd class="col-sm-6" th:text="${#numbers.formatCurrency(invoice.paidAmount ?: 0)}">€0.00</dd>
+                                    
+                                    <dt class="col-sm-6"><strong>Reste à payer:</strong></dt>
+                                    <dd class="col-sm-6"><strong class="text-primary" th:text="${#numbers.formatCurrency(remainingAmount)}">€100.00</strong></dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulaire de paiement -->
+                <div class="card payment-method-card">
+                    <div class="card-header">
+                        <h3 class="h5 mb-0">
+                            <i class="fas fa-lock me-2 text-success"></i>
+                            Informations de paiement
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Affichage des erreurs -->
+                        <div th:if="${error}" class="alert alert-danger" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <span th:text="${error}">Erreur</span>
+                        </div>
+
+                        <form th:action="@{/payment/initiate}" method="post" th:object="${paymentForm}" id="paymentForm">
+                            <input type="hidden" th:field="*{invoiceNumber}" th:value="${invoice.invoiceNumber}">
+                            
+                            <!-- Informations client -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <label for="customerName" class="form-label required">
+                                        <i class="fas fa-user me-1"></i>
+                                        Nom complet
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control"
+                                           id="customerName"
+                                           th:field="*{customerName}"
+                                           placeholder="Votre nom complet"
+                                           required>
+                                    <div th:if="${#fields.hasErrors('customerName')}" class="invalid-feedback d-block">
+                                        <span th:errors="*{customerName}">Erreur</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="customerEmail" class="form-label required">
+                                        <i class="fas fa-envelope me-1"></i>
+                                        Adresse email
+                                    </label>
+                                    <input type="email" 
+                                           class="form-control"
+                                           id="customerEmail"
+                                           th:field="*{customerEmail}"
+                                           placeholder="votre@email.com"
+                                           required>
+                                    <div th:if="${#fields.hasErrors('customerEmail')}" class="invalid-feedback d-block">
+                                        <span th:errors="*{customerEmail}">Erreur</span>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        Un reçu de paiement sera envoyé à cette adresse
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Montant du paiement -->
+                            <div class="mb-4">
+                                <label for="amount" class="form-label">
+                                    <i class="fas fa-euro-sign me-1"></i>
+                                    Montant à payer
+                                </label>
+                                <div class="input-group">
+                                    <input type="number" 
+                                           class="form-control"
+                                           id="amount"
+                                           th:field="*{amount}"
+                                           th:value="${remainingAmount}"
+                                           min="0.01"
+                                           th:max="${remainingAmount}"
+                                           step="0.01"
+                                           readonly>
+                                    <span class="input-group-text">€</span>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Paiement intégral du montant restant dû
+                                </small>
+                            </div>
+
+                            <!-- Sélection du mode de paiement -->
+                            <div class="mb-4">
+                                <label class="form-label required">
+                                    <i class="fas fa-credit-card me-1"></i>
+                                    Mode de paiement
+                                </label>
+                                
+                                <div class="payment-methods">
+                                    <div class="form-check payment-method-option">
+                                        <input class="form-check-input" type="radio" name="paymentMethod" id="visa" value="VISA" th:field="*{paymentMethod}" required>
+                                        <label class="form-check-label" for="visa">
+                                            <div class="payment-method-card">
+                                                <div class="payment-method-icon">
+                                                    <i class="fab fa-cc-visa fa-2x text-primary"></i>
+                                                </div>
+                                                <div class="payment-method-info">
+                                                    <h6>Carte Visa</h6>
+                                                    <small class="text-muted">Paiement sécurisé par Stripe</small>
+                                                </div>
+                                                <div class="payment-method-badge">
+                                                    <span class="badge bg-success">Recommandé</span>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check payment-method-option">
+                                        <input class="form-check-input" type="radio" name="paymentMethod" id="mastercard" value="MASTERCARD" th:field="*{paymentMethod}" required>
+                                        <label class="form-check-label" for="mastercard">
+                                            <div class="payment-method-card">
+                                                <div class="payment-method-icon">
+                                                    <i class="fab fa-cc-mastercard fa-2x text-warning"></i>
+                                                </div>
+                                                <div class="payment-method-info">
+                                                    <h6>Carte MasterCard</h6>
+                                                    <small class="text-muted">Paiement sécurisé par Stripe</small>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <div class="form-check payment-method-option disabled">
+                                        <input class="form-check-input" type="radio" name="paymentMethod" id="paypal" value="PAYPAL" disabled>
+                                        <label class="form-check-label" for="paypal">
+                                            <div class="payment-method-card">
+                                                <div class="payment-method-icon">
+                                                    <i class="fab fa-cc-paypal fa-2x text-info"></i>
+                                                </div>
+                                                <div class="payment-method-info">
+                                                    <h6>PayPal</h6>
+                                                    <small class="text-muted">Bientôt disponible</small>
+                                                </div>
+                                                <div class="payment-method-badge">
+                                                    <span class="badge bg-secondary">Prochainement</span>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div th:if="${#fields.hasErrors('paymentMethod')}" class="invalid-feedback d-block">
+                                    <span th:errors="*{paymentMethod}">Erreur</span>
+                                </div>
+                            </div>
+
+                            <!-- Conditions d'utilisation -->
+                            <div class="mb-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="acceptTerms" required>
+                                    <label class="form-check-label" for="acceptTerms">
+                                        J'accepte les <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">conditions générales</a> 
+                                        et confirme l'exactitude des informations fournies
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Boutons d'action -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-between">
+                                <a href="/payment" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>
+                                    Retour à la recherche
+                                </a>
+                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                    <i class="fas fa-lock me-2"></i>
+                                    Procéder au paiement sécurisé
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Section sécurité -->
+                <div class="security-footer mt-4 text-center">
+                    <div class="card border-success">
+                        <div class="card-body py-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <i class="fas fa-shield-alt text-success fa-2x"></i>
+                                </div>
+                                <div class="col-md-9 text-start">
+                                    <h6 class="text-success mb-1">Paiement 100% Sécurisé</h6>
+                                    <small class="text-muted">
+                                        Vos données bancaires sont chiffrées et traitées par Stripe, 
+                                        leader mondial du paiement en ligne. Aucune information sensible 
+                                        n'est stockée sur nos serveurs.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal des conditions générales -->
+    <div class="modal fade" id="termsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Conditions Générales de Paiement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>1. Sécurité des Données</h6>
+                    <p>Vos informations de paiement sont traitées de manière sécurisée conformément aux standards PCI-DSS. 
+                    Aucune donnée bancaire n'est stockée sur nos serveurs.</p>
+                    
+                    <h6>2. Traitement du Paiement</h6>
+                    <p>Le paiement est traité immédiatement par notre partenaire Stripe. 
+                    Vous recevrez une confirmation par email une fois le paiement validé.</p>
+                    
+                    <h6>3. Remboursement</h6>
+                    <p>En cas d'erreur de paiement, contactez notre service client. 
+                    Les remboursements sont traités sous 5-10 jours ouvrés.</p>
+                    
+                    <h6>4. Protection des Données</h6>
+                    <p>Vos données personnelles sont protégées conformément au RGPD 
+                    et ne seront utilisées que dans le cadre du traitement de votre paiement.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">J'ai compris</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:fragment="js_assets">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('paymentForm');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // Gestion de la soumission du formulaire
+            form.addEventListener('submit', function(e) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Traitement en cours...';
+                
+                // Si besoin d'annuler la soumission pour validation supplémentaire
+                // e.preventDefault();
+            });
+            
+            // Validation en temps réel
+            const emailInput = document.getElementById('customerEmail');
+            const nameInput = document.getElementById('customerName');
+            
+            emailInput.addEventListener('input', function() {
+                validateEmail(this);
+            });
+            
+            nameInput.addEventListener('input', function() {
+                validateName(this);
+            });
+            
+            function validateEmail(input) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (input.value && !emailRegex.test(input.value)) {
+                    input.classList.add('is-invalid');
+                } else {
+                    input.classList.remove('is-invalid');
+                    if (input.value) input.classList.add('is-valid');
+                }
+            }
+            
+            function validateName(input) {
+                if (input.value && input.value.length < 2) {
+                    input.classList.add('is-invalid');
+                } else {
+                    input.classList.remove('is-invalid');
+                    if (input.value) input.classList.add('is-valid');
+                }
+            }
+        });
+    </script>
+    
+    <style>
+        .payment-header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 2rem 0;
+        }
+        
+        .invoice-summary {
+            text-align: right;
+        }
+        
+        .invoice-number {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .invoice-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 0.5rem;
+        }
+        
+        .payment-methods {
+            gap: 1rem;
+        }
+        
+        .payment-method-option {
+            margin-bottom: 1rem;
+        }
+        
+        .payment-method-option .form-check-input {
+            position: absolute;
+            opacity: 0;
+        }
+        
+        .payment-method-card {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
+        }
+        
+        .payment-method-option.disabled .payment-method-card {
+            background: #f8f9fa;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .payment-method-card:hover {
+            border-color: #007bff;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
+        }
+        
+        .payment-method-option .form-check-input:checked + .form-check-label .payment-method-card {
+            border-color: #007bff;
+            background: rgba(0, 123, 255, 0.05);
+        }
+        
+        .payment-method-icon {
+            margin-right: 1rem;
+            width: 60px;
+            text-align: center;
+        }
+        
+        .payment-method-info {
+            flex: 1;
+        }
+        
+        .payment-method-info h6 {
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+        }
+        
+        .payment-method-badge {
+            margin-left: 1rem;
+        }
+        
+        .required::after {
+            content: " *";
+            color: #dc3545;
+        }
+        
+        .invoice-summary-card {
+            border-left: 4px solid #007bff;
+        }
+        
+        .payment-method-card {
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .security-footer {
+            margin-top: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .payment-header {
+                padding: 1.5rem 0;
+            }
+            
+            .payment-method-card {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .payment-method-icon {
+                margin-right: 0;
+                margin-bottom: 0.5rem;
+            }
+            
+            .payment-method-badge {
+                margin-left: 0;
+                margin-top: 0.5rem;
+            }
+        }
+    </style>
+</div>
+</body>
+</html>

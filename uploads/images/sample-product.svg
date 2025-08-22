@@ -1,0 +1,18 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="100" height="100" fill="#f8f9fa" stroke="#dee2e6" stroke-width="2"/>
+  
+  <!-- Product icon -->
+  <g transform="translate(25, 25)">
+    <!-- Box -->
+    <rect x="10" y="20" width="30" height="20" fill="#0d6efd" stroke="#0952c7" stroke-width="1"/>
+    <rect x="12" y="18" width="30" height="20" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1"/>
+    
+    <!-- Label -->
+    <rect x="15" y="25" width="20" height="8" fill="white" opacity="0.9"/>
+    <text x="25" y="31" text-anchor="middle" font-family="Arial" font-size="6" fill="#1d4ed8">PROD</text>
+  </g>
+  
+  <!-- Text -->
+  <text x="50" y="80" text-anchor="middle" font-family="Arial" font-size="8" fill="#6c757d">Sample Product</text>
+</svg>

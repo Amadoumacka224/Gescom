@@ -1,1169 +1,595 @@
 <!DOCTYPE html>
-<!-- Déclaration HTML5 -->
-
-<!-- Déclaration de l'élément HTML avec namespace Thymeleaf et langue française -->
-<html xmlns:th="http://www.thymeleaf.org" lang="fr" >
-
+<html lang="fr" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.w3.org/1999/xhtml">
 <head>
-    <!-- Titre de la page -->
-    <title>Gestion des Factures</title>
-
-    <!-- Définition de l'encodage des caractères -->
     <meta charset="UTF-8">
-
-    <!-- Configuration pour le responsive design -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <title>Détails de la Facture</title>
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
-        /* === CSS PROFESSIONNEL POUR LA PAGE DE GESTION DES FACTURES === */
-
-        /* Variables CSS pour une cohérence visuelle */
-        :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1e40af;
-            --success-color: #059669;
-            --success-dark: #047857;
-            --warning-color: #ea580c;
-            --warning-dark: #c2410c;
-            --danger-color: #dc2626;
-            --danger-dark: #b91c1c;
-            --info-color: #0891b2;
-            --info-dark: #0e7490;
-            --gray-50: #f8fafc;
-            --gray-100: #f1f5f9;
-            --gray-200: #e2e8f0;
-            --gray-300: #cbd5e1;
-            --gray-500: #64748b;
-            --gray-600: #475569;
-            --gray-700: #334155;
-            --gray-800: #1e293b;
-            --gray-900: #0f172a;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --border-radius: 8px;
-            --transition: all 0.15s ease-in-out;
-        }
-
-        /* Reset et base */
         body {
-            background-color: var(--gray-50);
-            color: var(--gray-800);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
+            background-color: #f8f9fa;
         }
-
-        /* Titre principal */
-        h1 {
-            color: var(--gray-900);
-            font-weight: 700;
-            font-size: 2rem;
-            margin-bottom: 0;
-        }
-
-        /* Cards avec design professionnel */
-        .card {
-            border: 1px solid var(--gray-200) !important;
-            border-radius: var(--border-radius) !important;
-            box-shadow: var(--shadow-sm) !important;
-            transition: var(--transition) !important;
+        
+        .invoice-detail {
             background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             overflow: hidden;
         }
-
-        .card:hover {
-            box-shadow: var(--shadow-md) !important;
+        
+        .invoice-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
         }
-
-        /* Headers de cartes */
-        .card-header {
-            background: white !important;
-            border-bottom: 1px solid var(--gray-200) !important;
-            padding: 1.25rem !important;
+        
+        .invoice-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            padding: 2rem;
+            background: #f8f9fa;
+        }
+        
+        .info-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .info-card h5 {
+            color: #495057;
+            margin-bottom: 1rem;
             font-weight: 600;
-            color: var(--gray-900) !important;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 0.5rem;
         }
-
-        .card-header h5 {
-            margin: 0 !important;
-            color: var(--gray-900) !important;
-            font-size: 1.125rem;
-        }
-
-        /* Cards statistiques */
-        .card.border-primary {
-            border-left: 4px solid var(--primary-color) !important;
-            border-top: 1px solid var(--gray-200) !important;
-            border-right: 1px solid var(--gray-200) !important;
-            border-bottom: 1px solid var(--gray-200) !important;
-        }
-
-        .card.border-success {
-            border-left: 4px solid var(--success-color) !important;
-            border-top: 1px solid var(--gray-200) !important;
-            border-right: 1px solid var(--gray-200) !important;
-            border-bottom: 1px solid var(--gray-200) !important;
-        }
-
-        .card.border-warning {
-            border-left: 4px solid var(--warning-color) !important;
-            border-top: 1px solid var(--gray-200) !important;
-            border-right: 1px solid var(--gray-200) !important;
-            border-bottom: 1px solid var(--gray-200) !important;
-        }
-
-        .card.border-info {
-            border-left: 4px solid var(--info-color) !important;
-            border-top: 1px solid var(--gray-200) !important;
-            border-right: 1px solid var(--gray-200) !important;
-            border-bottom: 1px solid var(--gray-200) !important;
-        }
-
-        /* Titres des cartes statistiques */
-        .card-title {
-            font-size: 0.875rem !important;
-            font-weight: 600 !important;
+        
+        .status-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-600) !important;
         }
-
-        /* Valeurs des statistiques */
-        .card-body h2, .card-body h4 {
-            font-weight: 700 !important;
-            font-size: 2rem !important;
-            margin-bottom: 0.5rem;
+        
+        .status-draft { background: #ffc107; color: #000; }
+        .status-sent { background: #17a2b8; color: white; }
+        .status-paid { background: #28a745; color: white; }
+        .status-partial { background: #fd7e14; color: white; }
+        .status-overdue { background: #dc3545; color: white; }
+        .status-cancelled { background: #6c757d; color: white; }
+        
+        .invoice-items {
+            padding: 2rem;
         }
-
-        /* Barre de progression */
-        .progress {
-            height: 6px !important;
-            border-radius: 3px !important;
-            background: var(--gray-200) !important;
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
         }
-
-        .progress-bar {
-            background: var(--success-color) !important;
-            border-radius: 3px !important;
+        
+        .items-table th {
+            background: #495057;
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
         }
-
-        /* Formulaires */
-        .form-control, .form-select {
-            border: 1px solid var(--gray-300) !important;
-            border-radius: 6px !important;
-            padding: 0.5rem 0.75rem !important;
-            transition: var(--transition) !important;
-            background: white;
-            font-size: 0.875rem;
+        
+        .items-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
         }
-
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-color) !important;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
+        
+        .items-table tr:hover {
+            background: #f8f9fa;
         }
-
-        .form-label {
-            font-weight: 500 !important;
-            color: var(--gray-700) !important;
-            margin-bottom: 0.375rem !important;
-            font-size: 0.875rem;
+        
+        .totals-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
         }
-
-        /* Boutons */
-        .btn {
-            border-radius: 6px !important;
-            font-weight: 500 !important;
-            font-size: 0.875rem !important;
-            padding: 0.5rem 1rem !important;
-            transition: var(--transition) !important;
-            border-width: 1px !important;
+        
+        .totals-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
         }
-
-        .btn-primary {
-            background: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: white !important;
+        
+        .totals-row.total-final {
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-top: 2px solid #495057;
+            padding-top: 1rem;
+            margin-top: 1rem;
         }
-
-        .btn-primary:hover {
-            background: var(--primary-dark) !important;
-            border-color: var(--primary-dark) !important;
+        
+        .payment-info {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
         }
-
-        .btn-success {
-            background: var(--success-color) !important;
-            border-color: var(--success-color) !important;
-            color: white !important;
-        }
-
-        .btn-success:hover {
-            background: var(--success-dark) !important;
-            border-color: var(--success-dark) !important;
-        }
-
-        .btn-warning {
-            background: var(--warning-color) !important;
-            border-color: var(--warning-color) !important;
-            color: white !important;
-        }
-
-        .btn-warning:hover {
-            background: var(--warning-dark) !important;
-            border-color: var(--warning-dark) !important;
-        }
-
-        .btn-danger {
-            background: var(--danger-color) !important;
-            border-color: var(--danger-color) !important;
-            color: white !important;
-        }
-
-        .btn-danger:hover {
-            background: var(--danger-dark) !important;
-            border-color: var(--danger-dark) !important;
-        }
-
-        .btn-info {
-            background: var(--info-color) !important;
-            border-color: var(--info-color) !important;
-            color: white !important;
-        }
-
-        .btn-info:hover {
-            background: var(--info-dark) !important;
-            border-color: var(--info-dark) !important;
-        }
-
-        /* Boutons outline */
-        .btn-outline-primary {
-            border-color: var(--primary-color) !important;
-            color: var(--primary-color) !important;
-        }
-
-        .btn-outline-primary:hover {
-            background: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: white !important;
-        }
-
-        .btn-outline-secondary {
-            border-color: var(--gray-300) !important;
-            color: var(--gray-600) !important;
-        }
-
-        .btn-outline-secondary:hover {
-            background: var(--gray-600) !important;
-            border-color: var(--gray-600) !important;
-            color: white !important;
-        }
-
-        .btn-outline-success {
-            border-color: var(--success-color) !important;
-            color: var(--success-color) !important;
-        }
-
-        .btn-outline-success:hover {
-            background: var(--success-color) !important;
-            border-color: var(--success-color) !important;
-            color: white !important;
-        }
-
-        .btn-outline-warning {
-            border-color: var(--warning-color) !important;
-            color: var(--warning-color) !important;
-        }
-
-        .btn-outline-warning:hover {
-            background: var(--warning-color) !important;
-            border-color: var(--warning-color) !important;
-            color: white !important;
-        }
-
-        .btn-outline-info {
-            border-color: var(--info-color) !important;
-            color: var(--info-color) !important;
-        }
-
-        .btn-outline-info:hover {
-            background: var(--info-color) !important;
-            border-color: var(--info-color) !important;
-            color: white !important;
-        }
-
-        .btn-outline-danger {
-            border-color: var(--danger-color) !important;
-            color: var(--danger-color) !important;
-        }
-
-        .btn-outline-danger:hover {
-            background: var(--danger-color) !important;
-            border-color: var(--danger-color) !important;
-            color: white !important;
-        }
-
-        /* Boutons petits */
-        .btn-sm {
-            padding: 0.375rem 0.75rem !important;
-            font-size: 0.8125rem !important;
-        }
-
-        /* Table */
-        .table {
-            border-radius: var(--border-radius) !important;
-            overflow: hidden;
-            background: white;
-            box-shadow: var(--shadow-sm) !important;
-            border: 1px solid var(--gray-200) !important;
-        }
-
-        .table thead th {
-            background: var(--gray-50) !important;
-            color: var(--gray-700) !important;
-            border-bottom: 1px solid var(--gray-200) !important;
-            font-weight: 600 !important;
-            font-size: 0.875rem !important;
-            padding: 0.875rem !important;
-            text-transform: none;
-        }
-
-        .table tbody tr {
-            transition: var(--transition) !important;
-        }
-
-        .table tbody tr:hover {
-            background: var(--gray-50) !important;
-        }
-
-        .table td {
-            padding: 0.875rem !important;
-            border-color: var(--gray-200) !important;
-            vertical-align: middle !important;
-            font-size: 0.875rem;
-        }
-
-        /* Liens de tri dans les en-têtes */
-        .table thead th a {
-            color: var(--gray-700) !important;
-            text-decoration: none !important;
-            font-weight: 600 !important;
-        }
-
-        .table thead th a:hover {
-            color: var(--primary-color) !important;
-        }
-
-        /* Badges */
-        .badge {
-            padding: 0.375rem 0.75rem !important;
-            border-radius: 4px !important;
-            font-weight: 500 !important;
-            font-size: 0.75rem !important;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .badge.bg-success {
-            background: var(--success-color) !important;
-            color: white !important;
-        }
-
-        .badge.bg-warning {
-            background: var(--warning-color) !important;
-            color: white !important;
-        }
-
-        .badge.bg-danger {
-            background: var(--danger-color) !important;
-            color: white !important;
-        }
-
-        .badge.bg-primary {
-            background: var(--primary-color) !important;
-            color: white !important;
-        }
-
-        .badge.bg-secondary {
-            background: var(--gray-500) !important;
-            color: white !important;
-        }
-
-        .badge.bg-dark {
-            background: var(--gray-800) !important;
-            color: white !important;
-        }
-
-        /* Breadcrumb */
-        .breadcrumb {
-            background: white !important;
-            border-radius: 6px !important;
-            padding: 0.75rem 1rem !important;
-            border: 1px solid var(--gray-200);
+        
+        .overdue-warning {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 1rem;
             margin-bottom: 1rem;
         }
-
-        .breadcrumb-item a {
-            color: var(--primary-color) !important;
-            text-decoration: none !important;
-            font-weight: 500 !important;
-            transition: var(--transition) !important;
+        
+        .invoice-type-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            background: #6c757d;
+            color: white;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
         }
-
-        .breadcrumb-item a:hover {
-            color: var(--primary-dark) !important;
+        
+        .notes-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
         }
-
-        .breadcrumb-item.active {
-            color: var(--gray-600) !important;
-            font-weight: 500 !important;
-        }
-
-        /* Pagination */
-        .pagination .page-link {
-            border: 1px solid var(--gray-300) !important;
-            color: var(--gray-700) !important;
-            font-weight: 500 !important;
-            margin: 0 2px !important;
-            border-radius: 6px !important;
-            transition: var(--transition) !important;
-        }
-
-        .pagination .page-item.active .page-link {
-            background: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: white !important;
-        }
-
-        .pagination .page-link:hover {
-            background: var(--gray-100) !important;
-            border-color: var(--gray-300) !important;
-            color: var(--primary-color) !important;
-        }
-
-        /* Couleurs de texte */
-        .text-primary { color: var(--primary-color) !important; }
-        .text-success { color: var(--success-color) !important; }
-        .text-warning { color: var(--warning-color) !important; }
-        .text-danger { color: var(--danger-color) !important; }
-        .text-info { color: var(--info-color) !important; }
-        .text-muted { color: var(--gray-500) !important; }
-
-        /* Modal */
-        .modal-content {
-            border: none !important;
-            border-radius: var(--border-radius) !important;
-            box-shadow: var(--shadow-lg) !important;
-        }
-
-        .modal-header {
-            border-bottom: 1px solid var(--gray-200) !important;
-            background: white;
-        }
-
-        .modal-footer {
-            border-top: 1px solid var(--gray-200) !important;
-            background: white;
-        }
-
-        /* Check personnalisé */
-        .form-check-input:checked {
-            background-color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-        }
-
-        .form-check-input:focus {
-            box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25) !important;
-        }
-
-        /* Responsive */
+        
         @media (max-width: 768px) {
-            .card-body h2, .card-body h4 {
-                font-size: 1.5rem !important;
+            .invoice-info-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                padding: 1rem;
             }
-
-            .table-responsive {
-                border-radius: var(--border-radius);
-                box-shadow: var(--shadow-sm);
+            
+            .items-table {
+                font-size: 0.9rem;
             }
-
-            h1 {
-                font-size: 1.5rem;
+            
+            .items-table th,
+            .items-table td {
+                padding: 0.5rem;
             }
-        }
-
-        /* Utilitaires */
-        .opacity-50 { opacity: 0.5; }
-        .fw-bold { font-weight: 700 !important; }
-
-        /* Ajustements spécifiques */
-        .btn-group .btn {
-            margin: 0 1px !important;
-        }
-
-        .card-body {
-            padding: 1.25rem !important;
-        }
-
-        /* Espacement vertical */
-        .mb-4 {
-            margin-bottom: 1.5rem !important;
-        }
-
-        /* Icônes dans les boutons */
-        .btn i {
-            margin-right: 0.25rem;
-        }
-
-        .btn i:only-child {
-            margin-right: 0;
         }
     </style>
 </head>
 
-<!-- Corps de la page -->
-<body>
-
-<!-- Fragment Thymeleaf - Cette div sera insérée dans le layout principal -->
 <div th:fragment="content">
-
-    <!-- === EN-TÊTE DE LA PAGE === -->
+<div class="container-fluid py-4">
+    
+    <!-- En-tête de la page -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <!-- Titre principal avec icône FontAwesome -->
-            <h1><i class="fas fa-file-invoice me-2"></i>Gestion des Factures</h1>
-
-            <!-- Fil d'Ariane (breadcrumb) pour la navigation -->
+            <h1>Détails de la Facture</h1>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <!-- Lien vers le dashboard -->
-                    <li class="breadcrumb-item"><a th:href="@{/dashboard}">Dashboard</a></li>
-                    <!-- Page actuelle (non cliquable) -->
-                    <li class="breadcrumb-item active">Factures</li>
+                    <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="/invoices">Factures</a></li>
+                    <li class="breadcrumb-item active" aria-current="page" th:text="${invoice.invoiceNumber}"></li>
                 </ol>
             </nav>
         </div>
-    </div>
-
-    <!-- === STATISTIQUES RAPIDES === -->
-    <div class="row mb-4">
-
-        <!-- Carte 1: Total des factures -->
-        <div class="col-md-3 mb-3">
-            <div class="card border-primary">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-primary">Total Factures</h5>
-                    <!-- Affichage du nombre total de factures depuis le contrôleur -->
-                    <h2 th:text="${totalInvoices}" class="text-primary">0</h2>
-                </div>
-            </div>
-        </div>
-
-        <!-- Carte 2: Factures payées -->
-        <div class="col-md-3 mb-3">
-            <div class="card border-success">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-success">Payées</h5>
-                    <!-- Affichage du nombre de factures payées depuis le contrôleur -->
-                    <h2 th:text="${paidInvoices}" class="text-success">0</h2>
-                </div>
-            </div>
-        </div>
-
-        <!-- Carte 3: Factures en retard -->
-        <div class="col-md-3 mb-3">
-            <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-warning">En Retard</h5>
-                    <!-- Affichage du nombre de factures en retard depuis le contrôleur -->
-                    <h2 th:text="${overdueInvoices}" class="text-warning">0</h2>
-                </div>
-            </div>
-        </div>
-
-        <!-- Carte 4: Montant impayé -->
-        <div class="col-md-3 mb-3">
-            <div class="card border-info">
-                <div class="card-body text-center">
-                    <h5 class="card-title text-info">Impayés</h5>
-                    <!-- Formatage du montant en devise avec l'utilitaire Thymeleaf -->
-                    <h2 th:text="${#numbers.formatCurrency(outstandingAmount)}" class="text-info">€0</h2>
-                </div>
-            </div>
+        <!-- Boutons d'action -->
+        <div class="btn-group">
+            <a th:href="@{/invoices/{id}/pdf(id=${invoice.id})}" class="btn btn-primary" target="_blank">
+                <i class="fas fa-file-pdf me-1"></i> Télécharger PDF
+            </a>
+            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#emailModal">
+                <i class="fas fa-envelope me-1"></i> Envoyer par email
+            </button>
+            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#reminderModal"
+                    th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).SENT or 
+                            invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).OVERDUE or
+                            invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).PARTIAL}">
+                <i class="fas fa-bell me-1"></i> Relance
+            </button>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#paymentModal"
+                    th:if="${invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).CANCELLED}">
+                <i class="fas fa-euro-sign me-1"></i> Encaisser
+            </button>
+            <a th:href="@{/invoices/edit/{id}(id=${invoice.id})}" class="btn btn-secondary"
+               th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).DRAFT}">
+                <i class="fas fa-edit me-1"></i> Modifier
+            </a>
         </div>
     </div>
 
-    <!-- === RÉSUMÉ FINANCIER AVEC BARRE DE PROGRESSION === -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
+    <!-- Affichage des messages de succès ou d'erreur -->
+    <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+    
+    <!-- Alerte si facture en retard -->
+    <div th:if="${invoice.overdue}" class="overdue-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Facture en retard !</strong> Cette facture est échue depuis 
+        <span th:text="${invoice.daysOverdue}"></span> jour(s).
+    </div>
 
-                    <!-- Ligne avec les 3 montants principaux -->
-                    <div class="row text-center mb-3">
-
-                        <!-- Montant total -->
-                        <div class="col-md-4">
-                            <h6 class="text-muted">Montant Total</h6>
-                            <!-- Formatage en devise du montant total -->
-                            <h4 th:text="${#numbers.formatCurrency(totalAmount)}" class="text-primary">€0</h4>
-                        </div>
-
-                        <!-- Montant encaissé -->
-                        <div class="col-md-4">
-                            <h6 class="text-muted">Montant Encaissé</h6>
-                            <!-- Formatage en devise du montant payé -->
-                            <h4 th:text="${#numbers.formatCurrency(paidAmount)}" class="text-success">€0</h4>
-                        </div>
-
-                        <!-- Reste à encaisser -->
-                        <div class="col-md-4">
-                            <h6 class="text-muted">Reste à Encaisser</h6>
-                            <!-- Formatage en devise du montant restant -->
-                            <h4 th:text="${#numbers.formatCurrency(outstandingAmount)}" class="text-warning">€0</h4>
-                        </div>
+    <!-- Détails de la facture -->
+    <div class="invoice-detail">
+        
+        <!-- En-tête de la facture -->
+        <div class="invoice-header">
+            <div class="row">
+                <div class="col-md-8">
+                    <h2 class="mb-1">Facture <span th:text="${invoice.invoiceNumber}"></span></h2>
+                    <span class="invoice-type-badge" th:text="${invoice.invoiceType.displayName}"></span>
+                </div>
+                <div class="col-md-4 text-end">
+                    <span class="status-badge" 
+                          th:classappend="'status-' + ${invoice.status.name().toLowerCase()}"
+                          th:text="${invoice.status.displayName}"></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informations générales -->
+        <div class="invoice-info-grid">
+            
+            <!-- Informations facture -->
+            <div class="info-card">
+                <h5><i class="fas fa-file-invoice me-2"></i>Informations Facture</h5>
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Date de création:</strong><br>
+                        <span th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}"></span>
                     </div>
-
-                    <!-- BARRE DE PROGRESSION -->
-                    <div class="progress">
-                        <div class="progress-bar bg-success"
-                             th:style="|width: ${paymentPercentage}%|"
-                             role="progressbar"
-                             th:attr="aria-valuenow=${paymentPercentage}"
-                             aria-valuemin="0"
-                             aria-valuemax="100">
-                        </div>
+                    <div class="col-6">
+                        <strong>Date d'échéance:</strong><br>
+                        <span th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}"
+                              th:classappend="${invoice.overdue} ? 'text-danger fw-bold' : ''"></span>
+                    </div>
+                </div>
+                <div class="row mt-2" th:if="${invoice.createdAt}">
+                    <div class="col-6">
+                        <strong>Créée le:</strong><br>
+                        <span th:text="${#temporals.format(invoice.createdAt, 'dd/MM/yyyy HH:mm')}"></span>
+                    </div>
+                    <div class="col-6" th:if="${invoice.updatedAt}">
+                        <strong>Modifiée le:</strong><br>
+                        <span th:text="${#temporals.format(invoice.updatedAt, 'dd/MM/yyyy HH:mm')}"></span>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- === FORMULAIRE DE FILTRES ET RECHERCHE === -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <!-- Formulaire GET qui soumet vers /invoices -->
-            <form th:action="@{/invoices}" method="get" class="row g-3">
-
-                <!-- Champ de recherche textuelle -->
-                <div class="col-md-3">
-                    <label for="search" class="form-label">Rechercher</label>
-                    <input type="text" class="form-control" id="search" name="search"
-                           th:value="${search}" placeholder="N° facture, client...">
-                    <!-- th:value="${search}" : Conserve la valeur saisie après soumission -->
+            
+            <!-- Informations client -->
+            <div class="info-card">
+                <h5><i class="fas fa-user me-2"></i>Client</h5>
+                <div th:if="${invoice.order?.client}">
+                    <strong th:text="${invoice.order.client.name}"></strong><br>
+                    <span th:text="${invoice.order.client.email}" class="text-muted"></span><br>
+                    <span th:if="${invoice.order.client.phoneNumber}" th:text="${invoice.order.client.phoneNumber}" class="text-muted"></span>
                 </div>
-
-                <!-- Filtre par statut -->
-                <div class="col-md-2">
-                    <label for="status" class="form-label">Statut</label>
-                    <select class="form-select" id="status" name="status">
-                        <option value="">Tous les statuts</option>
-                        <!-- th:selected="${selectedStatus == 'DRAFT'}" : Sélectionne l'option si c'est le statut actuel -->
-                        <option value="DRAFT" th:selected="${selectedStatus == 'DRAFT'}">Brouillon</option>
-                        <option value="SENT" th:selected="${selectedStatus == 'SENT'}">Envoyée</option>
-                        <option value="PAID" th:selected="${selectedStatus == 'PAID'}">Payée</option>
-                        <option value="PARTIALLY_PAID" th:selected="${selectedStatus == 'PARTIALLY_PAID'}">Partiellement payée</option>
-                        <option value="OVERDUE" th:selected="${selectedStatus == 'OVERDUE'}">En retard</option>
-                        <option value="CANCELLED" th:selected="${selectedStatus == 'CANCELLED'}">Annulée</option>
-                    </select>
+                <div th:if="${invoice.billingAddress}" class="mt-2">
+                    <strong>Adresse de facturation:</strong><br>
+                    <span th:text="${invoice.billingAddress}"></span>
                 </div>
-
-                <!-- Filtre par date de début -->
-                <div class="col-md-2">
-                    <label for="dateFrom" class="form-label">Du</label>
-                    <!-- Input de type date, conserve la valeur avec th:value -->
-                    <input type="date" class="form-control" id="dateFrom" name="dateFrom" th:value="${dateFrom}">
-                </div>
-
-                <!-- Filtre par date de fin -->
-                <div class="col-md-2">
-                    <label for="dateTo" class="form-label">Au</label>
-                    <input type="date" class="form-control" id="dateTo" name="dateTo" th:value="${dateTo}">
-                </div>
-
-                <!-- Checkbox pour les factures en retard -->
-                <div class="col-md-1">
-                    <label class="form-label">Filtres</label>
-                    <div class="form-check">
-                        <!-- th:checked="${overdueFilter}" : Coche la case si le filtre est actif -->
-                        <input class="form-check-input" type="checkbox" id="overdue" name="overdue" value="true" th:checked="${overdueFilter}">
-                        <label class="form-check-label" for="overdue">
-                            En retard
-                        </label>
+            </div>
+            
+            <!-- Informations commande -->
+            <div class="info-card" th:if="${invoice.order}">
+                <h5><i class="fas fa-shopping-cart me-2"></i>Commande Associée</h5>
+                <strong>N° Commande:</strong> 
+                <a th:href="@{/orders/{id}(id=${invoice.order.id})}"
+                   th:text="${invoice.order.orderNumber}" class="text-decoration-none"></a><br>
+                <strong>Date commande:</strong> 
+                <span th:text="${#temporals.format(invoice.order.orderDate, 'dd/MM/yyyy')}"></span><br>
+                <strong>Statut commande:</strong> 
+                <span th:text="${invoice.order.status.displayName}" class="badge bg-secondary"></span>
+            </div>
+            
+            <!-- Informations financières -->
+            <div class="info-card">
+                <h5><i class="fas fa-euro-sign me-2"></i>Informations Financières</h5>
+                <div class="row">
+                    <div class="col-12">
+                        <strong>Montant total:</strong> <span th:text="${#numbers.formatCurrency(invoice.totalAmount)}" class="fw-bold"></span><br>
+                        <strong>Montant payé:</strong> <span th:text="${#numbers.formatCurrency(invoice.paidAmount ?: 0)}" class="text-success"></span><br>
+                        <strong>Reste à payer:</strong> <span th:text="${#numbers.formatCurrency(invoice.remainingAmount)}" 
+                                                              th:classappend="${invoice.remainingAmount > 0} ? 'text-danger fw-bold' : 'text-success'"></span>
                     </div>
                 </div>
-
-                <!-- Boutons d'action -->
-                <div class="col-md-2 d-flex align-items-end">
-                    <!-- Bouton pour appliquer les filtres -->
-                    <button type="submit" class="btn btn-outline-primary me-2">
-                        <i class="fas fa-search me-1"></i>Filtrer
-                    </button>
-                    <!-- Lien pour réinitialiser tous les filtres -->
-                    <a th:href="@{/invoices}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times me-1"></i>Reset
-                    </a>
+                <div class="mt-2" th:if="${invoice.discountRate != null and invoice.discountRate > 0}">
+                    <strong>Remise:</strong> <span th:text="${invoice.discountRate}" class="text-info"></span>% 
+                    (<span th:text="${#numbers.formatCurrency(invoice.discountAmount)}"></span>)
                 </div>
-
-                <!-- Champs cachés pour conserver les paramètres de pagination et tri -->
-                <input type="hidden" name="page" th:value="${currentPage}">
-                <input type="hidden" name="size" th:value="${size}">
-                <input type="hidden" name="sortBy" th:value="${sortBy}">
-                <input type="hidden" name="sortDir" th:value="${sortDir}">
-            </form>
+                <div th:if="${invoice.shippingCost != null and invoice.shippingCost > 0}">
+                    <strong>Frais de port:</strong> <span th:text="${#numbers.formatCurrency(invoice.shippingCost)}"></span>
+                </div>
+            </div>
         </div>
-    </div>
-
-    <!-- === TABLE DES FACTURES === -->
-    <div class="card">
-
-        <!-- En-tête de la carte -->
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Liste des Factures</h5>
-        </div>
-
-        <div class="card-body p-0">
-            <!-- Table responsive pour mobile -->
+        
+        <!-- Articles de la facture -->
+        <div class="invoice-items">
+            <h4><i class="fas fa-list me-2"></i>Articles</h4>
+            
+            <!-- Table des articles -->
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-
-                    <!-- En-tête du tableau avec liens de tri -->
+                <table class="items-table">
                     <thead>
-                    <tr>
-                        <!-- Colonne N° Facture avec tri -->
-                        <th>
-                            <!--
-                            Lien de tri complexe :
-                            - Conserve tous les paramètres de filtre
-                            - Change sortBy à 'invoiceNumber'
-                            - Inverse sortDir si on clique sur la même colonne
-                            -->
-                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='invoiceNumber', sortDir=${sortBy == 'invoiceNumber' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
-                               class="text-decoration-none">
-                                N° Facture
-                                <!-- Icône de tri - s'affiche seulement si on trie par cette colonne -->
-                                <i th:if="${sortBy == 'invoiceNumber'}"
-                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
-                            </a>
-                        </th>
-
-                        <!-- Colonne Date avec tri -->
-                        <th>
-                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='invoiceDate', sortDir=${sortBy == 'invoiceDate' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
-                               class="text-decoration-none">
-                                Date
-                                <i th:if="${sortBy == 'invoiceDate'}"
-                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
-                            </a>
-                        </th>
-
-                        <!-- Colonne Client avec tri -->
-                        <th>
-                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='client', sortDir=${sortBy == 'client' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
-                               class="text-decoration-none">
-                                Client
-                                <i th:if="${sortBy == 'client'}"
-                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
-                            </a>
-                        </th>
-
-                        <!-- Colonne Montant avec tri -->
-                        <th>
-                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='amount', sortDir=${sortBy == 'amount' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
-                               class="text-decoration-none">
-                                Montant
-                                <i th:if="${sortBy == 'amount'}"
-                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
-                            </a>
-                        </th>
-
-                        <!-- Colonne Échéance avec tri -->
-                        <th>
-                            <a th:href="@{/invoices(page=${currentPage}, size=${size}, sortBy='dueDate', sortDir=${sortBy == 'dueDate' and sortDir == 'asc' ? 'desc' : 'asc'}, search=${search}, status=${selectedStatus}, dateFrom=${dateFrom}, dateTo=${dateTo}, overdue=${overdueFilter})}"
-                               class="text-decoration-none">
-                                Échéance
-                                <i th:if="${sortBy == 'dueDate'}"
-                                   th:class="${sortDir == 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down'}"></i>
-                            </a>
-                        </th>
-
-                        <!-- Colonnes sans tri -->
-                        <th>Statut</th>
-                        <th>Actions</th>
-                    </tr>
+                        <tr>
+                            <th>Description</th>
+                            <th style="width: 100px;">Qté</th>
+                            <th style="width: 120px;">Prix unitaire</th>
+                            <th style="width: 100px;">TVA</th>
+                            <th style="width: 120px;">Total HT</th>
+                            <th style="width: 120px;">Total TTC</th>
+                        </tr>
                     </thead>
-
-                    <!-- Corps du tableau -->
                     <tbody>
-
-                    <!--
-                    Boucle Thymeleaf : th:each="invoice : ${invoices}"
-                    Pour chaque facture dans la liste ${invoices}, on créé une ligne
-                    La variable ${invoice} est disponible dans cette ligne
-                    -->
-                    <tr th:each="invoice : ${invoices}">
-
-                        <!-- Colonne N° Facture + N° Commande -->
-                        <td>
-                            <!-- Affichage du numéro de facture en gras -->
-                            <strong th:text="${invoice.invoiceNumber}">FACT-001</strong>
-                            <br>
-                            <!-- Affichage conditionnel du numéro de commande -->
-                            <small th:if="${invoice.order}"
-                                   th:text="'Cmd: ' + ${invoice.order.orderNumber}"
-                                   class="text-muted">Commande</small>
-                        </td>
-
-                        <!-- Colonne Date -->
-                        <td>
-                            <!-- Formatage de la date avec l'utilitaire Thymeleaf -->
-                            <span th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</span>
-                        </td>
-
-                        <!-- Colonne Client -->
-                        <td>
-                            <!-- Affichage conditionnel si la commande existe -->
-                            <div th:if="${invoice.order}">
-                                <!-- Nom du client en gras -->
-                                <strong th:text="${invoice.order.client.name}">Client</strong>
-                                <br>
-                                <!-- Nom de l'entreprise si elle existe -->
-                                <small th:if="${invoice.order.client.companyName}"
-                                       th:text="${invoice.order.client.companyName}"
-                                       class="text-muted">Entreprise</small>
-                            </div>
-                        </td>
-
-                        <!-- Colonne Montant -->
-                        <td>
-                            <div>
-                                <!-- Montant total formaté en devise -->
-                                <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€0.00</strong>
-                                <br>
-                                <!--
-                                Affichage conditionnel du montant payé
-                                CORRECTION: Utilisation de T(java.math.BigDecimal).ZERO au lieu de java.math.BigDecimal.ZERO
-                                -->
-                                <small th:if="${invoice.paidAmount != null and invoice.paidAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}"
-                                       th:text="'Payé: ' + ${#numbers.formatCurrency(invoice.paidAmount)}"
-                                       class="text-success">Payé</small>
-                            </div>
-                        </td>
-
-                        <!-- Colonne Échéance -->
-                        <td>
-                            <!--
-                            Affichage conditionnel de la date d'échéance
-                            CORRECTION: Vérification que dueDate n'est pas null
-                            -->
-                            <span th:if="${invoice.dueDate != null}"
-                                  th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}"
-                                  th:class="${invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID} ? 'text-danger fw-bold' : ''">01/01/2024</span>
-
-                            <!-- Affichage si pas de date d'échéance -->
-                            <span th:unless="${invoice.dueDate != null}" class="text-muted">Non définie</span>
-                            <br>
-
-                            <!-- Message "En retard" si conditions remplies -->
-                            <small th:if="${invoice.dueDate != null and invoice.dueDate.isBefore(T(java.time.LocalDate).now()) and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID}"
-                                   class="text-danger">
-                                <i class="fas fa-exclamation-triangle"></i> En retard
-                            </small>
-                        </td>
-
-                        <!-- Colonne Statut -->
-                        <td>
-                            <!--
-                            Switch Thymeleaf pour afficher le bon badge selon le statut
-                            th:switch="${invoice.status}" : Valeur à comparer
-                            th:case="'DRAFT'" : Cas pour chaque statut
-                            -->
-                            <span th:switch="${invoice.status}">
-                                <span th:case="'DRAFT'" class="badge bg-secondary">Brouillon</span>
-                                <span th:case="'SENT'" class="badge bg-primary">Envoyée</span>
-                                <span th:case="'PAID'" class="badge bg-success">Payée</span>
-                                <span th:case="'PARTIALLY_PAID'" class="badge bg-warning text-dark">Partiellement payée</span>
-                                <span th:case="'OVERDUE'" class="badge bg-danger">En retard</span>
-                                <span th:case="'CANCELLED'" class="badge bg-dark">Annulée</span>
-                            </span>
-                        </td>
-
-                        <!-- Colonne Actions -->
-                        <td>
-                            <!-- Groupe de boutons d'action -->
-                            <div class="btn-group btn-group-sm" role="group">
-
-                                <!-- Bouton Voir -->
-                                <a th:href="@{/invoices/{id}(id=${invoice.id})}"
-                                   class="btn btn-outline-info" title="Voir">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-
-                                <!-- Bouton PDF -->
-                                <a th:href="@{/invoices/{id}/pdf(id=${invoice.id})}"
-                                   class="btn btn-outline-primary" title="PDF">
-                                    <i class="fas fa-file-pdf"></i>
-                                </a>
-
-                                <!-- Bouton Envoyer (seulement si statut = DRAFT) -->
-                                <button th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).DRAFT}"
-                                        type="button"
-                                        class="btn btn-outline-success"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#sendModal' + ${invoice.id}"
-                                        title="Envoyer">
-                                    <i class="fas fa-paper-plane"></i>
-                                </button>
-
-                                <!-- Bouton Encaisser (si pas payée et pas annulée) -->
-                                <button th:if="${invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).CANCELLED}"
-                                        type="button"
-                                        class="btn btn-outline-warning"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#paymentModal' + ${invoice.id}"
-                                        title="Encaisser">
-                                    <i class="fas fa-euro-sign"></i>
-                                </button>
-
-                                <!-- Bouton Relancer (si envoyée ou en retard) -->
-                                <button th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).SENT or invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).OVERDUE}"
-                                        type="button"
-                                        class="btn btn-outline-info"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#remindModal' + ${invoice.id}"
-                                        title="Relancer">
-                                    <i class="fas fa-bell"></i>
-                                </button>
-
-                                <!-- Bouton Annuler (si droit de modification et pas payée) -->
-                                <button th:if="${canEdit and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID}"
-                                        type="button"
-                                        class="btn btn-outline-danger"
-                                        data-bs-toggle="modal"
-                                        th:data-bs-target="'#cancelModal' + ${invoice.id}"
-                                        title="Annuler">
-                                    <i class="fas fa-ban"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <!-- Ligne affichée si aucune facture trouvée -->
-                    <tr th:if="${#lists.isEmpty(invoices)}">
-                        <td colspan="7" class="text-center text-muted py-5">
-                            <i class="fas fa-file-invoice fa-3x mb-3 opacity-50"></i>
-                            <br>Aucune facture trouvée
-                        </td>
-                    </tr>
-
+                        <!-- Articles de la facture si ils existent -->
+                        <tr th:each="item : ${invoice.invoiceItems}" th:if="${not #lists.isEmpty(invoice.invoiceItems)}">
+                            <td>
+                                <strong th:text="${item.description}"></strong>
+                                <div th:if="${item.reference}" class="text-muted small">
+                                    Réf: <span th:text="${item.reference}"></span>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span th:text="${item.quantity}"></span>
+                                <small th:if="${item.unit}" class="text-muted d-block" th:text="${item.unit}"></small>
+                            </td>
+                            <td class="text-end" th:text="${#numbers.formatCurrency(item.unitPrice)}"></td>
+                            <td class="text-center">
+                                <span th:text="${item.vatRate}" class="small"></span>%
+                            </td>
+                            <td class="text-end" th:text="${#numbers.formatCurrency(item.totalPriceHT)}"></td>
+                            <td class="text-end fw-bold" th:text="${#numbers.formatCurrency(item.totalPrice)}"></td>
+                        </tr>
+                        
+                        <!-- Articles de la commande si pas d'articles spécifiques à la facture -->
+                        <tr th:each="item : ${invoice.order?.orderItems}" th:if="${#lists.isEmpty(invoice.invoiceItems)}">
+                            <td>
+                                <strong th:text="${item.product?.name ?: item.description}"></strong>
+                                <div th:if="${item.product?.reference}" class="text-muted small">
+                                    Réf: <span th:text="${item.product.reference}"></span>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span th:text="${item.quantity}"></span>
+                                <small th:if="${item.product?.unit}" class="text-muted d-block" th:text="${item.product.unit}"></small>
+                            </td>
+                            <td class="text-end" th:text="${#numbers.formatCurrency(item.unitPrice)}"></td>
+                            <td class="text-center">
+                                <span th:text="${item.vatRate}" class="small"></span>%
+                            </td>
+                            <td class="text-end" th:text="${#numbers.formatCurrency(item.totalPriceHT)}"></td>
+                            <td class="text-end fw-bold" th:text="${#numbers.formatCurrency(item.totalPrice)}"></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Totaux -->
+            <div class="totals-section">
+                <div class="row">
+                    <div class="col-md-6 offset-md-6">
+                        <div class="totals-row">
+                            <span>Sous-total HT:</span>
+                            <span th:text="${#numbers.formatCurrency(invoice.totalAmountHT)}"></span>
+                        </div>
+                        <div class="totals-row" th:if="${invoice.discountAmount != null and invoice.discountAmount > 0}">
+                            <span>Remise (<span th:text="${invoice.discountRate}"></span>%):</span>
+                            <span class="text-danger">-<span th:text="${#numbers.formatCurrency(invoice.discountAmount)}"></span></span>
+                        </div>
+                        <div class="totals-row" th:if="${invoice.shippingCost != null and invoice.shippingCost > 0}">
+                            <span>Frais de port:</span>
+                            <span th:text="${#numbers.formatCurrency(invoice.shippingCost)}"></span>
+                        </div>
+                        <div class="totals-row">
+                            <span>TVA:</span>
+                            <span th:text="${#numbers.formatCurrency(invoice.totalVatAmount)}"></span>
+                        </div>
+                        <div class="totals-row total-final">
+                            <span>Total TTC:</span>
+                            <span th:text="${#numbers.formatCurrency(invoice.totalAmount)}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <!-- === PAGINATION === -->
-        <!-- Affichage seulement s'il y a plus d'une page -->
-        <div th:if="${totalPages > 1}" class="card-footer bg-white">
-            <nav aria-label="Navigation factures">
-                <ul class="pagination justify-content-center mb-0">
-
-                    <!-- Bouton Précédent -->
-                    <li class="page-item" th:classappend="${!hasPrevious} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/invoices(
-                           page=${currentPage - 1},
-                           size=${size},
-                           sortBy=${sortBy},
-                           sortDir=${sortDir},
-                           search=${search},
-                           status=${selectedStatus},
-                           dateFrom=${dateFrom},
-                           dateTo=${dateTo},
-                           overdue=${overdueFilter})}">
-                            Précédent
-                        </a>
-                    </li>
-
-                    <!-- Numéros de page -->
-                    <!-- th:each="i : ${#numbers.sequence(0, totalPages - 1)}" : Boucle de 0 à totalPages-1 -->
-                    <li th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
-                        class="page-item"
-                        th:classappend="${i == currentPage} ? 'active'">
-                        <a class="page-link"
-                           th:text="${i+1}"
-                           th:href="@{/invoices(
-                           page=${i},
-                           size=${size},
-                           sortBy=${sortBy},
-                           sortDir=${sortDir},
-                           search=${search},
-                           status=${selectedStatus},
-                           dateFrom=${dateFrom},
-                           dateTo=${dateTo},
-                           overdue=${overdueFilter})}">1</a>
-                    </li>
-
-                    <!-- Bouton Suivant -->
-                    <li class="page-item" th:classappend="${!hasNext} ? 'disabled'">
-                        <a class="page-link"
-                           th:href="@{/invoices(
-                           page=${currentPage+1},
-                           size=${size},
-                           sortBy=${sortBy},
-                           sortDir=${sortDir},
-                           search=${search},
-                           status=${selectedStatus},
-                           dateFrom=${dateFrom},
-                           dateTo=${dateTo},
-                           overdue=${overdueFilter})}">
-                            Suivant
-                        </a>
-                    </li>
-                </ul>
-            </nav>
+        
+        <!-- Informations de paiement -->
+        <div th:if="${invoice.paymentDate != null or invoice.paymentMethod != null}" class="payment-info">
+            <h5><i class="fas fa-credit-card me-2"></i>Informations de Paiement</h5>
+            <div class="row">
+                <div class="col-md-4" th:if="${invoice.paymentDate}">
+                    <strong>Date de paiement:</strong><br>
+                    <span th:text="${#temporals.format(invoice.paymentDate, 'dd/MM/yyyy')}"></span>
+                </div>
+                <div class="col-md-4" th:if="${invoice.paymentMethod}">
+                    <strong>Méthode de paiement:</strong><br>
+                    <span th:text="${invoice.paymentMethod.displayName}"></span>
+                </div>
+                <div class="col-md-4" th:if="${invoice.paymentReference}">
+                    <strong>Référence de paiement:</strong><br>
+                    <span th:text="${invoice.paymentReference}"></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Notes et conditions -->
+        <div th:if="${invoice.notes != null or invoice.termsConditions != null}">
+            <div th:if="${invoice.notes}" class="notes-section">
+                <h6><i class="fas fa-sticky-note me-2"></i>Notes</h6>
+                <p th:text="${invoice.notes}" class="mb-0"></p>
+            </div>
+            
+            <div th:if="${invoice.termsConditions}" class="notes-section mt-3">
+                <h6><i class="fas fa-file-contract me-2"></i>Conditions générales</h6>
+                <p th:text="${invoice.termsConditions}" class="mb-0"></p>
+            </div>
+        </div>
+        
+        <!-- Informations sur l'envoi par email -->
+        <div th:if="${invoice.emailSent != null and invoice.emailSent}" class="payment-info">
+            <h6><i class="fas fa-envelope me-2"></i>Envoi par Email</h6>
+            <p class="mb-0 text-success">
+                <i class="fas fa-check-circle me-2"></i>
+                Facture envoyée par email le <span th:text="${#temporals.format(invoice.emailSentDate, 'dd/MM/yyyy à HH:mm')}"></span>
+            </p>
         </div>
     </div>
 
-    <!-- === MODALS (FENÊTRES POPUP) === -->
-    <!-- Une modal pour chaque facture -->
-    <div th:each="invoice : ${invoices}">
-
-        <!-- === MODAL D'ENVOI === -->
-        <div th:id="'sendModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-
-                    <!-- En-tête de la modal -->
+    <!-- Modal de Paiement -->
+    <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/invoices/{id}/mark-paid(id=${invoice.id})}" method="post">
                     <div class="modal-header">
-                        <h5 class="modal-title">Envoyer la facture</h5>
+                        <h5 class="modal-title" id="paymentModalLabel">Enregistrer un paiement</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                     </div>
-
-                    <!-- Corps de la modal -->
                     <div class="modal-body">
-                        <p>Envoyer la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
-                    </div>
-
-                    <!-- Pied de la modal -->
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                        <!-- Formulaire POST pour envoyer la facture -->
-                        <form th:action="@{/invoices/{id}/send(id=${invoice.id})}" method="post" class="d-inline">
-                            <button type="submit" class="btn btn-success">Envoyer</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- === MODAL DE PAIEMENT === -->
-        <div th:id="'paymentModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-
-                    <div class="modal-header">
-                        <h5 class="modal-title">Enregistrer un paiement</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                    </div>
-
-                    <!-- Formulaire POST pour enregistrer le paiement -->
-                    <form th:action="@{/invoices/{id}/mark-paid(id=${invoice.id})}" method="post">
-                        <div class="modal-body">
-
-                            <!-- Informations sur la facture -->
-                            <p>Facture: <strong th:text="${invoice.invoiceNumber}">FACT-001</strong></p>
-                            <p>Montant total: <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€0</strong></p>
-
-                            <!-- Champ montant payé -->
-                            <div class="mb-3">
-                                <!-- CORRECTION: ID unique pour chaque modal -->
-                                <label th:for="'paidAmount' + ${invoice.id}" class="form-label">Montant payé</label>
-                                <input type="number" step="0.01" class="form-control"
-                                       th:id="'paidAmount' + ${invoice.id}"
-                                       name="paidAmount"
-                                       th:value="${invoice.totalAmount}" required>
-                            </div>
-
-                            <!-- Champ date de paiement -->
-                            <div class="mb-3">
-                                <!-- CORRECTION: ID unique pour chaque modal -->
-                                <label th:for="'paymentDate' + ${invoice.id}" class="form-label">Date de paiement</label>
-                                <input type="date" class="form-control"
-                                       th:id="'paymentDate' + ${invoice.id}"
-                                       name="paymentDate"
-                                       th:value="${#temporals.format(T(java.time.LocalDate).now(), 'yyyy-MM-dd')}" required>
-                            </div>
+                        <p>Facture: <strong th:text="${invoice.invoiceNumber}"></strong></p>
+                        <p>Montant total: <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}"></strong></p>
+                        <div class="mb-3">
+                            <label for="paidAmount" class="form-label">Montant payé</label>
+                            <input type="number" step="0.01" class="form-control" id="paidAmount" name="paidAmount" th:value="${invoice.totalAmount}" required>
                         </div>
-
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                            <button type="submit" class="btn btn-success">Enregistrer</button>
+                        <div class="mb-3">
+                            <label for="paymentDate" class="form-label">Date de paiement</label>
+                            <input type="date" class="form-control" id="paymentDate" name="paymentDate" th:value="${#temporals.format(T(java.time.LocalDate).now(), 'yyyy-MM-dd')}" required>
                         </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- === MODAL DE RELANCE === -->
-        <div th:id="'remindModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-
-                    <div class="modal-header">
-                        <h5 class="modal-title">Envoyer une relance</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
                     </div>
-
-                    <div class="modal-body">
-                        <p>Envoyer une relance pour la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
-                    </div>
-
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                        <!-- Formulaire POST pour envoyer une relance -->
-                        <form th:action="@{/invoices/{id}/remind(id=${invoice.id})}" method="post" class="d-inline">
-                            <button type="submit" class="btn btn-warning">Envoyer relance</button>
-                        </form>
+                        <button type="submit" class="btn btn-success">Enregistrer</button>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- === MODAL D'ANNULATION === -->
-        <div th:id="'cancelModal' + ${invoice.id}" class="modal fade" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-
-                    <div class="modal-header">
-                        <h5 class="modal-title">Annuler la facture</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                    </div>
-
-                    <div class="modal-body">
-                        <p>Êtes-vous sûr de vouloir annuler la facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong> ?</p>
-                        <p class="text-danger"><small>Cette action est irréversible.</small></p>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                        <!-- Formulaire POST pour annuler la facture -->
-                        <form th:action="@{/invoices/{id}/cancel(id=${invoice.id})}" method="post" class="d-inline">
-                            <button type="submit" class="btn btn-danger">Confirmer l'annulation</button>
-                        </form>
-                    </div>
-                </div>
+                </form>
             </div>
         </div>
     </div>
 
+    <!-- Modal d'Envoi par Email -->
+    <div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/invoices/{id}/send-email(id=${invoice.id})}" method="post">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="emailModalLabel">
+                            <i class="fas fa-envelope me-2"></i>Envoyer la facture par email
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Facture: <strong th:text="${invoice.invoiceNumber}"></strong></p>
+                        <p>Montant: <strong th:text="${#numbers.formatCurrency(invoice.totalAmount)}"></strong></p>
+                        
+                        <div class="mb-3">
+                            <label for="recipientEmail" class="form-label">Email du destinataire</label>
+                            <input type="email" class="form-control" id="recipientEmail" name="email" 
+                                   th:value="${invoice.order?.client?.email}" 
+                                   placeholder="Entrer l'adresse email"
+                                   required>
+                            <div class="form-text">
+                                <span th:if="${invoice.order?.client?.email}">
+                                    Email du client: <span th:text="${invoice.order.client.email}"></span>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="attachPdf" name="attachPdf" checked>
+                            <label class="form-check-label" for="attachPdf">
+                                Joindre le PDF de la facture
+                            </label>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Aperçu du message:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Objet: Facture <span th:text="${invoice.invoiceNumber}"></span></li>
+                                <li>Le client recevra un email avec les détails de la facture</li>
+                                <li th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).DRAFT}">
+                                    Le statut de la facture passera automatiquement à "Envoyée"
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-info">
+                            <i class="fas fa-paper-plane me-1"></i> Envoyer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Relance -->
+    <div class="modal fade" id="reminderModal" tabindex="-1" aria-labelledby="reminderModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/invoices/{id}/remind(id=${invoice.id})}" method="post">
+                    <div class="modal-header bg-warning">
+                        <h5 class="modal-title" id="reminderModalLabel">
+                            <i class="fas fa-bell me-2"></i>Envoyer une relance
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Relance de paiement</strong>
+                        </div>
+                        
+                        <p><strong>Facture:</strong> <span th:text="${invoice.invoiceNumber}"></span></p>
+                        <p><strong>Date d'échéance:</strong> 
+                           <span th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}"
+                                 th:classappend="${invoice.overdue} ? 'text-danger fw-bold' : ''"></span>
+                           <span th:if="${invoice.overdue}" class="text-danger">
+                               (En retard de <span th:text="${invoice.daysOverdue}"></span> jour(s))
+                           </span>
+                        </p>
+                        <p><strong>Montant à régler:</strong> 
+                           <span th:text="${#numbers.formatCurrency(invoice.remainingAmount)}" class="fw-bold text-danger"></span>
+                        </p>
+                        
+                        <p><strong>Destinataire:</strong> 
+                           <span th:text="${invoice.order?.client?.email ?: 'Email client non défini'}"
+                                 th:classappend="${invoice.order?.client?.email == null} ? 'text-danger' : ''"></span>
+                        </p>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Cette relance contiendra:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Un rappel des détails de la facture</li>
+                                <li>L'information sur le retard de paiement (si applicable)</li>
+                                <li>La facture en pièce jointe (PDF)</li>
+                                <li>Les instructions de paiement</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="submit" class="btn btn-warning" 
+                                th:disabled="${invoice.order?.client?.email == null}">
+                            <i class="fas fa-bell me-1"></i> Envoyer la relance
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
-<!-- Fin du fragment 'content' -->
-
+</div>
 <!-- Bootstrap JavaScript -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
