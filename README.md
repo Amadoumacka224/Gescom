@@ -1,6 +1,6 @@
 # Application de Gestion Commerciale
 
-Une application web complète de gestion commerciale développée avec Spring Boot, Thymeleaf et mySQL.
+Une application web complète de gestion commerciale développée avec Spring Boot, Thymeleaf et posgreSQL.
 
 ## 🚀 Fonctionnalités
 
