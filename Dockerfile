@@ -4,6 +4,8 @@ FROM eclipse-temurin:17-jdk-alpine as builder
 # Installer Maven
 RUN apk add --no-cache maven
 
+RUN mvn clean package -DskipTests -Dfile.encoding=UTF-8
+
 # Définir le répertoire de travail
 WORKDIR /app
 
