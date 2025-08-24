@@ -7,1567 +7,392 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* CSS ISOLÉ POUR LA PAGE SETTINGS-FORM UNIQUEMENT */
-        
-        /* Variables spécifiques à settings-form */
-        [data-page="settings-form"],
-        [data-settings-form] {
-            /* Variables locales redéfinies pour éviter les conflits */
-            --sf-primary-color: #2563eb;
-            --sf-primary-dark: #1d4ed8;
-            --sf-primary-light: #3b82f6;
-            --sf-secondary-color: #64748b;
-            --sf-success-color: #059669;
-            --sf-warning-color: #d97706;
-            --sf-danger-color: #dc2626;
-            --sf-info-color: #0891b2;
-            --sf-light-bg: #f8fafc;
-            --sf-white: #ffffff;
-            --sf-border-color: #e2e8f0;
-            --sf-border-light: #f1f5f9;
-            --sf-text-primary: #1e293b;
-            --sf-text-secondary: #64748b;
-            --sf-text-muted: #94a3b8;
-            --sf-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --sf-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            --sf-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-            --sf-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-            --sf-border-radius: 8px;
-            --sf-border-radius-lg: 12px;
-            --sf-transition: all 0.2s ease-in-out;
-            --sf-gradient-primary: linear-gradient(135deg, var(--sf-primary-color), var(--sf-primary-light));
+        /* Styles personnalisés minimes pour les étapes */
+        .step-circle {
+            width: 45px !important;
+            height: 45px !important;
+            z-index: 2;
         }
         
-        :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1d4ed8;
-            --primary-light: #3b82f6;
-            --secondary-color: #64748b;
-            --success-color: #059669;
-            --warning-color: #d97706;
-            --danger-color: #dc2626;
-            --info-color: #0891b2;
-            --light-bg: #f8fafc;
-            --white: #ffffff;
-            --border-color: #e2e8f0;
-            --border-light: #f1f5f9;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --text-muted: #94a3b8;
-            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-            --border-radius: 8px;
-            --border-radius-lg: 12px;
-            --transition: all 0.2s ease-in-out;
-            --gradient-primary: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-        }
-
-        /* STYLES SPÉCIFIQUES À SETTINGS-FORM AVEC ISOLATION COMPLÈTE */
-        
-        /* Override général pour cette page uniquement */
-        .content-area:has([data-page="settings-form"]) {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
-            min-height: 100vh !important;
-            color: var(--sf-text-primary) !important;
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-            line-height: 1.6 !important;
-        }
-
-        /* Isolation complète - tous les éléments de la page settings-form */
-        [data-settings-form] *,
-        [data-settings-form] *::before,
-        [data-settings-form] *::after {
-            box-sizing: border-box !important;
-        }
-
-        /* Layout Container - Correction du sélecteur */
-        .content-area .settings-form-container[data-settings-form] {
-            display: grid !important;
-            grid-template-columns: 1fr 300px !important;
-            gap: 2rem !important;
-            max-width: 1400px !important;
-            margin: 0 auto !important;
-            padding: 1.5rem !important;
-            min-height: calc(100vh - 200px) !important;
-            background: transparent !important;
-        }
-
-        .content-area [data-settings-form] .main-content {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 1.5rem !important;
-        }
-
-        /* Header Styles */
-        .content-area [data-settings-form] .form-header {
-            background: var(--sf-white) !important;
-            border-radius: var(--sf-border-radius-lg) !important;
-            box-shadow: var(--sf-shadow-sm) !important;
-            border: 1px solid var(--sf-border-color) !important;
-            overflow: hidden !important;
-        }
-
-        .content-area [data-settings-form] .header-content {
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            padding: 1.5rem 2rem !important;
-        }
-
-        .content-area [data-settings-form] .breadcrumb-nav {
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.5rem !important;
-            margin-bottom: 0.75rem !important;
-            font-size: 0.875rem !important;
-        }
-
-        .content-area [data-settings-form] .breadcrumb-link {
-            color: var(--sf-primary-color) !important;
-            text-decoration: none !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.5rem !important;
-            transition: var(--sf-transition) !important;
-        }
-
-        .content-area [data-settings-form] .breadcrumb-link:hover {
-            color: var(--sf-primary-dark) !important;
-        }
-
-        .content-area [data-settings-form] .breadcrumb-separator {
-            color: var(--sf-text-muted) !important;
-            font-size: 0.75rem !important;
-        }
-
-        .content-area [data-settings-form] .breadcrumb-current {
-            color: var(--sf-text-secondary) !important;
-            font-weight: 500 !important;
-        }
-
-        .content-area [data-settings-form] .page-title h1 {
-            margin: 0 !important;
-            font-size: 1.875rem !important;
-            font-weight: 700 !important;
-            color: var(--sf-text-primary) !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.75rem !important;
-        }
-
-        .content-area [data-settings-form] .page-title h1 i {
-            color: var(--sf-primary-color) !important;
-        }
-
-        .content-area [data-settings-form] .subtitle {
-            margin: 0.25rem 0 0 0 !important;
-            color: var(--sf-text-secondary) !important;
-            font-size: 0.875rem !important;
-        }
-
-        [data-settings-form] .header-actions .btn {
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 0.5rem !important;
-            padding: 0.625rem 1rem !important;
-            border-radius: var(--sf-border-radius) !important;
-            font-weight: 500 !important;
-            font-size: 0.875rem !important;
-            text-decoration: none !important;
-            transition: var(--sf-transition) !important;
-            border: 1px solid transparent !important;
-            cursor: pointer !important;
-        }
-
-        [data-settings-form] .btn-outline {
-            background-color: var(--sf-white) !important;
-            color: var(--sf-text-primary) !important;
-            border-color: var(--sf-border-color) !important;
-        }
-
-        [data-settings-form] .btn-outline:hover {
-            background-color: var(--sf-light-bg) !important;
-            border-color: var(--sf-primary-color) !important;
-            color: var(--sf-primary-color) !important;
-            transform: translateY(-1px) !important;
-        }
-
-        /* ISOLATION GLOBALE POUR ÉVITER LES CONFLITS */
-        
-        /* Approche simplifiée pour forcer l'application du CSS */
-        .content-area [data-settings-form] {
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-            color: var(--sf-text-primary) !important;
-            background: transparent !important;
-            display: block !important;
-        }
-        
-        /* Force l'affichage des éléments principaux */
-        .content-area [data-settings-form] * {
-            box-sizing: border-box !important;
-            font-family: inherit !important;
-        }
-        
-        /* FORCE VISIBLE - CSS de base pour que les éléments s'affichent */
-        .content-area [data-settings-form] .form-header,
-        .content-area [data-settings-form] .main-form,
-        .content-area [data-settings-form] .form-sidebar,
-        .content-area [data-settings-form] .help-panel {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-        
-        .content-area [data-settings-form] .settings-form-container {
-            display: grid !important;
-            visibility: visible !important;
-        }
-        
-        .content-area [data-settings-form] h1,
-        .content-area [data-settings-form] h2,
-        .content-area [data-settings-form] h3,
-        .content-area [data-settings-form] p,
-        .content-area [data-settings-form] .btn {
-            display: block !important;
-            visibility: visible !important;
-        }
-        
-        .content-area [data-settings-form] .btn {
-            display: inline-flex !important;
-        }
-        
-        /* STYLES BASIQUES FORCÉS POUR SETTINGS-FORM */
-        .content-area .settings-form-container[data-settings-form] {
-            width: 100% !important;
-            max-width: 1400px !important;
-            margin: 0 auto !important;
-            padding: 1.5rem !important;
-            display: grid !important;
-            grid-template-columns: 1fr 300px !important;
-            gap: 2rem !important;
-            font-family: 'Inter', sans-serif !important;
-            background: transparent !important;
-        }
-        
-        .content-area [data-settings-form] .form-header {
-            background: white !important;
-            border: 1px solid #e2e8f0 !important;
-            border-radius: 12px !important;
-            padding: 0 !important;
-            margin-bottom: 1.5rem !important;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-        }
-        
-        .content-area [data-settings-form] .header-content {
-            padding: 1.5rem 2rem !important;
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-        }
-        
-        .content-area [data-settings-form] .page-title h1 {
-            font-size: 1.875rem !important;
-            font-weight: 700 !important;
-            color: #1e293b !important;
-            margin: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.75rem !important;
-        }
-        
-        .content-area [data-settings-form] .btn {
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 0.5rem !important;
-            padding: 0.625rem 1rem !important;
-            border-radius: 8px !important;
-            font-weight: 500 !important;
-            text-decoration: none !important;
-            border: 1px solid #e2e8f0 !important;
-            background: white !important;
-            color: #1e293b !important;
-            transition: all 0.2s ease !important;
-        }
-        
-        .content-area [data-settings-form] .btn:hover {
-            background: #f8fafc !important;
-            border-color: #2563eb !important;
-            color: #2563eb !important;
-            transform: translateY(-1px) !important;
-        }
-        
-        /* CONVERSION GLOBALE - Tous les sélecteurs deviennent spécifiques à settings-form */
-        
-        /* Alert Styles */
-        [data-settings-form] .alerts-container {
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 1rem !important;
-        }
-
-        [data-settings-form] .alert {
-            display: flex !important;
-            align-items: flex-start !important;
-            gap: 1rem !important;
-            padding: 1rem 1.25rem !important;
-            border-radius: var(--sf-border-radius) !important;
-            border: 1px solid !important;
-            position: relative !important;
-            box-shadow: var(--sf-shadow-sm) !important;
-        }
-
-        [data-settings-form] .alert-content {
-            display: flex !important;
-            align-items: flex-start !important;
-            gap: 0.75rem !important;
-            flex: 1 !important;
-        }
-
-        [data-settings-form] .alert-icon {
-            font-size: 1.125rem !important;
-            margin-top: 0.125rem !important;
-        }
-
-        [data-settings-form] .alert-message strong {
-            display: block !important;
-            margin-bottom: 0.25rem !important;
-            font-weight: 600 !important;
-        }
-
-        [data-settings-form] .alert-close {
-            background: none !important;
-            border: none !important;
-            cursor: pointer !important;
-            color: inherit !important;
-            opacity: 0.7 !important;
-            transition: var(--sf-transition) !important;
-            padding: 0.25rem !important;
-            border-radius: 4px !important;
-        }
-
-        [data-settings-form] .alert-close:hover {
-            opacity: 1 !important;
-            background-color: rgba(0, 0, 0, 0.1) !important;
-        }
-
-        [data-settings-form] .alert-error {
-            background-color: #fef2f2 !important;
-            border-color: #fecaca !important;
-            color: var(--sf-danger-color) !important;
-        }
-
-        [data-settings-form] .alert-success {
-            background-color: #f0fdf4 !important;
-            border-color: #bbf7d0 !important;
-            color: var(--sf-success-color) !important;
-        }
-
-        [data-settings-form] .alert-info {
-            background-color: #f0f9ff !important;
-            border-color: #bae6fd !important;
-            color: var(--sf-info-color) !important;
-        }
-
-        [data-settings-form] .alert-warning {
-            background-color: #fffbeb !important;
-            border-color: #fed7aa !important;
-            color: var(--sf-warning-color) !important;
-        }
-
-        /* CORRECTION RAPIDE - Tous les sélecteurs restants sont préfixés */
-        
-        /* ISOLATION AUTOMATIQUE - Le CSS suivant est automatiquement scopé */
-        
-        /* Encapsulation de tous les styles dans le contexte settings-form */
-        [data-settings-form] .main-form,
-        [data-settings-form] .form-progress,
-        [data-settings-form] .progress-steps,
-        [data-settings-form] .step,
-        [data-settings-form] .form-section,
-        [data-settings-form] .form-grid,
-        [data-settings-form] .form-group,
-        [data-settings-form] .form-label,
-        [data-settings-form] .form-control,
-        [data-settings-form] .form-select,
-        [data-settings-form] .btn,
-        [data-settings-form] .toggle-group,
-        [data-settings-form] .help-panel {
-            /* Reset pour éviter l'héritage des styles du template de base */
-            color: var(--sf-text-primary) !important;
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
-            line-height: 1.6 !important;
-        }
-        
-        /* Variables utilisées par les styles non-modifiés */
-        [data-settings-form] {
-            --white: var(--sf-white);
-            --border-radius-lg: var(--sf-border-radius-lg);
-            --shadow-sm: var(--sf-shadow-sm);
-            --border-color: var(--sf-border-color);
-            --text-primary: var(--sf-text-primary);
-            --text-secondary: var(--sf-text-secondary);
-            --text-muted: var(--sf-text-muted);
-            --primary-color: var(--sf-primary-color);
-            --transition: var(--sf-transition);
-            --border-radius: var(--sf-border-radius);
-            --light-bg: var(--sf-light-bg);
-        }
-        
-        /* Form Styles */
-        [data-settings-form] .main-form {
-            background: var(--white);
-            border-radius: var(--border-radius-lg);
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-        }
-
-        /* Progress Steps */
-        .form-progress {
-            background: var(--light-bg);
-            padding: 1.5rem 2rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .progress-steps {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .step {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.5rem;
-            position: relative;
-        }
-
-        .step::after {
-            content: '';
-            position: absolute;
-            top: 20px;
-            left: 100%;
-            width: 2rem;
+        .step-line {
+            left: 45px;
+            top: 22px;
+            width: 3rem;
             height: 2px;
-            background: var(--border-color);
             z-index: 1;
         }
 
-        .step:last-child::after {
-            display: none;
-        }
-
-        .step.active::after {
-            background: var(--primary-color);
-        }
-
-        .step-circle {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--border-color);
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: var(--transition);
-            z-index: 2;
-            position: relative;
-        }
-
-        .step.active .step-circle {
-            background: var(--primary-color);
-            color: var(--white);
-        }
-
-        .step-label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-secondary);
-            transition: var(--transition);
-        }
-
-        .step.active .step-label {
-            color: var(--primary-color);
-        }
-
-        /* Form Sections */
+        /* Form step animation */
         .form-section {
-            display: none;
-            padding: 2rem;
-        }
-
-        .form-section.active {
-            display: block;
-            animation: fadeInUp 0.3s ease-out;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .section-header {
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-
-        .section-header h2 {
-            margin: 0 0 0.5rem 0;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-        }
-
-        .section-header h2 i {
-            color: var(--primary-color);
-        }
-
-        .section-header p {
-            margin: 0;
-            color: var(--text-secondary);
-            font-size: 0.875rem;
-        }
-
-        /* Form Grid */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .form-label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            font-size: 0.875rem;
-        }
-
-        .form-label.required::after {
-            content: '*';
-            color: var(--danger-color);
-            margin-left: 0.25rem;
-        }
-
-        .form-label i {
-            color: var(--primary-color);
-            font-size: 0.875rem;
-        }
-
-        .input-wrapper {
-            position: relative;
-        }
-
-        .form-control, .form-select {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            background-color: var(--white);
-            color: var(--text-primary);
-            font-size: 0.875rem;
-            transition: var(--transition);
-        }
-
-        .form-control:focus, .form-select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
-        }
-
-        .form-control:disabled, .form-select:disabled {
-            background-color: var(--light-bg);
-            color: var(--text-muted);
-            cursor: not-allowed;
-        }
-
-        .input-icon {
-            position: absolute;
-            right: 0.75rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            pointer-events: none;
-        }
-
-        .char-counter {
-            position: absolute;
-            bottom: 0.5rem;
-            right: 0.75rem;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            background: var(--white);
-            padding: 0 0.25rem;
-        }
-
-        .form-help {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .form-help i {
-            color: var(--info-color);
-        }
-
-        .form-feedback {
-            font-size: 0.75rem;
-            margin-top: 0.25rem;
-        }
-
-        .form-feedback.error {
-            color: var(--danger-color);
-        }
-
-        .form-feedback.success {
-            color: var(--success-color);
-        }
-
-        /* Value Preview */
-        .value-preview {
-            background: var(--light-bg);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            padding: 1rem;
-        }
-
-        .preview-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 0.75rem;
-            font-size: 0.875rem;
-        }
-
-        .preview-header i {
-            color: var(--info-color);
-        }
-
-        .preview-content {
-            background: var(--white);
-            border: 1px solid var(--border-light);
-            border-radius: 4px;
-            padding: 0.75rem;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.875rem;
-            color: var(--text-primary);
-        }
-
-        /* Toggle Switches */
-        .toggle-group {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .toggle-item {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem;
-            background: var(--light-bg);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            transition: var(--transition);
-        }
-
-        .toggle-item:hover {
-            background: var(--white);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .toggle-switch {
-            position: relative;
-        }
-
-        .toggle-input {
-            opacity: 0;
-            position: absolute;
-        }
-
-        .toggle-label {
-            display: block;
-            width: 48px;
-            height: 24px;
-            background: var(--border-color);
-            border-radius: 12px;
-            cursor: pointer;
-            transition: var(--transition);
-            position: relative;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 20px;
-            height: 20px;
-            background: var(--white);
-            border-radius: 50%;
-            transition: var(--transition);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        }
-
-        .toggle-input:checked + .toggle-label {
-            background: var(--primary-color);
-        }
-
-        .toggle-input:checked + .toggle-label .toggle-slider {
-            transform: translateX(24px);
-        }
-
-        .toggle-content {
-            flex: 1;
-        }
-
-        .toggle-title {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-        }
-
-        .toggle-title i {
-            color: var(--primary-color);
-        }
-
-        .toggle-description {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        /* Summary Section */
-        .form-summary {
-            background: var(--light-bg);
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            margin-bottom: 2rem;
-            overflow: hidden;
-        }
-
-        .summary-header {
-            background: var(--gradient-primary);
-            color: var(--white);
-            padding: 1rem 1.25rem;
-        }
-
-        .summary-header h3 {
-            margin: 0;
-            font-size: 1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .summary-content {
-            padding: 1.25rem;
-            display: grid;
-            gap: 0.75rem;
-        }
-
-        .summary-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .summary-item:last-child {
-            border-bottom: none;
-        }
-
-        .summary-label {
-            font-weight: 500;
-            color: var(--text-secondary);
-        }
-
-        .summary-value {
-            color: var(--text-primary);
-            font-weight: 500;
-        }
-
-        /* Step Actions */
-        .step-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 1rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid var(--border-color);
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border-radius: var(--border-radius);
-            font-weight: 500;
-            font-size: 0.875rem;
-            text-decoration: none;
-            transition: var(--transition);
-            border: 1px solid transparent;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            background: var(--gradient-primary);
-            color: var(--white);
-            border-color: var(--primary-color);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-success {
-            background: var(--success-color);
-            color: var(--white);
-            border-color: var(--success-color);
-        }
-
-        .btn-success:hover {
-            background: #047857;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-secondary {
-            background: var(--secondary-color);
-            color: var(--white);
-            border-color: var(--secondary-color);
-        }
-
-        .btn-secondary:hover {
-            background: #475569;
-            transform: translateY(-1px);
-        }
-
-        .btn-submit {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-submit::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn-submit:hover::before {
-            left: 100%;
-        }
-
-        /* Sidebar */
-        .form-sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        .help-panel {
-            background: var(--white);
-            border-radius: var(--border-radius-lg);
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-            position: sticky;
-            top: 1.5rem;
-        }
-
-        .help-header {
-            background: var(--gradient-primary);
-            color: var(--white);
-            padding: 1rem 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .help-header h3 {
-            margin: 0;
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .help-content {
-            padding: 1.25rem;
-        }
-
-        .help-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .help-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .help-section h4 {
-            margin: 0 0 0.75rem 0;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .help-section h4 i {
-            color: var(--primary-color);
-        }
-
-        .help-section p {
-            margin: 0 0 0.75rem 0;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            line-height: 1.5;
-        }
-
-        .help-examples {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        .example {
-            background: var(--light-bg);
-            color: var(--primary-color);
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.75rem;
-            border: 1px solid var(--border-color);
-        }
-
-        .help-list {
-            margin: 0;
-            padding-left: 1rem;
-            list-style: none;
-        }
-
-        .help-list li {
-            position: relative;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            padding-left: 1rem;
-        }
-
-        .help-list li::before {
-            content: '•';
-            color: var(--primary-color);
-            position: absolute;
-            left: 0;
-            font-weight: bold;
-        }
-
-        .help-tip {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: var(--border-radius);
-            padding: 0.75rem;
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: var(--info-color);
-        }
-
-        .help-tip i {
-            margin-top: 0.125rem;
-            flex-shrink: 0;
-        }
-
-        /* Modal */
-        .modal {
+            transition: all 0.3s ease-in-out;
+        }
+        
+        /* Global loading overlay */
+        .global-loading-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
             display: none;
             align-items: center;
             justify-content: center;
         }
-
-        .modal.show {
-            display: flex;
+        
+        .loading-content {
+            text-align: center;
+            color: white;
         }
-
-        .modal-backdrop {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-        }
-
-        .modal-content {
-            background: var(--white);
-            border-radius: var(--border-radius-lg);
-            box-shadow: var(--shadow-xl);
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow: hidden;
-            position: relative;
-            z-index: 1001;
-        }
-
-        .modal-header {
-            background: var(--light-bg);
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .modal-header h3 {
-            margin: 0;
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .modal-header h3 i {
-            color: var(--warning-color);
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: var(--text-muted);
-            font-size: 1.25rem;
-            padding: 0.25rem;
-            border-radius: 4px;
-            transition: var(--transition);
-        }
-
-        .modal-close:hover {
-            background: var(--border-color);
-            color: var(--text-primary);
-        }
-
-        .modal-body {
-            padding: 1.25rem;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        .modal-body p {
-            margin: 0 0 1rem 0;
-            color: var(--text-secondary);
-        }
-
-        .modal-body ul {
-            margin: 0;
-            padding-left: 1.5rem;
-            color: var(--danger-color);
-        }
-
-        .modal-body li {
-            margin-bottom: 0.5rem;
-        }
-
-        .modal-footer {
-            background: var(--light-bg);
-            padding: 1rem 1.25rem;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.75rem;
-        }
-
-        /* Code Styling */
-        code {
-            background: var(--light-bg);
-            color: var(--primary-color);
-            padding: 0.125rem 0.25rem;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.875em;
-            border: 1px solid var(--border-color);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .form-container {
-                grid-template-columns: 1fr;
-                gap: 1.5rem;
-            }
-
-            .form-sidebar {
-                order: -1;
-            }
-
-            .help-panel {
-                position: static;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .form-container {
-                padding: 1rem;
-            }
-
-            .header-content {
-                flex-direction: column;
-                gap: 1rem;
-                align-items: stretch;
-            }
-
-            .progress-steps {
-                gap: 1rem;
-                flex-wrap: wrap;
-            }
-
-            .step::after {
-                display: none;
-            }
-
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .step-actions {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .modal-content {
-                width: 95%;
-                margin: 1rem;
-            }
-        }
-
-        /* Animation for form validation */
-        .shake {
-            animation: shake 0.5s ease-in-out;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        /* Loading state */
-        .btn.loading {
-            pointer-events: none;
-            opacity: 0.7;
-        }
-
-        .btn.loading::after {
-            content: '';
-            width: 16px;
-            height: 16px;
-            border: 2px solid transparent;
-            border-top: 2px solid currentColor;
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-left: 0.5rem;
+            margin: 0 auto 20px;
         }
-
+        
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
-        /* Focus styles for accessibility */
-        .btn:focus, .toggle-label:focus {
-            outline: 2px solid var(--primary-color);
-            outline-offset: 2px;
-        }
-
-        /* Custom Select2 styling */
-        .select2-container .select2-selection--single {
-            border: 1px solid var(--border-color) !important;
-            border-radius: var(--border-radius) !important;
-            height: auto !important;
-            padding: 0.75rem 1rem !important;
-        }
-
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            color: var(--text-primary) !important;
-            padding: 0 !important;
-        }
 
     </style>
 </head>
 <body>
 <div th:fragment="content" data-page="settings-form">
-    <div class="settings-form-container" data-settings-form>
-        <div class="main-content">
-            <!-- En-tête avec navigation -->
-            <header class="form-header">
-                <div class="header-content">
-                    <div class="header-left">
-                        <div class="breadcrumb-nav">
-                            <a th:href="@{/admin/settings}" class="breadcrumb-link">
-                                <i class="fas fa-cogs"></i> Paramètres
-                            </a>
-                            <i class="fas fa-chevron-right breadcrumb-separator"></i>
-                            <span class="breadcrumb-current" th:text="${isEdit ? 'Modifier' : 'Nouveau'}">Action</span>
+    <div class="container-fluid" data-settings-form>
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="main-content">
+            <!-- En-tête avec Bootstrap -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <!-- Breadcrumb Bootstrap -->
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-2">
+                            <li class="breadcrumb-item">
+                                <a th:href="@{/admin/settings}" class="text-decoration-none">
+                                    <i class="fas fa-cogs me-1"></i>Paramètres
+                                </a>
+                            </li>
+                            <li class="breadcrumb-item active" aria-current="page" 
+                                th:text="${isEdit ? 'Modifier' : 'Nouveau'}">Action</li>
+                        </ol>
+                    </nav>
+                    
+                    <!-- Titre principal -->
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
+                            <i class="fas fa-edit text-primary" th:if="${isEdit}"></i>
+                            <i class="fas fa-plus text-primary" th:if="${!isEdit}"></i>
                         </div>
-                        <div class="page-title">
-                            <h1>
-                                <i class="fas fa-edit" th:if="${isEdit}"></i>
-                                <i class="fas fa-plus" th:if="${!isEdit}"></i>
-                                <span th:text="${isEdit ? 'Modifier le paramètre' : 'Nouveau paramètre'}">Titre</span>
-                            </h1>
-                            <p class="subtitle" th:text="${isEdit ? 'Modifiez les propriétés de ce paramètre' : 'Créez un nouveau paramètre pour votre application'}">Sous-titre</p>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <a th:href="@{/admin/settings}" class="btn btn-outline">
-                            <i class="fas fa-times"></i> Annuler
-                        </a>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Messages d'alerte -->
-            <div class="alerts-container">
-                <div th:if="${error}" class="alert alert-error">
-                    <div class="alert-content">
-                        <i class="fas fa-exclamation-circle alert-icon"></i>
-                        <div class="alert-message">
-                            <strong>Erreur</strong>
-                            <span th:text="${error}"></span>
-                        </div>
-                    </div>
-                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <div th:if="${success}" class="alert alert-success">
-                    <div class="alert-content">
-                        <i class="fas fa-check-circle alert-icon"></i>
-                        <div class="alert-message">
-                            <strong>Succès</strong>
-                            <span th:text="${success}"></span>
-                        </div>
-                    </div>
-                    <button type="button" class="alert-close" onclick="this.parentElement.remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <!-- Alerte paramètre système -->
-                <div th:if="${isEdit and isSystemSetting}" class="alert alert-info">
-                    <div class="alert-content">
-                        <i class="fas fa-shield-alt alert-icon"></i>
-                        <div class="alert-message">
-                            <strong>Paramètre Système</strong>
-                            <span>Ce paramètre est géré par le système. Seule la valeur peut être modifiée.</span>
+                        <div>
+                            <h1 class="h3 mb-1" th:text="${isEdit ? 'Modifier le paramètre' : 'Nouveau paramètre'}">Titre</h1>
+                            <p class="text-muted mb-0" th:text="${isEdit ? 'Modifiez les propriétés de ce paramètre' : 'Créez un nouveau paramètre pour votre application'}">Sous-titre</p>
                         </div>
                     </div>
                 </div>
-
-                <!-- Alerte duplication -->
-                <div th:if="${isDuplicate}" class="alert alert-warning">
-                    <div class="alert-content">
-                        <i class="fas fa-copy alert-icon"></i>
-                        <div class="alert-message">
-                            <strong>Duplication de paramètre</strong>
-                            <span>Vous créez une copie du paramètre. Assurez-vous de modifier la clé pour qu'elle soit unique.</span>
-                        </div>
-                    </div>
+                
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    <a th:href="@{/admin/settings}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Annuler
+                    </a>
                 </div>
             </div>
 
-            <!-- Formulaire principal -->
-            <div class="main-form">
-                <form th:action="${isEdit} ? @{'/admin/settings/edit/' + ${setting.id}} : @{/admin/settings}" th:object="${setting}" method="post" id="settingForm" novalidate>
+            <!-- Messages d'alerte Bootstrap -->
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <strong>Erreur :</strong>
+                <span th:text="${error}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Succès :</strong>
+                <span th:text="${success}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+
+            <!-- Alerte paramètre système -->
+            <div th:if="${isEdit and isSystemSetting}" class="alert alert-info mb-4" role="alert">
+                <i class="fas fa-shield-alt me-2"></i>
+                <strong>Paramètre Système :</strong>
+                Ce paramètre est géré par le système. Seule la valeur peut être modifiée.
+            </div>
+
+            <!-- Alerte duplication -->
+            <div th:if="${isDuplicate}" class="alert alert-warning mb-4" role="alert">
+                <i class="fas fa-copy me-2"></i>
+                <strong>Duplication de paramètre :</strong>
+                Vous créez une copie du paramètre. Assurez-vous de modifier la clé pour qu'elle soit unique.
+            </div>
+
+            <!-- Formulaire principal avec Bootstrap -->
+            <div class="card">
+                <form th:action="${isEdit} ? @{'/admin/settings/edit/' + ${setting.id}} : @{/admin/settings}" th:object="${setting}" method="post" id="settingForm" novalidate class="needs-validation">
                     <input type="hidden" th:field="*{id}">
 
-                    <!-- Progression des étapes -->
-                    <div class="form-progress">
-                        <div class="progress-steps">
-                            <div class="step active" data-step="1">
-                                <div class="step-circle">
-                                    <i class="fas fa-info-circle"></i>
+                    <!-- Progression des étapes avec Bootstrap -->
+                    <div class="card-header bg-light">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="d-flex justify-content-center">
+                                    <div class="d-flex align-items-center" style="gap: 3rem;">
+                                        <!-- Étape 1 -->
+                                        <div class="d-flex flex-column align-items-center position-relative step-indicator" data-step="1">
+                                            <div class="step-circle bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" 
+                                                 style="width: 45px; height: 45px; z-index: 2;">
+                                                <i class="fas fa-info-circle"></i>
+                                            </div>
+                                            <small class="mt-2 fw-medium text-primary">Informations</small>
+                                            <!-- Ligne de connexion -->
+                                            <div class="step-line bg-light position-absolute" style="left: 45px; top: 22px; width: 3rem; height: 2px; z-index: 1;"></div>
+                                        </div>
+                                        
+                                        <!-- Étape 2 -->
+                                        <div class="d-flex flex-column align-items-center position-relative step-indicator" data-step="2">
+                                            <div class="step-circle bg-light text-muted rounded-circle d-flex align-items-center justify-content-center" 
+                                                 style="width: 45px; height: 45px; z-index: 2;">
+                                                <i class="fas fa-edit"></i>
+                                            </div>
+                                            <small class="mt-2 fw-medium text-muted">Valeur</small>
+                                            <!-- Ligne de connexion -->
+                                            <div class="step-line bg-light position-absolute" style="left: 45px; top: 22px; width: 3rem; height: 2px; z-index: 1;"></div>
+                                        </div>
+                                        
+                                        <!-- Étape 3 -->
+                                        <div class="d-flex flex-column align-items-center step-indicator" data-step="3">
+                                            <div class="step-circle bg-light text-muted rounded-circle d-flex align-items-center justify-content-center" 
+                                                 style="width: 45px; height: 45px; z-index: 2;">
+                                                <i class="fas fa-cogs"></i>
+                                            </div>
+                                            <small class="mt-2 fw-medium text-muted">Configuration</small>
+                                        </div>
+                                    </div>
                                 </div>
-                                <span class="step-label">Informations</span>
-                            </div>
-                            <div class="step" data-step="2">
-                                <div class="step-circle">
-                                    <i class="fas fa-edit"></i>
-                                </div>
-                                <span class="step-label">Valeur</span>
-                            </div>
-                            <div class="step" data-step="3">
-                                <div class="step-circle">
-                                    <i class="fas fa-cogs"></i>
-                                </div>
-                                <span class="step-label">Configuration</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Étape 1: Informations de base -->
-                    <div class="form-section active" id="step-1">
-                        <div class="section-header">
-                            <h2><i class="fas fa-info-circle"></i> Informations de base</h2>
-                            <p>Définissez les propriétés fondamentales du paramètre</p>
+                    <div class="card-body form-section" id="step-1">
+                        <div class="text-center mb-4">
+                            <h2 class="h4 mb-3"><i class="fas fa-info-circle text-primary me-2"></i> Informations de base</h2>
+                            <p class="text-muted">Définissez les propriétés fondamentales du paramètre</p>
                         </div>
 
-                        <div class="form-grid">
-                            <div class="form-group full-width">
-                                <label for="key" class="form-label required">
-                                    <i class="fas fa-key"></i> Clé du paramètre
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="key" class="form-label fw-medium">
+                                    <i class="fas fa-key text-primary me-1"></i> Clé du paramètre
+                                    <span class="text-danger">*</span>
                                 </label>
-                                <div class="input-wrapper">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-key"></i>
+                                    </span>
                                     <input type="text" class="form-control" id="key" th:field="*{key}"
                                            th:readonly="${isEdit and isSystemSetting}"
                                            placeholder="ex: app.name, company.email"
-                                           data-validation="required,key-format">
-                                    <div class="input-icon">
-                                        <i class="fas fa-key"></i>
-                                    </div>
+                                           data-validation="required,key-format" required>
                                 </div>
-                                <div class="form-help">
-                                    <i class="fas fa-info-circle"></i>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
                                     Identifiant unique du paramètre (format: categorie.nom)
                                 </div>
-                                <div class="form-feedback"></div>
+                                <div class="invalid-feedback"></div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="category" class="form-label required">
-                                    <i class="fas fa-tags"></i> Catégorie
+                            <div class="col-md-6">
+                                <label for="category" class="form-label fw-medium">
+                                    <i class="fas fa-tags text-primary me-1"></i> Catégorie
+                                    <span class="text-danger">*</span>
                                 </label>
-                                <div class="input-wrapper">
-                                    <select class="form-select" id="category" th:field="*{category}"
-                                            th:disabled="${isEdit and isSystemSetting}"
-                                            data-validation="required">
-                                        <option value="">Sélectionner une catégorie</option>
-                                        <option th:each="cat : ${categories}"
-                                                th:value="${cat}"
-                                                th:text="${cat.displayName} + ' - ' + ${cat.description}">
-                                        </option>
-                                    </select>
-                                    <div class="input-icon">
-                                        <i class="fas fa-tags"></i>
-                                    </div>
-                                </div>
-                                <div class="form-help">
-                                    <i class="fas fa-info-circle"></i>
+                                <select class="form-select" id="category" th:field="*{category}"
+                                        th:disabled="${isEdit and isSystemSetting}"
+                                        data-validation="required" required>
+                                    <option value="">Sélectionner une catégorie</option>
+                                    <option th:each="cat : ${categories}"
+                                            th:value="${cat}"
+                                            th:text="${cat.displayName} + ' - ' + ${cat.description}">
+                                    </option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
                                     Groupe de classification du paramètre
                                 </div>
-                                <div class="form-feedback"></div>
+                                <div class="invalid-feedback"></div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="sortOrder" class="form-label">
-                                    <i class="fas fa-sort-numeric-up"></i> Ordre d'affichage
+                            <div class="col-md-6">
+                                <label for="sortOrder" class="form-label fw-medium">
+                                    <i class="fas fa-sort-numeric-up text-primary me-1"></i> Ordre d'affichage
                                 </label>
-                                <div class="input-wrapper">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-sort-numeric-up"></i>
+                                    </span>
                                     <input type="number" class="form-control" id="sortOrder" th:field="*{sortOrder}"
                                            min="0" placeholder="0">
-                                    <div class="input-icon">
-                                        <i class="fas fa-sort-numeric-up"></i>
-                                    </div>
                                 </div>
-                                <div class="form-help">
-                                    <i class="fas fa-info-circle"></i>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
                                     Position relative dans la catégorie (0 = premier)
                                 </div>
                             </div>
 
-                            <div class="form-group full-width">
-                                <label for="description" class="form-label">
-                                    <i class="fas fa-align-left"></i> Description
+                            <div class="col-12">
+                                <label for="description" class="form-label fw-medium">
+                                    <i class="fas fa-align-left text-primary me-1"></i> Description
                                 </label>
-                                <div class="input-wrapper">
+                                <div class="position-relative">
                                     <textarea class="form-control" id="description" th:field="*{description}"
                                               rows="3" th:readonly="${isEdit and isSystemSetting}"
                                               placeholder="Description détaillée du paramètre"
                                               data-counter="true" maxlength="500"></textarea>
-                                    <div class="input-icon">
-                                        <i class="fas fa-align-left"></i>
-                                    </div>
-                                    <div class="char-counter">0/500</div>
+                                    <small class="position-absolute bottom-0 end-0 me-3 mb-1 text-muted">
+                                        <span id="charCount">0</span>/500
+                                    </small>
                                 </div>
-                                <div class="form-help">
-                                    <i class="fas fa-info-circle"></i>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
                                     Description explicative du rôle de ce paramètre
                                 </div>
                             </div>
                         </div>
 
-                        <div class="step-actions">
-                            <button type="button" class="btn btn-primary" onclick="nextStep()">
-                                Suivant <i class="fas fa-arrow-right"></i>
+                        <div class="d-flex justify-content-end pt-3 border-top">
+                            <button type="button" class="btn btn-primary" onclick="nextStep()" data-no-loading>
+                                Suivant <i class="fas fa-arrow-right ms-1"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Étape 2: Configuration de la valeur -->
-                    <div class="form-section" id="step-2">
-                        <div class="section-header">
-                            <h2><i class="fas fa-edit"></i> Configuration de la valeur</h2>
-                            <p>Définissez le type et la valeur du paramètre</p>
+                    <div class="card-body form-section d-none" id="step-2">
+                        <div class="text-center mb-4">
+                            <h2 class="h4 mb-3"><i class="fas fa-edit text-primary me-2"></i> Configuration de la valeur</h2>
+                            <p class="text-muted">Définissez le type et la valeur du paramètre</p>
                         </div>
 
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="valueType" class="form-label required">
-                                    <i class="fas fa-code"></i> Type de valeur
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="valueType" class="form-label fw-medium">
+                                    <i class="fas fa-code text-primary me-1"></i> Type de valeur
+                                    <span class="text-danger">*</span>
                                 </label>
-                                <div class="input-wrapper">
-                                    <select class="form-select" id="valueType" th:field="*{valueType}"
-                                            th:disabled="${isEdit and isSystemSetting}"
-                                            data-validation="required">
-                                        <option th:each="type : ${valueTypes}"
-                                                th:value="${type}"
-                                                th:text="${type.displayName} + ' - ' + ${type.description}">
-                                        </option>
-                                    </select>
-                                    <div class="input-icon">
-                                        <i class="fas fa-code"></i>
-                                    </div>
-                                </div>
-                                <div class="form-help">
-                                    <i class="fas fa-info-circle"></i>
+                                <select class="form-select" id="valueType" th:field="*{valueType}"
+                                        th:disabled="${isEdit and isSystemSetting}"
+                                        data-validation="required" required>
+                                    <option value="">Sélectionner un type</option>
+                                    <option th:each="type : ${valueTypes}"
+                                            th:value="${type}"
+                                            th:text="${type.displayName} + ' - ' + ${type.description}">
+                                    </option>
+                                </select>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
                                     Définit le format et la validation de la valeur
                                 </div>
-                                <div class="form-feedback"></div>
+                                <div class="invalid-feedback"></div>
                             </div>
 
                             <!-- Conteneur dynamique pour la valeur -->
-                            <div class="form-group value-group">
-                                <label for="value" class="form-label">
-                                    <i class="fas fa-edit"></i> Valeur
+                            <div class="col-md-6">
+                                <label for="value" class="form-label fw-medium">
+                                    <i class="fas fa-edit text-primary me-1"></i> Valeur
                                 </label>
-                                <div class="value-input-container" id="valueInputContainer">
-                                    <div class="input-wrapper">
-                                        <input type="text" class="form-control" id="value" th:field="*{value}"
-                                               placeholder="Saisir la valeur">
-                                        <div class="input-icon">
-                                            <i class="fas fa-edit"></i>
-                                        </div>
-                                    </div>
+                                <div class="input-group" id="valueInputContainer">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-edit"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="value" th:field="*{value}"
+                                           placeholder="Saisir la valeur">
                                 </div>
-                                <div class="form-help" id="valueHelp">
-                                    <i class="fas fa-info-circle"></i>
+                                <div class="form-text" id="valueHelp">
+                                    <i class="fas fa-info-circle text-info me-1"></i>
                                     Saisir la valeur selon le type sélectionné
                                 </div>
-                                <div class="form-feedback"></div>
+                                <div class="invalid-feedback"></div>
                             </div>
 
                             <!-- Prévisualisation de la valeur -->
-                            <div class="form-group full-width">
-                                <div class="value-preview" id="valuePreview" style="display: none;">
-                                    <div class="preview-header">
-                                        <i class="fas fa-eye"></i> Aperçu de la valeur
+                            <div class="col-12">
+                                <div class="card bg-light d-none" id="valuePreview">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-eye text-info me-2"></i>Aperçu de la valeur
+                                        </h6>
                                     </div>
-                                    <div class="preview-content" id="previewContent"></div>
+                                    <div class="card-body">
+                                        <code id="previewContent" class="d-block p-2 bg-white border rounded"></code>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="step-actions">
-                            <button type="button" class="btn btn-outline" onclick="previousStep()">
-                                <i class="fas fa-arrow-left"></i> Précédent
+                        <div class="d-flex justify-content-between pt-3 border-top">
+                            <button type="button" class="btn btn-outline-secondary" onclick="previousStep()" data-no-loading>
+                                <i class="fas fa-arrow-left me-1"></i>Précédent
                             </button>
-                            <button type="button" class="btn btn-primary" onclick="nextStep()">
-                                Suivant <i class="fas fa-arrow-right"></i>
+                            <button type="button" class="btn btn-primary" onclick="nextStep()" data-no-loading>
+                                Suivant <i class="fas fa-arrow-right ms-1"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Étape 3: Configuration système -->
-                    <div class="form-section" id="step-3">
-                        <div class="section-header">
-                            <h2><i class="fas fa-cogs"></i> Configuration système</h2>
-                            <p>Paramètres avancés et options de sécurité</p>
+                    <div class="card-body form-section d-none" id="step-3">
+                        <div class="text-center mb-4">
+                            <h2 class="h4 mb-3"><i class="fas fa-cogs text-primary me-2"></i> Configuration système</h2>
+                            <p class="text-muted">Paramètres avancés et options de sécurité</p>
                         </div>
 
-                        <div class="form-grid" th:if="${!isEdit or !isSystemSetting}">
-                            <div class="form-group full-width">
-                                <div class="toggle-group">
-                                    <div class="toggle-item">
-                                        <div class="toggle-switch">
-                                            <input type="checkbox" id="isSystem" th:field="*{isSystem}" class="toggle-input">
-                                            <label for="isSystem" class="toggle-label">
-                                                <span class="toggle-slider"></span>
-                                            </label>
-                                        </div>
-                                        <div class="toggle-content">
-                                            <div class="toggle-title">
-                                                <i class="fas fa-shield-alt"></i>
-                                                Paramètre système
-                                            </div>
-                                            <div class="toggle-description">
-                                                Les paramètres système ne peuvent pas être supprimés
-                                            </div>
-                                        </div>
+                        <div class="row g-3" th:if="${!isEdit or !isSystemSetting}">
+                            <div class="col-12">
+                                <div class="card bg-light">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Options de sécurité</h6>
                                     </div>
-
-                                    <div class="toggle-item">
-                                        <div class="toggle-switch">
-                                            <input type="checkbox" id="isEncrypted" th:field="*{isEncrypted}" class="toggle-input">
-                                            <label for="isEncrypted" class="toggle-label">
-                                                <span class="toggle-slider"></span>
-                                            </label>
-                                        </div>
-                                        <div class="toggle-content">
-                                            <div class="toggle-title">
-                                                <i class="fas fa-lock"></i>
-                                                Valeur cryptée
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <!-- Switch Paramètre système -->
+                                            <div class="col-md-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="isSystem" th:field="*{isSystem}" role="switch">
+                                                    <label class="form-check-label" for="isSystem">
+                                                        <i class="fas fa-shield-alt text-primary me-2"></i>
+                                                        <strong>Paramètre système</strong>
+                                                    </label>
+                                                </div>
+                                                <small class="text-muted">
+                                                    Les paramètres système ne peuvent pas être supprimés
+                                                </small>
                                             </div>
-                                            <div class="toggle-description">
-                                                Pour les mots de passe et données sensibles
+
+                                            <!-- Switch Cryptage -->
+                                            <div class="col-md-6">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="isEncrypted" th:field="*{isEncrypted}" role="switch">
+                                                    <label class="form-check-label" for="isEncrypted">
+                                                        <i class="fas fa-lock text-warning me-2"></i>
+                                                        <strong>Valeur cryptée</strong>
+                                                    </label>
+                                                </div>
+                                                <small class="text-muted">
+                                                    Pour les mots de passe et données sensibles
+                                                </small>
                                             </div>
                                         </div>
                                     </div>
@@ -1576,91 +401,116 @@
                         </div>
 
                         <!-- Résumé avant soumission -->
-                        <div class="form-summary">
-                            <div class="summary-header">
-                                <h3><i class="fas fa-clipboard-check"></i> Résumé de la configuration</h3>
+                        <div class="card border-primary mt-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-clipboard-check me-2"></i>Résumé de la configuration
+                                </h5>
                             </div>
-                            <div class="summary-content">
-                                <div class="summary-item">
-                                    <span class="summary-label">Clé :</span>
-                                    <span class="summary-value" id="summary-key">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Catégorie :</span>
-                                    <span class="summary-value" id="summary-category">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Type :</span>
-                                    <span class="summary-value" id="summary-type">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Valeur :</span>
-                                    <span class="summary-value" id="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Description :</span>
-                                    <span class="summary-value" id="summary-description">-</span>
+                            <div class="card-body">
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <strong class="text-muted">Clé :</strong>
+                                        <div id="summary-key" class="fw-bold text-primary">-</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong class="text-muted">Catégorie :</strong>
+                                        <div id="summary-category" class="fw-bold">-</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong class="text-muted">Type :</strong>
+                                        <div id="summary-type" class="fw-bold">-</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong class="text-muted">Valeur :</strong>
+                                        <div id="summary-value" class="fw-bold">-</div>
+                                    </div>
+                                    <div class="col-12">
+                                        <strong class="text-muted">Description :</strong>
+                                        <div id="summary-description" class="text-muted">-</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="step-actions">
-                            <button type="button" class="btn btn-outline" onclick="previousStep()">
-                                <i class="fas fa-arrow-left"></i> Précédent
+                        <div class="d-flex justify-content-between pt-3 border-top">
+                            <button type="button" class="btn btn-outline-secondary" onclick="previousStep()" data-no-loading>
+                                <i class="fas fa-arrow-left me-1"></i>Précédent
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="resetForm()">
-                                <i class="fas fa-undo"></i> Réinitialiser
-                            </button>
-                            <button type="submit" class="btn btn-success btn-submit">
-                                <i class="fas fa-save"></i>
-                                <span th:text="${isEdit ? 'Modifier le paramètre' : 'Créer le paramètre'}">Action</span>
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()" data-no-loading>
+                                    <i class="fas fa-undo me-1"></i>Réinitialiser
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-save me-1"></i>
+                                    <span th:text="${isEdit ? 'Modifier le paramètre' : 'Créer le paramètre'}">Action</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
+        </div>
 
-        <!-- Aide rapide -->
-        <aside class="form-sidebar">
-            <div class="help-panel">
-                <div class="help-header">
-                    <i class="fas fa-question-circle"></i>
-                    <h3>Aide rapide</h3>
+        <!-- Aide rapide avec Bootstrap -->
+        <aside class="col-lg-4">
+            <div class="card sticky-top" style="top: 1.5rem;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>
+                        Aide rapide
+                    </h5>
                 </div>
-                <div class="help-content">
-                    <div class="help-section">
-                        <h4><i class="fas fa-key"></i> Format de clé</h4>
-                        <p>Utilisez le format <code>categorie.nom</code></p>
-                        <div class="help-examples">
-                            <span class="example">app.name</span>
-                            <span class="example">mail.smtp.host</span>
-                            <span class="example">ui.theme.default</span>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-2">
+                            <i class="fas fa-key text-primary me-2"></i>Format de clé
+                        </h6>
+                        <p class="small mb-2">Utilisez le format <code>categorie.nom</code></p>
+                        <div class="d-flex flex-wrap gap-1">
+                            <span class="badge bg-light text-dark">app.name</span>
+                            <span class="badge bg-light text-dark">mail.smtp.host</span>
+                            <span class="badge bg-light text-dark">ui.theme.default</span>
                         </div>
                     </div>
 
-                    <div class="help-section">
-                        <h4><i class="fas fa-code"></i> Types de valeurs</h4>
-                        <ul class="help-list">
-                            <li><strong>STRING</strong> - Texte simple</li>
-                            <li><strong>INTEGER</strong> - Nombre entier</li>
-                            <li><strong>BOOLEAN</strong> - Vrai/Faux</li>
-                            <li><strong>EMAIL</strong> - Adresse email</li>
-                            <li><strong>URL</strong> - Adresse web</li>
-                            <li><strong>PASSWORD</strong> - Mot de passe crypté</li>
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-2">
+                            <i class="fas fa-code text-primary me-2"></i>Types de valeurs
+                        </h6>
+                        <ul class="list-unstyled small">
+                            <li class="mb-1"><i class="fas fa-dot-circle text-muted me-2"></i><strong>STRING</strong> - Texte simple</li>
+                            <li class="mb-1"><i class="fas fa-dot-circle text-muted me-2"></i><strong>INTEGER</strong> - Nombre entier</li>
+                            <li class="mb-1"><i class="fas fa-dot-circle text-muted me-2"></i><strong>BOOLEAN</strong> - Vrai/Faux</li>
+                            <li class="mb-1"><i class="fas fa-dot-circle text-muted me-2"></i><strong>EMAIL</strong> - Adresse email</li>
+                            <li class="mb-1"><i class="fas fa-dot-circle text-muted me-2"></i><strong>URL</strong> - Adresse web</li>
+                            <li class="mb-1"><i class="fas fa-dot-circle text-muted me-2"></i><strong>PASSWORD</strong> - Mot de passe crypté</li>
                         </ul>
                     </div>
 
-                    <div class="help-section">
-                        <h4><i class="fas fa-shield-alt"></i> Sécurité</h4>
-                        <div class="help-tip">
-                            <i class="fas fa-lightbulb"></i>
-                            Activez le cryptage pour les données sensibles comme les mots de passe et clés API.
+                    <div>
+                        <h6 class="fw-bold mb-2">
+                            <i class="fas fa-shield-alt text-primary me-2"></i>Sécurité
+                        </h6>
+                        <div class="alert alert-info p-2 mb-0">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <small>Activez le cryptage pour les données sensibles comme les mots de passe et clés API.</small>
                         </div>
                     </div>
                 </div>
             </div>
         </aside>
+        </div>
+    </div>
+
+    <!-- Global Loading Overlay -->
+    <div id="globalLoadingOverlay" class="global-loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h5 class="mb-2">Chargement en cours...</h5>
+            <p class="mb-0">Veuillez patienter pendant que la requête est traitée</p>
+        </div>
     </div>
 
     <!-- Modal de validation -->
@@ -1688,7 +538,210 @@
 <div th:fragment="js_assets">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script th:src="@{/js/admin/settings-form.js}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:src="@{/js/global-loading.js}"></script>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // S'assurer que le gestionnaire de chargement global est initialisé
+        if (window.GlobalLoadingManager && !window.GlobalLoadingManager.isInitialized) {
+            window.GlobalLoadingManager.init();
+        }
+        
+        let currentStep = 1;
+        const totalSteps = 3;
+        
+        // Fonction pour changer d'étape
+        function goToStep(step) {
+            if (step < 1 || step > totalSteps) return;
+            
+            // Masquer toutes les étapes
+            document.querySelectorAll('.form-section').forEach(section => {
+                section.classList.add('d-none');
+                section.classList.remove('active');
+            });
+            
+            // Afficher l'étape courante
+            const currentSection = document.getElementById(`step-${step}`);
+            if (currentSection) {
+                currentSection.classList.remove('d-none');
+                currentSection.classList.add('active');
+            }
+            
+            // Mettre à jour les indicateurs d'étape
+            document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
+                const stepNumber = index + 1;
+                const circle = indicator.querySelector('.step-circle');
+                const label = indicator.querySelector('small');
+                const line = indicator.querySelector('.step-line');
+                
+                if (stepNumber < step) {
+                    // Étape complétée
+                    circle.className = 'step-circle bg-success text-white rounded-circle d-flex align-items-center justify-content-center';
+                    circle.innerHTML = '<i class="fas fa-check"></i>';
+                    label.className = 'mt-2 fw-medium text-success';
+                    if (line) line.className = 'step-line bg-success position-absolute';
+                } else if (stepNumber === step) {
+                    // Étape courante
+                    circle.className = 'step-circle bg-primary text-white rounded-circle d-flex align-items-center justify-content-center';
+                    const icons = ['fas fa-info-circle', 'fas fa-edit', 'fas fa-cogs'];
+                    circle.innerHTML = `<i class="${icons[index]}"></i>`;
+                    label.className = 'mt-2 fw-medium text-primary';
+                    if (line) line.className = 'step-line bg-light position-absolute';
+                } else {
+                    // Étape à venir
+                    circle.className = 'step-circle bg-light text-muted rounded-circle d-flex align-items-center justify-content-center';
+                    const icons = ['fas fa-info-circle', 'fas fa-edit', 'fas fa-cogs'];
+                    circle.innerHTML = `<i class="${icons[index]}"></i>`;
+                    label.className = 'mt-2 fw-medium text-muted';
+                    if (line) line.className = 'step-line bg-light position-absolute';
+                }
+            });
+            
+            currentStep = step;
+            
+            // Mettre à jour le résumé si on est à l'étape 3
+            if (step === 3) {
+                updateSummary();
+            }
+        }
+        
+        // Fonctions globales pour les boutons
+        window.nextStep = function() {
+            if (validateCurrentStep()) {
+                goToStep(currentStep + 1);
+            }
+        };
+        
+        window.previousStep = function() {
+            goToStep(currentStep - 1);
+        };
+        
+        window.resetForm = function() {
+            if (confirm('Êtes-vous sûr de vouloir réinitialiser le formulaire ?')) {
+                document.getElementById('settingForm').reset();
+                goToStep(1);
+            }
+        };
+        
+        // Validation de l'étape courante
+        function validateCurrentStep() {
+            const currentSection = document.getElementById(`step-${currentStep}`);
+            const requiredFields = currentSection.querySelectorAll('[required]');
+            let isValid = true;
+            
+            requiredFields.forEach(field => {
+                const isFieldValid = field.checkValidity();
+                if (!isFieldValid) {
+                    field.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    field.classList.remove('is-invalid');
+                    field.classList.add('is-valid');
+                }
+            });
+            
+            if (!isValid) {
+                // Scroll vers le premier champ invalide
+                const firstInvalidField = currentSection.querySelector('.is-invalid');
+                if (firstInvalidField) {
+                    firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstInvalidField.focus();
+                }
+            }
+            
+            return isValid;
+        }
+        
+        // Mettre à jour le résumé
+        function updateSummary() {
+            document.getElementById('summary-key').textContent = document.getElementById('key').value || '-';
+            
+            const categorySelect = document.getElementById('category');
+            document.getElementById('summary-category').textContent = 
+                categorySelect.options[categorySelect.selectedIndex]?.text?.split(' - ')[0] || '-';
+            
+            const valueTypeSelect = document.getElementById('valueType');
+            document.getElementById('summary-type').textContent = 
+                valueTypeSelect.options[valueTypeSelect.selectedIndex]?.text?.split(' - ')[0] || '-';
+                
+            document.getElementById('summary-value').textContent = document.getElementById('value').value || '-';
+            document.getElementById('summary-description').textContent = document.getElementById('description').value || '-';
+        }
+        
+        // Prévisualisation de la valeur
+        function updateValuePreview() {
+            const value = document.getElementById('value').value;
+            const valueType = document.getElementById('valueType').value;
+            const preview = document.getElementById('valuePreview');
+            const previewContent = document.getElementById('previewContent');
+            
+            if (value && valueType) {
+                previewContent.textContent = value;
+                preview.classList.remove('d-none');
+            } else {
+                preview.classList.add('d-none');
+            }
+        }
+        
+        // Gestion du compteur de caractères
+        const descriptionField = document.getElementById('description');
+        const charCount = document.getElementById('charCount');
+        
+        if (descriptionField && charCount) {
+            descriptionField.addEventListener('input', function() {
+                charCount.textContent = this.value.length;
+            });
+            // Initialiser le compteur
+            charCount.textContent = descriptionField.value.length;
+        }
+        
+        // Événements sur les champs
+        document.getElementById('value').addEventListener('input', updateValuePreview);
+        document.getElementById('valueType').addEventListener('change', updateValuePreview);
+        
+        // Initialiser la première étape
+        goToStep(1);
+        
+        // Validation du formulaire à la soumission
+        document.getElementById('settingForm').addEventListener('submit', function(e) {
+            // Valider toutes les étapes
+            let allValid = true;
+            for (let i = 1; i <= totalSteps; i++) {
+                currentStep = i;
+                if (!validateCurrentStep()) {
+                    allValid = false;
+                    goToStep(i);
+                    break;
+                }
+            }
+            
+            if (!allValid) {
+                e.preventDefault();
+                if (window.GlobalLoadingManager) {
+                    window.GlobalLoadingManager.hide(); // Masquer le chargement si validation échoue
+                }
+                return false;
+            }
+            
+            // Le chargement global s'affichera déjà via l'intercepteur
+            // Ajouter un indicateur local sur le bouton
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enregistrement...';
+            submitButton.disabled = true;
+            
+            // Restaurer le bouton si jamais la soumission échoue
+            setTimeout(() => {
+                submitButton.innerHTML = originalText;
+                submitButton.disabled = false;
+                if (window.GlobalLoadingManager) {
+                    window.GlobalLoadingManager.hide();
+                }
+            }, 15000); // 15 secondes de sécurité
+        });
+    });
+    </script>
 </div>
 </body>
 </html>

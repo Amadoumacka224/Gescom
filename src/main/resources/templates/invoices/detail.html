@@ -1,16 +1,15 @@
 <!DOCTYPE html>
-<html lang="fr" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.w3.org/1999/xhtml">
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Détails de la Facture</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <title th:text="'Facture ' + ${invoice.invoiceNumber}">Détails Facture</title>
+</head>
+<body>
+
+<div th:fragment="content">
     <style>
+        /* === STYLES POUR LA PAGE FACTURE === */
         body {
-            background-color: #f8f9fa;
+            background-color: #f8f9fa !important;
         }
         
         .invoice-detail {
@@ -76,8 +75,8 @@
         }
         
         .items-table th {
-            background: #495057;
-            color: white;
+            background: #495057 !important;
+            color: white !important;
             padding: 1rem;
             text-align: left;
             font-weight: 600;
@@ -147,6 +146,31 @@
             margin-top: 2rem;
         }
         
+        .client-info {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .amount-highlight {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .text-success {
+            color: #28a745 !important;
+        }
+        
+        .text-danger {
+            color: #dc3545 !important;
+        }
+        
+        .text-warning {
+            color: #ffc107 !important;
+        }
+        
         @media (max-width: 768px) {
             .invoice-info-grid {
                 grid-template-columns: 1fr;
@@ -162,11 +186,12 @@
             .items-table td {
                 padding: 0.5rem;
             }
+            
+            .invoice-header {
+                padding: 1rem;
+            }
         }
     </style>
-</head>
-
-<div th:fragment="content">
 <div class="container-fluid py-4">
     
     <!-- En-tête de la page -->
@@ -199,6 +224,9 @@
                     th:if="${invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).PAID and invoice.status != T(com.gescom.entity.Invoice.InvoiceStatus).CANCELLED}">
                 <i class="fas fa-euro-sign me-1"></i> Encaisser
             </button>
+            <a href="/payment" class="btn btn-dark text-white">
+                <i class="fas fa-money-bill-1-wave me-1"></i>  Payer la facture
+            </a>
             <a th:href="@{/invoices/edit/{id}(id=${invoice.id})}" class="btn btn-secondary"
                th:if="${invoice.status == T(com.gescom.entity.Invoice.InvoiceStatus).DRAFT}">
                 <i class="fas fa-edit me-1"></i> Modifier
@@ -589,7 +617,13 @@
     </div>
 </div>
 </div>
-<!-- Bootstrap JavaScript -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<div th:fragment="js_assets">
+    <!-- Scripts spécifiques pour la page de détails facture -->
+    <script>
+        // Code JavaScript spécifique si nécessaire
+        console.log('Page de détails facture chargée');
+    </script>
+</div>
 </body>
 </html>

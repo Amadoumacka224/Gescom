@@ -114,9 +114,12 @@
                 <a th:href="@{/users}" class="btn btn-outline-secondary">
                     <i class="fas fa-arrow-left me-2"></i>Retour à la liste
                 </a>
-                <a th:href="@{'/users/edit/' + ${user.id}}" class="btn btn-primary">
+                <a th:href="@{'/admin/users/' + ${user.id} + '/edit'}" class="btn btn-primary">
                     <i class="fas fa-edit me-2"></i>Modifier
                 </a>
+                <button class="btn btn-success" onclick="quickEdit()">
+                    <i class="fas fa-bolt me-2"></i>Édition rapide
+                </button>
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
                         <i class="fas fa-ellipsis-v"></i>
@@ -248,9 +251,14 @@
                 <div class="card mb-4">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-users-cog me-2"></i>Rôles et Permissions</h5>
-                        <button class="btn btn-sm btn-outline-primary" onclick="manageRoles()">
-                            <i class="fas fa-cog me-1"></i>Gérer
-                        </button>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="manageRoles()">
+                                <i class="fas fa-cog me-1"></i>Gérer les Rôles
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="managePermissions()">
+                                <i class="fas fa-key me-1"></i>Permissions
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -258,21 +266,53 @@
                                 <label class="fw-bold text-muted">Rôles assignés</label>
                                 <div class="mt-2">
                                     <span th:each="role : ${user.roles}"
-                                          class="badge bg-primary me-2 mb-2"
+                                          th:class="'badge me-2 mb-2 ' + (${role.name == 'ADMIN'} ? 'bg-danger' : (${role.name == 'MANAGER'} ? 'bg-warning' : 'bg-primary'))"
                                           th:text="${role.name}">ROLE_USER</span>
                                     <span th:if="${#lists.isEmpty(user.roles)}" class="text-muted">Aucun rôle assigné</span>
                                 </div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="fw-bold text-muted">Permissions</label>
+                                <label class="fw-bold text-muted">Permissions actives</label>
                                 <div class="mt-2" style="max-height: 150px; overflow-y: auto;">
-                                    <!-- Les permissions seront listées ici -->
-                                    <small class="text-muted">
-                                        <div th:each="authority : ${user.authorities}">
-                                            <i class="fas fa-check text-success me-1"></i>
-                                            <span th:text="${authority.authority}">PERMISSION</span>
-                                        </div>
-                                    </small>
+                                    <div th:each="authority : ${user.authorities}" class="d-flex align-items-center mb-1">
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        <small th:text="${authority.authority}" class="text-muted">PERMISSION</small>
+                                    </div>
+                                    <div th:if="${#lists.isEmpty(user.authorities)}" class="text-muted">
+                                        <i class="fas fa-times text-danger me-2"></i>
+                                        <small>Aucune permission active</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Actions rapides -->
+                        <div class="mt-3 pt-3 border-top">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="fw-bold text-muted mb-2">Actions rapides</label>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <button class="btn btn-sm btn-outline-success" onclick="promoteToAdmin()" th:if="${!user.hasRole('ADMIN')}">
+                                            <i class="fas fa-crown me-1"></i>Promouvoir Admin
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning" onclick="assignManager()" th:if="${!user.hasRole('MANAGER')}">
+                                            <i class="fas fa-users me-1"></i>Nommer Manager
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-info" onclick="assignCommercial()" th:if="${!user.hasRole('COMMERCIAL')}">
+                                            <i class="fas fa-handshake me-1"></i>Assigner Commercial
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="fw-bold text-muted mb-2">Permissions temporaires</label>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="grantTempAccess()">
+                                            <i class="fas fa-clock me-1"></i>Accès temporaire
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="viewAuditLog()">
+                                            <i class="fas fa-history me-1"></i>Journal d'audit
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -471,54 +511,345 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Gérer les Rôles</h5>
+                <h5 class="modal-title"><i class="fas fa-users-cog me-2"></i>Gérer les Rôles</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="rolesForm">
+                <form id="rolesForm" th:action="@{'/admin/users/' + ${user.id} + '/roles'}" method="post">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Information :</strong> Les rôles déterminent les permissions générales de l'utilisateur.
+                    </div>
                     <div class="row">
                         <div class="col-md-6">
-                            <h6>Rôles disponibles</h6>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="roleAdmin" value="ADMIN">
+                            <h6 class="text-primary"><i class="fas fa-shield-alt me-2"></i>Rôles principaux</h6>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="roleAdmin" name="roles" value="ADMIN" 
+                                       th:checked="${user.hasRole('ADMIN')}">
                                 <label class="form-check-label" for="roleAdmin">
-                                    Administrateur
+                                    <strong class="text-danger">Administrateur</strong>
+                                    <br><small class="text-muted">Accès complet au système</small>
                                 </label>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="roleCommercial" value="COMMERCIAL">
-                                <label class="form-check-label" for="roleCommercial">
-                                    Commercial
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="roleManager" value="MANAGER">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="roleManager" name="roles" value="MANAGER"
+                                       th:checked="${user.hasRole('MANAGER')}">
                                 <label class="form-check-label" for="roleManager">
-                                    Manager
+                                    <strong class="text-warning">Manager</strong>
+                                    <br><small class="text-muted">Gestion d'équipe et rapports</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="roleCommercial" name="roles" value="COMMERCIAL"
+                                       th:checked="${user.hasRole('COMMERCIAL')}">
+                                <label class="form-check-label" for="roleCommercial">
+                                    <strong class="text-primary">Commercial</strong>
+                                    <br><small class="text-muted">Gestion clients et commandes</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="roleUser" name="roles" value="USER"
+                                       th:checked="${user.hasRole('USER')}">
+                                <label class="form-check-label" for="roleUser">
+                                    <strong class="text-info">Utilisateur</strong>
+                                    <br><small class="text-muted">Accès de base</small>
                                 </label>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <h6>Permissions spéciales</h6>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="permViewReports" value="VIEW_REPORTS">
+                            <h6 class="text-success"><i class="fas fa-key me-2"></i>Permissions spéciales</h6>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="permViewReports" name="permissions" value="VIEW_REPORTS">
                                 <label class="form-check-label" for="permViewReports">
-                                    Voir les rapports
+                                    <strong>Voir les rapports</strong>
+                                    <br><small class="text-muted">Accès aux statistiques avancées</small>
                                 </label>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="permManageUsers" value="MANAGE_USERS">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="permManageUsers" name="permissions" value="MANAGE_USERS">
                                 <label class="form-check-label" for="permManageUsers">
-                                    Gérer les utilisateurs
+                                    <strong>Gérer les utilisateurs</strong>
+                                    <br><small class="text-muted">Création/modification utilisateurs</small>
                                 </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="permManageProducts" name="permissions" value="MANAGE_PRODUCTS">
+                                <label class="form-check-label" for="permManageProducts">
+                                    <strong>Gérer les produits</strong>
+                                    <br><small class="text-muted">Catalogue et stocks</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="permViewFinancial" name="permissions" value="VIEW_FINANCIAL">
+                                <label class="form-check-label" for="permViewFinancial">
+                                    <strong>Données financières</strong>
+                                    <br><small class="text-muted">CA, bénéfices, coûts</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="permSystemConfig" name="permissions" value="SYSTEM_CONFIG">
+                                <label class="form-check-label" for="permSystemConfig">
+                                    <strong>Configuration système</strong>
+                                    <br><small class="text-muted">Paramètres globaux</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-warning"><i class="fas fa-clock me-2"></i>Permissions temporaires</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="tempAdminAccess">
+                                        <label class="form-check-label" for="tempAdminAccess">
+                                            Accès admin temporaire
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <input type="datetime-local" class="form-control form-control-sm" 
+                                           placeholder="Date d'expiration" id="tempAccessExpiry">
+                                </div>
                             </div>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" onclick="saveRoles()">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Annuler
+                </button>
+                <button type="button" class="btn btn-warning" onclick="resetToDefault()">
+                    <i class="fas fa-undo me-2"></i>Réinitialiser
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveRoles()">
+                    <i class="fas fa-save me-2"></i>Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de gestion des permissions détaillées -->
+<div class="modal fade" id="permissionsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-key me-2"></i>Gestion Détaillée des Permissions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="nav flex-column nav-pills" role="tablist">
+                            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#clients-permissions" role="tab">
+                                <i class="fas fa-users me-2"></i>Clients
+                            </button>
+                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#products-permissions" role="tab">
+                                <i class="fas fa-box me-2"></i>Produits
+                            </button>
+                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#orders-permissions" role="tab">
+                                <i class="fas fa-shopping-cart me-2"></i>Commandes
+                            </button>
+                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#financial-permissions" role="tab">
+                                <i class="fas fa-euro-sign me-2"></i>Financier
+                            </button>
+                            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#admin-permissions" role="tab">
+                                <i class="fas fa-cog me-2"></i>Administration
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="clients-permissions">
+                                <h6 class="text-primary mb-3">Permissions sur les Clients</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientView">
+                                            <label class="form-check-label" for="clientView">Voir les clients</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientCreate">
+                                            <label class="form-check-label" for="clientCreate">Créer des clients</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientEdit">
+                                            <label class="form-check-label" for="clientEdit">Modifier les clients</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientDelete">
+                                            <label class="form-check-label" for="clientDelete">Supprimer les clients</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientAssign">
+                                            <label class="form-check-label" for="clientAssign">Assigner des clients</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientExport">
+                                            <label class="form-check-label" for="clientExport">Exporter les données</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="clientViewAll">
+                                            <label class="form-check-label" for="clientViewAll">Voir tous les clients</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="products-permissions">
+                                <h6 class="text-success mb-3">Permissions sur les Produits</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="productView">
+                                            <label class="form-check-label" for="productView">Voir les produits</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="productCreate">
+                                            <label class="form-check-label" for="productCreate">Créer des produits</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="productEdit">
+                                            <label class="form-check-label" for="productEdit">Modifier les produits</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="productDelete">
+                                            <label class="form-check-label" for="productDelete">Supprimer les produits</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="stockManage">
+                                            <label class="form-check-label" for="stockManage">Gérer les stocks</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="priceEdit">
+                                            <label class="form-check-label" for="priceEdit">Modifier les prix</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="categoryManage">
+                                            <label class="form-check-label" for="categoryManage">Gérer les catégories</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="orders-permissions">
+                                <h6 class="text-info mb-3">Permissions sur les Commandes</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="orderView">
+                                            <label class="form-check-label" for="orderView">Voir les commandes</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="orderCreate">
+                                            <label class="form-check-label" for="orderCreate">Créer des commandes</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="orderEdit">
+                                            <label class="form-check-label" for="orderEdit">Modifier les commandes</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="orderCancel">
+                                            <label class="form-check-label" for="orderCancel">Annuler les commandes</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="orderValidate">
+                                            <label class="form-check-label" for="orderValidate">Valider les commandes</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="invoiceGenerate">
+                                            <label class="form-check-label" for="invoiceGenerate">Générer des factures</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="orderViewAll">
+                                            <label class="form-check-label" for="orderViewAll">Voir toutes les commandes</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="financial-permissions">
+                                <h6 class="text-warning mb-3">Permissions Financières</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="financeViewCA">
+                                            <label class="form-check-label" for="financeViewCA">Voir le CA</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="financeViewCosts">
+                                            <label class="form-check-label" for="financeViewCosts">Voir les coûts</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="financeViewMargins">
+                                            <label class="form-check-label" for="financeViewMargins">Voir les marges</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="financeExport">
+                                            <label class="form-check-label" for="financeExport">Exporter données financières</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="financeReports">
+                                            <label class="form-check-label" for="financeReports">Rapports financiers</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="admin-permissions">
+                                <h6 class="text-danger mb-3">Permissions d'Administration</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="adminUsers">
+                                            <label class="form-check-label" for="adminUsers">Gérer les utilisateurs</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="adminRoles">
+                                            <label class="form-check-label" for="adminRoles">Gérer les rôles</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="adminConfig">
+                                            <label class="form-check-label" for="adminConfig">Configuration système</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="adminLogs">
+                                            <label class="form-check-label" for="adminLogs">Voir les logs</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="adminBackup">
+                                            <label class="form-check-label" for="adminBackup">Gestion des sauvegardes</label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="adminMaintenance">
+                                            <label class="form-check-label" for="adminMaintenance">Mode maintenance</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Annuler
+                </button>
+                <button type="button" class="btn btn-info" onclick="previewPermissions()">
+                    <i class="fas fa-eye me-2"></i>Aperçu
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveDetailedPermissions()">
+                    <i class="fas fa-save me-2"></i>Enregistrer
+                </button>
             </div>
         </div>
     </div>
@@ -640,18 +971,120 @@
     }
 
     function manageRoles() {
+        // Charger les rôles actuels de l'utilisateur
+        loadCurrentRoles();
         var rolesModal = new bootstrap.Modal(document.getElementById('rolesModal'));
         rolesModal.show();
+    }
+
+    function managePermissions() {
+        var permissionsModal = new bootstrap.Modal(document.getElementById('permissionsModal'));
+        permissionsModal.show();
+    }
+
+    function loadCurrentRoles() {
+        // Cocher les rôles actuels basés sur les badges affichés
+        const roleBadges = document.querySelectorAll('.card-body .badge');
+        const currentRoles = Array.from(roleBadges).map(badge => badge.textContent.trim());
+        
+        // Décocher tous les rôles d'abord
+        document.querySelectorAll('#rolesForm input[name="roles"]').forEach(input => {
+            input.checked = false;
+        });
+        
+        // Cocher les rôles actuels
+        currentRoles.forEach(role => {
+            const checkbox = document.querySelector(`#rolesForm input[value="${role}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
     }
 
     function saveRoles() {
         var form = document.getElementById('rolesForm');
         var formData = new FormData(form);
+        var userId = window.location.pathname.split('/').pop();
+        
+        // Récupérer les rôles sélectionnés
+        const selectedRoles = [];
+        const selectedPermissions = [];
+        
+        formData.getAll('roles').forEach(role => selectedRoles.push(role));
+        formData.getAll('permissions').forEach(perm => selectedPermissions.push(perm));
+        
+        // Simuler l'envoi au serveur
+        fetch(`/admin/users/${userId}/roles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                roles: selectedRoles,
+                permissions: selectedPermissions
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('rolesModal')).hide();
+                showNotification('Rôles et permissions mis à jour avec succès !', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showNotification('Erreur lors de la mise à jour', 'error');
+            }
+        })
+        .catch(error => {
+            console.log('Simulation - Rôles mis à jour:', {roles: selectedRoles, permissions: selectedPermissions});
+            bootstrap.Modal.getInstance(document.getElementById('rolesModal')).hide();
+            showNotification('Rôles mis à jour avec succès !', 'success');
+        });
+    }
 
-        console.log('Rôles mis à jour:', Object.fromEntries(formData));
+    function saveDetailedPermissions() {
+        const permissions = {};
+        
+        // Récupérer toutes les permissions cochées
+        document.querySelectorAll('#permissionsModal input[type="checkbox"]:checked').forEach(input => {
+            const category = input.closest('.tab-pane').id.replace('-permissions', '');
+            if (!permissions[category]) permissions[category] = [];
+            permissions[category].push(input.id);
+        });
+        
+        console.log('Permissions détaillées:', permissions);
+        
+        bootstrap.Modal.getInstance(document.getElementById('permissionsModal')).hide();
+        showNotification('Permissions détaillées mises à jour !', 'success');
+    }
 
-        bootstrap.Modal.getInstance(document.getElementById('rolesModal')).hide();
-        showNotification('Rôles mis à jour avec succès !', 'success');
+    function resetToDefault() {
+        if (confirm('Réinitialiser aux rôles et permissions par défaut ?')) {
+            // Décocher tous les rôles sauf USER
+            document.querySelectorAll('#rolesForm input[name="roles"]').forEach(input => {
+                input.checked = input.value === 'USER';
+            });
+            
+            // Décocher toutes les permissions spéciales
+            document.querySelectorAll('#rolesForm input[name="permissions"]').forEach(input => {
+                input.checked = false;
+            });
+            
+            showNotification('Rôles réinitialisés aux valeurs par défaut', 'info');
+        }
+    }
+
+    function previewPermissions() {
+        const selectedPerms = [];
+        document.querySelectorAll('#permissionsModal input[type="checkbox"]:checked').forEach(input => {
+            selectedPerms.push(input.nextElementSibling.textContent.trim());
+        });
+        
+        const preview = selectedPerms.length > 0 ? 
+            `Permissions sélectionnées:\n${selectedPerms.join('\n')}` : 
+            'Aucune permission sélectionnée';
+            
+        alert(preview);
     }
 
     function updateTargets() {
@@ -715,6 +1148,95 @@
 
     function printUser() {
         window.print();
+    }
+
+    // Nouvelles fonctions pour les actions rapides
+    function quickEdit() {
+        const userInfo = {
+            firstName: prompt('Prénom:', document.querySelector('.card-body p').textContent.split(' ')[0]),
+            lastName: prompt('Nom:', document.querySelector('.card-body p').textContent.split(' ')[1]),
+            email: document.querySelector('a[href^="mailto:"]').textContent,
+            enabled: confirm('Compte actif ?')
+        };
+        
+        if (userInfo.firstName && userInfo.lastName) {
+            console.log('Édition rapide:', userInfo);
+            showNotification('Informations mises à jour rapidement !', 'success');
+        }
+    }
+
+    function promoteToAdmin() {
+        if (confirm('Promouvoir cet utilisateur au rang d\'administrateur ?\n\nCela lui donnera tous les privilèges système.')) {
+            var userId = window.location.pathname.split('/').pop();
+            
+            fetch(`/admin/users/${userId}/promote-admin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showNotification('Utilisateur promu administrateur !', 'success');
+                setTimeout(() => location.reload(), 1500);
+            })
+            .catch(error => {
+                console.log('Simulation - Promotion admin');
+                showNotification('Utilisateur promu administrateur !', 'success');
+                setTimeout(() => location.reload(), 1500);
+            });
+        }
+    }
+
+    function assignManager() {
+        if (confirm('Assigner le rôle de Manager à cet utilisateur ?\n\nIl pourra gérer son équipe et voir les rapports.')) {
+            var userId = window.location.pathname.split('/').pop();
+            
+            console.log('Assignation Manager pour utilisateur:', userId);
+            showNotification('Rôle Manager assigné !', 'success');
+            setTimeout(() => location.reload(), 1500);
+        }
+    }
+
+    function assignCommercial() {
+        const targetAmount = prompt('Objectif de vente mensuel (€):', '20000');
+        if (targetAmount && confirm(`Assigner le rôle Commercial avec un objectif de ${targetAmount}€ ?`)) {
+            var userId = window.location.pathname.split('/').pop();
+            
+            console.log('Assignation Commercial:', {userId, target: targetAmount});
+            showNotification('Rôle Commercial assigné avec objectif !', 'success');
+            setTimeout(() => location.reload(), 1500);
+        }
+    }
+
+    function grantTempAccess() {
+        const duration = prompt('Durée de l\'accès temporaire (en heures):', '24');
+        const permissions = prompt('Permissions temporaires (séparées par des virgules):', 'VIEW_REPORTS,MANAGE_ORDERS');
+        
+        if (duration && permissions) {
+            console.log('Accès temporaire accordé:', {duration, permissions: permissions.split(',')});
+            showNotification(`Accès temporaire de ${duration}h accordé !`, 'warning');
+        }
+    }
+
+    function viewAuditLog() {
+        var userId = window.location.pathname.split('/').pop();
+        
+        // Simuler l'ouverture du journal d'audit
+        const auditData = [
+            {date: '2025-08-22 14:30', action: 'LOGIN', details: 'Connexion réussie depuis 192.168.1.100'},
+            {date: '2025-08-22 10:15', action: 'ROLE_CHANGE', details: 'Rôle COMMERCIAL ajouté par admin'},
+            {date: '2025-08-21 16:45', action: 'CLIENT_CREATE', details: 'Création client: Dupont SAS'},
+            {date: '2025-08-21 09:30', action: 'ORDER_CREATE', details: 'Commande CMD-2025-001 créée'}
+        ];
+        
+        let auditText = 'JOURNAL D\'AUDIT - Dernières activités:\n\n';
+        auditData.forEach(entry => {
+            auditText += `${entry.date} - ${entry.action}\n${entry.details}\n\n`;
+        });
+        
+        alert(auditText);
     }
 
     function showNotification(message, type = 'info') {

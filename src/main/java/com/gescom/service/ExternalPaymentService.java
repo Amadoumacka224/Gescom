@@ -67,7 +67,7 @@ public class ExternalPaymentService {
     }
 
     /**
-     * Initie un processus de paiement externe
+     * Initie un processus de paiement externe (version complète)
      */
     public ExternalPayment initiatePayment(Invoice invoice, 
                                          ExternalPayment.PaymentMethod paymentMethod,
@@ -102,6 +102,25 @@ public class ExternalPaymentService {
                 savedPayment.getId(), savedPayment.getSecurityToken());
 
         return savedPayment;
+    }
+
+    /**
+     * Initie un processus de paiement externe (version simplifiée)
+     */
+    public ExternalPayment initiatePayment(Invoice invoice, 
+                                         ExternalPayment.PaymentMethod paymentMethod,
+                                         BigDecimal amount,
+                                         String customerEmail,
+                                         String customerName,
+                                         String clientIp) {
+        return initiatePayment(invoice, paymentMethod, amount, customerEmail, customerName, clientIp, null);
+    }
+
+    /**
+     * Sauvegarde un paiement externe
+     */
+    public ExternalPayment savePayment(ExternalPayment payment) {
+        return externalPaymentRepository.save(payment);
     }
 
     /**

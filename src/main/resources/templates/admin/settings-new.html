@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/base :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<head>
+    <title>Paramètres — GESCOM</title>
+    <meta name="_csrf" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #16a34a;
+            --warning-color: #f59e0b;
+            --danger-color: #dc2626;
+            --info-color: #0891b2;
+            --light-bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --radius-lg: 0.75rem;
+            --radius-md: 0.5rem;
+        }
+
+        body {
+            background: var(--light-bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* Header */
+        .settings-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+
+        .settings-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .settings-header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        /* Navigation tabs */
+        .settings-nav {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .nav-tabs {
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .nav-tabs .nav-item {
+            margin: 0;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 0;
+            padding: 1rem 1.5rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .nav-tabs .nav-link:hover {
+            background: rgba(37, 99, 235, 0.05);
+            color: var(--primary-color);
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .nav-tabs .nav-link i {
+            font-size: 1.1rem;
+        }
+
+        /* Content sections */
+        .settings-section {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 1.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-title i {
+            font-size: 1.3rem;
+            color: var(--primary-color);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .setting-item {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .setting-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-md);
+        }
+
+        .setting-item h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .setting-item p {
+            color: var(--text-secondary);
+            margin: 0 0 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        .setting-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-outline-primary {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-info {
+            background: var(--info-color);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        /* Import section styling */
+        .import-highlight {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid var(--info-color);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-configured {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .status-required {
+            background: #fecaca;
+            color: #dc2626;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .settings-header {
+                padding: 1.5rem 0;
+            }
+
+            .settings-header h1 {
+                font-size: 1.75rem;
+            }
+
+            .nav-tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .setting-actions {
+                flex-direction: column;
+            }
+
+            .btn {
+                justify-content: center;
+            }
+        }
+
+        /* Tab content */
+        .tab-content {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+<div th:fragment="content">
+    <main role="main">
+        <!-- Header -->
+        <div class="settings-header">
+            <div class="container">
+                <h1>
+                    <i class="fas fa-cogs"></i>
+                    Paramètres
+                </h1>
+                <p>Configurez tous les aspects de votre système GESCOM</p>
+            </div>
+        </div>
+
+        <div class="container">
+            <!-- Navigation -->
+            <div class="settings-nav">
+                <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                            <i class="fas fa-cogs"></i>
+                            Paramètres généraux
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab">
+                            <i class="fas fa-boxes"></i>
+                            Articles & Stock
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="clients-tab" data-bs-toggle="tab" data-bs-target="#clients" type="button" role="tab">
+                            <i class="fas fa-users"></i>
+                            Clients & Fournisseurs
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="financial-tab" data-bs-toggle="tab" data-bs-target="#financial" type="button" role="tab">
+                            <i class="fas fa-money-bill-wave"></i>
+                            Paramètres financiers
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="tab-content" id="settingsTabContent">
+                
+                <!-- Paramètres généraux -->
+                <div class="tab-pane fade show active" id="general" role="tabpanel">
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-building"></i>
+                            Informations de l'entreprise
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-info-circle text-primary"></i>Informations générales</h4>
+                                <p>Nom de l'entreprise, adresse, contacts principaux</p>
+                                <span class="status-badge status-pending">Partiellement configuré</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/company-info" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-edit"></i>Modifier
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-image text-primary"></i>Logo & Identité</h4>
+                                <p>Logo de l'entreprise, couleurs, personnalisation</p>
+                                <span class="status-badge status-required">Non configuré</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/company-info" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-upload"></i>Télécharger
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-certificate text-primary"></i>Documents légaux</h4>
+                                <p>NINEA, RCCM, numéros d'identification</p>
+                                <span class="status-badge status-required">Non configuré</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/company-info" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-plus"></i>Ajouter
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-coins"></i>
+                            Devises & Fiscalité
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-dollar-sign text-success"></i>Devise principale</h4>
+                                <p>CFA, EUR, USD - Devise par défaut du système</p>
+                                <span class="status-badge status-configured">CFA configuré</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/currency-tax" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-edit"></i>Modifier
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-exchange-alt text-success"></i>Devises secondaires</h4>
+                                <p>Autres devises acceptées et taux de change</p>
+                                <span class="status-badge status-pending">2 devises</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/currency-tax" class="btn btn-success btn-sm">
+                                        <i class="fas fa-plus"></i>Ajouter
+                                    </a>
+                                    <a href="/admin/settings/currency-tax" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-sync"></i>Taux
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-percent text-warning"></i>Paramètres TVA</h4>
+                                <p>Taux de TVA, impôts et taxes locales</p>
+                                <span class="status-badge status-configured">18% TVA</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/currency-tax" class="btn btn-warning btn-sm">
+                                        <i class="fas fa-calculator"></i>Configurer
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-hashtag"></i>
+                            Numérotation & Langues
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-sort-numeric-up text-info"></i>Numérotation automatique</h4>
+                                <p>Format des factures, commandes, références clients</p>
+                                <span class="status-badge status-configured">Configuré</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/numbering" class="btn btn-info btn-sm">
+                                        <i class="fas fa-cogs"></i>Gérer
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-globe text-info"></i>Langues disponibles</h4>
+                                <p>Français, Anglais, Wolof - Interface multilingue</p>
+                                <span class="status-badge status-configured">3 langues</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/languages" class="btn btn-info btn-sm">
+                                        <i class="fas fa-language"></i>Gérer
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Articles & Stock -->
+                <div class="tab-pane fade" id="products" role="tabpanel">
+                    <div class="settings-section import-highlight">
+                        <h2 class="section-title">
+                            <i class="fas fa-file-import"></i>
+                            Import/Export d'articles
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-upload text-success"></i>Importer des articles</h4>
+                                <p>Importez vos articles depuis Excel (.xlsx) ou CSV</p>
+                                <div class="setting-actions">
+                                    <a href="/admin/products/import" class="btn btn-success">
+                                        <i class="fas fa-upload"></i>Importer maintenant
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-file-excel text-success"></i>Modèles d'import</h4>
+                                <p>Téléchargez les modèles Excel et CSV</p>
+                                <div class="setting-actions">
+                                    <a href="/admin/products/template/excel" class="btn btn-outline-success btn-sm">
+                                        <i class="fas fa-download"></i>Excel
+                                    </a>
+                                    <a href="/admin/products/template/csv" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-download"></i>CSV
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-file-export text-info"></i>Exporter des articles</h4>
+                                <p>Exportez tous vos articles existants</p>
+                                <div class="setting-actions">
+                                    <button onclick="exportProducts('excel')" class="btn btn-info btn-sm">
+                                        <i class="fas fa-file-excel"></i>Excel
+                                    </button>
+                                    <button onclick="exportProducts('csv')" class="btn btn-outline-info btn-sm">
+                                        <i class="fas fa-file-csv"></i>CSV
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-ruler-combined"></i>
+                            Unités & Catégories
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-balance-scale text-primary"></i>Unités de mesure</h4>
+                                <p>Pièce, carton, kg, litre, mètre, etc.</p>
+                                <span class="status-badge status-configured">8 unités</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/units" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-plus"></i>Ajouter
+                                    </a>
+                                    <a href="/admin/settings/units" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-list"></i>Gérer
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-tags text-primary"></i>Catégories d'articles</h4>
+                                <p>Organisez vos produits par catégories et sous-catégories</p>
+                                <span class="status-badge status-configured">12 catégories</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/categories" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-plus"></i>Ajouter
+                                    </a>
+                                    <a href="/admin/settings/categories" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-sitemap"></i>Arborescence
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-qrcode text-primary"></i>Codes-barres & QR</h4>
+                                <p>Configuration des codes-barres et QR codes</p>
+                                <span class="status-badge status-pending">Partiellement configuré</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/barcodes" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-cogs"></i>Configurer
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-tag"></i>
+                            Tarification & Stock
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-dollar-sign text-warning"></i>Types de tarification</h4>
+                                <p>Prix de gros, détail, remises, promotions</p>
+                                <span class="status-badge status-configured">4 types</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-warning btn-sm">
+                                        <i class="fas fa-percentage"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-warehouse text-danger"></i>Niveaux de stock</h4>
+                                <p>Stock minimum, maximum et alertes automatiques</p>
+                                <span class="status-badge status-configured">Configuré</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-danger btn-sm">
+                                        <i class="fas fa-bell"></i>Alertes
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm">
+                                        <i class="fas fa-chart-line"></i>Seuils
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clients & Fournisseurs -->
+                <div class="tab-pane fade" id="clients" role="tabpanel">
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-user-tie"></i>
+                            Types de clients
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-user text-success"></i>Particuliers</h4>
+                                <p>Clients particuliers, vente au détail</p>
+                                <span class="status-badge status-configured">Actif</span>
+                                <div class="setting-actions">
+                                    <a href="/admin/settings/client-types" class="btn btn-success btn-sm">
+                                        <i class="fas fa-cogs"></i>Configurer
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-building text-success"></i>Entreprises</h4>
+                                <p>Clients entreprises, factures professionnelles</p>
+                                <span class="status-badge status-configured">Actif</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-success btn-sm">
+                                        <i class="fas fa-cogs"></i>Configurer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-handshake text-success"></i>Revendeurs</h4>
+                                <p>Clients revendeurs, tarifs préférentiels</p>
+                                <span class="status-badge status-pending">Non configuré</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-success btn-sm">
+                                        <i class="fas fa-plus"></i>Activer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Segments & Zones
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-chart-pie text-info"></i>Segments de marché</h4>
+                                <p>Segmentation par secteur d'activité</p>
+                                <span class="status-badge status-configured">6 segments</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-info btn-sm">
+                                        <i class="fas fa-list"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-globe-africa text-info"></i>Zones géographiques</h4>
+                                <p>Découpage par régions, départements</p>
+                                <span class="status-badge status-configured">14 zones</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-info btn-sm">
+                                        <i class="fas fa-map"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-truck"></i>
+                            Types de fournisseurs
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-star text-warning"></i>Fournisseurs principaux</h4>
+                                <p>Fournisseurs stratégiques et prioritaires</p>
+                                <span class="status-badge status-configured">5 principaux</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-warning btn-sm">
+                                        <i class="fas fa-crown"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-home text-primary"></i>Fournisseurs locaux</h4>
+                                <p>Fournisseurs locaux et régionaux</p>
+                                <span class="status-badge status-configured">12 locaux</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-primary btn-sm">
+                                        <i class="fas fa-list"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-plane text-secondary"></i>Fournisseurs import</h4>
+                                <p>Fournisseurs internationaux et importateurs</p>
+                                <span class="status-badge status-configured">8 import</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-secondary btn-sm">
+                                        <i class="fas fa-globe"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-calendar-check"></i>
+                            Conditions de paiement
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-money-bill text-success"></i>Paiement comptant</h4>
+                                <p>Règlement immédiat à la livraison</p>
+                                <span class="status-badge status-configured">Actif</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-success btn-sm">
+                                        <i class="fas fa-cogs"></i>Configurer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-clock text-warning"></i>Paiement différé</h4>
+                                <p>30, 60, 90 jours selon les conditions</p>
+                                <span class="status-badge status-configured">3 options</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-warning btn-sm">
+                                        <i class="fas fa-calendar"></i>Délais
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-list-alt text-info"></i>Échéancier</h4>
+                                <p>Paiements échelonnés et mensualités</p>
+                                <span class="status-badge status-pending">Non configuré</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-info btn-sm">
+                                        <i class="fas fa-plus"></i>Configurer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paramètres financiers -->
+                <div class="tab-pane fade" id="financial" role="tabpanel">
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-credit-card"></i>
+                            Modes de paiement
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-money-bill text-success"></i>Espèces</h4>
+                                <p>Paiement en liquide, caisse enregistreuse</p>
+                                <span class="status-badge status-configured">Actif</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-success btn-sm">
+                                        <i class="fas fa-cogs"></i>Configurer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-credit-card text-primary"></i>Carte bancaire</h4>
+                                <p>Visa, MasterCard, terminaux de paiement</p>
+                                <span class="status-badge status-configured">Actif</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-primary btn-sm">
+                                        <i class="fas fa-terminal"></i>Terminaux
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-mobile-alt text-warning"></i>Mobile Money</h4>
+                                <p>Orange Money, Free Money, Wave</p>
+                                <span class="status-badge status-configured">3 services</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-warning btn-sm">
+                                        <i class="fas fa-link"></i>Intégrations
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-university text-info"></i>Virement bancaire</h4>
+                                <p>Virements SWIFT, RIB, IBAN</p>
+                                <span class="status-badge status-configured">Actif</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-info btn-sm">
+                                        <i class="fas fa-building"></i>Banques
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-money-check text-secondary"></i>Chèques</h4>
+                                <p>Chèques bancaires, validation automatique</p>
+                                <span class="status-badge status-pending">Non configuré</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-secondary btn-sm">
+                                        <i class="fas fa-plus"></i>Activer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-piggy-bank"></i>
+                            Comptes bancaires
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-university text-primary"></i>Compte principal</h4>
+                                <p>CBAO, UBA, SGBS - Compte principal de l'entreprise</p>
+                                <span class="status-badge status-configured">Configuré</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-primary btn-sm">
+                                        <i class="fas fa-edit"></i>Modifier
+                                    </button>
+                                    <button class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-eye"></i>Détails
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-coins text-success"></i>Comptes secondaires</h4>
+                                <p>Autres comptes bancaires de l'entreprise</p>
+                                <span class="status-badge status-configured">2 comptes</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-success btn-sm">
+                                        <i class="fas fa-plus"></i>Ajouter
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm">
+                                        <i class="fas fa-list"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-chart-line"></i>
+                            Comptabilité & Reporting
+                        </h2>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <h4><i class="fas fa-calculator text-info"></i>Plan comptable</h4>
+                                <p>SYSCOHADA, comptes personnalisés</p>
+                                <span class="status-badge status-configured">SYSCOHADA</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-info btn-sm">
+                                        <i class="fas fa-cogs"></i>Configurer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-file-invoice text-warning"></i>Exercices comptables</h4>
+                                <p>Définition des périodes comptables</p>
+                                <span class="status-badge status-configured">2024 actif</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-warning btn-sm">
+                                        <i class="fas fa-calendar"></i>Gérer
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <h4><i class="fas fa-chart-bar text-success"></i>Rapports automatiques</h4>
+                                <p>Génération automatique des rapports</p>
+                                <span class="status-badge status-pending">Non configuré</span>
+                                <div class="setting-actions">
+                                    <button class="btn btn-success btn-sm">
+                                        <i class="fas fa-robot"></i>Configurer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:fragment="js_assets">
+    <script>
+        // Fonction d'export des produits
+        function exportProducts(format) {
+            const url = format === 'excel' ? 
+                '/admin/products/export/excel' : 
+                '/admin/products/export/csv';
+            
+            // Créer un lien temporaire pour déclencher le téléchargement
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = true;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Gestion des onglets avec animation
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('shown.bs.tab', function (event) {
+                    const target = document.querySelector(event.target.getAttribute('data-bs-target'));
+                    if (target) {
+                        target.style.animation = 'none';
+                        target.offsetHeight; // Trigger reflow
+                        target.style.animation = 'fadeIn 0.3s ease-in-out';
+                    }
+                });
+            });
+        });
+
+        // Fonctions de configuration (à implémenter selon les besoins)
+        function configureSetting(settingType) {
+            console.log('Configuration de:', settingType);
+            // Rediriger vers la page de configuration appropriée
+            // ou ouvrir une modal
+        }
+
+        function manageSetting(settingType) {
+            console.log('Gestion de:', settingType);
+            // Rediriger vers la page de gestion appropriée
+        }
+
+        function addSetting(settingType) {
+            console.log('Ajout de:', settingType);
+            // Ouvrir une modal d'ajout ou rediriger
+        }
+    </script>
+</div>
+</body>
+</html>

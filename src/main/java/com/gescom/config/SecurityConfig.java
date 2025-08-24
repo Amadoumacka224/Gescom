@@ -89,7 +89,7 @@ public class SecurityConfig {
 
                         // Pages métier
                         .requestMatchers("/dashboard").hasAnyRole("ADMIN", "MANAGER", "USER")
-                        .requestMatchers("/profile/**").hasAnyRole("ADMIN", "MANAGER", "USER")
+                        .requestMatchers("/user/**").hasAnyRole("ADMIN", "MANAGER", "USER")
                         .requestMatchers("/clients/**").hasAnyRole("ADMIN", "MANAGER", "USER")
                         .requestMatchers("/products/**").hasAnyRole("ADMIN", "MANAGER", "USER")
                         .requestMatchers("/orders/**").hasAnyRole("ADMIN", "MANAGER", "USER")
