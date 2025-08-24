@@ -1,25 +1,25 @@
-# Multi-stage build pour optimiser la taille de l'image
+# Alternative Dockerfile utilisant Maven Wrapper
 FROM eclipse-temurin:17-jdk-alpine as builder
 
-# Installer Maven
-RUN apk add --no-cache maven
+# Installer des utilitaires de base
+RUN apk add --no-cache bash
 
 # Définir le répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers de configuration Maven
-COPY pom.xml .
+# Copier Maven Wrapper et pom.xml d'abord pour optimiser les couches Docker
 COPY mvnw .
 COPY .mvn .mvn
+COPY pom.xml .
 
-# Télécharger les dépendances (optimisation des couches Docker)
-RUN mvn dependency:go-offline -B
+# Rendre mvnw exécutable et télécharger les dépendances
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # Copier le code source
 COPY src ./src
 
-# Construire l'application
-RUN mvn clean package -DskipTests -Dfile.encoding=UTF-8
+# Construire l'application avec Maven Wrapper
+RUN ./mvnw clean package -DskipTests -Dfile.encoding=UTF-8
 
 # Image finale légère
 FROM eclipse-temurin:17-jre-alpine
@@ -47,14 +47,14 @@ RUN chown gescom:gescom app.jar
 # Basculer vers l'utilisateur non-root
 USER gescom
 
-# Exposer le port (Render utilise PORT comme variable d'environnement)
+# Exposer le port
 EXPOSE ${PORT:-8080}
 
 # Variables d'environnement par défaut
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 ENV SPRING_PROFILES_ACTIVE=render
 
-# Health check (utilise PORT pour Render)
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/actuator/health || exit 1
 
