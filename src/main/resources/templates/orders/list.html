@@ -8,7 +8,7 @@
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
         'Gestion des Commandes', 
-        'Suivez et traitez les commandes clients de la création à la livraison', 
+        'Gérez vos commandes clients', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/orders/new}" class="btn btn-primary">
@@ -247,6 +247,7 @@
                                 <span th:case="'LIVREE'" class="bg-success">Livrée</span>
                                 <span th:case="'RETOURNEE'" class="bg-danger">Retournée</span>
                                 <span th:case="'ANNULEE'" class="bg-dark">Annulée</span>
+                                <span th:case="*" class="bg-light text-dark">Non défini</span>
                             </span>
                         </td>
                         <td>
@@ -359,6 +360,7 @@
                                 <span th:case="'LIVREE'" class="badge bg-success">Livrée</span>
                                 <span th:case="'RETOURNEE'" class="badge bg-danger">Retournée</span>
                                 <span th:case="'ANNULEE'" class="badge bg-dark">Annulée</span>
+                                <span th:case="*" class="badge bg-light text-dark">Non défini</span>
                             </span>
                         </p>
 
@@ -366,31 +368,31 @@
                             <label for="newStatus" class="form-label">Nouveau statut</label>
                             <select name="newStatus" class="form-select" id="newStatus" required>
                                 <option value="">Sélectionner un statut</option>
-                                <!-- Depuis DRAFT -->
-                                <option th:if="${order.status?.name() == 'DRAFT'}" value="PENDING">En attente</option>
-                                <option th:if="${order.status?.name() == 'DRAFT'}" value="CONFIRMED">Confirmée</option>
-                                <option th:if="${order.status?.name() == 'DRAFT'}" value="CANCELLED">Annulée</option>
+                                <!-- Depuis BROUILLON -->
+                                <option th:if="${order.status?.name() == 'BROUILLON'}" value="EN_ATTENTE">En attente</option>
+                                <option th:if="${order.status?.name() == 'BROUILLON'}" value="CONFIRMEE">Confirmée</option>
+                                <option th:if="${order.status?.name() == 'BROUILLON'}" value="ANNULEE">Annulée</option>
                                 
-                                <!-- Depuis PENDING -->
-                                <option th:if="${order.status?.name() == 'PENDING'}" value="CONFIRMED">Confirmée</option>
-                                <option th:if="${order.status?.name() == 'PENDING'}" value="CANCELLED">Annulée</option>
+                                <!-- Depuis EN_ATTENTE -->
+                                <option th:if="${order.status?.name() == 'EN_ATTENTE'}" value="CONFIRMEE">Confirmée</option>
+                                <option th:if="${order.status?.name() == 'EN_ATTENTE'}" value="ANNULEE">Annulée</option>
                                 
-                                <!-- Depuis CONFIRMED -->
-                                <option th:if="${order.status?.name() == 'CONFIRMED'}" value="PROCESSING">En traitement</option>
-                                <option th:if="${order.status?.name() == 'CONFIRMED'}" value="PENDING">En attente</option>
-                                <option th:if="${order.status?.name() == 'CONFIRMED'}" value="CANCELLED">Annulée</option>
+                                <!-- Depuis CONFIRMEE -->
+                                <option th:if="${order.status?.name() == 'CONFIRMEE'}" value="EN_COURS">En traitement</option>
+                                <option th:if="${order.status?.name() == 'CONFIRMEE'}" value="EN_ATTENTE">En attente</option>
+                                <option th:if="${order.status?.name() == 'CONFIRMEE'}" value="ANNULEE">Annulée</option>
                                 
-                                <!-- Depuis PROCESSING -->
-                                <option th:if="${order.status?.name() == 'PROCESSING'}" value="SHIPPED">Expédiée</option>
-                                <option th:if="${order.status?.name() == 'PROCESSING'}" value="PENDING">En attente</option>
-                                <option th:if="${order.status?.name() == 'PROCESSING'}" value="CANCELLED">Annulée</option>
+                                <!-- Depuis EN_COURS -->
+                                <option th:if="${order.status?.name() == 'EN_COURS'}" value="EXPEDIE">Expédiée</option>
+                                <option th:if="${order.status?.name() == 'EN_COURS'}" value="EN_ATTENTE">En attente</option>
+                                <option th:if="${order.status?.name() == 'EN_COURS'}" value="ANNULEE">Annulée</option>
                                 
-                                <!-- Depuis SHIPPED -->
-                                <option th:if="${order.status?.name() == 'SHIPPED'}" value="DELIVERED">Livrée</option>
-                                <option th:if="${order.status?.name() == 'SHIPPED'}" value="RETURNED">Retournée</option>
+                                <!-- Depuis EXPEDIE -->
+                                <option th:if="${order.status?.name() == 'EXPEDIE'}" value="LIVREE">Livrée</option>
+                                <option th:if="${order.status?.name() == 'EXPEDIE'}" value="RETOURNEE">Retournée</option>
                                 
-                                <!-- Depuis DELIVERED -->
-                                <option th:if="${order.status?.name() == 'DELIVERED'}" value="RETURNED">Retournée</option>
+                                <!-- Depuis LIVREE -->
+                                <option th:if="${order.status?.name() == 'LIVREE'}" value="RETOURNEE">Retournée</option>
                             </select>
                         </div>
                     </div>

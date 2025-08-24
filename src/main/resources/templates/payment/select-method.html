@@ -1,85 +1,349 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout/public :: layout(~{::title}, ~{::content}, ~{::js_assets})}">
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    
+    <!-- SEO et sécurité -->
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Sélection du mode de paiement - GESCOM">
+    <meta name="author" content="GESCOM">
+    
+    <!-- Sécurité CSP -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self'; 
+        script-src 'self' 'unsafe-inline' https://js.stripe.com https://cdnjs.cloudflare.com; 
+        style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
+        img-src 'self' data: https:; 
+        connect-src 'self' https://api.stripe.com;
+        frame-src https://js.stripe.com;
+        font-src 'self' https://cdnjs.cloudflare.com;
+    ">
+    
     <title>Paiement de Facture - Mode de Paiement</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --payment-primary: #007bff;
+            --payment-success: #28a745;
+            --payment-warning: #ffc107;
+            --payment-danger: #dc3545;
+            --payment-info: #17a2b8;
+            --payment-light: #f8f9fa;
+            --payment-dark: #343a40;
+        }
+        
+        body {
+            background: #f8f9fa;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .public-navbar {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .public-navbar .navbar-brand {
+            font-weight: 700;
+            color: var(--payment-primary) !important;
+            font-size: 1.5rem;
+        }
+        
+        .amount-display {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+        
+        .amount-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        
+        .payment-method-option {
+            margin-bottom: 0;
+        }
+        
+        .payment-method-option .form-check-input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .payment-method-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
+            text-align: center;
+            min-height: 140px;
+            justify-content: center;
+        }
+        
+        .payment-method-option.disabled .payment-method-card {
+            background: #f8f9fa;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .payment-method-card:hover:not(.payment-method-option.disabled .payment-method-card) {
+            border-color: #007bff;
+            box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .payment-method-option .form-check-input:checked + .form-check-label .payment-method-card {
+            border-color: #007bff;
+            background: rgba(0, 123, 255, 0.08);
+            box-shadow: 0 8px 25px rgba(0, 123, 255, 0.2);
+        }
+        
+        .payment-method-icon {
+            margin-bottom: 0.75rem;
+        }
+        
+        .payment-method-info {
+            margin-bottom: 0.5rem;
+        }
+        
+        .payment-method-info h6 {
+            margin-bottom: 0.25rem;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .payment-method-badge {
+            margin-top: auto;
+        }
+        
+        .required::after {
+            content: " *";
+            color: #dc3545;
+        }
+        
+        .card {
+            border: 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        
+        .card-header {
+            background: white;
+            border-bottom: 1px solid #f0f0f0;
+            padding: 1.5rem;
+        }
+        
+        .form-control-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .text-uppercase {
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
+        .public-footer {
+            background: rgba(52, 58, 64, 0.95);
+            color: white;
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+        
+        .security-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--payment-success);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-size: 0.75rem;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .amount-value {
+                font-size: 1.5rem;
+            }
+            
+            .payment-method-card {
+                min-height: 120px;
+                padding: 1rem 0.75rem;
+            }
+            
+            .payment-method-icon i {
+                font-size: 1.5rem !important;
+            }
+            
+            .security-badge {
+                bottom: 10px;
+                right: 10px;
+                padding: 0.25rem 0.75rem;
+                font-size: 0.7rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+            
+            .card-body {
+                padding: 1.5rem !important;
+            }
+        }
+    </style>
 </head>
-<body>
-<div th:fragment="content">
-    <!-- En-tête avec informations de la facture -->
-    <div class="payment-header">
+
+<body class="d-flex flex-column min-vh-100">
+    <!-- Navigation publique -->
+    <nav class="navbar navbar-expand-lg public-navbar sticky-top">
         <div class="container">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="payment-title">
-                        <i class="fas fa-credit-card text-warning me-2"></i>
-                        Mode de Paiement
-                    </h1>
-                    <p class="payment-subtitle">
-                        Choisissez votre mode de paiement préféré
-                    </p>
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                GESCOM
+                <small class="text-muted" style="font-size: 0.6em;">Paiement Sécurisé</small>
+            </a>
+            
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item d-flex align-items-center">
+                    <i class="fas fa-lock text-success me-2"></i>
+                    <span class="small text-success fw-bold">Connexion Sécurisée</span>
                 </div>
-                <div class="col-md-4 text-end">
-                    <div class="invoice-summary">
-                        <div class="invoice-number">Facture: <strong th:text="${invoice.invoiceNumber}">FACT-001</strong></div>
-                        <div class="invoice-amount">
-                            <span th:text="${#numbers.formatCurrency(remainingAmount)}">€100.00</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="flex-grow-1">
+    <div class="container-fluid py-4">
+        <div class="row g-4">
+            <!-- Colonne gauche : Résumé de facture -->
+            <div class="col-xl-4 col-lg-5">
+                <div class="sticky-top" style="top: 2rem;">
+                    <!-- En-tête avec montant -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i class="fas fa-file-invoice-dollar text-primary" style="font-size: 3rem;"></i>
+                            </div>
+                            <h2 class="h4 mb-2">Paiement de Facture</h2>
+                            <p class="text-muted mb-3">Facture <strong th:text="${invoice.invoiceNumber}">FACT-001</strong></p>
+                            <div class="amount-display">
+                                <div class="amount-value" th:text="${#numbers.formatCurrency(remainingAmount)}">€100.00</div>
+                                <small class="text-muted">Montant à payer</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Détails de la facture -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-transparent border-bottom-0">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2 text-info"></i>
+                                Détails de la facture
+                            </h6>
+                        </div>
+                        <div class="card-body pt-0">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Numéro:</span>
+                                        <strong th:text="${invoice.invoiceNumber}">FACT-001</strong>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Date:</span>
+                                        <span th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Échéance:</span>
+                                        <span th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}">31/01/2024</span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <hr class="my-2">
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Montant total:</span>
+                                        <span th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€100.00</span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Déjà payé:</span>
+                                        <span th:text="${#numbers.formatCurrency(invoice.paidAmount ?: 0)}">€0.00</span>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between">
+                                        <strong class="text-primary">Reste à payer:</strong>
+                                        <strong class="text-primary" th:text="${#numbers.formatCurrency(remainingAmount)}">€100.00</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section sécurité -->
+                    <div class="card border-success border-0 shadow-sm">
+                        <div class="card-body py-3">
+                            <div class="text-center">
+                                <i class="fas fa-shield-alt text-success fa-2x mb-2"></i>
+                                <h6 class="text-success mb-1">Paiement 100% Sécurisé</h6>
+                                <small class="text-muted d-block">
+                                    Chiffrement SSL et conformité PCI-DSS
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-lg-8">
-                <!-- Résumé de la facture -->
-                <div class="card invoice-summary-card mb-4">
-                    <div class="card-header">
-                        <h3 class="h5 mb-0">
-                            <i class="fas fa-file-invoice me-2"></i>
-                            Résumé de la facture
-                        </h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <dl class="row">
-                                    <dt class="col-sm-5">Numéro:</dt>
-                                    <dd class="col-sm-7" th:text="${invoice.invoiceNumber}">FACT-001</dd>
-                                    
-                                    <dt class="col-sm-5">Date:</dt>
-                                    <dd class="col-sm-7" th:text="${#temporals.format(invoice.invoiceDate, 'dd/MM/yyyy')}">01/01/2024</dd>
-                                    
-                                    <dt class="col-sm-5">Échéance:</dt>
-                                    <dd class="col-sm-7" th:text="${#temporals.format(invoice.dueDate, 'dd/MM/yyyy')}">31/01/2024</dd>
-                                </dl>
-                            </div>
-                            <div class="col-md-6">
-                                <dl class="row">
-                                    <dt class="col-sm-6">Montant total:</dt>
-                                    <dd class="col-sm-6" th:text="${#numbers.formatCurrency(invoice.totalAmount)}">€100.00</dd>
-                                    
-                                    <dt class="col-sm-6">Déjà payé:</dt>
-                                    <dd class="col-sm-6" th:text="${#numbers.formatCurrency(invoice.paidAmount ?: 0)}">€0.00</dd>
-                                    
-                                    <dt class="col-sm-6"><strong>Reste à payer:</strong></dt>
-                                    <dd class="col-sm-6"><strong class="text-primary" th:text="${#numbers.formatCurrency(remainingAmount)}">€100.00</strong></dd>
-                                </dl>
-                            </div>
+            
+            <!-- Colonne droite : Formulaire de paiement -->
+            <div class="col-xl-8 col-lg-7">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-credit-card text-primary me-2"></i>
+                            <h4 class="mb-0">Informations de paiement</h4>
                         </div>
                     </div>
-                </div>
+                    <div class="card-body p-4">
 
-                <!-- Formulaire de paiement -->
-                <div class="card payment-method-card">
-                    <div class="card-header">
-                        <h3 class="h5 mb-0">
-                            <i class="fas fa-lock me-2 text-success"></i>
-                            Informations de paiement
-                        </h3>
-                    </div>
-                    <div class="card-body">
                         <!-- Affichage des erreurs -->
                         <div th:if="${error}" class="alert alert-danger" role="alert">
                             <i class="fas fa-exclamation-triangle me-2"></i>
@@ -91,13 +355,18 @@
                             
                             <!-- Informations client -->
                             <div class="row mb-4">
+                                <div class="col-12">
+                                    <h6 class="text-uppercase text-muted mb-3">
+                                        <i class="fas fa-user me-2"></i>
+                                        Informations personnelles
+                                    </h6>
+                                </div>
                                 <div class="col-md-6">
                                     <label for="customerName" class="form-label required">
-                                        <i class="fas fa-user me-1"></i>
                                         Nom complet
                                     </label>
                                     <input type="text" 
-                                           class="form-control"
+                                           class="form-control form-control-lg"
                                            id="customerName"
                                            th:field="*{customerName}"
                                            placeholder="Votre nom complet"
@@ -108,11 +377,10 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label for="customerEmail" class="form-label required">
-                                        <i class="fas fa-envelope me-1"></i>
                                         Adresse email
                                     </label>
                                     <input type="email" 
-                                           class="form-control"
+                                           class="form-control form-control-lg"
                                            id="customerEmail"
                                            th:field="*{customerEmail}"
                                            placeholder="votre@email.com"
@@ -128,89 +396,220 @@
 
                             <!-- Montant du paiement -->
                             <div class="mb-4">
-                                <label for="amount" class="form-label">
-                                    <i class="fas fa-euro-sign me-1"></i>
-                                    Montant à payer
-                                </label>
-                                <div class="input-group">
-                                    <input type="number" 
-                                           class="form-control"
-                                           id="amount"
-                                           th:field="*{amount}"
-                                           th:value="${remainingAmount}"
-                                           min="0.01"
-                                           th:max="${remainingAmount}"
-                                           step="0.01"
-                                           readonly>
-                                    <span class="input-group-text">€</span>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h6 class="text-uppercase text-muted mb-3">
+                                            <i class="fas fa-euro-sign me-2"></i>
+                                            Montant
+                                        </h6>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="amount" class="form-label">
+                                            Montant à payer
+                                        </label>
+                                        <div class="input-group input-group-lg">
+                                            <input type="number" 
+                                                   class="form-control"
+                                                   id="amount"
+                                                   th:field="*{amount}"
+                                                   th:value="${remainingAmount}"
+                                                   min="0.01"
+                                                   th:max="${remainingAmount}"
+                                                   step="0.01"
+                                                   readonly>
+                                            <span class="input-group-text">€</span>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Paiement intégral du montant restant dû
+                                        </small>
+                                    </div>
                                 </div>
-                                <small class="form-text text-muted">
-                                    Paiement intégral du montant restant dû
-                                </small>
                             </div>
 
                             <!-- Sélection du mode de paiement -->
                             <div class="mb-4">
-                                <label class="form-label required">
-                                    <i class="fas fa-credit-card me-1"></i>
-                                    Mode de paiement
-                                </label>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h6 class="text-uppercase text-muted mb-3">
+                                            <i class="fas fa-credit-card me-2"></i>
+                                            Mode de paiement
+                                        </h6>
+                                    </div>
+                                </div>
                                 
-                                <div class="payment-methods">
-                                    <div class="form-check payment-method-option">
-                                        <input class="form-check-input" type="radio" name="paymentMethod" id="visa" value="VISA" th:field="*{paymentMethod}" required>
-                                        <label class="form-check-label" for="visa">
-                                            <div class="payment-method-card">
-                                                <div class="payment-method-icon">
-                                                    <i class="fab fa-cc-visa fa-2x text-primary"></i>
+                                <div class="row g-3">
+                                    <div class="col-xl-3 col-lg-6 col-md-6">
+                                        <div class="form-check payment-method-option">
+                                            <input class="form-check-input" type="radio" name="paymentMethod" id="cash" value="CASH" th:field="*{paymentMethod}" required>
+                                            <label class="form-check-label" for="cash">
+                                                <div class="payment-method-card h-100">
+                                                    <div class="payment-method-icon">
+                                                        <i class="fas fa-money-bill-wave fa-2x text-success"></i>
+                                                    </div>
+                                                    <div class="payment-method-info">
+                                                        <h6>Espèces</h6>
+                                                        <small class="text-muted">Paiement en liquide</small>
+                                                    </div>
+                                                    <div class="payment-method-badge">
+                                                        <span class="badge bg-info">Immédiat</span>
+                                                    </div>
                                                 </div>
-                                                <div class="payment-method-info">
-                                                    <h6>Carte Visa</h6>
-                                                    <small class="text-muted">Paiement sécurisé par Stripe</small>
-                                                </div>
-                                                <div class="payment-method-badge">
-                                                    <span class="badge bg-success">Recommandé</span>
-                                                </div>
-                                            </div>
-                                        </label>
+                                            </label>
+                                        </div>
                                     </div>
 
-                                    <div class="form-check payment-method-option">
-                                        <input class="form-check-input" type="radio" name="paymentMethod" id="mastercard" value="MASTERCARD" th:field="*{paymentMethod}" required>
-                                        <label class="form-check-label" for="mastercard">
-                                            <div class="payment-method-card">
-                                                <div class="payment-method-icon">
-                                                    <i class="fab fa-cc-mastercard fa-2x text-warning"></i>
+                                    <div class="col-xl-3 col-lg-6 col-md-6">
+                                        <div class="form-check payment-method-option">
+                                            <input class="form-check-input" type="radio" name="paymentMethod" id="visa" value="VISA" th:field="*{paymentMethod}" required>
+                                            <label class="form-check-label" for="visa">
+                                                <div class="payment-method-card h-100">
+                                                    <div class="payment-method-icon">
+                                                        <i class="fab fa-cc-visa fa-2x text-primary"></i>
+                                                    </div>
+                                                    <div class="payment-method-info">
+                                                        <h6>Carte Visa</h6>
+                                                        <small class="text-muted">Paiement sécurisé</small>
+                                                    </div>
+                                                    <div class="payment-method-badge">
+                                                        <span class="badge bg-success">Recommandé</span>
+                                                    </div>
                                                 </div>
-                                                <div class="payment-method-info">
-                                                    <h6>Carte MasterCard</h6>
-                                                    <small class="text-muted">Paiement sécurisé par Stripe</small>
-                                                </div>
-                                            </div>
-                                        </label>
+                                            </label>
+                                        </div>
                                     </div>
 
-                                    <div class="form-check payment-method-option disabled">
-                                        <input class="form-check-input" type="radio" name="paymentMethod" id="paypal" value="PAYPAL" disabled>
-                                        <label class="form-check-label" for="paypal">
-                                            <div class="payment-method-card">
-                                                <div class="payment-method-icon">
-                                                    <i class="fab fa-cc-paypal fa-2x text-info"></i>
+                                    <div class="col-xl-3 col-lg-6 col-md-6">
+                                        <div class="form-check payment-method-option">
+                                            <input class="form-check-input" type="radio" name="paymentMethod" id="mastercard" value="MASTERCARD" th:field="*{paymentMethod}" required>
+                                            <label class="form-check-label" for="mastercard">
+                                                <div class="payment-method-card h-100">
+                                                    <div class="payment-method-icon">
+                                                        <i class="fab fa-cc-mastercard fa-2x text-warning"></i>
+                                                    </div>
+                                                    <div class="payment-method-info">
+                                                        <h6>MasterCard</h6>
+                                                        <small class="text-muted">Paiement sécurisé</small>
+                                                    </div>
                                                 </div>
-                                                <div class="payment-method-info">
-                                                    <h6>PayPal</h6>
-                                                    <small class="text-muted">Bientôt disponible</small>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-xl-3 col-lg-6 col-md-6">
+                                        <div class="form-check payment-method-option disabled">
+                                            <input class="form-check-input" type="radio" name="paymentMethod" id="paypal" value="PAYPAL" disabled>
+                                            <label class="form-check-label" for="paypal">
+                                                <div class="payment-method-card h-100">
+                                                    <div class="payment-method-icon">
+                                                        <i class="fab fa-cc-paypal fa-2x text-info"></i>
+                                                    </div>
+                                                    <div class="payment-method-info">
+                                                        <h6>PayPal</h6>
+                                                        <small class="text-muted">Bientôt disponible</small>
+                                                    </div>
+                                                    <div class="payment-method-badge">
+                                                        <span class="badge bg-secondary">Prochainement</span>
+                                                    </div>
                                                 </div>
-                                                <div class="payment-method-badge">
-                                                    <span class="badge bg-secondary">Prochainement</span>
-                                                </div>
-                                            </div>
-                                        </label>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                                 
                                 <div th:if="${#fields.hasErrors('paymentMethod')}" class="invalid-feedback d-block">
                                     <span th:errors="*{paymentMethod}">Erreur</span>
+                                </div>
+                            </div>
+
+                            <!-- Formulaire des détails de carte bancaire (affiché conditionnellement) -->
+                            <div id="cardDetailsSection" class="mb-4" style="display: none;">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h6 class="text-uppercase text-muted mb-3">
+                                            <i class="fas fa-credit-card me-2"></i>
+                                            Informations de carte bancaire
+                                        </h6>
+                                    </div>
+                                </div>
+                                <div class="p-4" style="background: #f8f9fa; border-radius: 10px; border: 1px solid #dee2e6;">
+                                    <div class="row mb-3">
+                                        <div class="col-12">
+                                            <label for="cardNumber" class="form-label required">
+                                                Numéro de carte
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control form-control-lg"
+                                                   id="cardNumber"
+                                                   name="cardNumber"
+                                                   placeholder="1234 5678 9012 3456"
+                                                   maxlength="19"
+                                                   pattern="[0-9\s]*"
+                                                   autocomplete="cc-number">
+                                            <div class="invalid-feedback">
+                                                Veuillez saisir un numéro de carte valide
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label for="cardExpiry" class="form-label required">
+                                                Date d'expiration
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control form-control-lg"
+                                                   id="cardExpiry"
+                                                   name="cardExpiry"
+                                                   placeholder="MM/AA"
+                                                   maxlength="5"
+                                                   pattern="(0[1-9]|1[0-2])\/[0-9]{2}"
+                                                   autocomplete="cc-exp">
+                                            <div class="invalid-feedback">
+                                                Format: MM/AA
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="cardCvv" class="form-label required">
+                                                Code CVV
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control form-control-lg"
+                                                   id="cardCvv"
+                                                   name="cardCvv"
+                                                   placeholder="123"
+                                                   maxlength="4"
+                                                   pattern="[0-9]{3,4}"
+                                                   autocomplete="cc-csc">
+                                            <div class="invalid-feedback">
+                                                3 ou 4 chiffres au dos de votre carte
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-12">
+                                            <label for="cardHolderName" class="form-label required">
+                                                Nom du porteur
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control form-control-lg"
+                                                   id="cardHolderName"
+                                                   name="cardHolderName"
+                                                   placeholder="Nom tel qu'inscrit sur la carte"
+                                                   autocomplete="cc-name">
+                                            <div class="invalid-feedback">
+                                                Saisissez le nom tel qu'il apparaît sur votre carte
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="alert alert-info border-0">
+                                        <i class="fas fa-shield-alt me-2"></i>
+                                        <small>
+                                            Vos informations de carte sont chiffrées et traitées de manière sécurisée. 
+                                            Aucune donnée sensible n'est stockée sur nos serveurs.
+                                        </small>
+                                    </div>
                                 </div>
                             </div>
 
@@ -226,38 +625,21 @@
                             </div>
 
                             <!-- Boutons d'action -->
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-between">
-                                <a href="/payment" class="btn btn-outline-secondary">
-                                    <i class="fas fa-arrow-left me-2"></i>
-                                    Retour à la recherche
-                                </a>
-                                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                                    <i class="fas fa-lock me-2"></i>
-                                    Procéder au paiement sécurisé
-                                </button>
+                            <div class="row">
+                                <div class="col-md-6 mb-2">
+                                    <a href="/payment" class="btn btn-outline-secondary btn-lg w-100">
+                                        <i class="fas fa-arrow-left me-2"></i>
+                                        Retour à la recherche
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="submit" class="btn btn-primary btn-lg w-100" id="submitBtn">
+                                        <i class="fas fa-lock me-2"></i>
+                                        Procéder au paiement
+                                    </button>
+                                </div>
                             </div>
                         </form>
-                    </div>
-                </div>
-
-                <!-- Section sécurité -->
-                <div class="security-footer mt-4 text-center">
-                    <div class="card border-success">
-                        <div class="card-body py-3">
-                            <div class="row align-items-center">
-                                <div class="col-md-3">
-                                    <i class="fas fa-shield-alt text-success fa-2x"></i>
-                                </div>
-                                <div class="col-md-9 text-start">
-                                    <h6 class="text-success mb-1">Paiement 100% Sécurisé</h6>
-                                    <small class="text-muted">
-                                        Vos données bancaires sont chiffrées et traitées par Stripe, 
-                                        leader mondial du paiement en ligne. Aucune information sensible 
-                                        n'est stockée sur nos serveurs.
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -295,21 +677,107 @@
             </div>
         </div>
     </div>
-</div>
+    </main>
 
-<div th:fragment="js_assets">
+    <!-- Pied de page -->
+    <footer class="public-footer mt-auto">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6>GESCOM</h6>
+                    <p class="small text-muted">
+                        Plateforme de gestion commerciale avec paiement sécurisé en ligne.
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <h6>Sécurité</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="fas fa-check text-success me-1"></i> Chiffrement SSL/TLS</li>
+                        <li><i class="fas fa-check text-success me-1"></i> Conformité PCI-DSS</li>
+                        <li><i class="fas fa-check text-success me-1"></i> Protection des données</li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h6>Support</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="fas fa-phone me-1"></i> 01 23 45 67 89</li>
+                        <li><i class="fas fa-envelope me-1"></i> support@gescom.fr</li>
+                        <li><i class="fas fa-clock me-1"></i> Lun-Ven 9h-18h</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-3">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        © 2024 GESCOM. Tous droits réservés.
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted">
+                        <a href="#" class="text-muted text-decoration-none me-3">Mentions légales</a>
+                        <a href="#" class="text-muted text-decoration-none me-3">CGU</a>
+                        <a href="#" class="text-muted text-decoration-none">Confidentialité</a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Badge de sécurité -->
+    <div class="security-badge" title="Connexion sécurisée SSL">
+        <i class="fas fa-shield-alt me-1"></i>
+        Sécurisé
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('paymentForm');
             const submitBtn = document.getElementById('submitBtn');
+            const cardDetailsSection = document.getElementById('cardDetailsSection');
+            const paymentMethodInputs = document.querySelectorAll('input[name="paymentMethod"]');
+            
+            // Gestion du changement de mode de paiement
+            paymentMethodInputs.forEach(input => {
+                input.addEventListener('change', function() {
+                    if (this.value === 'VISA' || this.value === 'MASTERCARD') {
+                        cardDetailsSection.style.display = 'block';
+                        // Rendre les champs de carte obligatoires
+                        document.getElementById('cardNumber').required = true;
+                        document.getElementById('cardExpiry').required = true;
+                        document.getElementById('cardCvv').required = true;
+                        document.getElementById('cardHolderName').required = true;
+                    } else {
+                        cardDetailsSection.style.display = 'none';
+                        // Rendre les champs de carte optionnels
+                        document.getElementById('cardNumber').required = false;
+                        document.getElementById('cardExpiry').required = false;
+                        document.getElementById('cardCvv').required = false;
+                        document.getElementById('cardHolderName').required = false;
+                    }
+                });
+            });
             
             // Gestion de la soumission du formulaire
             form.addEventListener('submit', function(e) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Traitement en cours...';
+                const selectedPaymentMethod = document.querySelector('input[name="paymentMethod"]:checked');
                 
-                // Si besoin d'annuler la soumission pour validation supplémentaire
-                // e.preventDefault();
+                if (selectedPaymentMethod && (selectedPaymentMethod.value === 'VISA' || selectedPaymentMethod.value === 'MASTERCARD')) {
+                    // Validation des champs de carte
+                    if (!validateCardForm()) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+                
+                submitBtn.disabled = true;
+                if (selectedPaymentMethod && selectedPaymentMethod.value === 'CASH') {
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Validation du paiement espèces...';
+                } else {
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Traitement en cours...';
+                }
             });
             
             // Validation en temps réel
@@ -322,6 +790,34 @@
             
             nameInput.addEventListener('input', function() {
                 validateName(this);
+            });
+            
+            // Validation des champs de carte
+            const cardNumberInput = document.getElementById('cardNumber');
+            const cardExpiryInput = document.getElementById('cardExpiry');
+            const cardCvvInput = document.getElementById('cardCvv');
+            const cardHolderInput = document.getElementById('cardHolderName');
+            
+            // Formatage automatique du numéro de carte
+            cardNumberInput.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
+                validateCardNumber(this);
+            });
+            
+            // Formatage automatique de la date d'expiration
+            cardExpiryInput.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '').replace(/(\d{2})(?=\d)/, '$1/');
+                validateCardExpiry(this);
+            });
+            
+            // Validation CVV
+            cardCvvInput.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '');
+                validateCardCvv(this);
+            });
+            
+            cardHolderInput.addEventListener('input', function() {
+                validateCardHolder(this);
             });
             
             function validateEmail(input) {
@@ -342,129 +838,90 @@
                     if (input.value) input.classList.add('is-valid');
                 }
             }
+            
+            function validateCardNumber(input) {
+                const value = input.value.replace(/\s/g, '');
+                if (value && (value.length < 13 || value.length > 19 || !/^\d+$/.test(value))) {
+                    input.classList.add('is-invalid');
+                } else {
+                    input.classList.remove('is-invalid');
+                    if (value) input.classList.add('is-valid');
+                }
+            }
+            
+            function validateCardExpiry(input) {
+                const value = input.value;
+                const regex = /^(0[1-9]|1[0-2])\/\d{2}$/;
+                if (value && !regex.test(value)) {
+                    input.classList.add('is-invalid');
+                } else if (value && regex.test(value)) {
+                    // Vérifier que la date n'est pas dans le passé
+                    const [month, year] = value.split('/');
+                    const currentDate = new Date();
+                    const cardDate = new Date(2000 + parseInt(year), parseInt(month) - 1);
+                    if (cardDate < currentDate) {
+                        input.classList.add('is-invalid');
+                    } else {
+                        input.classList.remove('is-invalid');
+                        input.classList.add('is-valid');
+                    }
+                } else {
+                    input.classList.remove('is-invalid');
+                    if (value) input.classList.add('is-valid');
+                }
+            }
+            
+            function validateCardCvv(input) {
+                const value = input.value;
+                if (value && (value.length < 3 || value.length > 4 || !/^\d+$/.test(value))) {
+                    input.classList.add('is-invalid');
+                } else {
+                    input.classList.remove('is-invalid');
+                    if (value) input.classList.add('is-valid');
+                }
+            }
+            
+            function validateCardHolder(input) {
+                if (input.value && input.value.length < 2) {
+                    input.classList.add('is-invalid');
+                } else {
+                    input.classList.remove('is-invalid');
+                    if (input.value) input.classList.add('is-valid');
+                }
+            }
+            
+            function validateCardForm() {
+                const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+                const cardExpiry = document.getElementById('cardExpiry').value;
+                const cardCvv = document.getElementById('cardCvv').value;
+                const cardHolder = document.getElementById('cardHolderName').value;
+                
+                let isValid = true;
+                
+                if (!cardNumber || cardNumber.length < 13 || cardNumber.length > 19 || !/^\d+$/.test(cardNumber)) {
+                    document.getElementById('cardNumber').classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                const expiryRegex = /^(0[1-9]|1[0-2])\/\d{2}$/;
+                if (!cardExpiry || !expiryRegex.test(cardExpiry)) {
+                    document.getElementById('cardExpiry').classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                if (!cardCvv || cardCvv.length < 3 || cardCvv.length > 4 || !/^\d+$/.test(cardCvv)) {
+                    document.getElementById('cardCvv').classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                if (!cardHolder || cardHolder.length < 2) {
+                    document.getElementById('cardHolderName').classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                return isValid;
+            }
         });
     </script>
-    
-    <style>
-        .payment-header {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            padding: 2rem 0;
-        }
-        
-        .invoice-summary {
-            text-align: right;
-        }
-        
-        .invoice-number {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-        
-        .invoice-amount {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-top: 0.5rem;
-        }
-        
-        .payment-methods {
-            gap: 1rem;
-        }
-        
-        .payment-method-option {
-            margin-bottom: 1rem;
-        }
-        
-        .payment-method-option .form-check-input {
-            position: absolute;
-            opacity: 0;
-        }
-        
-        .payment-method-card {
-            display: flex;
-            align-items: center;
-            padding: 1rem;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            background: white;
-        }
-        
-        .payment-method-option.disabled .payment-method-card {
-            background: #f8f9fa;
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .payment-method-card:hover {
-            border-color: #007bff;
-            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15);
-        }
-        
-        .payment-method-option .form-check-input:checked + .form-check-label .payment-method-card {
-            border-color: #007bff;
-            background: rgba(0, 123, 255, 0.05);
-        }
-        
-        .payment-method-icon {
-            margin-right: 1rem;
-            width: 60px;
-            text-align: center;
-        }
-        
-        .payment-method-info {
-            flex: 1;
-        }
-        
-        .payment-method-info h6 {
-            margin-bottom: 0.25rem;
-            font-weight: 600;
-        }
-        
-        .payment-method-badge {
-            margin-left: 1rem;
-        }
-        
-        .required::after {
-            content: " *";
-            color: #dc3545;
-        }
-        
-        .invoice-summary-card {
-            border-left: 4px solid #007bff;
-        }
-        
-        .payment-method-card {
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .security-footer {
-            margin-top: 2rem;
-        }
-        
-        @media (max-width: 768px) {
-            .payment-header {
-                padding: 1.5rem 0;
-            }
-            
-            .payment-method-card {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .payment-method-icon {
-                margin-right: 0;
-                margin-bottom: 0.5rem;
-            }
-            
-            .payment-method-badge {
-                margin-left: 0;
-                margin-top: 0.5rem;
-            }
-        }
-    </style>
-</div>
 </body>
 </html>

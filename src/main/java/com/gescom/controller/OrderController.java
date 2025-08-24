@@ -411,7 +411,8 @@ public class OrderController {
     @Transactional(readOnly = true)
     public String viewOrder(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes) {
         try {
-            Optional<Order> orderOpt = orderRepository.findByIdWithOrderItems(id);
+            // Charger la commande de base
+            Optional<Order> orderOpt = orderRepository.findById(id);
             if (orderOpt.isEmpty()) {
                 redirectAttributes.addFlashAttribute("error", "Commande non trouvée");
                 return "redirect:/orders";
@@ -420,36 +421,36 @@ public class OrderController {
             Order order = orderOpt.get();
             
             System.out.println("🔍 Debug ViewOrder - Commande ID: " + order.getId());
-            System.out.println("🔍 Nombre d'OrderItems trouvés: " + order.getOrderItems().size());
+            System.out.println("🔍 Commande: " + order.getOrderNumber());
             
-            // Si aucun OrderItem n'est trouvé, vérifier en base
-            if (order.getOrderItems().isEmpty()) {
-                System.out.println("⚠️ Aucun OrderItem trouvé dans la relation, vérification directe en base...");
-                List<OrderItem> itemsFromRepo = orderItemsRepository.findByOrderId(id);
-                System.out.println("🔍 OrderItems trouvés directement en base: " + itemsFromRepo.size());
-                
-                if (!itemsFromRepo.isEmpty()) {
-                    // Réassigner les items trouvés à la commande
-                    order.getOrderItems().clear();
-                    order.getOrderItems().addAll(itemsFromRepo);
-                    itemsFromRepo.forEach(item -> item.setOrder(order));
-                    System.out.println("✅ OrderItems réassignés à la commande");
-                }
+            // TOUJOURS charger les OrderItems avec leurs produits directement depuis le repository
+            List<OrderItem> orderItems = orderItemsRepository.findByOrderIdWithProduct(id);
+            System.out.println("🔍 OrderItems trouvés en base: " + orderItems.size());
+            
+            // Réassigner les items à la commande
+            order.getOrderItems().clear();
+            if (!orderItems.isEmpty()) {
+                order.getOrderItems().addAll(orderItems);
+                orderItems.forEach(item -> item.setOrder(order));
+                System.out.println("✅ " + orderItems.size() + " OrderItems assignés à la commande");
             }
             
             // Afficher les détails de chaque article pour debug
             order.getOrderItems().forEach(item -> {
-                System.out.println("📦 Article: " + item.getProduct().getName() + 
+                System.out.println("📦 Article: " + (item.getProduct() != null ? item.getProduct().getName() : "PRODUIT NULL") + 
                                    ", Qté: " + item.getQuantity() +
                                     ", Prix unitaire: " + item.getUnitPrice() +
                                  ", Total HT: " + item.getTotalPriceHT());
             });
             
             // Recalculer les totaux si nécessaire
-            order.getOrderItems().forEach(OrderItem::calculateTotals);
-            order.calculateTotals();
+            if (!order.getOrderItems().isEmpty()) {
+                order.getOrderItems().forEach(OrderItem::calculateTotals);
+                order.calculateTotals();
+                System.out.println("💰 Total commande recalculé: " + order.getTotalAmount());
+            }
 
-            // Vérifier si on peut facturer - possible pour CONFIRMED, PROCESSING, SHIPPED, DELIVERED
+            // Vérifier si on peut facturer
             boolean canInvoice = (order.getStatus() == Order.OrderStatus.CONFIRMEE ||
                                   order.getStatus() == Order.OrderStatus.EN_COURS ||
                                   order.getStatus() == Order.OrderStatus.EXPEDIE ||
@@ -460,6 +461,8 @@ public class OrderController {
             model.addAttribute("order", order);
             model.addAttribute("orderItems", order.getOrderItems());
             model.addAttribute("canInvoice", canInvoice);
+            
+            System.out.println("✅ Modèle préparé avec " + order.getOrderItems().size() + " items");
             return "orders/detail";
             
         } catch (Exception e) {
@@ -481,14 +484,12 @@ public class OrderController {
 
             Order order = orderOpt.get();
 
-            // Charger les articles de la commande
-            if (order.getOrderItems().isEmpty()) {
-                List<OrderItem> itemsFromRepo = orderItemsRepository.findByOrderId(id);
-                if (!itemsFromRepo.isEmpty()) {
-                    order.getOrderItems().clear();
-                    order.getOrderItems().addAll(itemsFromRepo);
-                    itemsFromRepo.forEach(item -> item.setOrder(order));
-                }
+            // Toujours charger les articles directement depuis le repository avec leurs produits
+            List<OrderItem> itemsFromRepo = orderItemsRepository.findByOrderIdWithProduct(id);
+            order.getOrderItems().clear();
+            if (!itemsFromRepo.isEmpty()) {
+                order.getOrderItems().addAll(itemsFromRepo);
+                itemsFromRepo.forEach(item -> item.setOrder(order));
             }
 
             // Recalculer les totaux
@@ -1061,16 +1062,13 @@ public class OrderController {
             Order order = orderOpt.get();
             System.out.println("Commande trouvée: " + order.getOrderNumber());
             
-            // S'assurer que les OrderItems sont chargés
-            if (order.getOrderItems().isEmpty()) {
-                System.out.println("⚠️ OrderItems vides dans la relation, chargement direct...");
-                List<OrderItem> itemsFromRepo = orderItemsRepository.findByOrderId(order.getId());
-                if (!itemsFromRepo.isEmpty()) {
-                    order.getOrderItems().clear();
-                    order.getOrderItems().addAll(itemsFromRepo);
-                    itemsFromRepo.forEach(item -> item.setOrder(order));
-                    System.out.println("✅ " + itemsFromRepo.size() + " OrderItems rechargés");
-                }
+            // S'assurer que les OrderItems sont chargés avec leurs produits
+            List<OrderItem> itemsFromRepo = orderItemsRepository.findByOrderIdWithProduct(order.getId());
+            order.getOrderItems().clear();
+            if (!itemsFromRepo.isEmpty()) {
+                order.getOrderItems().addAll(itemsFromRepo);
+                itemsFromRepo.forEach(item -> item.setOrder(order));
+                System.out.println("✅ " + itemsFromRepo.size() + " OrderItems rechargés avec produits");
             }
             
             System.out.println("Commande avec " + order.getOrderItems().size() + " articles");

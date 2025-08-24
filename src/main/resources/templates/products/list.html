@@ -8,7 +8,7 @@
     <!-- Page Header -->
     <div th:replace="~{fragments/components :: page-header(
         'Gestion des Produits', 
-        'Administrez votre catalogue produits, gérez les stocks et surveillez les prix en temps réel', 
+        'Gérez votre catalogue de produits', 
         ~{::header-actions})}">
         <div th:fragment="header-actions">
             <a th:if="${canCreate}" th:href="@{/products/new}" class="btn btn-primary">

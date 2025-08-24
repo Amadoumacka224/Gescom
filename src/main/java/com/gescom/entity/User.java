@@ -44,6 +44,9 @@ public class User implements UserDetails {
     @NotBlank(message = "Le nom est obligatoire")
     private String lastName;
 
+    @Column
+    private String phoneNumber;
+
     @Column(nullable = false)
     private boolean enabled = true;
 
@@ -179,6 +182,14 @@ public class User implements UserDetails {
     public void setAccountNonLocked(boolean accountNonLocked) { this.accountNonLocked = accountNonLocked; }
 
     public void setCredentialsNonExpired(boolean credentialsNonExpired) { this.credentialsNonExpired = credentialsNonExpired; }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

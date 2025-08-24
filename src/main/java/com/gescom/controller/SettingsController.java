@@ -40,8 +40,9 @@ public class SettingsController {
      * la pagination, le tri, et deux modes d'affichage (groupé par catégorie ou liste simple).
      * Construit également les URLs de pagination et les statistiques pour l'affichage.
      */
+    
     @GetMapping
-    public String index(@RequestParam(value = "page", defaultValue = "0") int page,
+    public String indexOld(@RequestParam(value = "page", defaultValue = "0") int page,
                        @RequestParam(value = "size", defaultValue = "20") int size,
                        @RequestParam(value = "sort", defaultValue = "category") String sort,
                        @RequestParam(value = "direction", defaultValue = "asc") String direction,
@@ -578,5 +579,77 @@ public class SettingsController {
         }
         
         return params.isEmpty() ? "" : "?" + String.join("&", params);
+    }
+
+    // === NOUVELLES MÉTHODES POUR LES SECTIONS SPÉCIALISÉES ===
+
+    /**
+     * Configuration des informations de l'entreprise
+     */
+    @GetMapping("/company-info")
+    public String companyInfo(Model model) {
+        model.addAttribute("pageTitle", "Informations de l'entreprise");
+        model.addAttribute("activeSection", "company-info");
+        return "admin/settings/company-info";
+    }
+
+    /**
+     * Configuration des devises et fiscalité
+     */
+    @GetMapping("/currency-tax")
+    public String currencyTax(Model model) {
+        model.addAttribute("pageTitle", "Devises et Fiscalité");
+        model.addAttribute("activeSection", "currency-tax");
+        return "admin/settings/currency-tax";
+    }
+
+    /**
+     * Configuration des unités de mesure
+     */
+    @GetMapping("/units")
+    public String units(Model model) {
+        model.addAttribute("pageTitle", "Unités de mesure");
+        model.addAttribute("activeSection", "units");
+        return "admin/settings/units";
+    }
+
+    /**
+     * Configuration des catégories d'articles
+     */
+    @GetMapping("/categories")
+    public String categories(Model model) {
+        model.addAttribute("pageTitle", "Catégories d'articles");
+        model.addAttribute("activeSection", "categories");
+        return "admin/settings/categories";
+    }
+
+    /**
+     * Configuration des types de clients
+     */
+    @GetMapping("/client-types")
+    public String clientTypes(Model model) {
+        model.addAttribute("pageTitle", "Types de clients");
+        model.addAttribute("activeSection", "client-types");
+        return "admin/settings/client-types";
+    }
+
+    /**
+     * Configuration des modes de paiement
+     */
+    @GetMapping("/payment-methods")
+    public String paymentMethods(Model model) {
+        model.addAttribute("pageTitle", "Modes de paiement");
+        model.addAttribute("activeSection", "payment-methods");
+        return "admin/settings/payment-methods";
+    }
+
+    /**
+     * Configuration des comptes bancaires
+     */
+    @GetMapping("/bank-accounts")
+    public String bankAccounts(Model model) {
+        model.addAttribute("pageTitle", "Comptes bancaires");
+        model.addAttribute("activeSection", "bank-accounts");
+        return "admin/settings/bank-accounts";
     }
 }

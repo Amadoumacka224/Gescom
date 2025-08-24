@@ -3,156 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paiement de Facture - GESCOM</title>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
     
+    <!-- SEO et sécurité -->
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="Recherche et paiement de facture en ligne - GESCOM">
+    <meta name="author" content="GESCOM">
+    
+    <!-- Sécurité CSP -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self'; 
+        script-src 'self' 'unsafe-inline' https://js.stripe.com https://cdnjs.cloudflare.com; 
+        style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; 
+        img-src 'self' data: https:; 
+        connect-src 'self' https://api.stripe.com;
+        frame-src https://js.stripe.com;
+        font-src 'self' https://cdnjs.cloudflare.com;
+    ">
+    
+    <title>Recherche de Facture pour Paiement - GESCOM</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <!-- Bootstrap CSS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <style>
+        :root {
+            --payment-primary: #007bff;
+            --payment-success: #28a745;
+            --payment-warning: #ffc107;
+            --payment-danger: #dc3545;
+            --payment-info: #17a2b8;
+            --payment-light: #f8f9fa;
+            --payment-dark: #343a40;
+        }
+        
         body {
-            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            background: #f8f9fa;
             min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .simulation-card {
+        
+        .public-navbar {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .public-navbar .navbar-brand {
+            font-weight: 700;
+            color: var(--payment-primary) !important;
+            font-size: 1.5rem;
+        }
+        
+        .payment-search-header {
+            background: white;
+            color: #343a40;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        .simulation-header {
-            background: linear-gradient(135deg, #00b894 0%, #00a085 100%);
-            color: white;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            margin: 2rem 0;
             padding: 2rem;
-            border-radius: 15px 15px 0 0;
             text-align: center;
+            border: 1px solid rgba(0,0,0,0.05);
         }
-        .alert-simulation {
-            background-color: #fff3cd;
-            border: 2px dashed #856404;
-            border-radius: 10px;
-            padding: 1rem;
-            margin: 1rem 0;
+        
+        .search-card {
+            border: none;
+            border-radius: 20px;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .search-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.12);
+        }
+        
+        .quick-search-btn {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            padding: 14px 28px;
+            transition: all 0.3s ease;
+        }
+        
+        .quick-search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
+            color: white;
+        }
+        
+        .input-group-text {
+            background: #f8f9fa;
+            border-color: #e9ecef;
+        }
+        
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        
+        .btn-lg {
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .public-footer {
+            background: rgba(52, 58, 64, 0.95);
+            color: white;
+            padding: 1.5rem 0;
+            margin-top: 4rem;
+        }
+        
+        .security-badge {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--payment-success);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-size: 0.75rem;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .payment-search-header {
+                margin: 1rem 0;
+                padding: 2rem 1rem;
+            }
+            
+            .security-badge {
+                bottom: 10px;
+                right: 10px;
+                padding: 0.25rem 0.75rem;
+                font-size: 0.7rem;
+            }
         }
     </style>
 </head>
-<body>
-    <div class="container-fluid d-flex align-items-center justify-content-center min-vh-100 py-5">
-        <div class="row w-100 justify-content-center">
-            <div class="col-12 col-md-8 col-lg-6 col-xl-5">
-                
-                <!-- Alert de simulation -->
-                <div class="alert alert-simulation text-center mb-4">
-                    <h5 class="mb-2">
-                        <i class="fas fa-play-circle text-warning me-2"></i>
-                        MODE SIMULATION
-                    </h5>
-                    <p class="mb-0">
-                        <strong>Aucune transaction réelle ne sera effectuée.</strong><br>
-                        Ceci est uniquement une démonstration du processus de paiement.
+
+<body class="d-flex flex-column min-vh-100">
+    <!-- Navigation publique -->
+    <nav class="navbar navbar-expand-lg public-navbar sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                GESCOM
+                <small class="text-muted" style="font-size: 0.6em;">Paiement Sécurisé</small>
+            </a>
+            
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item d-flex align-items-center">
+                    <i class="fas fa-lock text-success me-2"></i>
+                    <span class="small text-success fw-bold">Connexion Sécurisée</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="flex-grow-1">
+        <div class="container py-4">
+            <!-- En-tête professionnel -->
+            <div class="payment-search-header">
+                <h1 class="display-5 fw-bold mb-3">
+                    <i class="fas fa-search me-3 text-primary"></i>
+                    Recherche de Facture
+                </h1>
+                <p class="lead mb-0 text-muted">Saisissez le numéro de votre facture pour procéder au paiement</p>
+            </div>
+
+            <!-- Messages d'alerte -->
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <span th:text="${error}">Message d'erreur</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="fas fa-check-circle me-2"></i>
+                <span th:text="${success}">Message de succès</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Formulaire de recherche centré -->
+            <div class="row justify-content-center mb-5">
+                <div class="col-lg-5 col-md-7 col-sm-9">
+                    <div class="card search-card">
+                        <div class="card-body p-4">
+                            <div class="text-center mb-3">
+                                <i class="fas fa-file-invoice fa-2x text-primary mb-2"></i>
+                                <h5 class="fw-bold">Recherche de Facture</h5>
+                                <p class="text-muted small">Entrez le numéro de facture à payer</p>
+                            </div>
+                            
+                            <!-- Formulaire de recherche -->
+                            <form method="post" th:action="@{/payment/search}" id="quickSearchForm">
+                                <div class="mb-3">
+                                    <label for="invoiceNumber" class="form-label fw-bold">
+                                        <i class="fas fa-hashtag me-2"></i>
+                                        Numéro de facture
+                                    </label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="fas fa-search text-primary"></i>
+                                        </span>
+                                        <input type="text" 
+                                               class="form-control border-start-0 ps-0" 
+                                               id="invoiceNumber" 
+                                               name="invoiceNumber" 
+                                               placeholder="Ex: FAC-2024-001, F001, 2024-001..."
+                                               autocomplete="off"
+                                               style="box-shadow: none; border-left: 0;">
+                                    </div>
+                                    <div class="form-text mt-2">
+                                        <i class="fas fa-info-circle text-info me-1"></i>
+                                        Saisissez le numéro complet de votre facture
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid">
+                                    <button type="submit" class="quick-search-btn py-2">
+                                        <i class="fas fa-search me-2"></i>
+                                        Rechercher ma facture
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Pied de page -->
+    <footer class="public-footer mt-auto">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h6>GESCOM</h6>
+                    <p class="small text-muted">
+                        Plateforme de gestion commerciale avec paiement sécurisé en ligne.
                     </p>
                 </div>
-
-                <!-- Carte principale -->
-                <div class="card simulation-card">
-                    <!-- Header -->
-                    <div class="simulation-header">
-                        <h1 class="mb-3">
-                            <i class="fas fa-credit-card me-2"></i>
-                            Simulation de Paiement
-                        </h1>
-                        <p class="mb-0">Testez le processus de paiement en toute sécurité</p>
-                    </div>
-
-                    <!-- Corps de la carte -->
-                    <div class="card-body p-4">
-                        
-                        <!-- Messages d'erreur/succès -->
-                        <div th:if="${error}" class="alert alert-danger" role="alert">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <span th:text="${error}">Message d'erreur</span>
-                        </div>
-                        
-                        <div th:if="${success}" class="alert alert-success" role="alert">
-                            <i class="fas fa-check-circle me-2"></i>
-                            <span th:text="${success}">Message de succès</span>
-                        </div>
-
-                        <!-- Formulaire de recherche -->
-                        <form method="post" th:action="@{/payment/search}">
-                            <div class="mb-4">
-                                <label for="invoiceNumber" class="form-label fw-bold">
-                                    <i class="fas fa-search me-2 text-primary"></i>
-                                    Numéro de facture
-                                </label>
-                                <input type="text" 
-                                       class="form-control form-control-lg" 
-                                       id="invoiceNumber" 
-                                       name="invoiceNumber" 
-                                       placeholder="Ex: FAC-2024-001" 
-                                       required>
-                                <div class="form-text">
-                                    Saisissez le numéro de facture que vous souhaitez simuler
-                                </div>
-                            </div>
-
-                            <div class="d-grid gap-2">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-search me-2"></i>
-                                    Rechercher et Simuler
-                                </button>
-                            </div>
-                        </form>
-
-                        <!-- Liens d'aide -->
-                        <div class="text-center mt-4">
-                            <hr>
-                            <h6 class="text-muted mb-3">
-                                <i class="fas fa-question-circle me-2"></i>
-                                Besoin d'aide ?
-                            </h6>
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <a href="/payment/invoices" 
-                                       class="btn btn-outline-secondary btn-sm w-100">
-                                        <i class="fas fa-list me-1"></i>
-                                        Voir les factures
-                                    </a>
-                                </div>
-                                <div class="col-6">
-                                    <a href="/login" 
-                                       class="btn btn-outline-secondary btn-sm w-100">
-                                        <i class="fas fa-cog me-1"></i>
-                                        Admin
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div class="col-md-4">
+                    <h6>Sécurité</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="fas fa-check text-success me-1"></i> Chiffrement SSL/TLS</li>
+                        <li><i class="fas fa-check text-success me-1"></i> Conformité PCI-DSS</li>
+                        <li><i class="fas fa-check text-success me-1"></i> Protection des données</li>
+                    </ul>
                 </div>
-
-                <!-- Footer -->
-                <div class="text-center mt-4">
-                    <small class="text-white-50">
-                        <i class="fas fa-shield-alt me-1"></i>
-                        GESCOM - Simulation de Paiement Sécurisée
+                <div class="col-md-4">
+                    <h6>Support</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="fas fa-phone me-1"></i> 01 23 45 67 89</li>
+                        <li><i class="fas fa-envelope me-1"></i> support@gescom.fr</li>
+                        <li><i class="fas fa-clock me-1"></i> Lun-Ven 9h-18h</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-3">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <small class="text-muted">
+                        © 2024 GESCOM. Tous droits réservés.
+                    </small>
+                </div>
+                <div class="col-md-6 text-end">
+                    <small class="text-muted">
+                        <a href="#" class="text-muted text-decoration-none me-3">Mentions légales</a>
+                        <a href="#" class="text-muted text-decoration-none me-3">CGU</a>
+                        <a href="#" class="text-muted text-decoration-none">Confidentialité</a>
                     </small>
                 </div>
             </div>
         </div>
+    </footer>
+
+    <!-- Badge de sécurité -->
+    <div class="security-badge" title="Connexion sécurisée SSL">
+        <i class="fas fa-shield-alt me-1"></i>
+        Sécurisé
     </div>
 
+    <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
     <script>
+        // Protection contre les attaques de type clickjacking
+        if (top !== self) {
+            top.location = self.location;
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
-            const input = document.getElementById('invoiceNumber');
-            if (input) {
-                input.focus();
-                
-                // Formater le numéro de facture
-                input.addEventListener('input', function(e) {
-                    let value = e.target.value.toUpperCase();
-                    value = value.replace(/[^A-Z0-9\-_]/g, '');
-                    e.target.value = value;
-                });
+            // Vérification de la connexion sécurisée
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                console.warn('Connexion non sécurisée détectée');
             }
+            
+            // Animation d'entrée pour les cartes
+            const cards = document.querySelectorAll('.search-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+            
+            // Focus automatique sur le champ de recherche
+            const invoiceInput = document.getElementById('invoiceNumber');
+            if (invoiceInput) {
+                invoiceInput.focus();
+            }
+        });
+        
+        // Gestion des erreurs JavaScript
+        window.addEventListener('error', function(e) {
+            console.error('Erreur JavaScript:', e.error);
         });
     </script>
 </body>

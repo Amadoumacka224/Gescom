@@ -38,6 +38,31 @@ public class Order {
     @Column(name = "expected_delivery_date")
     private LocalDateTime expectedDeliveryDate;
 
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    @Column(name = "shipped_at")
+    private LocalDateTime shippedAt;
+
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
+    @Column(name = "tracking_number")
+    private String trackingNumber;
+
+    @Column(name = "carrier")
+    private String carrier;
+
+    @Column(name = "delivery_signature")
+    private String deliverySignature;
+
+    @Column(name = "margin_percentage", precision = 5, scale = 2)
+    private BigDecimal marginPercentage;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority")
+    private Priority priority = Priority.NORMALE;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status;
@@ -153,6 +178,22 @@ public class Order {
         private final String displayName;
 
         PaymentStatus(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum Priority {
+        NORMALE("Normale"),
+        MOYENNE("Moyenne"),
+        HAUTE("Haute");
+
+        private final String displayName;
+
+        Priority(String displayName) {
             this.displayName = displayName;
         }
 

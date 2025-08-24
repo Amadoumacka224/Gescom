@@ -121,6 +121,7 @@ public class ExternalPayment {
 
     // Enums
     public enum PaymentMethod {
+        CASH("Espèces"),
         VISA("Visa"),
         MASTERCARD("MasterCard"),
         PAYPAL("PayPal"),
