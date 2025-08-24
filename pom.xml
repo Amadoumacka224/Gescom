@@ -26,9 +26,6 @@
         <url/>
     </scm>
     <properties>
-
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
         <java.version>17</java.version>
     </properties>
     <dependencies>
@@ -82,6 +79,12 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+        <!-- Actuator pour monitoring et health checks -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Redis pour le cache et la gestion des sessions -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -132,8 +135,6 @@
             <artifactId>font-awesome</artifactId>
             <version>6.4.0</version>
         </dependency>
-
-
 
         <!-- PDF Generation -->
         <dependency>
