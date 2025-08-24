@@ -161,7 +161,7 @@
                             </div>
                             <div class="fw-semibold">
                                 <a th:href="'tel:' + ${client.phoneNumber}" th:text="${client.phoneNumber}" class="text-decoration-none">
-                                    +33 1 23 45 67 89
+                                    +32 467 61 34 61
                                 </a>
                             </div>
                         </div>
@@ -231,7 +231,7 @@
                                 <label class="fw-bold text-muted">Téléphone</label>
                                 <p class="mb-0">
                                     <a th:href="'tel:' + ${client.phoneNumber}" th:text="${client.phoneNumber}" class="text-decoration-none">
-                                        +33 1 23 45 67 89
+                                        +32 467 61 34 61
                                     </a>
                                     <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard(this.previousElementSibling.textContent)" title="Copier">
                                         <i class="fas fa-copy"></i>
@@ -242,7 +242,7 @@
                                 <label class="fw-bold text-muted">Mobile</label>
                                 <p class="mb-0">
                                     <a th:href="'tel:' + ${client.mobileNumber}" th:text="${client.mobileNumber}" class="text-decoration-none">
-                                        +33 6 12 34 56 78
+                                        +32 467 61 34 61
                                     </a>
                                 </p>
                             </div>
@@ -267,7 +267,7 @@
                             </div>
                             <div class="col-md-6 mb-3" th:if="${client.vatNumber != null}">
                                 <label class="fw-bold text-muted">Numéro TVA</label>
-                                <p class="mb-0 font-monospace" th:text="${client.vatNumber}">FR12345678901</p>
+                                <p class="mb-0 font-monospace" th:text="${client.vatNumber}">BE12345678901</p>
                             </div>
                         </div>
                     </div>
@@ -295,19 +295,19 @@
                         <div class="row">
                             <div class="col-md-8 mb-3" th:if="${client.address != null}">
                                 <label class="fw-bold text-muted">Rue</label>
-                                <p class="mb-0" th:text="${client.address}">123 Rue de la Paix</p>
+                                <p class="mb-0" th:text="${client.address}">Rue du Béguinage 123</p>
                             </div>
                             <div class="col-md-4 mb-3" th:if="${client.postalCode != null}">
                                 <label class="fw-bold text-muted">Code postal</label>
-                                <p class="mb-0" th:text="${client.postalCode}">75001</p>
+                                <p class="mb-0" th:text="${client.postalCode}">1000</p>
                             </div>
                             <div class="col-md-6 mb-3" th:if="${client.city != null}">
                                 <label class="fw-bold text-muted">Ville</label>
-                                <p class="mb-0" th:text="${client.city}">Paris</p>
+                                <p class="mb-0" th:text="${client.city}">Bruxelles</p>
                             </div>
                             <div class="col-md-6 mb-3" th:if="${client.country != null}">
                                 <label class="fw-bold text-muted">Pays</label>
-                                <p class="mb-0" th:text="${client.country}">France</p>
+                                <p class="mb-0" th:text="${client.country}">Belgique</p>
                             </div>
                         </div>
                     </div>
