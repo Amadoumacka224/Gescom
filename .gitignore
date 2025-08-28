@@ -4,11 +4,15 @@
 .env
 .env.local
 .env.production
-application-prod.properties
 application-secret.properties
+application-local.properties
+*-secrets.properties
 *.key
 *.p12
 *.jks
+
+# Fichiers de configuration avec credentials
+**/application-prod-old.properties
 
 # ===============================
 # SPRING BOOT
