@@ -6,7 +6,7 @@ spring:
     username: postgres1
     password: MDhVFIOzleBj2n7eQkFVOm7m8HeBVKnz
     driver-class-name: org.postgresql.Driver
-    
+
     # Configuration du pool de connexions HikariCP
     hikari:
       maximum-pool-size: 10
@@ -29,12 +29,12 @@ spring:
           batch_size: 20
         order_inserts: true
         order_updates: true
-        
+
   # Configuration des sessions
   session:
     store-type: jdbc
     timeout: 30m
-    
+
   # Configuration du cache
   cache:
     type: simple
@@ -94,7 +94,7 @@ app:
     max-file-size: 50MB
     max-request-size: 50MB
     path: /app/uploads
-  
+
   # Configuration des emails (à adapter selon vos besoins)
   email:
     enabled: true
@@ -102,10 +102,10 @@ app:
     port: ${SMTP_PORT:587}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
-    
+
   # Configuration des PDF
   pdf:
     enabled: true
-    
+
   # Configuration de l'environnement
   environment: docker
