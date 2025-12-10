@@ -5,6 +5,7 @@ Application de gestion commerciale développée avec Spring Boot.
 ## Technologies
 
 - **Spring Boot 3.2.0**
+- React 9.2.0
 - **Java 17**
 - **PostgreSQL**
 - **Spring Security + JWT**
@@ -44,7 +45,7 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-L'API sera accessible sur `http://localhost:8080`
+L'API sera accessible sur `http://localhost:5173/`
 
 ## Endpoints API
 
