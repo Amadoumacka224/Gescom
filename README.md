@@ -118,5 +118,6 @@ Authorization: Bearer <votre_token_jwt>
 L'application supporte :
 - Français (fr)
 - Anglais (en)
+- Néerlandais(nl)
 
 Les fichiers de messages se trouvent dans `src/main/resources/i18n/`
