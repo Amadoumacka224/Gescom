@@ -1,31 +1,10 @@
-# ===============================
-# SÉCURITÉ - FICHIERS À NE JAMAIS COMMITER
-# ===============================
-.env
-.env.local
-.env.production
-application-secret.properties
-application-local.properties
-*-secrets.properties
-*.key
-*.p12
-*.jks
-
-# Fichiers de configuration avec credentials
-**/application-prod-old.properties
-
-# ===============================
-# SPRING BOOT
-# ===============================
 HELP.md
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-# ===============================
-# STS (Spring Tool Suite)
-# ===============================
+### STS ###
 .apt_generated
 .classpath
 .factorypath
@@ -34,17 +13,13 @@ target/
 .springBeans
 .sts4-cache
 
-# ===============================
-# INTELLIJ IDEA
-# ===============================
+### IntelliJ IDEA ###
 .idea
 *.iws
 *.iml
 *.ipr
 
-# ===============================
-# NETBEANS
-# ===============================
+### NetBeans ###
 /nbproject/private/
 /nbbuild/
 /dist/
@@ -54,24 +29,13 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-# ===============================
-# VS CODE
-# ===============================
+### VS Code ###
 .vscode/
 
-# ===============================
-# SYSTÈME
-# ===============================
-.DS_Store
-Thumbs.db
+### Maven ###
+.mvn/
+mvnw
+mvnw.cmd
 
-# ===============================
-# LOGS
-# ===============================
-*.log
-logs/
-
-# ===============================
-# UPLOADS
-# ===============================
-uploads/
+### Application ###
+application-local.properties
