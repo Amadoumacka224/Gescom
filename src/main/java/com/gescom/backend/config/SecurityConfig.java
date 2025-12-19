@@ -25,25 +25,45 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Configuration de la sécurité de l'application.
+ * - Active Spring Security et les annotations de sécurité sur les méthodes.
+ * - Définit les beans nécessaires pour l'authentification JWT, CORS et l'encodage des mots de passe.
+ */
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+    // Service qui charge les détails de l'utilisateur (username, password, roles).
 
     @Autowired
     private CustomUserDetailsService userDetailsService;
 
+    // Point d'entrée pour gérer les erreurs d'authentification (ex: token invalide).
     @Autowired
     private JwtAuthenticationEntryPoint unauthorizedHandler;
 
+    // Origines autorisées pour les requêtes CORS, définies dans application.properties.
     @Value("${cors.allowed-origins}")
     private String allowedOrigins;
 
+    /**
+     * Bean pour le filtre d'authentification JWT.
+     * Intercepte les requêtes pour extraire et valider le token JWT.
+     */
+
     @Bean
     public JwtAuthenticationFilter authenticationJwtTokenFilter() {
+
         return new JwtAuthenticationFilter();
     }
 
+    /**
+     * Configure le provider d'authentification DAO.
+     * Utilise le CustomUserDetailsService pour charger les utilisateurs
+     * et le PasswordEncoder pour vérifier les mots de passe.
+     */
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -52,15 +72,35 @@ public class SecurityConfig {
         return authProvider;
     }
 
+    /**
+     * Expose l'AuthenticationManager afin de pouvoir l'injecter ailleurs (ex: contrôleur d'authentification).
+     * Récupéré depuis la configuration d'authentification fournie par Spring.
+     */
+
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
     }
 
+
+
+    /**
+     * Bean pour l'encodage des mots de passe.
+     * BCrypt est utilisé ici — algorithme sécurisé recommandé pour les mots de passe.
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
+
+    /**
+     * Configuration principale de la sécurité HTTP.
+     * - Désactive CSRF (non nécessaire pour les API REST stateless).
+     * - Gère les exceptions d'authentification avec un point d'entrée personnalisé.
+     * - Définit la politique de session sur STATELESS (pas de sessions côté serveur).
+     * - Configure les règles d'autorisation des requêtes.
+     * - Active CORS avec une configuration personnalisée.
+     */
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -73,12 +113,20 @@ public class SecurityConfig {
                     .anyRequest().authenticated()
             )
             .cors(cors -> cors.configurationSource(corsConfigurationSource()));
-
+        // Enregistre le provider DAO (UserDetailsService + PasswordEncoder)
         http.authenticationProvider(authenticationProvider());
+        // Ajoute le filtre JWT avant le filtre d'authentification standard
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
+    /**
+     * Configuration CORS centralisée.
+     * - Lit les origines autorisées depuis la propriété `cors.allowed-origins` (séparées par des virgules).
+     * - Autorise les méthodes HTTP courantes et tous les headers.
+     * - Autorise l'utilisation des credentials (cookies / autorisation) si nécessaire.
+     */
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -89,6 +137,7 @@ public class SecurityConfig {
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Applique la configuration CORS à toutes les routes
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
