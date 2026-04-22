@@ -1,18 +1,26 @@
 package com.gescom.backend.controller;
 
-import com.gescom.backend.entity.Product;
+import com.gescom.backend.dto.product.ProductResponse;
+import com.gescom.backend.dto.stock.StockAddRequest;
+import com.gescom.backend.dto.stock.StockAdjustRequest;
+import com.gescom.backend.dto.stock.StockDamageRequest;
+import com.gescom.backend.dto.stock.StockMovementResponse;
+import com.gescom.backend.dto.stock.StockRemoveRequest;
 import com.gescom.backend.entity.StockMovement;
-import com.gescom.backend.service.StockService;
+import com.gescom.backend.entity.User;
 import com.gescom.backend.service.CsvExportService;
+import com.gescom.backend.service.StockService;
+import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -31,100 +39,88 @@ public class StockController {
         this.csvExportService = csvExportService;
     }
 
+    private Long currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof User user) {
+            return user.getId();
+        }
+        return null;
+    }
+
     @GetMapping("/movements")
-    public ResponseEntity<List<StockMovement>> getAllMovements() {
-        return ResponseEntity.ok(stockService.getAllMovements());
+    public ResponseEntity<List<StockMovementResponse>> getAllMovements() {
+        return ResponseEntity.ok(stockService.getAllMovements().stream()
+                .map(StockMovementResponse::from).toList());
     }
 
     @GetMapping("/movements/{id}")
-    public ResponseEntity<StockMovement> getMovementById(@PathVariable Long id) {
+    public ResponseEntity<StockMovementResponse> getMovementById(@PathVariable Long id) {
         return stockService.getMovementById(id)
+                .map(StockMovementResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/movements/product/{productId}")
-    public ResponseEntity<List<StockMovement>> getMovementsByProduct(@PathVariable Long productId) {
-        return ResponseEntity.ok(stockService.getMovementsByProduct(productId));
+    public ResponseEntity<List<StockMovementResponse>> getMovementsByProduct(@PathVariable Long productId) {
+        return ResponseEntity.ok(stockService.getMovementsByProduct(productId).stream()
+                .map(StockMovementResponse::from).toList());
     }
 
     @GetMapping("/movements/type/{type}")
-    public ResponseEntity<List<StockMovement>> getMovementsByType(@PathVariable StockMovement.MovementType type) {
-        return ResponseEntity.ok(stockService.getMovementsByType(type));
+    public ResponseEntity<List<StockMovementResponse>> getMovementsByType(@PathVariable StockMovement.MovementType type) {
+        return ResponseEntity.ok(stockService.getMovementsByType(type).stream()
+                .map(StockMovementResponse::from).toList());
     }
 
     @GetMapping("/movements/date-range")
-    public ResponseEntity<List<StockMovement>> getMovementsByDateRange(
+    public ResponseEntity<List<StockMovementResponse>> getMovementsByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return ResponseEntity.ok(stockService.getMovementsByDateRange(start, end));
+        return ResponseEntity.ok(stockService.getMovementsByDateRange(start, end).stream()
+                .map(StockMovementResponse::from).toList());
     }
 
     @PostMapping("/add")
-    public ResponseEntity<StockMovement> addStock(@RequestBody Map<String, Object> request) {
-        Long productId = Long.valueOf(request.get("productId").toString());
-        Integer quantity = Integer.valueOf(request.get("quantity").toString());
-        BigDecimal unitCost = request.containsKey("unitCost") && request.get("unitCost") != null
-                ? new BigDecimal(request.get("unitCost").toString())
-                : null;
-        String reason = request.containsKey("reason") ? request.get("reason").toString() : null;
-        String reference = request.containsKey("reference") ? request.get("reference").toString() : null;
-        Long userId = request.containsKey("userId") && request.get("userId") != null
-                ? Long.valueOf(request.get("userId").toString())
-                : null;
-
-        StockMovement movement = stockService.addStock(productId, quantity, unitCost, reason, reference, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(movement);
+    public ResponseEntity<StockMovementResponse> addStock(@Valid @RequestBody StockAddRequest request) {
+        StockMovement movement = stockService.addStock(
+                request.productId(), request.quantity(), request.unitCost(),
+                request.reason(), request.reference(), currentUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
     }
 
     @PostMapping("/remove")
-    public ResponseEntity<StockMovement> removeStock(@RequestBody Map<String, Object> request) {
-        Long productId = Long.valueOf(request.get("productId").toString());
-        Integer quantity = Integer.valueOf(request.get("quantity").toString());
-        String reason = request.containsKey("reason") ? request.get("reason").toString() : null;
-        String reference = request.containsKey("reference") ? request.get("reference").toString() : null;
-        Long userId = request.containsKey("userId") && request.get("userId") != null
-                ? Long.valueOf(request.get("userId").toString())
-                : null;
-
-        StockMovement movement = stockService.removeStock(productId, quantity, reason, reference, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(movement);
+    public ResponseEntity<StockMovementResponse> removeStock(@Valid @RequestBody StockRemoveRequest request) {
+        StockMovement movement = stockService.removeStock(
+                request.productId(), request.quantity(),
+                request.reason(), request.reference(), currentUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
     }
 
     @PostMapping("/adjust")
-    public ResponseEntity<StockMovement> adjustStock(@RequestBody Map<String, Object> request) {
-        Long productId = Long.valueOf(request.get("productId").toString());
-        Integer newQuantity = Integer.valueOf(request.get("newQuantity").toString());
-        String reason = request.containsKey("reason") ? request.get("reason").toString() : null;
-        Long userId = request.containsKey("userId") && request.get("userId") != null
-                ? Long.valueOf(request.get("userId").toString())
-                : null;
-
-        StockMovement movement = stockService.adjustStock(productId, newQuantity, reason, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(movement);
+    public ResponseEntity<StockMovementResponse> adjustStock(@Valid @RequestBody StockAdjustRequest request) {
+        StockMovement movement = stockService.adjustStock(
+                request.productId(), request.newQuantity(), request.reason(), currentUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
     }
 
     @PostMapping("/damage")
-    public ResponseEntity<StockMovement> recordDamage(@RequestBody Map<String, Object> request) {
-        Long productId = Long.valueOf(request.get("productId").toString());
-        Integer quantity = Integer.valueOf(request.get("quantity").toString());
-        String reason = request.containsKey("reason") ? request.get("reason").toString() : null;
-        Long userId = request.containsKey("userId") && request.get("userId") != null
-                ? Long.valueOf(request.get("userId").toString())
-                : null;
-
-        StockMovement movement = stockService.recordDamage(productId, quantity, reason, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(movement);
+    public ResponseEntity<StockMovementResponse> recordDamage(@Valid @RequestBody StockDamageRequest request) {
+        StockMovement movement = stockService.recordDamage(
+                request.productId(), request.quantity(), request.reason(), currentUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
     }
 
     @GetMapping("/low-stock")
-    public ResponseEntity<List<Product>> getLowStockProducts() {
-        return ResponseEntity.ok(stockService.getLowStockProducts());
+    public ResponseEntity<List<ProductResponse>> getLowStockProducts() {
+        return ResponseEntity.ok(stockService.getLowStockProducts().stream()
+                .map(ProductResponse::from).toList());
     }
 
     @GetMapping("/out-of-stock")
-    public ResponseEntity<List<Product>> getOutOfStockProducts() {
-        return ResponseEntity.ok(stockService.getOutOfStockProducts());
+    public ResponseEntity<List<ProductResponse>> getOutOfStockProducts() {
+        return ResponseEntity.ok(stockService.getOutOfStockProducts().stream()
+                .map(ProductResponse::from).toList());
     }
 
     @GetMapping("/statistics")
