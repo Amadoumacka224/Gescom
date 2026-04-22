@@ -45,9 +45,6 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private String password;
 
-    @Transient
-    private String rawPassword;
-
     @NotBlank(message = "Le prénom est obligatoire")
     @Size(max = 100)
     @Column(nullable = false, length = 100)

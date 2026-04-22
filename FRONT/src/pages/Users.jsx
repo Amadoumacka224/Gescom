@@ -84,31 +84,18 @@ const Users = () => {
       toast.loading(editingUser ? 'Modification en cours...' : 'Création en cours...', { id: 'user-save' });
 
       if (editingUser) {
-        // Update user
         const dataToSend = { ...formData };
         if (!dataToSend.password) {
-          delete dataToSend.password; // Don't send empty password
-        } else {
-          // For update, send as rawPassword if password is provided
-          dataToSend.rawPassword = dataToSend.password;
           delete dataToSend.password;
         }
         await api.put(`/users/${editingUser.id}`, dataToSend);
         toast.success('✅ Utilisateur modifié avec succès!', { id: 'user-save', duration: 4000 });
       } else {
-        // Create user - validate password
         if (!formData.password || formData.password.trim() === '') {
           toast.error('❌ Le mot de passe est obligatoire pour créer un utilisateur', { id: 'user-save', duration: 4000 });
           return;
         }
-        // Send as rawPassword for creation
-        const dataToSend = {
-          ...formData,
-          rawPassword: formData.password
-        };
-        delete dataToSend.password;
-        console.log('Data being sent to backend:', dataToSend);
-        await api.post('/users', dataToSend);
+        await api.post('/users', formData);
         toast.success('✅ Utilisateur créé avec succès!', { id: 'user-save', duration: 4000 });
       }
       setShowModal(false);
