@@ -202,11 +202,10 @@ const Orders = () => {
         return;
       }
 
-      // Transformer les items pour le backend
+      // Transformer les items pour le backend (nouveau format DTO)
       const transformedItems = editForm.orderItems.map(item => ({
-        product: { id: parseInt(item.productId) },
-        quantity: parseInt(item.quantity),
-        unitPrice: parseFloat(item.unitPrice)
+        productId: parseInt(item.productId),
+        quantity: parseInt(item.quantity)
       }));
 
       // Préparer les données pour la mise à jour
@@ -364,17 +363,14 @@ const Orders = () => {
 
   const confirmCreateOrder = async () => {
     try {
-      // Transformer les items pour le backend
+      // Transformer les items pour le backend (nouveau format DTO)
       const transformedItems = createForm.orderItems.map(item => ({
-        product: { id: parseInt(item.productId) },
-        quantity: item.quantity,
-        unitPrice: item.unitPrice
+        productId: parseInt(item.productId),
+        quantity: parseInt(item.quantity)
       }));
 
       const orderData = {
-        client: { id: parseInt(createForm.clientId) },
-        status: createForm.status,
-        totalAmount: createForm.totalAmount,
+        clientId: parseInt(createForm.clientId),
         items: transformedItems
       };
 
