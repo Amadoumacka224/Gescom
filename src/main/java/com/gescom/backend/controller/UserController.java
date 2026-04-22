@@ -1,28 +1,31 @@
 package com.gescom.backend.controller;
 
 import com.gescom.backend.entity.User;
+import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
+        return ResponseEntity.ok(userService.getAllUsers());
     }
 
     @GetMapping("/{id}")
@@ -43,84 +46,61 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> createUser(@RequestBody User user) {
-        try {
-            User createdUser = userService.createUser(user);
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<User> createUser(@Valid @RequestBody User user) {
+        User createdUser = userService.createUser(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#id)")
-    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User user) {
-        try {
-            User updatedUser = userService.updateUser(id, user);
-            return ResponseEntity.ok(updatedUser);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<User> updateUser(@PathVariable Long id, @Valid @RequestBody User user) {
+        User updatedUser = userService.updateUser(id, user);
+        return ResponseEntity.ok(updatedUser);
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
-        try {
-            userService.deleteUser(id);
-            return ResponseEntity.ok().body("User deleted successfully");
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> deactivateUser(@PathVariable Long id) {
-        try {
-            userService.deactivateUser(id);
-            return ResponseEntity.ok().body("User deactivated successfully");
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+        userService.deactivateUser(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/role/{role}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<User>> getUsersByRole(@PathVariable User.Role role) {
-        List<User> users = userService.getUsersByRole(role);
-        return ResponseEntity.ok(users);
+        return ResponseEntity.ok(userService.getUsersByRole(role));
     }
 
     @GetMapping("/caissiers")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<User>> getCaissiers() {
-        List<User> caissiers = userService.getCaissiers();
-        return ResponseEntity.ok(caissiers);
+        return ResponseEntity.ok(userService.getCaissiers());
     }
 
     @GetMapping("/active")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<User>> getActiveUsers() {
-        List<User> activeUsers = userService.getActiveUsers();
-        return ResponseEntity.ok(activeUsers);
+        return ResponseEntity.ok(userService.getActiveUsers());
     }
 
     @PostMapping("/{id}/change-password")
     @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#id)")
-    public ResponseEntity<?> changePassword(@PathVariable Long id, @RequestBody java.util.Map<String, String> passwordData) {
-        try {
-            String currentPassword = passwordData.get("currentPassword");
-            String newPassword = passwordData.get("newPassword");
+    public ResponseEntity<Map<String, String>> changePassword(@PathVariable Long id, @RequestBody Map<String, String> passwordData) {
+        String currentPassword = passwordData.get("currentPassword");
+        String newPassword = passwordData.get("newPassword");
 
-            if (newPassword == null || newPassword.isEmpty()) {
-                return ResponseEntity.badRequest().body("Le nouveau mot de passe est obligatoire");
-            }
-
-            userService.changePassword(id, currentPassword, newPassword);
-            return ResponseEntity.ok().body("Mot de passe modifié avec succès");
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+        if (newPassword == null || newPassword.isEmpty()) {
+            throw new BusinessException("Le nouveau mot de passe est obligatoire");
         }
+
+        userService.changePassword(id, currentPassword, newPassword);
+        return ResponseEntity.ok(Map.of("message", "Mot de passe modifié avec succès"));
     }
 }

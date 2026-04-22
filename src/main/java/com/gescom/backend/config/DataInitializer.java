@@ -2,7 +2,8 @@ package com.gescom.backend.config;
 
 import com.gescom.backend.entity.User;
 import com.gescom.backend.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -10,25 +11,27 @@ import org.springframework.stereotype.Component;
 @Component
 public class DataInitializer implements CommandLineRunner {
 
-    @Autowired
-    private UserRepository userRepository;
+    private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public DataInitializer(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
     public void run(String... args) throws Exception {
-        // Vérifier si un super admin existe déjà
         if (userRepository.count() == 0) {
-            System.out.println("========================================");
-            System.out.println("Aucun utilisateur trouvé - Création du super admin");
-            System.out.println("========================================");
+            log.info("========================================");
+            log.info("Aucun utilisateur trouvé - Création du super admin");
+            log.info("========================================");
 
-            // Créer le super admin par défaut
             User superAdmin = new User();
             superAdmin.setUsername("admin");
             superAdmin.setEmail("admin@gescom.com");
-            superAdmin.setPassword(passwordEncoder.encode("admin123"));
+            superAdmin.setPassword(passwordEncoder.encode("Admin@2024"));
             superAdmin.setFirstName("Super");
             superAdmin.setLastName("Admin");
             superAdmin.setPhone("+213 000 000 000");
@@ -37,16 +40,16 @@ public class DataInitializer implements CommandLineRunner {
 
             userRepository.save(superAdmin);
 
-            System.out.println("========================================");
-            System.out.println("✅ Super Admin créé avec succès!");
-            System.out.println("   Username: admin");
-            System.out.println("   Password: admin123");
-            System.out.println("   Email: admin@gescom.com");
-            System.out.println("========================================");
-            System.out.println("⚠️  IMPORTANT: Changez ce mot de passe après la première connexion!");
-            System.out.println("========================================");
+            log.info("========================================");
+            log.info("Super Admin créé avec succès!");
+            log.info("   Username: admin");
+            log.info("   Password: Admin@2024");
+            log.info("   Email: admin@gescom.com");
+            log.info("========================================");
+            log.warn("IMPORTANT: Changez ce mot de passe après la première connexion!");
+            log.info("========================================");
         } else {
-            System.out.println("Base de données déjà initialisée - " + userRepository.count() + " utilisateur(s) trouvé(s)");
+            log.info("Base de données déjà initialisée - {} utilisateur(s) trouvé(s)", userRepository.count());
         }
     }
 }

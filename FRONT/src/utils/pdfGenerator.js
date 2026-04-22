@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export const generateInvoicePDF = (invoice) => {
   const doc = new jsPDF();
@@ -51,9 +51,9 @@ export const generateInvoicePDF = (invoice) => {
   doc.setTextColor(...secondaryColor);
 
   const invoiceDetails = [
-    { label: 'N° Facture:', value: invoice.invoiceNumber },
-    { label: 'Date:', value: invoice.invoiceDate },
-    { label: 'Échéance:', value: invoice.dueDate },
+    { label: 'N° Facture:', value: invoice.invoiceNumber || '-' },
+    { label: 'Date:', value: String(invoice.invoiceDate || '-') },
+    { label: 'Échéance:', value: String(invoice.dueDate || '-') },
   ];
 
   yPos = 55;
@@ -121,8 +121,8 @@ export const generateInvoicePDF = (invoice) => {
   // Tableau des articles
   const tableStartY = 120;
 
-  if (invoice.order?.orderItems && invoice.order.orderItems.length > 0) {
-    const tableData = invoice.order.orderItems.map(item => [
+  if (invoice.order?.items && invoice.order.items.length > 0) {
+    const tableData = invoice.order.items.map(item => [
       item.product?.name || 'Produit',
       item.product?.reference || '-',
       item.quantity.toString(),
@@ -130,7 +130,7 @@ export const generateInvoicePDF = (invoice) => {
       `${(item.quantity * item.unitPrice).toFixed(2)} €`
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: tableStartY,
       head: [['Produit', 'Référence', 'Qté', 'Prix unitaire', 'Total']],
       body: tableData,

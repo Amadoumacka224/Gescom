@@ -69,9 +69,9 @@ const Invoices = () => {
   const fetchOrders = async () => {
     try {
       const response = await api.get('/orders');
-      // Only show DELIVERED orders that don't have an invoice yet
+      // Show CONFIRMED and DELIVERED orders that don't have an invoice yet
       const availableOrders = response.data.filter(order =>
-        order.status === 'DELIVERED' && !invoices.some(inv => inv.order?.id === order.id)
+        (order.status === 'CONFIRMED' || order.status === 'DELIVERED') && !invoices.some(inv => inv.order?.id === order.id)
       );
       setOrders(availableOrders);
     } catch (error) {
@@ -459,7 +459,7 @@ const Invoices = () => {
               )}
 
               {/* Order Items */}
-              {selectedInvoice.order?.orderItems && (
+              {selectedInvoice.order?.items && (
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Package className="w-5 h-5" />
@@ -476,7 +476,7 @@ const Invoices = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {selectedInvoice.order.orderItems.map((item, index) => (
+                        {selectedInvoice.order.items.map((item, index) => (
                           <tr key={index}>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.product?.name || 'Produit'}</td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900">{item.unitPrice?.toFixed(2)}€</td>

@@ -2,16 +2,20 @@ package com.gescom.backend.service;
 
 import com.gescom.backend.model.Settings;
 import com.gescom.backend.repository.SettingsRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
 @Service
+@Transactional
 public class SettingsService {
 
-    @Autowired
-    private SettingsRepository settingsRepository;
+    private final SettingsRepository settingsRepository;
+
+    public SettingsService(SettingsRepository settingsRepository) {
+        this.settingsRepository = settingsRepository;
+    }
 
     public Settings getSettings() {
         Optional<Settings> settings = settingsRepository.findFirstByOrderByIdAsc();
@@ -19,7 +23,6 @@ public class SettingsService {
         if (settings.isPresent()) {
             return settings.get();
         } else {
-            // Create default settings if none exist
             Settings defaultSettings = new Settings();
             defaultSettings.setCompanyName("GESCOM");
             defaultSettings.setLanguage("fr");

@@ -115,7 +115,8 @@ const Users = () => {
       fetchUsers();
     } catch (error) {
       console.error('Error saving user:', error);
-      const errorMessage = error.response?.data || 'Erreur lors de l\'enregistrement';
+      const rawError = error.response?.data;
+      const errorMessage = typeof rawError === 'string' ? rawError : (rawError?.error || rawError?.message || 'Erreur lors de l\'enregistrement');
       toast.error(`❌ ${errorMessage}`, {
         id: 'user-save',
         duration: 6000,

@@ -3,8 +3,11 @@ package com.gescom.backend.service;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.Client;
 import com.gescom.backend.entity.User;
+import com.gescom.backend.exception.DuplicateResourceException;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.ClientRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -17,11 +20,15 @@ import java.util.Optional;
 @Transactional
 public class ClientService {
 
-    @Autowired
-    private ClientRepository clientRepository;
+    private static final Logger log = LoggerFactory.getLogger(ClientService.class);
 
-    @Autowired
-    private ActivityLogService activityLogService;
+    private final ClientRepository clientRepository;
+    private final ActivityLogService activityLogService;
+
+    public ClientService(ClientRepository clientRepository, ActivityLogService activityLogService) {
+        this.clientRepository = clientRepository;
+        this.activityLogService = activityLogService;
+    }
 
     private Long getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -38,37 +45,41 @@ public class ClientService {
                 activityLogService.logActivity(userId, actionType, entity, entityId, description, null, null);
             }
         } catch (Exception e) {
-            // Don't fail business operation if logging fails
+            log.warn("Échec du log d'activité: {}", e.getMessage());
         }
     }
 
+    @Transactional(readOnly = true)
     public List<Client> getAllClients() {
         return clientRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<Client> getActiveClients() {
         return clientRepository.findByActiveTrue();
     }
 
+    @Transactional(readOnly = true)
     public Optional<Client> getClientById(Long id) {
         return clientRepository.findById(id);
     }
 
+    @Transactional(readOnly = true)
     public Optional<Client> getClientByEmail(String email) {
         return clientRepository.findByEmail(email);
     }
 
+    @Transactional(readOnly = true)
     public List<Client> getClientsByType(Client.ClientType type) {
         return clientRepository.findByType(type);
     }
 
     public Client createClient(Client client) {
         if (client.getEmail() != null && clientRepository.existsByEmail(client.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new DuplicateResourceException("Client", "email", client.getEmail());
         }
         Client savedClient = clientRepository.save(client);
 
-        // Log activity
         String clientName = savedClient.getFirstName() + " " + savedClient.getLastName();
         logActivity(ActivityLog.ActionType.CREATE, "Client", savedClient.getId(),
             "Création du client " + clientName);
@@ -78,7 +89,7 @@ public class ClientService {
 
     public Client updateClient(Long id, Client clientDetails) {
         Client client = clientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Client not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Client", id));
 
         client.setFirstName(clientDetails.getFirstName());
         client.setLastName(clientDetails.getLastName());
@@ -94,7 +105,6 @@ public class ClientService {
 
         Client savedClient = clientRepository.save(client);
 
-        // Log activity
         String clientName = savedClient.getFirstName() + " " + savedClient.getLastName();
         logActivity(ActivityLog.ActionType.UPDATE, "Client", savedClient.getId(),
             "Modification du client " + clientName);
@@ -104,22 +114,20 @@ public class ClientService {
 
     public void deleteClient(Long id) {
         Client client = clientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Client not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Client", id));
         String clientName = client.getFirstName() + " " + client.getLastName();
         clientRepository.delete(client);
 
-        // Log activity
         logActivity(ActivityLog.ActionType.DELETE, "Client", id,
             "Suppression du client " + clientName);
     }
 
     public void deactivateClient(Long id) {
         Client client = clientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Client not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Client", id));
         client.setActive(false);
         clientRepository.save(client);
 
-        // Log activity
         String clientName = client.getFirstName() + " " + client.getLastName();
         logActivity(ActivityLog.ActionType.UPDATE, "Client", id,
             "Désactivation du client " + clientName);

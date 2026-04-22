@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8085/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8085/api';
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -9,66 +9,37 @@ const axiosInstance = axios.create({
   },
 });
 
-// Intercepteur pour ajouter le token JWT à chaque requête
 axiosInstance.interceptors.request.use(
   (config) => {
-    console.log('🚀 Axios Request Interceptor');
-    console.log('URL:', config.url);
-    console.log('Method:', config.method);
-    console.log('Base URL:', config.baseURL);
-    console.log('Full URL:', config.baseURL + config.url);
-
     const token = localStorage.getItem('token');
-    console.log('Token exists:', !!token);
-
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('Authorization header set');
     }
 
-    // If data is FormData, remove Content-Type header to let browser set it with boundary
+    // Laisse le navigateur gérer le Content-Type pour les FormData (boundary multipart).
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
-      console.log('FormData detected - Content-Type header removed');
     }
-
-    console.log('Request data:', config.data);
-    console.log('Request headers:', config.headers);
 
     return config;
   },
-  (error) => {
-    console.error('❌ Request Interceptor Error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Intercepteur pour gérer les erreurs d'authentification
 axiosInstance.interceptors.response.use(
-  (response) => {
-    console.log('✅ Axios Response Success');
-    console.log('Status:', response.status);
-    console.log('Data:', response.data);
-    return response;
-  },
+  (response) => response,
   (error) => {
-    console.error('❌ Axios Response Error');
-    console.error('Error:', error);
-    console.error('Response:', error.response);
-
-    if (error.response && error.response.status === 401) {
-      // Don't logout for certain endpoints - let the page handle it gracefully
+    if (error.response?.status === 401) {
       const url = error.config?.url || '';
-      if (url.includes('/settings') || url.includes('/import') || url.includes('/users') || url.includes('/profile')) {
-        console.warn('⚠️ 401 on protected endpoint - not logging out');
-        return Promise.reject(error);
+      // Sur /auth/login un 401 est légitime (mauvais identifiants) — ne pas déconnecter.
+      const isLoginAttempt = url.includes('/auth/login');
+      if (!isLoginAttempt) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
-
-      console.warn('⚠️ 401 Unauthorized - Redirecting to login');
-      // Token expiré ou invalide
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

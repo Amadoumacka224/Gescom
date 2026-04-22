@@ -26,7 +26,7 @@ public class Settings {
     private String currency = "EUR";
 
     @Column(nullable = false)
-    private String timezone = "Europe/Paris";
+    private String timezone = "Europe/Brussels";
 
     @Column(nullable = false)
     private String dateFormat = "DD/MM/YYYY";

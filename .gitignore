@@ -39,3 +39,24 @@ mvnw.cmd
 
 ### Application ###
 application-local.properties
+
+### Secrets & environment ###
+.env
+.env.*
+!.env.example
+
+### SQL dumps (never commit data) ###
+*.sql
+*.sql.gz
+*.dump
+
+### Node / Frontend ###
+FRONT/node_modules/
+FRONT/dist/
+FRONT/.vite/
+FRONT/coverage/
+
+### Logs ###
+*.log
+logs/
+
