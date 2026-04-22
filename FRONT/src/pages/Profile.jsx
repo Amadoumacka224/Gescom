@@ -36,7 +36,7 @@ const Profile = () => {
     try {
       if (!authUser || !authUser.id) return;
 
-      const response = await api.get(`/users/${authUser.id}`);
+      const response = await api.get('/users/me');
       setUserInfo(response.data);
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -56,7 +56,12 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      const response = await api.put(`/users/${authUser.id}`, userInfo);
+      const response = await api.put('/users/me', {
+        email: userInfo.email,
+        firstName: userInfo.firstName,
+        lastName: userInfo.lastName,
+        phone: userInfo.phone || ''
+      });
 
       // Update localStorage with new user data
       const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -118,7 +123,7 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      await api.post(`/users/${authUser.id}/change-password`, {
+      await api.post('/users/me/change-password', {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
       });

@@ -1,12 +1,18 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.user.ChangePasswordRequest;
+import com.gescom.backend.dto.user.UserCreateRequest;
+import com.gescom.backend.dto.user.UserResponse;
+import com.gescom.backend.dto.user.UserUpdateAdminRequest;
+import com.gescom.backend.dto.user.UserUpdateSelfRequest;
 import com.gescom.backend.entity.User;
-import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,15 +28,41 @@ public class UserController {
         this.userService = userService;
     }
 
+    private Long currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof User user)) {
+            throw new IllegalStateException("Aucun utilisateur authentifié dans le contexte de sécurité");
+        }
+        return user.getId();
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> getAllUsers() {
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getCurrentUser() {
+        return userService.getUserById(currentUserId())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<UserResponse> updateCurrentUser(@Valid @RequestBody UserUpdateSelfRequest request) {
+        return ResponseEntity.ok(userService.updateSelf(currentUserId(), request));
+    }
+
+    @PostMapping("/me/change-password")
+    public ResponseEntity<Map<String, String>> changeMyPassword(@Valid @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(currentUserId(), request);
+        return ResponseEntity.ok(Map.of("message", "Mot de passe modifié avec succès"));
+    }
+
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#id)")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -38,7 +70,7 @@ public class UserController {
 
     @GetMapping("/username/{username}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> getUserByUsername(@PathVariable String username) {
+    public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
         return userService.getUserByUsername(username)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -46,16 +78,16 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> createUser(@Valid @RequestBody User user) {
-        User createdUser = userService.createUser(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request) {
+        UserResponse created = userService.createUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#id)")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @Valid @RequestBody User user) {
-        User updatedUser = userService.updateUser(id, user);
-        return ResponseEntity.ok(updatedUser);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id,
+                                                   @Valid @RequestBody UserUpdateAdminRequest request) {
+        return ResponseEntity.ok(userService.updateUserAsAdmin(id, request));
     }
 
     @DeleteMapping("/{id}")
@@ -74,33 +106,19 @@ public class UserController {
 
     @GetMapping("/role/{role}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> getUsersByRole(@PathVariable User.Role role) {
+    public ResponseEntity<List<UserResponse>> getUsersByRole(@PathVariable User.Role role) {
         return ResponseEntity.ok(userService.getUsersByRole(role));
     }
 
     @GetMapping("/caissiers")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> getCaissiers() {
+    public ResponseEntity<List<UserResponse>> getCaissiers() {
         return ResponseEntity.ok(userService.getCaissiers());
     }
 
     @GetMapping("/active")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<User>> getActiveUsers() {
+    public ResponseEntity<List<UserResponse>> getActiveUsers() {
         return ResponseEntity.ok(userService.getActiveUsers());
-    }
-
-    @PostMapping("/{id}/change-password")
-    @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#id)")
-    public ResponseEntity<Map<String, String>> changePassword(@PathVariable Long id, @RequestBody Map<String, String> passwordData) {
-        String currentPassword = passwordData.get("currentPassword");
-        String newPassword = passwordData.get("newPassword");
-
-        if (newPassword == null || newPassword.isEmpty()) {
-            throw new BusinessException("Le nouveau mot de passe est obligatoire");
-        }
-
-        userService.changePassword(id, currentPassword, newPassword);
-        return ResponseEntity.ok(Map.of("message", "Mot de passe modifié avec succès"));
     }
 }

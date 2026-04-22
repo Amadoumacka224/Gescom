@@ -1,5 +1,10 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.dto.user.ChangePasswordRequest;
+import com.gescom.backend.dto.user.UserCreateRequest;
+import com.gescom.backend.dto.user.UserResponse;
+import com.gescom.backend.dto.user.UserUpdateAdminRequest;
+import com.gescom.backend.dto.user.UserUpdateSelfRequest;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
@@ -73,66 +78,62 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream().map(UserResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public Optional<User> getUserById(Long id) {
-        return userRepository.findById(id);
+    public Optional<UserResponse> getUserById(Long id) {
+        return userRepository.findById(id).map(UserResponse::from);
     }
 
     @Transactional(readOnly = true)
-    public Optional<User> getUserByUsername(String username) {
-        return userRepository.findByUsername(username);
+    public Optional<UserResponse> getUserByUsername(String username) {
+        return userRepository.findByUsername(username).map(UserResponse::from);
     }
 
-    public User createUser(User user) {
-        if (userRepository.existsByUsername(user.getUsername())) {
-            throw new DuplicateResourceException("Utilisateur", "username", user.getUsername());
+    public UserResponse createUser(UserCreateRequest request) {
+        if (userRepository.existsByUsername(request.username())) {
+            throw new DuplicateResourceException("Utilisateur", "username", request.username());
         }
-        if (userRepository.existsByEmail(user.getEmail())) {
-            throw new DuplicateResourceException("Utilisateur", "email", user.getEmail());
-        }
-
-        String password = user.getRawPassword();
-        if (password == null || password.isEmpty()) {
-            password = user.getPassword();
+        if (userRepository.existsByEmail(request.email())) {
+            throw new DuplicateResourceException("Utilisateur", "email", request.email());
         }
 
-        if (password == null || password.isEmpty()) {
-            throw new BusinessException("Le mot de passe est obligatoire");
-        }
+        validatePassword(request.password());
 
-        validatePassword(password);
-        user.setPassword(passwordEncoder.encode(password));
+        User user = new User();
+        user.setUsername(request.username());
+        user.setEmail(request.email());
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        user.setPhone(request.phone());
+        user.setRole(request.role());
+        user.setActive(request.active() != null ? request.active() : true);
+
         User savedUser = userRepository.save(user);
 
         logActivity(ActivityLog.ActionType.CREATE, "User", savedUser.getId(),
             "Création de l'utilisateur " + savedUser.getUsername() + " (" + savedUser.getRole() + ")");
 
-        return savedUser;
+        return UserResponse.from(savedUser);
     }
 
-    public User updateUser(Long id, User userDetails) {
+    public UserResponse updateUserAsAdmin(Long id, UserUpdateAdminRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
 
-        user.setFirstName(userDetails.getFirstName());
-        user.setLastName(userDetails.getLastName());
-        user.setEmail(userDetails.getEmail());
-        user.setPhone(userDetails.getPhone());
-        user.setRole(userDetails.getRole());
-        user.setActive(userDetails.getActive());
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        user.setEmail(request.email());
+        user.setPhone(request.phone());
+        user.setRole(request.role());
+        user.setActive(request.active());
 
-        String password = userDetails.getRawPassword();
-        if (password == null || password.isEmpty()) {
-            password = userDetails.getPassword();
-        }
-
-        if (password != null && !password.isEmpty()) {
-            validatePassword(password);
-            user.setPassword(passwordEncoder.encode(password));
+        if (request.password() != null && !request.password().isEmpty()) {
+            validatePassword(request.password());
+            user.setPassword(passwordEncoder.encode(request.password()));
         }
 
         User savedUser = userRepository.save(user);
@@ -140,7 +141,24 @@ public class UserService {
         logActivity(ActivityLog.ActionType.UPDATE, "User", savedUser.getId(),
             "Modification de l'utilisateur " + savedUser.getUsername());
 
-        return savedUser;
+        return UserResponse.from(savedUser);
+    }
+
+    public UserResponse updateSelf(Long id, UserUpdateSelfRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+
+        user.setFirstName(request.firstName());
+        user.setLastName(request.lastName());
+        user.setEmail(request.email());
+        user.setPhone(request.phone());
+
+        User savedUser = userRepository.save(user);
+
+        logActivity(ActivityLog.ActionType.UPDATE, "User", savedUser.getId(),
+            "Modification du profil par " + savedUser.getUsername());
+
+        return UserResponse.from(savedUser);
     }
 
     public void deleteUser(Long id) {
@@ -164,38 +182,38 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public List<User> getUsersByRole(User.Role role) {
-        return userRepository.findByRole(role);
+    public List<UserResponse> getUsersByRole(User.Role role) {
+        return userRepository.findByRole(role).stream().map(UserResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<User> getActiveUsers() {
-        return userRepository.findByActive(true);
+    public List<UserResponse> getActiveUsers() {
+        return userRepository.findByActive(true).stream().map(UserResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<User> getCaissiers() {
-        return userRepository.findByRole(User.Role.CAISSIER);
+    public List<UserResponse> getCaissiers() {
+        return userRepository.findByRole(User.Role.CAISSIER).stream().map(UserResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<User> getAdmins() {
-        return userRepository.findByRole(User.Role.ADMIN);
+    public List<UserResponse> getAdmins() {
+        return userRepository.findByRole(User.Role.ADMIN).stream().map(UserResponse::from).toList();
     }
 
-    public void changePassword(Long userId, String currentPassword, String newPassword) {
+    public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
 
-        if (currentPassword != null && !currentPassword.isEmpty()) {
-            if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+        if (request.currentPassword() != null && !request.currentPassword().isEmpty()) {
+            if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
                 throw new BusinessException("Mot de passe actuel incorrect");
             }
         }
 
-        validatePassword(newPassword);
+        validatePassword(request.newPassword());
 
-        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
 
         logActivity(ActivityLog.ActionType.UPDATE, "User", userId,
