@@ -1,15 +1,12 @@
 package com.gescom.backend.controller;
 
-import com.gescom.backend.entity.ActivityLog;
-import com.gescom.backend.entity.Client;
-import com.gescom.backend.entity.Order;
-import com.gescom.backend.entity.Product;
-import com.gescom.backend.entity.User;
-import com.gescom.backend.repository.ClientRepository;
-import com.gescom.backend.repository.OrderRepository;
-import com.gescom.backend.repository.ProductRepository;
+import com.gescom.backend.entity.*;
 import com.gescom.backend.service.ActivityLogService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.gescom.backend.service.ClientService;
+import com.gescom.backend.service.InvoiceService;
+import com.gescom.backend.service.DeliveryService;
+import com.gescom.backend.service.OrderService;
+import com.gescom.backend.service.ProductService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -17,27 +14,31 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/dashboard")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")
 public class DashboardController {
 
-    @Autowired
-    private OrderRepository orderRepository;
+    private final OrderService orderService;
+    private final ClientService clientService;
+    private final ProductService productService;
+    private final InvoiceService invoiceService;
+    private final DeliveryService deliveryService;
+    private final ActivityLogService activityLogService;
 
-    @Autowired
-    private ClientRepository clientRepository;
-
-    @Autowired
-    private ProductRepository productRepository;
-
-    @Autowired
-    private ActivityLogService activityLogService;
+    public DashboardController(OrderService orderService, ClientService clientService,
+                               ProductService productService, InvoiceService invoiceService,
+                               DeliveryService deliveryService, ActivityLogService activityLogService) {
+        this.orderService = orderService;
+        this.clientService = clientService;
+        this.productService = productService;
+        this.invoiceService = invoiceService;
+        this.deliveryService = deliveryService;
+        this.activityLogService = activityLogService;
+    }
 
     private void logView(String description) {
         try {
@@ -55,56 +56,33 @@ public class DashboardController {
     public ResponseEntity<Map<String, Object>> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
 
-        // Total des ventes (somme de tous les finalAmount)
-        List<Order> allOrders = orderRepository.findAll();
+        List<Order> allOrders = orderService.getAllOrders();
         BigDecimal totalSales = allOrders.stream()
                 .map(Order::getFinalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Total des commandes
-        long totalOrders = allOrders.size();
-
-        // Total des clients actifs
-        long totalClients = clientRepository.findByActiveTrue().size();
-
-        // Produits en stock faible
-        long lowStock = productRepository.findByStockQuantityLessThanMinStockAlert().size();
-
         stats.put("totalSales", totalSales);
-        stats.put("totalOrders", totalOrders);
-        stats.put("totalClients", totalClients);
-        stats.put("lowStock", lowStock);
+        stats.put("totalOrders", allOrders.size());
+        stats.put("totalClients", clientService.getActiveClients().size());
+        stats.put("lowStock", productService.getLowStockProducts().size());
 
         return ResponseEntity.ok(stats);
     }
 
     @GetMapping("/recent-orders")
     public ResponseEntity<List<Map<String, Object>>> getRecentOrders() {
-        List<Order> orders = orderRepository.findAll().stream()
+        List<Order> orders = orderService.getAllOrders().stream()
                 .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
                 .limit(5)
                 .collect(Collectors.toList());
 
-        List<Map<String, Object>> result = orders.stream().map(order -> {
-            Map<String, Object> orderData = new HashMap<>();
-            orderData.put("id", order.getId());
-            orderData.put("orderNumber", order.getOrderNumber());
-            orderData.put("clientName", order.getClient() != null
-                ? order.getClient().getFirstName() + " " + order.getClient().getLastName()
-                : "N/A");
-            orderData.put("finalAmount", order.getFinalAmount());
-            orderData.put("status", order.getStatus());
-            orderData.put("createdAt", order.getCreatedAt());
-            return orderData;
-        }).collect(Collectors.toList());
-
+        List<Map<String, Object>> result = orders.stream().map(this::mapOrder).collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/top-products")
     public ResponseEntity<List<Map<String, Object>>> getTopProducts() {
-        // Récupérer tous les produits et trier par stock (simulation de ventes)
-        List<Product> products = productRepository.findAll().stream()
+        List<Product> products = productService.getAllProducts().stream()
                 .filter(p -> p.getStockQuantity() > 0)
                 .sorted((p1, p2) -> Integer.compare(p2.getStockQuantity(), p1.getStockQuantity()))
                 .limit(4)
@@ -114,7 +92,7 @@ public class DashboardController {
             Map<String, Object> productData = new HashMap<>();
             productData.put("id", product.getId());
             productData.put("name", product.getName());
-            productData.put("sales", product.getStockQuantity()); // Simulation
+            productData.put("stock", product.getStockQuantity());
             return productData;
         }).collect(Collectors.toList());
 
@@ -126,55 +104,104 @@ public class DashboardController {
         logView("Consultation du tableau de bord");
         Map<String, Object> overview = new HashMap<>();
 
-        // Stats
-        List<Order> allOrders = orderRepository.findAll();
+        // --- Orders ---
+        List<Order> allOrders = orderService.getAllOrders();
         BigDecimal totalSales = allOrders.stream()
                 .map(Order::getFinalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        long pendingOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.PENDING).count();
+        long confirmedOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.CONFIRMED).count();
+        long completedOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.COMPLETED).count();
+
         overview.put("totalSales", totalSales);
         overview.put("totalOrders", allOrders.size());
-        overview.put("totalClients", clientRepository.findByActiveTrue().size());
-        overview.put("lowStock", productRepository.findByStockQuantityLessThanMinStockAlert().size());
+        overview.put("pendingOrders", pendingOrders);
+        overview.put("confirmedOrders", confirmedOrders);
+        overview.put("completedOrders", completedOrders);
+        overview.put("totalClients", clientService.getActiveClients().size());
+        overview.put("lowStock", productService.getLowStockProducts().size());
 
-        // Recent Orders
+        // --- Invoices ---
+        List<Invoice> allInvoices = invoiceService.getAllInvoices();
+        BigDecimal totalRevenue = allInvoices.stream()
+                .map(Invoice::getPaidAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal pendingAmount = allInvoices.stream()
+                .map(inv -> inv.getTotalAmount().subtract(inv.getPaidAmount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        long unpaidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.UNPAID).count();
+        long paidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.PAID).count();
+
+        overview.put("totalInvoices", allInvoices.size());
+        overview.put("totalRevenue", totalRevenue);
+        overview.put("pendingAmount", pendingAmount);
+        overview.put("unpaidInvoices", unpaidInvoices);
+        overview.put("paidInvoices", paidInvoices);
+
+        // --- Deliveries ---
+        List<Delivery> allDeliveries = deliveryService.getAllDeliveries();
+        long pendingDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.PENDING).count();
+        long inTransitDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.IN_TRANSIT).count();
+
+        overview.put("totalDeliveries", allDeliveries.size());
+        overview.put("pendingDeliveries", pendingDeliveries);
+        overview.put("inTransitDeliveries", inTransitDeliveries);
+
+        // --- Recent orders ---
         List<Order> recentOrders = allOrders.stream()
                 .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
                 .limit(5)
                 .collect(Collectors.toList());
 
-        List<Map<String, Object>> ordersList = recentOrders.stream().map(order -> {
-            Map<String, Object> orderData = new HashMap<>();
-            orderData.put("id", order.getId());
-            orderData.put("orderNumber", order.getOrderNumber());
-            orderData.put("clientName", order.getClient() != null
-                ? order.getClient().getFirstName() + " " + order.getClient().getLastName()
-                : "N/A");
-            orderData.put("finalAmount", order.getFinalAmount());
-            orderData.put("status", order.getStatus());
-            orderData.put("createdAt", order.getCreatedAt());
-            return orderData;
-        }).collect(Collectors.toList());
+        overview.put("recentOrders", recentOrders.stream().map(this::mapOrder).collect(Collectors.toList()));
 
-        overview.put("recentOrders", ordersList);
-
-        // Top Products
-        List<Product> topProducts = productRepository.findAll().stream()
+        // --- Top products (by stock) ---
+        List<Product> topProducts = productService.getAllProducts().stream()
                 .filter(p -> p.getStockQuantity() > 0)
                 .sorted((p1, p2) -> Integer.compare(p2.getStockQuantity(), p1.getStockQuantity()))
-                .limit(4)
+                .limit(5)
                 .collect(Collectors.toList());
 
         List<Map<String, Object>> productsList = topProducts.stream().map(product -> {
             Map<String, Object> productData = new HashMap<>();
             productData.put("id", product.getId());
             productData.put("name", product.getName());
-            productData.put("sales", product.getStockQuantity());
+            productData.put("stock", product.getStockQuantity());
             return productData;
         }).collect(Collectors.toList());
 
         overview.put("topProducts", productsList);
 
+        // --- Low stock products ---
+        List<Product> lowStockProducts = productService.getLowStockProducts().stream()
+                .sorted(Comparator.comparingInt(Product::getStockQuantity))
+                .limit(5)
+                .collect(Collectors.toList());
+
+        List<Map<String, Object>> lowStockList = lowStockProducts.stream().map(product -> {
+            Map<String, Object> productData = new HashMap<>();
+            productData.put("id", product.getId());
+            productData.put("name", product.getName());
+            productData.put("stock", product.getStockQuantity());
+            return productData;
+        }).collect(Collectors.toList());
+
+        overview.put("lowStockProducts", lowStockList);
+
         return ResponseEntity.ok(overview);
+    }
+
+    private Map<String, Object> mapOrder(Order order) {
+        Map<String, Object> orderData = new HashMap<>();
+        orderData.put("id", order.getId());
+        orderData.put("orderNumber", order.getOrderNumber());
+        orderData.put("clientName", order.getClient() != null
+            ? order.getClient().getFirstName() + " " + order.getClient().getLastName()
+            : "N/A");
+        orderData.put("finalAmount", order.getFinalAmount());
+        orderData.put("status", order.getStatus());
+        orderData.put("createdAt", order.getCreatedAt());
+        return orderData;
     }
 }

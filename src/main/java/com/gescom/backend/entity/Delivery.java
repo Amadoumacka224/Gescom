@@ -7,6 +7,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
+
 
 @Entity
 @Table(name = "deliveries")
@@ -86,6 +91,30 @@ public class Delivery {
     }
 
     public enum DeliveryStatus {
-        PENDING, IN_TRANSIT, DELIVERED, INVOICED, CANCELED
+        PENDING,
+        IN_TRANSIT,
+        DELIVERED,
+        INVOICED,
+        CANCELED;
+
+        private static final Map<DeliveryStatus, Set<DeliveryStatus>> ALLOWED_TRANSITIONS;
+
+        static {
+            Map<DeliveryStatus, Set<DeliveryStatus>> map = new EnumMap<>(DeliveryStatus.class);
+            map.put(PENDING, EnumSet.of(IN_TRANSIT, DELIVERED, CANCELED));
+            map.put(IN_TRANSIT, EnumSet.of(DELIVERED, CANCELED));
+            map.put(DELIVERED, EnumSet.of(INVOICED));
+            map.put(INVOICED, EnumSet.noneOf(DeliveryStatus.class));
+            map.put(CANCELED, EnumSet.noneOf(DeliveryStatus.class));
+            ALLOWED_TRANSITIONS = map;
+        }
+
+        public boolean canTransitionTo(DeliveryStatus target) {
+            return target != null && ALLOWED_TRANSITIONS.get(this).contains(target);
+        }
+
+        public boolean isTerminal() {
+            return ALLOWED_TRANSITIONS.get(this).isEmpty();
+        }
     }
 }

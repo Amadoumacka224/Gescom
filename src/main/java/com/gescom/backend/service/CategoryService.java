@@ -3,8 +3,11 @@ package com.gescom.backend.service;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.Category;
 import com.gescom.backend.entity.User;
+import com.gescom.backend.exception.DuplicateResourceException;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.CategoryRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -17,11 +20,15 @@ import java.util.Optional;
 @Transactional
 public class CategoryService {
 
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private static final Logger log = LoggerFactory.getLogger(CategoryService.class);
 
-    @Autowired
-    private ActivityLogService activityLogService;
+    private final CategoryRepository categoryRepository;
+    private final ActivityLogService activityLogService;
+
+    public CategoryService(CategoryRepository categoryRepository, ActivityLogService activityLogService) {
+        this.categoryRepository = categoryRepository;
+        this.activityLogService = activityLogService;
+    }
 
     private Long getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -38,45 +45,47 @@ public class CategoryService {
                 activityLogService.logActivity(userId, actionType, entity, entityId, description, null, null);
             }
         } catch (Exception e) {
-            // Don't fail business operation if logging fails
+            log.warn("Échec du log d'activité: {}", e.getMessage());
         }
     }
 
+    @Transactional(readOnly = true)
     public List<Category> getAllCategories() {
         return categoryRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<Category> getActiveCategories() {
         return categoryRepository.findByActiveTrueOrderByNameAsc();
     }
 
+    @Transactional(readOnly = true)
     public Optional<Category> getCategoryById(Long id) {
         return categoryRepository.findById(id);
     }
 
+    @Transactional(readOnly = true)
     public Optional<Category> getCategoryByName(String name) {
         return categoryRepository.findByName(name);
     }
 
+    @Transactional(readOnly = true)
     public Optional<Category> getCategoryByCode(String code) {
         return categoryRepository.findByCode(code);
     }
 
     public Category createCategory(Category category) {
-        // Vérifier si le nom existe déjà
         if (category.getName() != null && categoryRepository.findByName(category.getName()).isPresent()) {
-            throw new RuntimeException("Une catégorie avec ce nom existe déjà");
+            throw new DuplicateResourceException("Catégorie", "nom", category.getName());
         }
 
-        // Vérifier si le code existe déjà
         if (category.getCode() != null && !category.getCode().isEmpty()
             && categoryRepository.findByCode(category.getCode()).isPresent()) {
-            throw new RuntimeException("Une catégorie avec ce code existe déjà");
+            throw new DuplicateResourceException("Catégorie", "code", category.getCode());
         }
 
         Category savedCategory = categoryRepository.save(category);
 
-        // Log activity
         logActivity(ActivityLog.ActionType.CREATE, "Category", savedCategory.getId(),
             "Création de la catégorie " + savedCategory.getName());
 
@@ -85,22 +94,20 @@ public class CategoryService {
 
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Catégorie non trouvée avec l'id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
 
-        // Vérifier si le nouveau nom existe déjà (pour une autre catégorie)
         if (categoryDetails.getName() != null) {
             Optional<Category> existingCategory = categoryRepository.findByName(categoryDetails.getName());
             if (existingCategory.isPresent() && !existingCategory.get().getId().equals(id)) {
-                throw new RuntimeException("Une catégorie avec ce nom existe déjà");
+                throw new DuplicateResourceException("Catégorie", "nom", categoryDetails.getName());
             }
             category.setName(categoryDetails.getName());
         }
 
-        // Vérifier si le nouveau code existe déjà (pour une autre catégorie)
         if (categoryDetails.getCode() != null && !categoryDetails.getCode().isEmpty()) {
             Optional<Category> existingCategory = categoryRepository.findByCode(categoryDetails.getCode());
             if (existingCategory.isPresent() && !existingCategory.get().getId().equals(id)) {
-                throw new RuntimeException("Une catégorie avec ce code existe déjà");
+                throw new DuplicateResourceException("Catégorie", "code", categoryDetails.getCode());
             }
             category.setCode(categoryDetails.getCode());
         }
@@ -115,7 +122,6 @@ public class CategoryService {
 
         Category savedCategory = categoryRepository.save(category);
 
-        // Log activity
         logActivity(ActivityLog.ActionType.UPDATE, "Category", savedCategory.getId(),
             "Modification de la catégorie " + savedCategory.getName());
 
@@ -124,22 +130,20 @@ public class CategoryService {
 
     public void deleteCategory(Long id) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Catégorie non trouvée avec l'id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
         String categoryName = category.getName();
         categoryRepository.delete(category);
 
-        // Log activity
         logActivity(ActivityLog.ActionType.DELETE, "Category", id,
             "Suppression de la catégorie " + categoryName);
     }
 
     public void toggleCategoryStatus(Long id) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Catégorie non trouvée avec l'id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
         category.setActive(!category.getActive());
         categoryRepository.save(category);
 
-        // Log activity
         String status = category.getActive() ? "activée" : "désactivée";
         logActivity(ActivityLog.ActionType.UPDATE, "Category", id,
             "Catégorie " + category.getName() + " " + status);

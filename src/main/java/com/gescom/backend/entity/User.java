@@ -3,6 +3,11 @@ package com.gescom.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,9 +31,14 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Le nom d'utilisateur est obligatoire")
+    @Size(min = 3, max = 50, message = "Le nom d'utilisateur doit contenir entre 3 et 50 caractères")
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
+    @NotBlank(message = "L'email est obligatoire")
+    @Email(message = "Format d'email invalide")
+    @Size(max = 100)
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
@@ -38,19 +48,26 @@ public class User implements UserDetails {
     @Transient
     private String rawPassword;
 
+    @NotBlank(message = "Le prénom est obligatoire")
+    @Size(max = 100)
     @Column(nullable = false, length = 100)
     private String firstName;
 
+    @NotBlank(message = "Le nom est obligatoire")
+    @Size(max = 100)
     @Column(nullable = false, length = 100)
     private String lastName;
 
+    @Pattern(regexp = "^$|^[0-9+\\- ]{6,20}$", message = "Format de téléphone invalide")
     @Column(length = 20)
     private String phone;
 
+    @NotNull(message = "Le rôle est obligatoire")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role = Role.ADMIN;
+    private Role role = Role.CAISSIER;
 
+    @NotNull
     @Column(nullable = false)
     private Boolean active = true;
 

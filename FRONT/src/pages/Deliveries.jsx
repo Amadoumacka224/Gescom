@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Truck, MapPin, Calendar, Edit, Trash2, Package, Clock, CheckCircle, XCircle, User, Phone, Hash, FileText } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Plus, Truck, MapPin, Calendar, Edit, Trash2, Clock, CheckCircle, XCircle, User, Phone, Hash, FileText } from 'lucide-react';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -11,6 +10,8 @@ import FormInput from '../components/FormInput';
 import FormSelect from '../components/FormSelect';
 import Button from '../components/Button';
 import Table from '../components/Table';
+
+const TERMINAL_STATUSES = ['INVOICED', 'CANCELED'];
 
 const Deliveries = () => {
   const { t } = useTranslation();
@@ -53,10 +54,7 @@ const Deliveries = () => {
   const fetchOrders = async () => {
     try {
       const response = await api.get('/orders');
-      // Filtrer uniquement les commandes confirmées (pas encore livrées)
-      const availableOrders = response.data.filter(
-        order => order.status === 'CONFIRMED'
-      );
+      const availableOrders = response.data.filter(order => order.status === 'CONFIRMED');
       setOrders(availableOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -66,12 +64,8 @@ const Deliveries = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Auto-remplir les informations du contact quand on sélectionne une commande
     if (name === 'orderId' && value) {
       const selectedOrder = orders.find(o => o.id === parseInt(value));
       if (selectedOrder) {
@@ -88,12 +82,12 @@ const Deliveries = () => {
     e.preventDefault();
 
     if (!formData.orderId) {
-      alert('Veuillez sélectionner une commande');
+      alert(t('deliveries.selectOrder'));
       return;
     }
 
     if (!formData.deliveryAddress || !formData.contactName || !formData.contactPhone || !formData.scheduledDate) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      alert(t('deliveries.fillRequiredFields'));
       return;
     }
 
@@ -117,10 +111,10 @@ const Deliveries = () => {
 
       if (editingDelivery) {
         await api.put(`/deliveries/${editingDelivery.id}`, deliveryData);
-        alert('✅ Livraison modifiée avec succès!');
+        alert(t('deliveries.updatedSuccess'));
       } else {
         await api.post('/deliveries', deliveryData);
-        alert('✅ Livraison créée avec succès!');
+        alert(t('deliveries.createdSuccess'));
       }
 
       handleCloseModal();
@@ -128,8 +122,8 @@ const Deliveries = () => {
       fetchOrders();
     } catch (error) {
       console.error('Error saving delivery:', error);
-      const errorMessage = error.response?.data || error.message || 'Erreur lors de l\'enregistrement';
-      alert('❌ Erreur: ' + errorMessage);
+      const errorMessage = error.response?.data || error.message || t('deliveries.saveError');
+      alert(t('common.errorPrefix') + errorMessage);
     }
   };
 
@@ -151,14 +145,14 @@ const Deliveries = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette livraison ?')) {
+    if (window.confirm(t('deliveries.confirmDelete'))) {
       try {
         await api.delete(`/deliveries/${id}`);
-        alert('Livraison supprimée avec succès');
+        alert(t('deliveries.deleteSuccess'));
         fetchDeliveries();
       } catch (error) {
         console.error('Error deleting delivery:', error);
-        alert('Erreur lors de la suppression');
+        alert(t('deliveries.deleteError'));
       }
     }
   };
@@ -182,11 +176,11 @@ const Deliveries = () => {
 
   const getStatusBadge = (status) => {
     const badges = {
-      PENDING: { class: 'badge-warning', text: 'En attente', icon: Clock },
-      IN_TRANSIT: { class: 'badge-info', text: 'En transit', icon: Truck },
-      DELIVERED: { class: 'badge-success', text: 'Livrée', icon: CheckCircle },
-      INVOICED: { class: 'bg-purple-100 text-purple-700 border-purple-200', text: 'Facturée', icon: CheckCircle },
-      CANCELED: { class: 'badge-danger', text: 'Annulée', icon: XCircle },
+      PENDING: { class: 'badge-warning', key: 'deliveries.statusPending', icon: Clock },
+      IN_TRANSIT: { class: 'badge-info', key: 'deliveries.statusInTransit', icon: Truck },
+      DELIVERED: { class: 'badge-success', key: 'deliveries.statusDelivered', icon: CheckCircle },
+      INVOICED: { class: 'bg-purple-100 text-purple-700 border-purple-200', key: 'deliveries.statusInvoiced', icon: CheckCircle },
+      CANCELED: { class: 'badge-danger', key: 'deliveries.statusCanceled', icon: XCircle }
     };
     const badge = badges[status] || badges.PENDING;
     const Icon = badge.icon;
@@ -194,13 +188,13 @@ const Deliveries = () => {
     return (
       <span className={`badge ${badge.class} flex items-center gap-1`}>
         <Icon className="w-3 h-3" />
-        {badge.text}
+        {t(badge.key)}
       </span>
     );
   };
 
   const handleCreateInvoice = async (deliveryId) => {
-    if (!window.confirm('Voulez-vous créer une facture pour cette livraison ?')) {
+    if (!window.confirm(t('deliveries.createInvoiceConfirmation'))) {
       return;
     }
 
@@ -208,45 +202,45 @@ const Deliveries = () => {
       const response = await api.post(`/deliveries/${deliveryId}/create-invoice`);
       const invoice = response.data;
 
-      alert('Facture créée avec succès');
-      fetchDeliveries(); // Rafraîchir les données depuis le serveur
-
-      // Naviguer vers la page des factures avec l'ID de la facture
+      alert(t('deliveries.invoiceCreatedSuccess'));
+      fetchDeliveries();
       navigate('/invoices', { state: { invoiceId: invoice.id } });
     } catch (error) {
       console.error('Error creating invoice:', error);
-      const errorMessage = error.response?.data || 'Erreur lors de la création de la facture';
+      const errorMessage = error.response?.data || t('deliveries.createInvoiceError');
       alert(errorMessage);
     }
   };
 
-  // Statistiques
   const stats = {
     total: deliveries.length,
     pending: deliveries.filter(d => d.status === 'PENDING').length,
     inTransit: deliveries.filter(d => d.status === 'IN_TRANSIT').length,
-    delivered: deliveries.filter(d => d.status === 'DELIVERED').length,
+    delivered: deliveries.filter(d => d.status === 'DELIVERED').length
   };
 
-  // Pagination
   const totalPages = Math.ceil(deliveries.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedDeliveries = deliveries.slice(startIndex, endIndex);
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
+  const handlePageChange = (page) => setCurrentPage(page);
   const handleItemsPerPageChange = (newItemsPerPage) => {
     setItemsPerPage(newItemsPerPage);
     setCurrentPage(1);
   };
 
+  const statusOptions = [
+    { value: 'PENDING', label: t('deliveries.statusPending') },
+    { value: 'IN_TRANSIT', label: t('deliveries.statusInTransit') },
+    { value: 'DELIVERED', label: t('deliveries.statusDelivered') },
+    { value: 'CANCELED', label: t('deliveries.statusCanceled') }
+  ];
+
   const columns = [
     {
       key: 'deliveryNumber',
-      label: 'N° Livraison',
+      label: t('deliveries.deliveryNumber'),
       render: (delivery) => (
         <div className="flex items-center gap-2">
           <Hash className="w-4 h-4 text-gray-400" />
@@ -256,7 +250,7 @@ const Deliveries = () => {
     },
     {
       key: 'order',
-      label: 'Commande',
+      label: t('deliveries.order'),
       render: (delivery) => (
         <div>
           <div className="font-medium text-gray-900">{delivery.order.orderNumber}</div>
@@ -268,7 +262,7 @@ const Deliveries = () => {
     },
     {
       key: 'address',
-      label: 'Adresse de livraison',
+      label: t('deliveries.address'),
       render: (delivery) => (
         <div className="flex items-start gap-2">
           <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
@@ -283,7 +277,7 @@ const Deliveries = () => {
     },
     {
       key: 'contact',
-      label: 'Contact',
+      label: t('deliveries.columnContact'),
       render: (delivery) => (
         <div className="text-sm">
           <div className="flex items-center gap-1 text-gray-900">
@@ -299,7 +293,7 @@ const Deliveries = () => {
     },
     {
       key: 'scheduledDate',
-      label: 'Date prévue',
+      label: t('deliveries.scheduledDate'),
       render: (delivery) => (
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4 text-gray-400" />
@@ -309,34 +303,28 @@ const Deliveries = () => {
     },
     {
       key: 'status',
-      label: 'Statut',
+      label: t('deliveries.status'),
       render: (delivery) => getStatusBadge(delivery.status)
     }
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{t('deliveries.title')}</h1>
-          <p className="text-gray-600 mt-1">Suivez vos livraisons en temps réel</p>
+          <p className="text-gray-600 mt-1">{t('deliveries.subtitle')}</p>
         </div>
-        <Button
-          variant="primary"
-          icon={Plus}
-          onClick={() => setShowModal(true)}
-        >
+        <Button variant="primary" icon={Plus} onClick={() => setShowModal(true)}>
           {t('deliveries.addDelivery')}
         </Button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="card bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-600 font-medium">Total Livraisons</p>
+              <p className="text-sm text-blue-600 font-medium">{t('deliveries.totalCount')}</p>
               <p className="text-3xl font-bold text-blue-700">{stats.total}</p>
             </div>
             <Truck className="w-12 h-12 text-blue-600 opacity-50" />
@@ -346,7 +334,7 @@ const Deliveries = () => {
         <div className="card bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-yellow-600 font-medium">En attente</p>
+              <p className="text-sm text-yellow-600 font-medium">{t('deliveries.countPending')}</p>
               <p className="text-3xl font-bold text-yellow-700">{stats.pending}</p>
             </div>
             <Clock className="w-12 h-12 text-yellow-600 opacity-50" />
@@ -356,7 +344,7 @@ const Deliveries = () => {
         <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-600 font-medium">En transit</p>
+              <p className="text-sm text-blue-600 font-medium">{t('deliveries.countInTransit')}</p>
               <p className="text-3xl font-bold text-blue-700">{stats.inTransit}</p>
             </div>
             <Truck className="w-12 h-12 text-blue-600 opacity-50" />
@@ -366,7 +354,7 @@ const Deliveries = () => {
         <div className="card bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-600 font-medium">Livrées</p>
+              <p className="text-sm text-green-600 font-medium">{t('deliveries.countDelivered')}</p>
               <p className="text-3xl font-bold text-green-700">{stats.delivered}</p>
             </div>
             <CheckCircle className="w-12 h-12 text-green-600 opacity-50" />
@@ -374,7 +362,6 @@ const Deliveries = () => {
         </div>
       </div>
 
-      {/* Deliveries Table */}
       <div className="card overflow-hidden">
         <Table
           columns={columns}
@@ -385,25 +372,25 @@ const Deliveries = () => {
                 <button
                   onClick={() => handleCreateInvoice(delivery.id)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
-                  title="Créer une facture"
+                  title={t('deliveries.createInvoiceTooltip')}
                 >
                   <FileText className="w-4 h-4" />
-                  <span>Facturer</span>
+                  <span>{t('deliveries.invoiceShortButton')}</span>
                 </button>
               )}
               <button
                 onClick={() => handleEdit(delivery)}
-                className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
-                title="Modifier"
-                disabled={delivery.status === 'INVOICED'}
+                className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={t('common.edit')}
+                disabled={TERMINAL_STATUSES.includes(delivery.status)}
               >
                 <Edit className="w-4 h-4" />
               </button>
               <button
                 onClick={() => handleDelete(delivery.id)}
-                className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                title="Supprimer"
-                disabled={delivery.status === 'INVOICED'}
+                className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={t('common.delete')}
+                disabled={TERMINAL_STATUSES.includes(delivery.status)}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -411,7 +398,6 @@ const Deliveries = () => {
           )}
         />
 
-        {/* Pagination */}
         {deliveries.length > 0 && (
           <Pagination
             currentPage={currentPage}
@@ -424,18 +410,16 @@ const Deliveries = () => {
         )}
       </div>
 
-      {/* Delivery Form Modal */}
       <Modal
         isOpen={showModal}
         onClose={handleCloseModal}
-        title={editingDelivery ? 'Modifier la livraison' : 'Créer une livraison'}
+        title={editingDelivery ? t('deliveries.editTitle') : t('deliveries.createTitle')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Order Selection */}
           <div>
             <FormSelect
-              label="Commande"
+              label={t('deliveries.orderLabel')}
               name="orderId"
               value={formData.orderId}
               onChange={handleInputChange}
@@ -444,59 +428,58 @@ const Deliveries = () => {
                 value: order.id.toString(),
                 label: `${order.orderNumber} - ${order.client.firstName} ${order.client.lastName} (${order.totalAmount.toFixed(2)}€)`
               }))}
-              placeholder="Sélectionner une commande..."
+              placeholder={t('deliveries.orderPlaceholder')}
             />
           </div>
 
-          {/* Delivery Address */}
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-primary-600" />
-              Adresse de livraison
+              {t('deliveries.addressSectionTitle')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <FormInput
-                  label="Adresse"
+                  label={t('deliveries.addressLabel')}
                   name="deliveryAddress"
                   value={formData.deliveryAddress}
                   onChange={handleInputChange}
-                  placeholder="123 Rue Example"
+                  placeholder={t('deliveries.addressPlaceholder')}
                   required
                   icon={MapPin}
                 />
               </div>
 
               <FormInput
-                label="Ville"
+                label={t('deliveries.cityLabel')}
                 name="deliveryCity"
                 value={formData.deliveryCity}
                 onChange={handleInputChange}
-                placeholder="Paris"
+                placeholder={t('deliveries.cityPlaceholder')}
                 required
                 icon={MapPin}
               />
 
               <FormInput
-                label="Code postal"
+                label={t('deliveries.postalCodeLabel')}
                 name="deliveryPostalCode"
                 value={formData.deliveryPostalCode}
                 onChange={handleInputChange}
-                placeholder="75000"
+                placeholder={t('deliveries.postalCodePlaceholder')}
                 required
               />
 
               <FormInput
-                label="Pays"
+                label={t('deliveries.countryLabel')}
                 name="deliveryCountry"
                 value={formData.deliveryCountry}
                 onChange={handleInputChange}
-                placeholder="France"
+                placeholder={t('deliveries.countryPlaceholder')}
                 required
               />
 
               <FormInput
-                label="Date de livraison prévue"
+                label={t('deliveries.scheduledDateLabel')}
                 name="scheduledDate"
                 type="date"
                 value={formData.scheduledDate}
@@ -507,95 +490,74 @@ const Deliveries = () => {
             </div>
           </div>
 
-          {/* Contact Information */}
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-primary-600" />
-              Contact de livraison
+              {t('deliveries.contactSectionTitle')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormInput
-                label="Nom du contact"
+                label={t('deliveries.contactNameLabel')}
                 name="contactName"
                 value={formData.contactName}
                 onChange={handleInputChange}
-                placeholder="Jean Dupont"
+                placeholder={t('deliveries.contactNamePlaceholder')}
                 required
                 icon={User}
               />
 
               <FormInput
-                label="Téléphone du contact"
+                label={t('deliveries.contactPhoneLabel')}
                 name="contactPhone"
                 type="tel"
                 value={formData.contactPhone}
                 onChange={handleInputChange}
-                placeholder="0600000000"
+                placeholder={t('deliveries.contactPhonePlaceholder')}
                 required
                 icon={Phone}
               />
             </div>
           </div>
 
-          {/* Status and Notes */}
           <div className="border-t border-gray-200 pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <FormSelect
-                label="Statut de la livraison"
+                label={t('deliveries.statusLabel')}
                 name="status"
                 value={formData.status}
                 onChange={handleInputChange}
                 required
-                options={[
-                  { value: 'PENDING', label: 'En attente' },
-                  { value: 'IN_TRANSIT', label: 'En transit' },
-                  { value: 'DELIVERED', label: 'Livrée' },
-                  { value: 'INVOICED', label: 'Facturée' },
-                  { value: 'CANCELED', label: 'Annulée' }
-                ]}
+                options={statusOptions}
               />
             </div>
 
             <FormInput
-              label="Notes (optionnel)"
+              label={t('deliveries.notesLabel')}
               name="notes"
               type="textarea"
               value={formData.notes}
               onChange={handleInputChange}
-              placeholder="Instructions spéciales, code d'accès, etc."
+              placeholder={t('deliveries.notesPlaceholder')}
             />
           </div>
 
-          {/* Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-            <Button
-              variant="secondary"
-              onClick={handleCloseModal}
-              type="button"
-            >
-              Annuler
+            <Button variant="secondary" onClick={handleCloseModal} type="button">
+              {t('common.cancel')}
             </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              icon={editingDelivery ? Edit : Plus}
-            >
-              {editingDelivery ? 'Modifier' : 'Créer'}
+            <Button variant="primary" type="submit" icon={editingDelivery ? Edit : Plus}>
+              {editingDelivery ? t('common.edit') : t('common.create')}
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
         onConfirm={confirmSubmit}
-        title={editingDelivery ? "Confirmer la modification" : "Confirmer la création"}
-        message={editingDelivery
-          ? `Voulez-vous vraiment modifier cette livraison ?`
-          : `Voulez-vous vraiment créer cette livraison ?`
-        }
+        title={editingDelivery ? t('deliveries.confirmEditTitle') : t('deliveries.confirmCreateTitle')}
+        message={editingDelivery ? t('deliveries.confirmEditMessage') : t('deliveries.confirmCreateMessage')}
         type="info"
       />
     </div>

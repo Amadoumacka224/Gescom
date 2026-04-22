@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
   ShoppingCart,
   Users,
   AlertTriangle,
   DollarSign,
-  Package
+  Package,
+  FileText,
+  Truck,
+  CheckCircle,
+  Clock,
+  CreditCard,
+  ArrowRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../services/api';
 
-const StatCard = ({ title, value, icon: Icon, color, trend }) => (
+const StatCard = ({ title, value, icon: Icon, color, subtitle }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -22,11 +29,8 @@ const StatCard = ({ title, value, icon: Icon, color, trend }) => (
       <div>
         <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
         <h3 className="text-3xl font-bold text-gray-900">{value}</h3>
-        {trend && (
-          <p className={`text-sm mt-2 flex items-center gap-1 ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
-            <TrendingUp className="w-4 h-4" />
-            {trend > 0 ? '+' : ''}{trend}%
-          </p>
+        {subtitle && (
+          <p className="text-sm mt-2 text-gray-500">{subtitle}</p>
         )}
       </div>
       <div className={`p-4 bg-gradient-to-br ${color} rounded-xl`}>
@@ -36,17 +40,37 @@ const StatCard = ({ title, value, icon: Icon, color, trend }) => (
   </motion.div>
 );
 
+const MiniStat = ({ label, value, color }) => (
+  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+    <span className="text-sm text-gray-600">{label}</span>
+    <span className={`text-sm font-bold ${color}`}>{value}</span>
+  </div>
+);
+
 const Dashboard = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalSales: 0,
     totalOrders: 0,
+    pendingOrders: 0,
+    confirmedOrders: 0,
+    completedOrders: 0,
     totalClients: 0,
     lowStock: 0,
+    totalInvoices: 0,
+    totalRevenue: 0,
+    pendingAmount: 0,
+    unpaidInvoices: 0,
+    paidInvoices: 0,
+    totalDeliveries: 0,
+    pendingDeliveries: 0,
+    inTransitDeliveries: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
+  const [lowStockProducts, setLowStockProducts] = useState([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -61,12 +85,24 @@ const Dashboard = () => {
       setStats({
         totalSales: data.totalSales || 0,
         totalOrders: data.totalOrders || 0,
+        pendingOrders: data.pendingOrders || 0,
+        confirmedOrders: data.confirmedOrders || 0,
+        completedOrders: data.completedOrders || 0,
         totalClients: data.totalClients || 0,
         lowStock: data.lowStock || 0,
+        totalInvoices: data.totalInvoices || 0,
+        totalRevenue: data.totalRevenue || 0,
+        pendingAmount: data.pendingAmount || 0,
+        unpaidInvoices: data.unpaidInvoices || 0,
+        paidInvoices: data.paidInvoices || 0,
+        totalDeliveries: data.totalDeliveries || 0,
+        pendingDeliveries: data.pendingDeliveries || 0,
+        inTransitDeliveries: data.inTransitDeliveries || 0,
       });
 
       setRecentOrders(data.recentOrders || []);
       setTopProducts(data.topProducts || []);
+      setLowStockProducts(data.lowStockProducts || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -77,10 +113,11 @@ const Dashboard = () => {
   const getStatusBadge = (status) => {
     const badges = {
       PENDING: { class: 'badge-warning', text: 'En attente' },
-      CONFIRMED: { class: 'badge-info', text: 'Confirmée' },
-      DELIVERED: { class: 'badge-success', text: 'Livrée' },
-      INVOICED: { class: 'badge-primary', text: 'Facturée' },
-      CANCELED: { class: 'badge-danger', text: 'Annulée' }
+      CONFIRMED: { class: 'badge-info', text: 'Confirmee' },
+      INVOICED: { class: 'badge-primary', text: 'Facturee' },
+      DELIVERED: { class: 'badge-success', text: 'Livree' },
+      COMPLETED: { class: 'bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-xs font-medium', text: 'Terminee' },
+      CANCELED: { class: 'badge-danger', text: 'Annulee' }
     };
     const badge = badges[status] || badges.PENDING;
     return <span className={badge.class}>{badge.text}</span>;
@@ -98,7 +135,7 @@ const Dashboard = () => {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement des données...</p>
+          <p className="mt-4 text-gray-600">Chargement des donnees...</p>
         </div>
       </div>
     );
@@ -112,23 +149,25 @@ const Dashboard = () => {
           {t('dashboard.welcome')}
         </h1>
         <p className="text-gray-600">
-          Voici un aperçu de votre activité commerciale
+          Voici un apercu de votre activite commerciale
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title={t('dashboard.totalSales')}
           value={`${formatCurrency(stats.totalSales)} €`}
           icon={DollarSign}
           color="from-green-500 to-emerald-600"
+          subtitle={`${stats.totalOrders} commandes`}
         />
         <StatCard
-          title={t('dashboard.totalOrders')}
-          value={stats.totalOrders}
-          icon={ShoppingCart}
+          title="Revenus encaisses"
+          value={`${formatCurrency(stats.totalRevenue)} €`}
+          icon={CreditCard}
           color="from-blue-500 to-cyan-600"
+          subtitle={`${stats.paidInvoices} factures payees`}
         />
         <StatCard
           title={t('dashboard.totalClients')}
@@ -141,12 +180,96 @@ const Dashboard = () => {
           value={stats.lowStock}
           icon={AlertTriangle}
           color="from-orange-500 to-red-600"
+          subtitle={stats.lowStock > 0 ? 'Attention requise' : 'Stock OK'}
         />
       </div>
 
-      {/* Charts Section */}
+      {/* Blocs de synthese : Commandes / Factures / Livraisons */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Commandes */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <ShoppingCart className="w-5 h-5 text-blue-600" />
+              Commandes
+            </h3>
+            <span className="text-2xl font-bold text-blue-600">{stats.totalOrders}</span>
+          </div>
+          <div className="space-y-2">
+            <MiniStat label="En attente" value={stats.pendingOrders} color="text-yellow-600" />
+            <MiniStat label="Confirmees" value={stats.confirmedOrders} color="text-blue-600" />
+            <MiniStat label="Terminees" value={stats.completedOrders} color="text-green-600" />
+          </div>
+          <button
+            onClick={() => navigate('/orders')}
+            className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1 py-2 rounded-lg hover:bg-blue-50 transition-colors"
+          >
+            Voir les commandes <ArrowRight className="w-4 h-4" />
+          </button>
+        </motion.div>
+
+        {/* Factures */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-600" />
+              Factures
+            </h3>
+            <span className="text-2xl font-bold text-purple-600">{stats.totalInvoices}</span>
+          </div>
+          <div className="space-y-2">
+            <MiniStat label="Payees" value={stats.paidInvoices} color="text-green-600" />
+            <MiniStat label="Non payees" value={stats.unpaidInvoices} color="text-red-600" />
+            <MiniStat label="En attente" value={`${formatCurrency(stats.pendingAmount)} €`} color="text-orange-600" />
+          </div>
+          <button
+            onClick={() => navigate('/invoices')}
+            className="w-full mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1 py-2 rounded-lg hover:bg-purple-50 transition-colors"
+          >
+            Voir les factures <ArrowRight className="w-4 h-4" />
+          </button>
+        </motion.div>
+
+        {/* Livraisons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <Truck className="w-5 h-5 text-orange-600" />
+              Livraisons
+            </h3>
+            <span className="text-2xl font-bold text-orange-600">{stats.totalDeliveries}</span>
+          </div>
+          <div className="space-y-2">
+            <MiniStat label="En attente" value={stats.pendingDeliveries} color="text-yellow-600" />
+            <MiniStat label="En transit" value={stats.inTransitDeliveries} color="text-blue-600" />
+            <MiniStat label="Total livrees" value={stats.totalDeliveries - stats.pendingDeliveries - stats.inTransitDeliveries} color="text-green-600" />
+          </div>
+          <button
+            onClick={() => navigate('/deliveries')}
+            className="w-full mt-4 text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center justify-center gap-1 py-2 rounded-lg hover:bg-orange-50 transition-colors"
+          >
+            Voir les livraisons <ArrowRight className="w-4 h-4" />
+          </button>
+        </motion.div>
+      </div>
+
+      {/* Section inferieure */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Orders */}
+        {/* Commandes recentes */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -156,8 +279,11 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold text-gray-900">
               {t('dashboard.recentOrders')}
             </h2>
-            <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-              Voir tout
+            <button
+              onClick={() => navigate('/orders')}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+            >
+              Voir tout <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           <div className="space-y-4">
@@ -183,12 +309,12 @@ const Dashboard = () => {
                 </div>
               ))
             ) : (
-              <p className="text-center text-gray-500 py-8">Aucune commande récente</p>
+              <p className="text-center text-gray-500 py-8">Aucune commande recente</p>
             )}
           </div>
         </motion.div>
 
-        {/* Top Products */}
+        {/* Produits : stock + alertes */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -198,21 +324,24 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold text-gray-900">
               {t('dashboard.topProducts')}
             </h2>
-            <button className="text-sm text-primary-600 hover:text-primary-700 font-medium">
-              Voir tout
+            <button
+              onClick={() => navigate('/products')}
+              className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+            >
+              Voir tout <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           <div className="space-y-4">
             {topProducts.length > 0 ? (
-              topProducts.map((product, index) => {
-                const maxSales = topProducts[0]?.sales || 1;
-                const percentage = (product.sales / maxSales) * 100;
+              topProducts.map((product) => {
+                const maxStock = topProducts[0]?.stock || 1;
+                const percentage = (product.stock / maxStock) * 100;
                 return (
                   <div key={product.id} className="flex items-center gap-4">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-gray-900">{product.name}</span>
-                        <span className="text-sm text-gray-600">{product.sales} en stock</span>
+                        <span className="text-sm text-gray-600">{product.stock} en stock</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
@@ -228,6 +357,24 @@ const Dashboard = () => {
               <p className="text-center text-gray-500 py-8">Aucun produit disponible</p>
             )}
           </div>
+
+          {/* Alertes stock bas */}
+          {lowStockProducts.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-bold text-red-600 mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Alertes stock bas
+              </h3>
+              <div className="space-y-2">
+                {lowStockProducts.map((product) => (
+                  <div key={product.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-900">{product.name}</span>
+                    <span className="text-sm font-bold text-red-600">{product.stock} restant(s)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
     </div>

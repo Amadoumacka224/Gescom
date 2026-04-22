@@ -81,6 +81,11 @@ public class Order {
     }
 
     public enum OrderStatus {
-        PENDING, CONFIRMED, DELIVERED, INVOICED, CANCELED
+        PENDING,      // Commande créée, en attente de confirmation
+        CONFIRMED,    // Commande confirmée — peut être facturée ou livrée
+        INVOICED,     // Facturée — en attente de livraison
+        DELIVERED,    // Livrée — en attente de facturation
+        COMPLETED,    // Facturée ET livrée — terminée
+        CANCELED      // Annulée
     }
 }

@@ -34,7 +34,8 @@ const Login = () => {
       await login(formData.username, formData.password);
       navigate('/dashboard');
     } catch (err) {
-      setError(t('auth.loginError'));
+      const message = err.response?.data?.message || t('auth.loginError');
+      setError(message);
     } finally {
       setLoading(false);
     }
