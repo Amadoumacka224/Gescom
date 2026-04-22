@@ -1,9 +1,14 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.product.ProductRequest;
+import com.gescom.backend.dto.product.ProductResponse;
+import com.gescom.backend.entity.Category;
 import com.gescom.backend.entity.Product;
-import com.gescom.backend.service.ProductService;
+import com.gescom.backend.exception.ResourceNotFoundException;
+import com.gescom.backend.repository.CategoryRepository;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.CsvImportService;
+import com.gescom.backend.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -23,61 +28,100 @@ import java.util.Map;
 public class ProductController {
 
     private final ProductService productService;
+    private final CategoryRepository categoryRepository;
     private final CsvExportService csvExportService;
     private final CsvImportService csvImportService;
 
-    public ProductController(ProductService productService, CsvExportService csvExportService,
+    public ProductController(ProductService productService,
+                             CategoryRepository categoryRepository,
+                             CsvExportService csvExportService,
                              CsvImportService csvImportService) {
         this.productService = productService;
+        this.categoryRepository = categoryRepository;
         this.csvExportService = csvExportService;
         this.csvImportService = csvImportService;
     }
 
+    private Product applyRequest(Product target, ProductRequest request) {
+        if (request.code() != null && !request.code().isBlank()) {
+            target.setCode(request.code());
+        }
+        target.setName(request.name());
+        target.setDescription(request.description());
+        target.setPurchasePrice(request.purchasePrice());
+        target.setSellingPrice(request.sellingPrice());
+
+        if (request.categoryId() != null) {
+            Category category = categoryRepository.findById(request.categoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Catégorie", request.categoryId()));
+            target.setCategory(category);
+        } else {
+            target.setCategory(null);
+        }
+
+        if (request.unit() != null) target.setUnit(request.unit());
+        if (request.stockQuantity() != null) target.setStockQuantity(request.stockQuantity());
+        if (request.minStockAlert() != null) target.setMinStockAlert(request.minStockAlert());
+        target.setBarcode(request.barcode());
+        target.setImageUrl(request.imageUrl());
+        if (request.active() != null) target.setActive(request.active());
+        return target;
+    }
+
     @GetMapping
-    public ResponseEntity<List<Product>> getAllProducts() {
-        return ResponseEntity.ok(productService.getAllProducts());
+    public ResponseEntity<List<ProductResponse>> getAllProducts() {
+        return ResponseEntity.ok(productService.getAllProducts().stream()
+                .map(ProductResponse::from).toList());
     }
 
     @GetMapping("/active")
-    public ResponseEntity<List<Product>> getActiveProducts() {
-        return ResponseEntity.ok(productService.getActiveProducts());
+    public ResponseEntity<List<ProductResponse>> getActiveProducts() {
+        return ResponseEntity.ok(productService.getActiveProducts().stream()
+                .map(ProductResponse::from).toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Product> getProductById(@PathVariable Long id) {
+    public ResponseEntity<ProductResponse> getProductById(@PathVariable Long id) {
         return productService.getProductById(id)
+                .map(ProductResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/code/{code}")
-    public ResponseEntity<Product> getProductByCode(@PathVariable String code) {
+    public ResponseEntity<ProductResponse> getProductByCode(@PathVariable String code) {
         return productService.getProductByCode(code)
+                .map(ProductResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<Product>> getProductsByCategory(@PathVariable Long categoryId) {
-        return ResponseEntity.ok(productService.getProductsByCategory(categoryId));
+    public ResponseEntity<List<ProductResponse>> getProductsByCategory(@PathVariable Long categoryId) {
+        return ResponseEntity.ok(productService.getProductsByCategory(categoryId).stream()
+                .map(ProductResponse::from).toList());
     }
 
     @GetMapping("/low-stock")
-    public ResponseEntity<List<Product>> getLowStockProducts() {
-        return ResponseEntity.ok(productService.getLowStockProducts());
+    public ResponseEntity<List<ProductResponse>> getLowStockProducts() {
+        return ResponseEntity.ok(productService.getLowStockProducts().stream()
+                .map(ProductResponse::from).toList());
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Product> createProduct(@Valid @RequestBody Product product) {
-        Product createdProduct = productService.createProduct(product);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdProduct);
+    public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody ProductRequest request) {
+        Product product = applyRequest(new Product(), request);
+        Product created = productService.createProduct(product);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ProductResponse.from(created));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Product> updateProduct(@PathVariable Long id, @Valid @RequestBody Product product) {
-        return ResponseEntity.ok(productService.updateProduct(id, product));
+    public ResponseEntity<ProductResponse> updateProduct(@PathVariable Long id,
+                                                          @Valid @RequestBody ProductRequest request) {
+        Product details = applyRequest(new Product(), request);
+        return ResponseEntity.ok(ProductResponse.from(productService.updateProduct(id, details)));
     }
 
     @PatchMapping("/{id}/stock")

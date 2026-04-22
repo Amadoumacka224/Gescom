@@ -1,5 +1,7 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.category.CategoryRequest;
+import com.gescom.backend.dto.category.CategoryResponse;
 import com.gescom.backend.entity.Category;
 import com.gescom.backend.service.CategoryService;
 import jakarta.validation.Valid;
@@ -22,34 +24,50 @@ public class CategoryController {
         this.categoryService = categoryService;
     }
 
+    private Category applyRequest(Category target, CategoryRequest request) {
+        target.setName(request.name());
+        target.setDescription(request.description());
+        target.setCode(request.code());
+        if (request.active() != null) {
+            target.setActive(request.active());
+        }
+        return target;
+    }
+
     @GetMapping
-    public ResponseEntity<List<Category>> getAllCategories() {
-        return ResponseEntity.ok(categoryService.getAllCategories());
+    public ResponseEntity<List<CategoryResponse>> getAllCategories() {
+        return ResponseEntity.ok(categoryService.getAllCategories().stream()
+                .map(CategoryResponse::from).toList());
     }
 
     @GetMapping("/active")
-    public ResponseEntity<List<Category>> getActiveCategories() {
-        return ResponseEntity.ok(categoryService.getActiveCategories());
+    public ResponseEntity<List<CategoryResponse>> getActiveCategories() {
+        return ResponseEntity.ok(categoryService.getActiveCategories().stream()
+                .map(CategoryResponse::from).toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Category> getCategoryById(@PathVariable Long id) {
+    public ResponseEntity<CategoryResponse> getCategoryById(@PathVariable Long id) {
         return categoryService.getCategoryById(id)
+                .map(CategoryResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Category> createCategory(@Valid @RequestBody Category category) {
-        Category newCategory = categoryService.createCategory(category);
-        return ResponseEntity.status(HttpStatus.CREATED).body(newCategory);
+    public ResponseEntity<CategoryResponse> createCategory(@Valid @RequestBody CategoryRequest request) {
+        Category category = applyRequest(new Category(), request);
+        Category created = categoryService.createCategory(category);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CategoryResponse.from(created));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Category> updateCategory(@PathVariable Long id, @Valid @RequestBody Category categoryDetails) {
-        return ResponseEntity.ok(categoryService.updateCategory(id, categoryDetails));
+    public ResponseEntity<CategoryResponse> updateCategory(@PathVariable Long id,
+                                                            @Valid @RequestBody CategoryRequest request) {
+        Category details = applyRequest(new Category(), request);
+        return ResponseEntity.ok(CategoryResponse.from(categoryService.updateCategory(id, details)));
     }
 
     @DeleteMapping("/{id}")
