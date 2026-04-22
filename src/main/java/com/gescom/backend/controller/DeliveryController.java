@@ -1,10 +1,18 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.delivery.DeliveryCreateRequest;
+import com.gescom.backend.dto.delivery.DeliveryResponse;
+import com.gescom.backend.dto.delivery.DeliveryUpdateRequest;
+import com.gescom.backend.dto.invoice.InvoiceResponse;
 import com.gescom.backend.entity.Delivery;
 import com.gescom.backend.entity.Invoice;
+import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.BusinessException;
-import com.gescom.backend.service.DeliveryService;
+import com.gescom.backend.exception.ResourceNotFoundException;
+import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.service.CsvExportService;
+import com.gescom.backend.service.DeliveryService;
+import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -25,63 +33,103 @@ public class DeliveryController {
 
     private final DeliveryService deliveryService;
     private final CsvExportService csvExportService;
+    private final OrderRepository orderRepository;
 
-    public DeliveryController(DeliveryService deliveryService, CsvExportService csvExportService) {
+    public DeliveryController(DeliveryService deliveryService,
+                              CsvExportService csvExportService,
+                              OrderRepository orderRepository) {
         this.deliveryService = deliveryService;
         this.csvExportService = csvExportService;
+        this.orderRepository = orderRepository;
     }
 
     @GetMapping
-    public ResponseEntity<List<Delivery>> getAllDeliveries() {
-        return ResponseEntity.ok(deliveryService.getAllDeliveries());
+    public ResponseEntity<List<DeliveryResponse>> getAllDeliveries() {
+        return ResponseEntity.ok(deliveryService.getAllDeliveries().stream()
+                .map(DeliveryResponse::from).toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Delivery> getDeliveryById(@PathVariable Long id) {
+    public ResponseEntity<DeliveryResponse> getDeliveryById(@PathVariable Long id) {
         return deliveryService.getDeliveryById(id)
+                .map(DeliveryResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/number/{deliveryNumber}")
-    public ResponseEntity<Delivery> getDeliveryByDeliveryNumber(@PathVariable String deliveryNumber) {
+    public ResponseEntity<DeliveryResponse> getDeliveryByDeliveryNumber(@PathVariable String deliveryNumber) {
         return deliveryService.getDeliveryByDeliveryNumber(deliveryNumber)
+                .map(DeliveryResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/order/{orderId}")
-    public ResponseEntity<Delivery> getDeliveryByOrder(@PathVariable Long orderId) {
+    public ResponseEntity<DeliveryResponse> getDeliveryByOrder(@PathVariable Long orderId) {
         return deliveryService.getDeliveryByOrder(orderId)
+                .map(DeliveryResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/status/{status}")
-    public ResponseEntity<List<Delivery>> getDeliveriesByStatus(@PathVariable Delivery.DeliveryStatus status) {
-        return ResponseEntity.ok(deliveryService.getDeliveriesByStatus(status));
+    public ResponseEntity<List<DeliveryResponse>> getDeliveriesByStatus(@PathVariable Delivery.DeliveryStatus status) {
+        return ResponseEntity.ok(deliveryService.getDeliveriesByStatus(status).stream()
+                .map(DeliveryResponse::from).toList());
     }
 
     @GetMapping("/date-range")
-    public ResponseEntity<List<Delivery>> getDeliveriesByDateRange(
+    public ResponseEntity<List<DeliveryResponse>> getDeliveriesByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return ResponseEntity.ok(deliveryService.getDeliveriesByDateRange(start, end));
+        return ResponseEntity.ok(deliveryService.getDeliveriesByDateRange(start, end).stream()
+                .map(DeliveryResponse::from).toList());
     }
 
     @PostMapping
-    public ResponseEntity<Delivery> createDelivery(@RequestBody Delivery delivery) {
-        Delivery createdDelivery = deliveryService.createDelivery(delivery);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdDelivery);
+    public ResponseEntity<DeliveryResponse> createDelivery(@Valid @RequestBody DeliveryCreateRequest request) {
+        Order order = orderRepository.findById(request.orderId())
+                .orElseThrow(() -> new ResourceNotFoundException("Commande", request.orderId()));
+
+        Delivery delivery = new Delivery();
+        delivery.setOrder(order);
+        delivery.setDeliveryAddress(request.deliveryAddress());
+        delivery.setDeliveryCity(request.deliveryCity());
+        delivery.setDeliveryPostalCode(request.deliveryPostalCode());
+        delivery.setDeliveryCountry(request.deliveryCountry());
+        delivery.setContactName(request.contactName());
+        delivery.setContactPhone(request.contactPhone());
+        delivery.setScheduledDate(request.scheduledDate());
+        if (request.status() != null) {
+            delivery.setStatus(request.status());
+        }
+        delivery.setNotes(request.notes());
+
+        Delivery created = deliveryService.createDelivery(delivery);
+        return ResponseEntity.status(HttpStatus.CREATED).body(DeliveryResponse.from(created));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Delivery> updateDelivery(@PathVariable Long id, @RequestBody Delivery delivery) {
-        return ResponseEntity.ok(deliveryService.updateDelivery(id, delivery));
+    public ResponseEntity<DeliveryResponse> updateDelivery(@PathVariable Long id,
+                                                           @Valid @RequestBody DeliveryUpdateRequest request) {
+        Delivery patch = new Delivery();
+        patch.setDeliveryAddress(request.deliveryAddress());
+        patch.setDeliveryCity(request.deliveryCity());
+        patch.setDeliveryPostalCode(request.deliveryPostalCode());
+        patch.setDeliveryCountry(request.deliveryCountry());
+        patch.setContactName(request.contactName());
+        patch.setContactPhone(request.contactPhone());
+        patch.setScheduledDate(request.scheduledDate());
+        patch.setStatus(request.status());
+        patch.setNotes(request.notes());
+
+        return ResponseEntity.ok(DeliveryResponse.from(deliveryService.updateDelivery(id, patch)));
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Delivery> updateDeliveryStatus(@PathVariable Long id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<DeliveryResponse> updateDeliveryStatus(@PathVariable Long id,
+                                                                  @RequestBody Map<String, String> request) {
         String raw = request != null ? request.get("status") : null;
         if (raw == null || raw.isBlank()) {
             throw new BusinessException("Le champ 'status' est obligatoire");
@@ -92,19 +140,19 @@ public class DeliveryController {
         } catch (IllegalArgumentException ex) {
             throw new BusinessException("Statut de livraison inconnu : " + raw);
         }
-        return ResponseEntity.ok(deliveryService.updateDeliveryStatus(id, status));
+        return ResponseEntity.ok(DeliveryResponse.from(deliveryService.updateDeliveryStatus(id, status)));
     }
 
     @PatchMapping("/{id}/mark-delivered")
-    public ResponseEntity<Delivery> markAsDelivered(@PathVariable Long id, @RequestBody Map<String, String> request) {
+    public ResponseEntity<DeliveryResponse> markAsDelivered(@PathVariable Long id, @RequestBody Map<String, String> request) {
         String deliveredBy = request.get("deliveredBy");
-        return ResponseEntity.ok(deliveryService.markAsDelivered(id, deliveredBy));
+        return ResponseEntity.ok(DeliveryResponse.from(deliveryService.markAsDelivered(id, deliveredBy)));
     }
 
     @PostMapping("/{id}/create-invoice")
-    public ResponseEntity<Invoice> createInvoiceFromDelivery(@PathVariable Long id) {
+    public ResponseEntity<InvoiceResponse> createInvoiceFromDelivery(@PathVariable Long id) {
         Invoice invoice = deliveryService.createInvoiceFromDelivery(id);
-        return ResponseEntity.status(HttpStatus.CREATED).body(invoice);
+        return ResponseEntity.status(HttpStatus.CREATED).body(InvoiceResponse.from(invoice));
     }
 
     @DeleteMapping("/{id}")

@@ -116,7 +116,7 @@ const Invoices = () => {
   const confirmCreateInvoice = async () => {
     try {
       const invoiceData = {
-        order: { id: parseInt(createForm.orderId) },
+        orderId: parseInt(createForm.orderId),
         invoiceDate: createForm.invoiceDate,
         dueDate: createForm.dueDate,
         paymentMethod: createForm.paymentMethod,
