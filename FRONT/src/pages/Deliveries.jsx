@@ -97,7 +97,7 @@ const Deliveries = () => {
   const confirmSubmit = async () => {
     try {
       const deliveryData = {
-        order: { id: parseInt(formData.orderId) },
+        orderId: parseInt(formData.orderId),
         deliveryAddress: formData.deliveryAddress,
         deliveryCity: formData.deliveryCity,
         deliveryPostalCode: formData.deliveryPostalCode,
