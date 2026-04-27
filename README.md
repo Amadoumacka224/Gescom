@@ -41,12 +41,12 @@ Le fichier `src/main/resources/application.properties` lit ses paramètres sensi
 
 | Variable          | Description                                         | Fallback dev                                          |
 |-------------------|-----------------------------------------------------|-------------------------------------------------------|
-| `DB_URL`          | URL JDBC PostgreSQL                                 | `jdbc:postgresql://localhost:5432/GESCOM_2`           |
-| `DB_USERNAME`     | Utilisateur PostgreSQL                              | `postgres`                                            |
-| `DB_PASSWORD`     | Mot de passe PostgreSQL                             | `passer`                                              |
-| `JWT_SECRET`      | Secret JWT (≥ 64 caractères aléatoires en prod)     | valeur dev non sécurisée                              |
-| `JWT_EXPIRATION`  | Durée de validité du token (ms)                     | `86400000` (24 h)                                     |
-| `CORS_ORIGINS`    | Origines CORS autorisées (séparées par virgule)     | `http://localhost:5173,http://localhost:3000`         |
+| `DB_URL`          | URL JDBC PostgreSQL                                 |            |
+| `DB_USERNAME`     | Utilisateur PostgreSQL                                                                        |
+| `DB_PASSWORD`     | Mot de passe PostgreSQL                                                                         |
+| `JWT_SECRET`      | Secret JWT (≥ 64 caractères aléatoires en prod)     |                             |
+| `JWT_EXPIRATION`  | Durée de validité du token (ms)                     |                                   |
+| `CORS_ORIGINS`    | Origines CORS autorisées (séparées par virgule)     |        |
 
 Exemple (Linux/macOS) :
 
