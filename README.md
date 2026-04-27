@@ -29,24 +29,26 @@ Créer la base de données PostgreSQL (le nom par défaut attendu est `GESCOM_2`
 CREATE DATABASE "GESCOM_2";
 ```
 
-(Optionnel) Initialiser un compte administrateur de départ :
+(Optionnel — **développement uniquement**) Initialiser des comptes de test :
 
 ```bash
 psql -U postgres -d GESCOM_2 -f init-admin.sql
 ```
 
+> ⚠️ Le script `init-admin.sql` crée des comptes avec des mots de passe par défaut destinés au développement local. **Ne jamais l'exécuter tel quel en production** : changez les mots de passe immédiatement après la première connexion, ou créez vos comptes via l'API.
+
 ### 2. Variables d'environnement
 
-Le fichier `src/main/resources/application.properties` lit ses paramètres sensibles depuis l'environnement. Les valeurs en dur ne sont que des fallbacks de développement local — **en production elles doivent être surchargées**.
+L'application lit l'ensemble de ses paramètres sensibles depuis l'environnement. **Toutes les variables ci-dessous doivent être définies en production** ; les valeurs par défaut présentes dans `application.properties` ne servent qu'au démarrage local et ne doivent jamais être utilisées en environnement déployé.
 
-| Variable          | Description                                         | Fallback dev                                          |
-|-------------------|-----------------------------------------------------|-------------------------------------------------------|
-| `DB_URL`          | URL JDBC PostgreSQL                                 |            |
-| `DB_USERNAME`     | Utilisateur PostgreSQL                                                                        |
-| `DB_PASSWORD`     | Mot de passe PostgreSQL                                                                         |
-| `JWT_SECRET`      | Secret JWT (≥ 64 caractères aléatoires en prod)     |                             |
-| `JWT_EXPIRATION`  | Durée de validité du token (ms)                     |                                   |
-| `CORS_ORIGINS`    | Origines CORS autorisées (séparées par virgule)     |        |
+| Variable          | Description                                                        |
+|-------------------|--------------------------------------------------------------------|
+| `DB_URL`          | URL JDBC PostgreSQL                                                |
+| `DB_USERNAME`     | Utilisateur PostgreSQL                                             |
+| `DB_PASSWORD`     | Mot de passe PostgreSQL                                            |
+| `JWT_SECRET`      | Secret JWT — **64 caractères aléatoires minimum en production**    |
+| `JWT_EXPIRATION`  | Durée de validité du token (ms)                                    |
+| `CORS_ORIGINS`    | Origines CORS autorisées (séparées par virgule)                    |
 
 Exemple (Linux/macOS) :
 
