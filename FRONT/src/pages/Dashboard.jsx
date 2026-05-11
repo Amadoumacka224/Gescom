@@ -66,7 +66,7 @@ const Dashboard = () => {
     paidInvoices: 0,
     totalDeliveries: 0,
     pendingDeliveries: 0,
-    inTransitDeliveries: 0,
+    inPreparationDeliveries: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
@@ -97,7 +97,7 @@ const Dashboard = () => {
         paidInvoices: data.paidInvoices || 0,
         totalDeliveries: data.totalDeliveries || 0,
         pendingDeliveries: data.pendingDeliveries || 0,
-        inTransitDeliveries: data.inTransitDeliveries || 0,
+        inPreparationDeliveries: data.inPreparationDeliveries || 0,
       });
 
       setRecentOrders(data.recentOrders || []);
@@ -255,8 +255,8 @@ const Dashboard = () => {
           </div>
           <div className="space-y-2">
             <MiniStat label="En attente" value={stats.pendingDeliveries} color="text-yellow-600" />
-            <MiniStat label="En transit" value={stats.inTransitDeliveries} color="text-blue-600" />
-            <MiniStat label="Total livrees" value={stats.totalDeliveries - stats.pendingDeliveries - stats.inTransitDeliveries} color="text-green-600" />
+            <MiniStat label="En préparation" value={stats.inPreparationDeliveries} color="text-blue-600" />
+            <MiniStat label="Total livrees" value={stats.totalDeliveries - stats.pendingDeliveries - stats.inPreparationDeliveries} color="text-green-600" />
           </div>
           <button
             onClick={() => navigate('/deliveries')}

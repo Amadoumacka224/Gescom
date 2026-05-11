@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Truck, MapPin, Calendar, Edit, Trash2, Clock, CheckCircle, XCircle, User, Phone, Hash, FileText } from 'lucide-react';
+import { Plus, Truck, Package, MapPin, Calendar, Edit, Trash2, Clock, CheckCircle, XCircle, User, Phone, Hash, FileText } from 'lucide-react';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -177,7 +177,7 @@ const Deliveries = () => {
   const getStatusBadge = (status) => {
     const badges = {
       PENDING: { class: 'badge-warning', key: 'deliveries.statusPending', icon: Clock },
-      IN_TRANSIT: { class: 'badge-info', key: 'deliveries.statusInTransit', icon: Truck },
+      IN_PREPARATION: { class: 'badge-info', key: 'deliveries.statusInPreparation', icon: Package },
       DELIVERED: { class: 'badge-success', key: 'deliveries.statusDelivered', icon: CheckCircle },
       INVOICED: { class: 'bg-purple-100 text-purple-700 border-purple-200', key: 'deliveries.statusInvoiced', icon: CheckCircle },
       CANCELED: { class: 'badge-danger', key: 'deliveries.statusCanceled', icon: XCircle }
@@ -215,7 +215,7 @@ const Deliveries = () => {
   const stats = {
     total: deliveries.length,
     pending: deliveries.filter(d => d.status === 'PENDING').length,
-    inTransit: deliveries.filter(d => d.status === 'IN_TRANSIT').length,
+    inPreparation: deliveries.filter(d => d.status === 'IN_PREPARATION').length,
     delivered: deliveries.filter(d => d.status === 'DELIVERED').length
   };
 
@@ -232,7 +232,7 @@ const Deliveries = () => {
 
   const statusOptions = [
     { value: 'PENDING', label: t('deliveries.statusPending') },
-    { value: 'IN_TRANSIT', label: t('deliveries.statusInTransit') },
+    { value: 'IN_PREPARATION', label: t('deliveries.statusInPreparation') },
     { value: 'DELIVERED', label: t('deliveries.statusDelivered') },
     { value: 'CANCELED', label: t('deliveries.statusCanceled') }
   ];
@@ -344,10 +344,10 @@ const Deliveries = () => {
         <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-600 font-medium">{t('deliveries.countInTransit')}</p>
-              <p className="text-3xl font-bold text-blue-700">{stats.inTransit}</p>
+              <p className="text-sm text-blue-600 font-medium">{t('deliveries.countInPreparation')}</p>
+              <p className="text-3xl font-bold text-blue-700">{stats.inPreparation}</p>
             </div>
-            <Truck className="w-12 h-12 text-blue-600 opacity-50" />
+            <Package className="w-12 h-12 text-blue-600 opacity-50" />
           </div>
         </div>
 
