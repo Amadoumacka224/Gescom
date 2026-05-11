@@ -142,11 +142,8 @@ public class DashboardController {
         // --- Deliveries ---
         List<Delivery> allDeliveries = deliveryService.getAllDeliveries();
         long pendingDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.PENDING).count();
-        long inTransitDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.IN_TRANSIT).count();
-
         overview.put("totalDeliveries", allDeliveries.size());
         overview.put("pendingDeliveries", pendingDeliveries);
-        overview.put("inTransitDeliveries", inTransitDeliveries);
 
         // --- Recent orders ---
         List<Order> recentOrders = allOrders.stream()
