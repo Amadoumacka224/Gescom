@@ -253,11 +253,9 @@
     "deliveredBy": "Geleverd door",
     "status": "Status",
     "statusPending": "In afwachting",
-    "statusInPreparation": "In voorbereiding",
     "statusDelivered": "Geleverd",
     "statusInvoiced": "Gefactureerd",
     "statusCanceled": "Geannuleerd",
-    "inPreparation": "In voorbereiding",
     "address": "Leveringsadres",
     "addressSectionTitle": "Leveringsadres",
     "contactSectionTitle": "Contactpersoon levering",
@@ -302,7 +300,6 @@
     "notesPlaceholder": "Speciale instructies, toegangscode, enz.",
     "columnContact": "Contactpersoon",
     "countPending": "In afwachting",
-    "countInPreparation": "In voorbereiding",
     "countDelivered": "Geleverd"
   },
   "invoices": {

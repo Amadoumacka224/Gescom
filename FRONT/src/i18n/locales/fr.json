@@ -253,11 +253,9 @@
     "deliveredBy": "Livré par",
     "status": "Statut",
     "statusPending": "En attente",
-    "statusInPreparation": "En préparation",
     "statusDelivered": "Livrée",
     "statusInvoiced": "Facturée",
     "statusCanceled": "Annulée",
-    "inPreparation": "En préparation",
     "address": "Adresse de livraison",
     "addressSectionTitle": "Adresse de livraison",
     "contactSectionTitle": "Contact de livraison",
@@ -302,7 +300,6 @@
     "notesPlaceholder": "Instructions spéciales, code d'accès, etc.",
     "columnContact": "Contact",
     "countPending": "En attente",
-    "countInPreparation": "En préparation",
     "countDelivered": "Livrées"
   },
   "invoices": {
