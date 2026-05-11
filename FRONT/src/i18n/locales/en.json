@@ -253,11 +253,11 @@
     "deliveredBy": "Delivered by",
     "status": "Status",
     "statusPending": "Pending",
-    "statusInTransit": "In transit",
+    "statusInPreparation": "In preparation",
     "statusDelivered": "Delivered",
     "statusInvoiced": "Invoiced",
     "statusCanceled": "Canceled",
-    "inTransit": "In transit",
+    "inPreparation": "In preparation",
     "address": "Delivery address",
     "addressSectionTitle": "Delivery address",
     "contactSectionTitle": "Delivery contact",
@@ -302,7 +302,7 @@
     "notesPlaceholder": "Special instructions, access code, etc.",
     "columnContact": "Contact",
     "countPending": "Pending",
-    "countInTransit": "In transit",
+    "countInPreparation": "In preparation",
     "countDelivered": "Delivered"
   },
   "invoices": {
