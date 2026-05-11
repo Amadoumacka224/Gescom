@@ -92,7 +92,6 @@ public class Delivery {
 
     public enum DeliveryStatus {
         PENDING,
-        IN_TRANSIT,
         DELIVERED,
         INVOICED,
         CANCELED;
@@ -101,8 +100,7 @@ public class Delivery {
 
         static {
             Map<DeliveryStatus, Set<DeliveryStatus>> map = new EnumMap<>(DeliveryStatus.class);
-            map.put(PENDING, EnumSet.of(IN_TRANSIT, DELIVERED, CANCELED));
-            map.put(IN_TRANSIT, EnumSet.of(DELIVERED, CANCELED));
+            map.put(PENDING, EnumSet.of(DELIVERED, CANCELED));
             map.put(DELIVERED, EnumSet.of(INVOICED));
             map.put(INVOICED, EnumSet.noneOf(DeliveryStatus.class));
             map.put(CANCELED, EnumSet.noneOf(DeliveryStatus.class));
