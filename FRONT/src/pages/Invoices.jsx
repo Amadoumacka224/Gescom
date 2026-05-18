@@ -69,9 +69,10 @@ const Invoices = () => {
   const fetchOrders = async () => {
     try {
       const response = await api.get('/orders');
-      // Show CONFIRMED and DELIVERED orders that don't have an invoice yet
+      // La livraison ne peut être créée qu'après facturation : seules les commandes
+      // CONFIRMED (non encore facturées) sont éligibles à la facturation.
       const availableOrders = response.data.filter(order =>
-        (order.status === 'CONFIRMED' || order.status === 'DELIVERED') && !invoices.some(inv => inv.order?.id === order.id)
+        order.status === 'CONFIRMED' && !invoices.some(inv => inv.order?.id === order.id)
       );
       setOrders(availableOrders);
     } catch (error) {

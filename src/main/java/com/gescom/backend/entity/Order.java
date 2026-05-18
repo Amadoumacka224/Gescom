@@ -9,7 +9,12 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Entity
 @Table(name = "orders")
@@ -81,11 +86,39 @@ public class Order {
     }
 
     public enum OrderStatus {
-        PENDING,      // Commande créée, en attente de confirmation
-        CONFIRMED,    // Commande confirmée — peut être facturée ou livrée
-        INVOICED,     // Facturée — en attente de livraison
-        DELIVERED,    // Livrée — en attente de facturation
-        COMPLETED,    // Facturée ET livrée — terminée
-        CANCELED      // Annulée
+
+        // ── Valeurs (ordre du cycle de vie) ──────────────────────────
+        // Flux linéaire strict : la livraison ne peut être créée qu'après la facturation.
+        PENDING,    // Créée, en attente de confirmation
+        CONFIRMED,  // Confirmée — peut être facturée
+        INVOICED,   // Facturée — peut être livrée
+        DELIVERED,  // Livrée — état commercial final
+        CANCELED;   // Annulée — terminal
+
+        // ── Machine à états : transitions autorisées ─────────────────
+        private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS;
+
+        static {
+            Map<OrderStatus, Set<OrderStatus>> map = new EnumMap<>(OrderStatus.class);
+            map.put(PENDING,   Collections.unmodifiableSet(EnumSet.of(CONFIRMED, CANCELED)));
+            map.put(CONFIRMED, Collections.unmodifiableSet(EnumSet.of(INVOICED, CANCELED)));
+            map.put(INVOICED,  Collections.unmodifiableSet(EnumSet.of(DELIVERED, CANCELED)));
+            map.put(DELIVERED, Collections.unmodifiableSet(EnumSet.of(CANCELED)));
+            map.put(CANCELED,  Collections.emptySet());
+            ALLOWED_TRANSITIONS = Collections.unmodifiableMap(map);
+        }
+
+        // ── API publique ─────────────────────────────────────────────
+        public Set<OrderStatus> allowedTransitions() {
+            return ALLOWED_TRANSITIONS.getOrDefault(this, Collections.emptySet());
+        }
+
+        public boolean canTransitionTo(OrderStatus target) {
+            return target != null && allowedTransitions().contains(target);
+        }
+
+        public boolean isTerminal() {
+            return allowedTransitions().isEmpty();
+        }
     }
 }

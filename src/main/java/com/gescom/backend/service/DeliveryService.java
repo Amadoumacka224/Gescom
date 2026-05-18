@@ -1,18 +1,22 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.Delivery;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
+import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.DeliveryRepository;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -21,17 +25,41 @@ import java.util.Optional;
 @Transactional
 public class DeliveryService {
 
+    private static final Logger log = LoggerFactory.getLogger(DeliveryService.class);
+
     private final DeliveryRepository deliveryRepository;
     private final OrderRepository orderRepository;
     private final InvoiceRepository invoiceRepository;
     private final OrderService orderService;
+    private final ActivityLogService activityLogService;
 
     public DeliveryService(DeliveryRepository deliveryRepository, OrderRepository orderRepository,
-                           InvoiceRepository invoiceRepository, OrderService orderService) {
+                           InvoiceRepository invoiceRepository, OrderService orderService,
+                           ActivityLogService activityLogService) {
         this.deliveryRepository = deliveryRepository;
         this.orderRepository = orderRepository;
         this.invoiceRepository = invoiceRepository;
         this.orderService = orderService;
+        this.activityLogService = activityLogService;
+    }
+
+    private Long getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof User) {
+            return ((User) auth.getPrincipal()).getId();
+        }
+        return null;
+    }
+
+    private void logActivity(ActivityLog.ActionType actionType, String entity, Long entityId, String description) {
+        try {
+            Long userId = getCurrentUserId();
+            if (userId != null) {
+                activityLogService.logActivity(userId, actionType, entity, entityId, description, null, null);
+            }
+        } catch (Exception e) {
+            log.warn("Échec du log d'activité: {}", e.getMessage());
+        }
     }
 
     @Transactional(readOnly = true)
@@ -68,23 +96,65 @@ public class DeliveryService {
         Order order = orderRepository.findById(delivery.getOrder().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", delivery.getOrder().getId()));
 
-        // La livraison est possible depuis CONFIRMED (livraison avant facturation)
-        // ou depuis INVOICED (livraison après facturation)
-        if (order.getStatus() != Order.OrderStatus.CONFIRMED && order.getStatus() != Order.OrderStatus.INVOICED) {
-            throw new BusinessException("La commande doit être confirmée ou facturée pour être livrée (statut actuel : " + order.getStatus() + ")");
+        // Pré-requis métier : la livraison ne peut être créée qu'après la facturation.
+        if (order.getStatus() != Order.OrderStatus.INVOICED) {
+            throw new BusinessException(
+                    "La commande doit être facturée pour être livrée (statut actuel : " + order.getStatus() + ")");
         }
+
+        // Défense en profondeur : statut INVOICED implique en principe la présence d'une facture
+        // valide, mais on vérifie explicitement pour rejeter le cas d'une facture annulée.
+        Invoice invoice = invoiceRepository.findByOrderId(order.getId())
+                .orElseThrow(() -> new BusinessException(
+                        "Aucune facture n'a été émise pour cette commande — impossible de créer la livraison"));
+        if (invoice.getStatus() == Invoice.InvoiceStatus.CANCELED) {
+            throw new BusinessException(
+                    "La facture associée à cette commande est annulée — impossible de créer la livraison");
+        }
+
+        // Une seule livraison par commande.
+        if (deliveryRepository.findByOrderId(order.getId()).isPresent()) {
+            throw new BusinessException("Une livraison existe déjà pour cette commande");
+        }
+
+        // Les nouvelles livraisons démarrent toujours en PENDING — le statut envoyé par
+        // le client est ignoré pour éviter les sauts de cycle.
+        delivery.setStatus(Delivery.DeliveryStatus.PENDING);
+        delivery.setDeliveredDate(null);
+        delivery.setDeliveredBy(null);
 
         Delivery savedDelivery = deliveryRepository.save(delivery);
 
-        // Transition du statut de la commande (machine à états centralisée dans OrderService) :
-        // CONFIRMED → DELIVERED (en attente de facturation)
-        // INVOICED → COMPLETED (déjà facturée + maintenant livrée = terminée)
-        Order.OrderStatus target = order.getStatus() == Order.OrderStatus.INVOICED
-                ? Order.OrderStatus.COMPLETED
-                : Order.OrderStatus.DELIVERED;
-        orderService.transitionTo(order, target);
+        // L'Order reste en INVOICED tant que la livraison n'est pas effectivement
+        // marquée DELIVERED — la transition Order INVOICED → DELIVERED est faite par
+        // markDeliveryAsDelivered() pour refléter l'état réel.
+
+        logActivity(ActivityLog.ActionType.CREATE, "Delivery", savedDelivery.getId(),
+                "Création de la livraison " + savedDelivery.getDeliveryNumber()
+                        + " pour la commande " + order.getOrderNumber());
 
         return savedDelivery;
+    }
+
+    /**
+     * Bascule la livraison à DELIVERED et propage la transition à l'Order
+     * (INVOICED → DELIVERED). Idempotent si déjà DELIVERED.
+     */
+    private void applyDelivered(Delivery delivery, String deliveredBy) {
+        if (delivery.getStatus() == Delivery.DeliveryStatus.DELIVERED) {
+            return;
+        }
+        delivery.setStatus(Delivery.DeliveryStatus.DELIVERED);
+        if (delivery.getDeliveredDate() == null) {
+            delivery.setDeliveredDate(LocalDateTime.now());
+        }
+        if (deliveredBy != null && !deliveredBy.isBlank()) {
+            delivery.setDeliveredBy(deliveredBy);
+        }
+        Order order = delivery.getOrder();
+        if (order != null && order.getStatus() == Order.OrderStatus.INVOICED) {
+            orderService.transitionTo(order, Order.OrderStatus.DELIVERED);
+        }
     }
 
     public Delivery updateDelivery(Long id, Delivery updatedDelivery) {
@@ -95,15 +165,16 @@ public class DeliveryService {
         Delivery.DeliveryStatus target = updatedDelivery.getStatus();
         if (target != null && target != current) {
             if (target == Delivery.DeliveryStatus.INVOICED) {
-                throw new BusinessException("Le passage à INVOICED doit se faire via la création de facture");
+                throw new BusinessException("Le statut INVOICED est obsolète et ne peut plus être appliqué");
             }
             if (!current.canTransitionTo(target)) {
                 throw new BusinessException(
                         "Transition de statut invalide : " + current + " → " + target);
             }
-            existingDelivery.setStatus(target);
-            if (target == Delivery.DeliveryStatus.DELIVERED && existingDelivery.getDeliveredDate() == null) {
-                existingDelivery.setDeliveredDate(LocalDateTime.now());
+            if (target == Delivery.DeliveryStatus.DELIVERED) {
+                applyDelivered(existingDelivery, existingDelivery.getDeliveredBy());
+            } else {
+                existingDelivery.setStatus(target);
             }
         }
 
@@ -124,7 +195,7 @@ public class DeliveryService {
             throw new BusinessException("Le statut cible est obligatoire");
         }
         if (status == Delivery.DeliveryStatus.INVOICED) {
-            throw new BusinessException("Le passage à INVOICED doit se faire via la création de facture");
+            throw new BusinessException("Le statut INVOICED est obsolète et ne peut plus être appliqué");
         }
 
         Delivery delivery = deliveryRepository.findById(id)
@@ -139,9 +210,10 @@ public class DeliveryService {
                     "Transition de statut invalide : " + current + " → " + status);
         }
 
-        delivery.setStatus(status);
-        if (status == Delivery.DeliveryStatus.DELIVERED && delivery.getDeliveredDate() == null) {
-            delivery.setDeliveredDate(LocalDateTime.now());
+        if (status == Delivery.DeliveryStatus.DELIVERED) {
+            applyDelivered(delivery, delivery.getDeliveredBy());
+        } else {
+            delivery.setStatus(status);
         }
 
         return deliveryRepository.save(delivery);
@@ -158,66 +230,21 @@ public class DeliveryService {
                     "Impossible de marquer comme livrée depuis le statut " + current);
         }
 
-        delivery.setStatus(Delivery.DeliveryStatus.DELIVERED);
-        delivery.setDeliveredDate(LocalDateTime.now());
-        delivery.setDeliveredBy(deliveredBy);
+        applyDelivered(delivery, deliveredBy);
+        Delivery saved = deliveryRepository.save(delivery);
 
-        return deliveryRepository.save(delivery);
-    }
+        logActivity(ActivityLog.ActionType.UPDATE, "Delivery", saved.getId(),
+                "Livraison " + saved.getDeliveryNumber() + " marquée comme livrée");
 
-    public Invoice createInvoiceFromDelivery(Long deliveryId) {
-        Delivery delivery = deliveryRepository.findById(deliveryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Livraison", deliveryId));
-
-        if (!delivery.getStatus().canTransitionTo(Delivery.DeliveryStatus.INVOICED)) {
-            throw new BusinessException(
-                    "Impossible de facturer une livraison au statut " + delivery.getStatus()
-                            + " (elle doit être au statut DELIVERED)");
-        }
-
-        Optional<Invoice> existingInvoice = invoiceRepository.findByDelivery(delivery);
-        if (existingInvoice.isPresent()) {
-            throw new BusinessException("Une facture existe déjà pour cette livraison");
-        }
-
-        Order order = delivery.getOrder();
-
-        // Vérifier qu'une facture n'existe pas déjà pour cette commande
-        if (invoiceRepository.findByOrderId(order.getId()).isPresent()) {
-            throw new BusinessException("Une facture existe déjà pour cette commande");
-        }
-
-        BigDecimal subtotal = order.getItems().stream()
-                .map(item -> item.getUnitPrice().multiply(new BigDecimal(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Invoice invoice = new Invoice();
-        invoice.setOrder(order);
-        invoice.setDelivery(delivery);
-        invoice.setInvoiceDate(LocalDate.now());
-        invoice.setDueDate(LocalDate.now().plusDays(30));
-        invoice.setSubtotal(subtotal);
-        invoice.setTaxRate(new BigDecimal("20.00"));
-        invoice.setTaxAmount(subtotal.multiply(new BigDecimal("0.20")));
-        invoice.setTotalAmount(subtotal.add(subtotal.multiply(new BigDecimal("0.20"))));
-        invoice.setRemainingAmount(invoice.getTotalAmount());
-        invoice.setStatus(Invoice.InvoiceStatus.UNPAID);
-        invoice.setPaymentMethod(Invoice.PaymentMethod.CASH);
-
-        Invoice savedInvoice = invoiceRepository.save(invoice);
-
-        delivery.setStatus(Delivery.DeliveryStatus.INVOICED);
-        deliveryRepository.save(delivery);
-
-        // La commande est maintenant livrée ET facturée → COMPLETED (via machine à états)
-        orderService.transitionTo(order, Order.OrderStatus.COMPLETED);
-
-        return savedInvoice;
+        return saved;
     }
 
     public void deleteDelivery(Long id) {
         Delivery delivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Livraison", id));
         deliveryRepository.delete(delivery);
+
+        logActivity(ActivityLog.ActionType.DELETE, "Delivery", id,
+                "Suppression de la livraison " + delivery.getDeliveryNumber());
     }
 }

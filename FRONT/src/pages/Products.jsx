@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, DollarSign, ArrowUpDown, Grid3x3, List, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, DollarSign, ArrowUpDown, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 import productService from '../services/productService';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -13,12 +14,20 @@ import Table from '../components/Table';
 
 const Products = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  // Le backend restreint déjà create/update/delete/import/export aux ADMIN
+  // (cf. ProductController @PreAuthorize("hasRole('ADMIN')")). On masque l'UI
+  // pour le CAISSIER afin d'éviter les 403 et de ne pas afficher des actions
+  // dont il ne dispose pas.
+  const isAdmin = user?.role === 'ADMIN';
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [viewMode, setViewMode] = useState(() => {
@@ -130,6 +139,16 @@ const Products = () => {
       setImagePreview(product.imageUrl);
     }
     setShowModal(true);
+  };
+
+  const handleViewDetails = (product) => {
+    setSelectedProduct(product);
+    setShowDetailsModal(true);
+  };
+
+  const handleCloseDetails = () => {
+    setShowDetailsModal(false);
+    setSelectedProduct(null);
   };
 
   const handleDelete = async (id) => {
@@ -382,27 +401,31 @@ const Products = () => {
           >
             Actualiser
           </Button>
-          <Button
-            variant="secondary"
-            icon={Upload}
-            onClick={() => alert('Import en cours de développement')}
-          >
-            Importer
-          </Button>
-          <Button
-            variant="secondary"
-            icon={Download}
-            onClick={handleExport}
-          >
-            Exporter
-          </Button>
-          <Button
-            variant="primary"
-            icon={Plus}
-            onClick={() => setShowModal(true)}
-          >
-            {t('products.addProduct')}
-          </Button>
+          {isAdmin && (
+            <>
+              <Button
+                variant="secondary"
+                icon={Upload}
+                onClick={() => alert('Import en cours de développement')}
+              >
+                Importer
+              </Button>
+              <Button
+                variant="secondary"
+                icon={Download}
+                onClick={handleExport}
+              >
+                Exporter
+              </Button>
+              <Button
+                variant="primary"
+                icon={Plus}
+                onClick={() => setShowModal(true)}
+              >
+                {t('products.addProduct')}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -498,19 +521,30 @@ const Products = () => {
             actions={(product) => (
               <>
                 <button
-                  onClick={() => handleEdit(product)}
-                  className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
-                  title="Modifier"
+                  onClick={() => handleViewDetails(product)}
+                  className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Voir les détails"
                 >
-                  <Edit className="w-4 h-4" />
+                  <Eye className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => handleDelete(product.id)}
-                  className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Supprimer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => handleEdit(product)}
+                      className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
+                      title="Modifier"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(product.id)}
+                      className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </>
             )}
           />
@@ -540,6 +574,7 @@ const Products = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
+                onClick={() => handleViewDetails(product)}
                 className="card hover:shadow-lg transition-shadow cursor-pointer group"
               >
                 {/* Product Image */}
@@ -578,22 +613,33 @@ const Products = () => {
                       </span>
                     </div>
                   )}
-                  {/* Action Buttons - Show on hover */}
+                  {/* Action Buttons - Show on hover (stopPropagation pour ne pas ré-ouvrir les détails depuis le clic sur la carte) */}
                   <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <button
-                      onClick={() => handleEdit(product)}
-                      className="bg-white text-primary-600 p-3 rounded-lg hover:bg-primary-50 transition-colors"
-                      title="Modifier"
+                      onClick={(e) => { e.stopPropagation(); handleViewDetails(product); }}
+                      className="bg-white text-gray-700 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+                      title="Voir les détails"
                     >
-                      <Edit className="w-5 h-5" />
+                      <Eye className="w-5 h-5" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="bg-white text-red-600 p-3 rounded-lg hover:bg-red-50 transition-colors"
-                      title="Supprimer"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleEdit(product); }}
+                          className="bg-white text-primary-600 p-3 rounded-lg hover:bg-primary-50 transition-colors"
+                          title="Modifier"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(product.id); }}
+                          className="bg-white text-red-600 p-3 rounded-lg hover:bg-red-50 transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -887,6 +933,180 @@ const Products = () => {
         type="info"
       />
 
+      {/* Product Details Modal */}
+      {selectedProduct && (
+        <Modal
+          isOpen={showDetailsModal}
+          onClose={handleCloseDetails}
+          title="Détails du produit"
+          size="lg"
+        >
+          <ProductDetails
+            product={selectedProduct}
+            onEdit={() => {
+              handleCloseDetails();
+              handleEdit(selectedProduct);
+            }}
+            onClose={handleCloseDetails}
+          />
+        </Modal>
+      )}
+
+    </div>
+  );
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString('fr-FR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return String(value);
+  }
+};
+
+const ProductDetails = ({ product, onEdit, onClose }) => {
+  const purchase = Number(product.purchasePrice) || 0;
+  const selling = Number(product.sellingPrice) || 0;
+  const stock = Number(product.stockQuantity) || 0;
+  const minAlert = Number(product.minStockAlert) || 0;
+  const marginAbs = selling - purchase;
+  const marginPct = purchase > 0 ? (marginAbs / purchase) * 100 : null;
+  const stockValue = stock * purchase;
+
+  let stockStatus;
+  if (stock === 0) {
+    stockStatus = { label: 'Rupture de stock', class: 'badge-danger', icon: TrendingDown };
+  } else if (stock < minAlert) {
+    stockStatus = { label: 'Stock faible', class: 'bg-orange-100 text-orange-700 border-orange-200', icon: AlertTriangle };
+  } else {
+    stockStatus = { label: 'Stock normal', class: 'badge-success', icon: TrendingUp };
+  }
+  const StockIcon = stockStatus.icon;
+
+  return (
+    <div className="space-y-6">
+      {/* Header — image + identité */}
+      <div className="flex items-start gap-4 pb-4 border-b border-gray-200">
+        <div className="flex-shrink-0 w-32 h-32 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden flex items-center justify-center">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <Package className="w-12 h-12 text-gray-400" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`badge ${product.active ? 'badge-success' : 'badge-danger'}`}>
+              {product.active ? 'Actif' : 'Inactif'}
+            </span>
+            {product.category?.name && (
+              <span className="badge badge-info flex items-center gap-1">
+                <FolderTree className="w-3 h-3" />
+                {product.category.name}
+              </span>
+            )}
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 break-words">{product.name}</h2>
+          <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+            <Hash className="w-3 h-3" />
+            {product.code}
+          </p>
+          {product.barcode && (
+            <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+              <Barcode className="w-3 h-3" />
+              {product.barcode}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Description */}
+      {product.description && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
+          <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
+            {product.description}
+          </p>
+        </div>
+      )}
+
+      {/* Prix & marge */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+          <DollarSign className="w-4 h-4" /> Prix
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Prix d'achat</p>
+            <p className="text-lg font-semibold text-gray-900">{purchase.toFixed(2)}€</p>
+          </div>
+          <div className="bg-primary-50 rounded-lg p-3">
+            <p className="text-xs text-primary-600">Prix de vente</p>
+            <p className="text-lg font-semibold text-primary-700">{selling.toFixed(2)}€</p>
+          </div>
+          <div className={`rounded-lg p-3 ${marginAbs >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+            <p className={`text-xs ${marginAbs >= 0 ? 'text-green-600' : 'text-red-600'}`}>Marge brute</p>
+            <p className={`text-lg font-semibold ${marginAbs >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {marginAbs.toFixed(2)}€
+              {marginPct !== null && (
+                <span className="text-sm font-normal ml-1">({marginPct.toFixed(1)}%)</span>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Stock */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+          <Package className="w-4 h-4" /> Stock
+        </h3>
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Quantité actuelle</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {stock} <span className="text-sm font-normal text-gray-500">{product.unit || ''}</span>
+            </p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Seuil d'alerte</p>
+            <p className="text-lg font-semibold text-gray-900">{minAlert}</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3">
+            <p className="text-xs text-gray-500">Valeur du stock</p>
+            <p className="text-lg font-semibold text-gray-900">{stockValue.toFixed(2)}€</p>
+          </div>
+        </div>
+        <span className={`badge ${stockStatus.class} inline-flex items-center gap-1`}>
+          <StockIcon className="w-3 h-3" />
+          {stockStatus.label}
+        </span>
+      </div>
+
+      {/* Méta */}
+      <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-200 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-400" />
+          <span>Créé&nbsp;: {formatDateTime(product.createdAt)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-400" />
+          <span>Modifié&nbsp;: {formatDateTime(product.updatedAt)}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+        <Button variant="secondary" type="button" onClick={onClose}>
+          Fermer
+        </Button>
+        <Button variant="primary" type="button" icon={Edit} onClick={onEdit}>
+          Modifier
+        </Button>
+      </div>
     </div>
   );
 };

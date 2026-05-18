@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import FormInput from '../components/FormInput';
@@ -32,6 +33,10 @@ import Button from '../components/Button';
 
 const Stock = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  // Gestion du stock = réservée ADMIN (sidebar le masque déjà au CAISSIER, backend
+  // durci au niveau StockController). Garde defense-in-depth si l'URL est tapée.
+  const isAdmin = user?.role === 'ADMIN';
   const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'movements', 'details'
   const [movements, setMovements] = useState([]);
   const [products, setProducts] = useState([]);
@@ -238,6 +243,21 @@ const Stock = () => {
       minute: '2-digit'
     });
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+          <AlertTriangle className="w-8 h-8 text-red-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Accès refusé</h1>
+        <p className="text-gray-600 max-w-md">
+          La gestion du stock est réservée aux administrateurs. Si vous pensez qu'il s'agit
+          d'une erreur, contactez votre administrateur.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

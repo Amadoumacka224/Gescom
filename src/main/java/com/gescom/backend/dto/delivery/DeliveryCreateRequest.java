@@ -1,6 +1,5 @@
 package com.gescom.backend.dto.delivery;
 
-import com.gescom.backend.entity.Delivery;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -34,8 +33,6 @@ public record DeliveryCreateRequest(
 
         @NotNull(message = "La date planifiée est obligatoire")
         LocalDateTime scheduledDate,
-
-        Delivery.DeliveryStatus status,
 
         @Size(max = 500)
         String notes

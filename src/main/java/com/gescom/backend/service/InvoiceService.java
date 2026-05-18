@@ -116,10 +116,9 @@ public class InvoiceService {
         Order order = orderRepository.findById(invoice.getOrder().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", invoice.getOrder().getId()));
 
-        // La facturation est possible depuis CONFIRMED (facture avant livraison)
-        // ou depuis DELIVERED (facture après livraison)
-        if (order.getStatus() != Order.OrderStatus.CONFIRMED && order.getStatus() != Order.OrderStatus.DELIVERED) {
-            throw new BusinessException("La commande doit être confirmée ou livrée pour être facturée (statut actuel : " + order.getStatus() + ")");
+        // La facturation précède la livraison : seule une commande CONFIRMED peut être facturée.
+        if (order.getStatus() != Order.OrderStatus.CONFIRMED) {
+            throw new BusinessException("La commande doit être confirmée pour être facturée (statut actuel : " + order.getStatus() + ")");
         }
 
         // Vérifier qu'une facture n'existe pas déjà pour cette commande
@@ -155,13 +154,8 @@ public class InvoiceService {
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
-        // Transition du statut de la commande (machine à états centralisée dans OrderService) :
-        // CONFIRMED → INVOICED (en attente de livraison)
-        // DELIVERED → COMPLETED (déjà livrée + maintenant facturée = terminée)
-        Order.OrderStatus target = order.getStatus() == Order.OrderStatus.DELIVERED
-                ? Order.OrderStatus.COMPLETED
-                : Order.OrderStatus.INVOICED;
-        orderService.transitionTo(order, target);
+        // La commande passe de CONFIRMED à INVOICED — pré-requis pour créer la livraison.
+        orderService.transitionTo(order, Order.OrderStatus.INVOICED);
 
         logActivity(ActivityLog.ActionType.CREATE, "Invoice", savedInvoice.getId(),
             "Création de la facture " + savedInvoice.getInvoiceNumber() + " - Montant: " + savedInvoice.getTotalAmount());

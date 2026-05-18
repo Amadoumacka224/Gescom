@@ -49,6 +49,8 @@ application-local.properties
 *.sql
 *.sql.gz
 *.dump
+# Exception : schéma versionné (structure uniquement, sans données)
+!db/schema.sql
 
 ### Node / Frontend ###
 FRONT/node_modules/

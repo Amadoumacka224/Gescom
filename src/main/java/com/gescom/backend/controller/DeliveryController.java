@@ -3,9 +3,7 @@ package com.gescom.backend.controller;
 import com.gescom.backend.dto.delivery.DeliveryCreateRequest;
 import com.gescom.backend.dto.delivery.DeliveryResponse;
 import com.gescom.backend.dto.delivery.DeliveryUpdateRequest;
-import com.gescom.backend.dto.invoice.InvoiceResponse;
 import com.gescom.backend.entity.Delivery;
-import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
@@ -101,9 +99,6 @@ public class DeliveryController {
         delivery.setContactName(request.contactName());
         delivery.setContactPhone(request.contactPhone());
         delivery.setScheduledDate(request.scheduledDate());
-        if (request.status() != null) {
-            delivery.setStatus(request.status());
-        }
         delivery.setNotes(request.notes());
 
         Delivery created = deliveryService.createDelivery(delivery);
@@ -147,12 +142,6 @@ public class DeliveryController {
     public ResponseEntity<DeliveryResponse> markAsDelivered(@PathVariable Long id, @RequestBody Map<String, String> request) {
         String deliveredBy = request.get("deliveredBy");
         return ResponseEntity.ok(DeliveryResponse.from(deliveryService.markAsDelivered(id, deliveredBy)));
-    }
-
-    @PostMapping("/{id}/create-invoice")
-    public ResponseEntity<InvoiceResponse> createInvoiceFromDelivery(@PathVariable Long id) {
-        Invoice invoice = deliveryService.createInvoiceFromDelivery(id);
-        return ResponseEntity.status(HttpStatus.CREATED).body(InvoiceResponse.from(invoice));
     }
 
     @DeleteMapping("/{id}")

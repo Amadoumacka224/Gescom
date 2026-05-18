@@ -216,23 +216,7 @@ public class OrderService {
         if (current == target) {
             throw new BusinessException("La commande est déjà au statut " + current);
         }
-        if (current == Order.OrderStatus.CANCELED) {
-            throw new BusinessException("Impossible de modifier une commande annulée");
-        }
-        if (current == Order.OrderStatus.COMPLETED) {
-            throw new BusinessException("Impossible de modifier une commande terminée");
-        }
-
-        boolean valid = switch (target) {
-            case CONFIRMED -> current == Order.OrderStatus.PENDING;
-            case INVOICED -> current == Order.OrderStatus.CONFIRMED;
-            case DELIVERED -> current == Order.OrderStatus.CONFIRMED;
-            case COMPLETED -> current == Order.OrderStatus.INVOICED || current == Order.OrderStatus.DELIVERED;
-            case CANCELED -> true;
-            case PENDING -> false;
-        };
-
-        if (!valid) {
+        if (!current.canTransitionTo(target)) {
             throw new BusinessException("Transition de statut invalide : " + current + " → " + target);
         }
     }
@@ -241,11 +225,8 @@ public class OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Commande", id));
 
-        if (order.getStatus() == Order.OrderStatus.CANCELED) {
-            throw new BusinessException("La commande est déjà annulée");
-        }
-        if (order.getStatus() == Order.OrderStatus.COMPLETED) {
-            throw new BusinessException("Impossible d'annuler une commande terminée");
+        if (!order.getStatus().canTransitionTo(Order.OrderStatus.CANCELED)) {
+            throw new BusinessException("Impossible d'annuler une commande au statut " + order.getStatus());
         }
 
         // Restaurer le stock (verrou pessimiste pour éviter les lectures/écritures concurrentes)

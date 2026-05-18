@@ -4,10 +4,16 @@ import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight } from 'lucide-rea
 import { motion } from 'framer-motion';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 import ConfirmModal from '../components/ConfirmModal';
 
 const Categories = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  // Le backend restreint create/update/delete/toggle-status aux ADMIN
+  // (cf. CategoryController @PreAuthorize("hasRole('ADMIN')")). On masque les
+  // actions correspondantes côté UI pour éviter les 403 au CAISSIER.
+  const isAdmin = user?.role === 'ADMIN';
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,13 +160,15 @@ const Categories = () => {
           <h1 className="text-3xl font-bold text-gray-900">Catégories</h1>
           <p className="text-gray-600 mt-1">Gérer les catégories de produits</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Nouvelle catégorie
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Nouvelle catégorie
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -210,33 +218,35 @@ const Categories = () => {
               </p>
             )}
 
-            <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
-              <button
-                onClick={() => handleEdit(category)}
-                className="flex-1 btn-secondary text-sm py-2 flex items-center justify-center gap-1"
-              >
-                <Edit2 className="w-4 h-4" />
-                Modifier
-              </button>
-              <button
-                onClick={() => handleToggleStatus(category.id)}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                title={category.active ? 'Désactiver' : 'Activer'}
-              >
-                {category.active ? (
-                  <ToggleRight className="w-5 h-5" />
-                ) : (
-                  <ToggleLeft className="w-5 h-5" />
-                )}
-              </button>
-              <button
-                onClick={() => handleDelete(category.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Supprimer"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => handleEdit(category)}
+                  className="flex-1 btn-secondary text-sm py-2 flex items-center justify-center gap-1"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Modifier
+                </button>
+                <button
+                  onClick={() => handleToggleStatus(category.id)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title={category.active ? 'Désactiver' : 'Activer'}
+                >
+                  {category.active ? (
+                    <ToggleRight className="w-5 h-5" />
+                  ) : (
+                    <ToggleLeft className="w-5 h-5" />
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDelete(category.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Supprimer"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </motion.div>
         ))}
       </div>
