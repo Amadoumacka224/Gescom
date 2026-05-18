@@ -56,7 +56,9 @@ const Dashboard = () => {
     totalOrders: 0,
     pendingOrders: 0,
     confirmedOrders: 0,
-    completedOrders: 0,
+    invoicedOrders: 0,
+    deliveredOrders: 0,
+    canceledOrders: 0,
     totalClients: 0,
     lowStock: 0,
     totalInvoices: 0,
@@ -66,9 +68,11 @@ const Dashboard = () => {
     paidInvoices: 0,
     totalDeliveries: 0,
     pendingDeliveries: 0,
+    deliveredDeliveries: 0,
+    canceledDeliveries: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
-  const [topProducts, setTopProducts] = useState([]);
+  const [topStockProducts, setTopStockProducts] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
 
   useEffect(() => {
@@ -86,7 +90,9 @@ const Dashboard = () => {
         totalOrders: data.totalOrders || 0,
         pendingOrders: data.pendingOrders || 0,
         confirmedOrders: data.confirmedOrders || 0,
-        completedOrders: data.completedOrders || 0,
+        invoicedOrders: data.invoicedOrders || 0,
+        deliveredOrders: data.deliveredOrders || 0,
+        canceledOrders: data.canceledOrders || 0,
         totalClients: data.totalClients || 0,
         lowStock: data.lowStock || 0,
         totalInvoices: data.totalInvoices || 0,
@@ -96,10 +102,12 @@ const Dashboard = () => {
         paidInvoices: data.paidInvoices || 0,
         totalDeliveries: data.totalDeliveries || 0,
         pendingDeliveries: data.pendingDeliveries || 0,
+        deliveredDeliveries: data.deliveredDeliveries || 0,
+        canceledDeliveries: data.canceledDeliveries || 0,
       });
 
       setRecentOrders(data.recentOrders || []);
-      setTopProducts(data.topProducts || []);
+      setTopStockProducts(data.topStockProducts || []);
       setLowStockProducts(data.lowStockProducts || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -114,7 +122,6 @@ const Dashboard = () => {
       CONFIRMED: { class: 'badge-info', text: 'Confirmee' },
       INVOICED: { class: 'badge-primary', text: 'Facturee' },
       DELIVERED: { class: 'badge-success', text: 'Livree' },
-      COMPLETED: { class: 'bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-xs font-medium', text: 'Terminee' },
       CANCELED: { class: 'badge-danger', text: 'Annulee' }
     };
     const badge = badges[status] || badges.PENDING;
@@ -158,7 +165,7 @@ const Dashboard = () => {
           value={`${formatCurrency(stats.totalSales)} €`}
           icon={DollarSign}
           color="from-green-500 to-emerald-600"
-          subtitle={`${stats.totalOrders} commandes`}
+          subtitle={`${stats.totalOrders - stats.canceledOrders} commandes honorées`}
         />
         <StatCard
           title="Revenus encaisses"
@@ -200,7 +207,9 @@ const Dashboard = () => {
           <div className="space-y-2">
             <MiniStat label="En attente" value={stats.pendingOrders} color="text-yellow-600" />
             <MiniStat label="Confirmees" value={stats.confirmedOrders} color="text-blue-600" />
-            <MiniStat label="Terminees" value={stats.completedOrders} color="text-green-600" />
+            <MiniStat label="Facturees" value={stats.invoicedOrders} color="text-purple-600" />
+            <MiniStat label="Livrees" value={stats.deliveredOrders} color="text-green-600" />
+            <MiniStat label="Annulees" value={stats.canceledOrders} color="text-red-600" />
           </div>
           <button
             onClick={() => navigate('/orders')}
@@ -253,7 +262,8 @@ const Dashboard = () => {
           </div>
           <div className="space-y-2">
             <MiniStat label="En attente" value={stats.pendingDeliveries} color="text-yellow-600" />
-            <MiniStat label="Total livrees" value={stats.totalDeliveries - stats.pendingDeliveries} color="text-green-600" />
+            <MiniStat label="Livrees" value={stats.deliveredDeliveries} color="text-green-600" />
+            <MiniStat label="Annulees" value={stats.canceledDeliveries} color="text-red-600" />
           </div>
           <button
             onClick={() => navigate('/deliveries')}
@@ -317,9 +327,9 @@ const Dashboard = () => {
           animate={{ opacity: 1, x: 0 }}
           className="card"
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-1">
             <h2 className="text-xl font-bold text-gray-900">
-              {t('dashboard.topProducts')}
+              Stock le plus important
             </h2>
             <button
               onClick={() => navigate('/products')}
@@ -328,10 +338,11 @@ const Dashboard = () => {
               Voir tout <ArrowRight className="w-4 h-4" />
             </button>
           </div>
+          <p className="text-xs text-gray-500 mb-6">Produits avec les plus grandes quantites en stock — pas un classement des ventes</p>
           <div className="space-y-4">
-            {topProducts.length > 0 ? (
-              topProducts.map((product) => {
-                const maxStock = topProducts[0]?.stock || 1;
+            {topStockProducts.length > 0 ? (
+              topStockProducts.map((product) => {
+                const maxStock = topStockProducts[0]?.stock || 1;
                 const percentage = (product.stock / maxStock) * 100;
                 return (
                   <div key={product.id} className="flex items-center gap-4">

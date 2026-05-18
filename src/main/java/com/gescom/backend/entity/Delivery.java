@@ -91,8 +91,10 @@ public class Delivery {
     }
 
     public enum DeliveryStatus {
-        PENDING,
-        DELIVERED,
+        PENDING,    // Planifiée
+        DELIVERED,  // Livrée — terminal commercial
+        // Conservée pour les données existantes (ancien flux livraison→facture).
+        // Aucun nouveau code ne doit transitionner vers ou depuis INVOICED.
         INVOICED,
         CANCELED;
 
@@ -101,7 +103,7 @@ public class Delivery {
         static {
             Map<DeliveryStatus, Set<DeliveryStatus>> map = new EnumMap<>(DeliveryStatus.class);
             map.put(PENDING, EnumSet.of(DELIVERED, CANCELED));
-            map.put(DELIVERED, EnumSet.of(INVOICED));
+            map.put(DELIVERED, EnumSet.noneOf(DeliveryStatus.class));
             map.put(INVOICED, EnumSet.noneOf(DeliveryStatus.class));
             map.put(CANCELED, EnumSet.noneOf(DeliveryStatus.class));
             ALLOWED_TRANSITIONS = map;

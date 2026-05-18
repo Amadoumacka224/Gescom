@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Truck, MapPin, Calendar, Edit, Trash2, Clock, CheckCircle, XCircle, User, Phone, Hash, FileText } from 'lucide-react';
+import { Plus, Truck, MapPin, Calendar, Edit, Trash2, Clock, CheckCircle, XCircle, User, Phone, Hash, PackageCheck, Copy } from 'lucide-react';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -11,11 +10,23 @@ import FormSelect from '../components/FormSelect';
 import Button from '../components/Button';
 import Table from '../components/Table';
 
-const TERMINAL_STATUSES = ['INVOICED', 'CANCELED'];
+const TERMINAL_STATUSES = ['DELIVERED', 'INVOICED', 'CANCELED'];
+
+// Le backend (LocalDateTime) renvoie "2025-12-01T10:00:00" ; l'input HTML type="date"
+// n'accepte que "YYYY-MM-DD". Ces deux helpers font le pont sans perdre la valeur.
+const toDateInputValue = (isoDateTime) => {
+  if (!isoDateTime) return '';
+  return String(isoDateTime).split('T')[0];
+};
+
+const toLocalDateTime = (dateInputValue) => {
+  if (!dateInputValue) return null;
+  // Pas de suffixe 'Z' : LocalDateTime côté backend rejette les offsets de timezone.
+  return `${dateInputValue}T00:00:00`;
+};
 
 const Deliveries = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState([]);
   const [orders, setOrders] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -37,24 +48,30 @@ const Deliveries = () => {
   });
 
   useEffect(() => {
-    fetchDeliveries();
-    fetchOrders();
+    refresh();
   }, []);
 
   const fetchDeliveries = async () => {
     try {
       const response = await api.get('/deliveries');
       setDeliveries(response.data);
+      return response.data;
     } catch (error) {
       console.error('Error fetching deliveries:', error);
       setDeliveries([]);
+      return [];
     }
   };
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (currentDeliveries) => {
     try {
       const response = await api.get('/orders');
-      const availableOrders = response.data.filter(order => order.status === 'CONFIRMED');
+      // Une livraison ne peut être créée qu'après facturation : on n'affiche que les
+      // commandes INVOICED, et on exclut celles qui ont déjà une livraison.
+      const deliveredOrderIds = new Set((currentDeliveries || []).map(d => d.order?.id).filter(Boolean));
+      const availableOrders = response.data.filter(
+        order => order.status === 'INVOICED' && !deliveredOrderIds.has(order.id)
+      );
       setOrders(availableOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -62,20 +79,61 @@ const Deliveries = () => {
     }
   };
 
+  const refresh = async () => {
+    const list = await fetchDeliveries();
+    await fetchOrders(list);
+  };
+
+  const buildClientDefaults = (client) => {
+    if (!client) return {};
+    const fullName = [client.firstName, client.lastName].filter(Boolean).join(' ').trim();
+    return {
+      contactName: fullName,
+      contactPhone: client.phone || '',
+      deliveryAddress: client.address || '',
+      deliveryCity: client.city || '',
+      deliveryPostalCode: client.postalCode || '',
+      deliveryCountry: client.country || 'France',
+    };
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
 
-    if (name === 'orderId' && value) {
-      const selectedOrder = orders.find(o => o.id === parseInt(value));
-      if (selectedOrder) {
-        setFormData(prev => ({
-          ...prev,
-          contactName: `${selectedOrder.client.firstName} ${selectedOrder.client.lastName}`,
-          contactPhone: selectedOrder.client.phone
-        }));
-      }
+    if (name === 'orderId') {
+      // Pré-remplit les coordonnées de livraison à partir du client de la commande,
+      // mais uniquement pour les champs encore vides — l'édition utilisateur prime.
+      const selectedOrder = value ? orders.find(o => o.id === parseInt(value)) : null;
+      const defaults = selectedOrder ? buildClientDefaults(selectedOrder.client) : {};
+      setFormData(prev => {
+        const next = { ...prev, orderId: value };
+        Object.entries(defaults).forEach(([key, val]) => {
+          if (!prev[key] && val) {
+            next[key] = val;
+          }
+        });
+        return next;
+      });
+      return;
     }
+
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCopyFromClient = () => {
+    // En création, la commande est trouvée via le filtre `orders` ; en édition,
+    // la commande de la livraison n'est plus dans `orders` (filtre INVOICED) donc
+    // on retombe sur la commande attachée à la livraison en cours d'édition.
+    const selectedOrder = formData.orderId
+      ? orders.find(o => o.id === parseInt(formData.orderId))
+      : null;
+    const client = selectedOrder?.client || editingDelivery?.order?.client;
+    if (!client) {
+      alert(t('deliveries.selectOrderFirst'));
+      return;
+    }
+    const defaults = buildClientDefaults(client);
+    setFormData(prev => ({ ...prev, ...defaults }));
   };
 
   const handleSubmit = (e) => {
@@ -104,7 +162,7 @@ const Deliveries = () => {
         deliveryCountry: formData.deliveryCountry,
         contactName: formData.contactName,
         contactPhone: formData.contactPhone,
-        scheduledDate: new Date(formData.scheduledDate).toISOString(),
+        scheduledDate: toLocalDateTime(formData.scheduledDate),
         status: formData.status,
         notes: formData.notes
       };
@@ -118,8 +176,7 @@ const Deliveries = () => {
       }
 
       handleCloseModal();
-      fetchDeliveries();
-      fetchOrders();
+      refresh();
     } catch (error) {
       console.error('Error saving delivery:', error);
       const errorMessage = error.response?.data || error.message || t('deliveries.saveError');
@@ -135,7 +192,7 @@ const Deliveries = () => {
       deliveryCity: delivery.deliveryCity,
       deliveryPostalCode: delivery.deliveryPostalCode,
       deliveryCountry: delivery.deliveryCountry,
-      scheduledDate: delivery.scheduledDate,
+      scheduledDate: toDateInputValue(delivery.scheduledDate),
       contactName: delivery.contactName,
       contactPhone: delivery.contactPhone,
       notes: delivery.notes || '',
@@ -149,11 +206,27 @@ const Deliveries = () => {
       try {
         await api.delete(`/deliveries/${id}`);
         alert(t('deliveries.deleteSuccess'));
-        fetchDeliveries();
+        refresh();
       } catch (error) {
         console.error('Error deleting delivery:', error);
         alert(t('deliveries.deleteError'));
       }
+    }
+  };
+
+  const handleMarkDelivered = async (delivery) => {
+    if (!window.confirm(t('deliveries.confirmMarkDelivered'))) {
+      return;
+    }
+    try {
+      await api.patch(`/deliveries/${delivery.id}/mark-delivered`, {
+        deliveredBy: delivery.deliveredBy || ''
+      });
+      refresh();
+    } catch (error) {
+      console.error('Error marking delivery as delivered:', error);
+      const errorMessage = error.response?.data || error.message || t('deliveries.markDeliveredError');
+      alert(t('common.errorPrefix') + errorMessage);
     }
   };
 
@@ -190,25 +263,6 @@ const Deliveries = () => {
         {t(badge.key)}
       </span>
     );
-  };
-
-  const handleCreateInvoice = async (deliveryId) => {
-    if (!window.confirm(t('deliveries.createInvoiceConfirmation'))) {
-      return;
-    }
-
-    try {
-      const response = await api.post(`/deliveries/${deliveryId}/create-invoice`);
-      const invoice = response.data;
-
-      alert(t('deliveries.invoiceCreatedSuccess'));
-      fetchDeliveries();
-      navigate('/invoices', { state: { invoiceId: invoice.id } });
-    } catch (error) {
-      console.error('Error creating invoice:', error);
-      const errorMessage = error.response?.data || t('deliveries.createInvoiceError');
-      alert(errorMessage);
-    }
   };
 
   const stats = {
@@ -355,14 +409,14 @@ const Deliveries = () => {
           data={paginatedDeliveries}
           actions={(delivery) => (
             <div className="flex items-center gap-2">
-              {delivery.status === 'DELIVERED' && (
+              {delivery.status === 'PENDING' && (
                 <button
-                  onClick={() => handleCreateInvoice(delivery.id)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
-                  title={t('deliveries.createInvoiceTooltip')}
+                  onClick={() => handleMarkDelivered(delivery)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
+                  title={t('deliveries.markDeliveredTooltip')}
                 >
-                  <FileText className="w-4 h-4" />
-                  <span>{t('deliveries.invoiceShortButton')}</span>
+                  <PackageCheck className="w-4 h-4" />
+                  <span>{t('deliveries.markDeliveredShort')}</span>
                 </button>
               )}
               <button
@@ -478,10 +532,22 @@ const Deliveries = () => {
           </div>
 
           <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-primary-600" />
-              {t('deliveries.contactSectionTitle')}
-            </h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <User className="w-5 h-5 text-primary-600" />
+                {t('deliveries.contactSectionTitle')}
+              </h3>
+              <button
+                type="button"
+                onClick={handleCopyFromClient}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors"
+                title={t('deliveries.copyFromClientTooltip')}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {t('deliveries.copyFromClient')}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">{t('deliveries.contactHint')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormInput
                 label={t('deliveries.contactNameLabel')}

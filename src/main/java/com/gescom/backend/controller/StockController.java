@@ -81,7 +81,11 @@ public class StockController {
                 .map(StockMovementResponse::from).toList());
     }
 
+    // Les opérations d'écriture de stock sont réservées aux ADMIN (cohérent avec
+    // la sidebar qui masque /stock pour CAISSIER). Avant, ces endpoints étaient
+    // ouverts à CAISSIER via la sécurité au niveau classe — défaut corrigé ici.
     @PostMapping("/add")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockMovementResponse> addStock(@Valid @RequestBody StockAddRequest request) {
         StockMovement movement = stockService.addStock(
                 request.productId(), request.quantity(), request.unitCost(),
@@ -90,6 +94,7 @@ public class StockController {
     }
 
     @PostMapping("/remove")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockMovementResponse> removeStock(@Valid @RequestBody StockRemoveRequest request) {
         StockMovement movement = stockService.removeStock(
                 request.productId(), request.quantity(),
@@ -98,6 +103,7 @@ public class StockController {
     }
 
     @PostMapping("/adjust")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockMovementResponse> adjustStock(@Valid @RequestBody StockAdjustRequest request) {
         StockMovement movement = stockService.adjustStock(
                 request.productId(), request.newQuantity(), request.reason(), currentUserId());
@@ -105,6 +111,7 @@ public class StockController {
     }
 
     @PostMapping("/damage")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockMovementResponse> recordDamage(@Valid @RequestBody StockDamageRequest request) {
         StockMovement movement = stockService.recordDamage(
                 request.productId(), request.quantity(), request.reason(), currentUserId());
