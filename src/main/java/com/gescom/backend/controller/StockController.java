@@ -8,6 +8,8 @@ import com.gescom.backend.dto.stock.StockMovementResponse;
 import com.gescom.backend.dto.stock.StockRemoveRequest;
 import com.gescom.backend.entity.StockMovement;
 import com.gescom.backend.entity.User;
+import com.gescom.backend.mapper.ProductMapper;
+import com.gescom.backend.mapper.StockMovementMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.StockService;
 import jakarta.validation.Valid;
@@ -33,10 +35,15 @@ public class StockController {
 
     private final StockService stockService;
     private final CsvExportService csvExportService;
+    private final StockMovementMapper stockMovementMapper;
+    private final ProductMapper productMapper;
 
-    public StockController(StockService stockService, CsvExportService csvExportService) {
+    public StockController(StockService stockService, CsvExportService csvExportService,
+                           StockMovementMapper stockMovementMapper, ProductMapper productMapper) {
         this.stockService = stockService;
         this.csvExportService = csvExportService;
+        this.stockMovementMapper = stockMovementMapper;
+        this.productMapper = productMapper;
     }
 
     private Long currentUserId() {
@@ -50,13 +57,13 @@ public class StockController {
     @GetMapping("/movements")
     public ResponseEntity<List<StockMovementResponse>> getAllMovements() {
         return ResponseEntity.ok(stockService.getAllMovements().stream()
-                .map(StockMovementResponse::from).toList());
+                .map(stockMovementMapper::toResponse).toList());
     }
 
     @GetMapping("/movements/{id}")
     public ResponseEntity<StockMovementResponse> getMovementById(@PathVariable Long id) {
         return stockService.getMovementById(id)
-                .map(StockMovementResponse::from)
+                .map(stockMovementMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -64,13 +71,13 @@ public class StockController {
     @GetMapping("/movements/product/{productId}")
     public ResponseEntity<List<StockMovementResponse>> getMovementsByProduct(@PathVariable Long productId) {
         return ResponseEntity.ok(stockService.getMovementsByProduct(productId).stream()
-                .map(StockMovementResponse::from).toList());
+                .map(stockMovementMapper::toResponse).toList());
     }
 
     @GetMapping("/movements/type/{type}")
     public ResponseEntity<List<StockMovementResponse>> getMovementsByType(@PathVariable StockMovement.MovementType type) {
         return ResponseEntity.ok(stockService.getMovementsByType(type).stream()
-                .map(StockMovementResponse::from).toList());
+                .map(stockMovementMapper::toResponse).toList());
     }
 
     @GetMapping("/movements/date-range")
@@ -78,7 +85,7 @@ public class StockController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         return ResponseEntity.ok(stockService.getMovementsByDateRange(start, end).stream()
-                .map(StockMovementResponse::from).toList());
+                .map(stockMovementMapper::toResponse).toList());
     }
 
     // Les opérations d'écriture de stock sont réservées aux ADMIN (cohérent avec
@@ -90,7 +97,7 @@ public class StockController {
         StockMovement movement = stockService.addStock(
                 request.productId(), request.quantity(), request.unitCost(),
                 request.reason(), request.reference(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
     }
 
     @PostMapping("/remove")
@@ -99,7 +106,7 @@ public class StockController {
         StockMovement movement = stockService.removeStock(
                 request.productId(), request.quantity(),
                 request.reason(), request.reference(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
     }
 
     @PostMapping("/adjust")
@@ -107,7 +114,7 @@ public class StockController {
     public ResponseEntity<StockMovementResponse> adjustStock(@Valid @RequestBody StockAdjustRequest request) {
         StockMovement movement = stockService.adjustStock(
                 request.productId(), request.newQuantity(), request.reason(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
     }
 
     @PostMapping("/damage")
@@ -115,19 +122,19 @@ public class StockController {
     public ResponseEntity<StockMovementResponse> recordDamage(@Valid @RequestBody StockDamageRequest request) {
         StockMovement movement = stockService.recordDamage(
                 request.productId(), request.quantity(), request.reason(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(StockMovementResponse.from(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
     }
 
     @GetMapping("/low-stock")
     public ResponseEntity<List<ProductResponse>> getLowStockProducts() {
         return ResponseEntity.ok(stockService.getLowStockProducts().stream()
-                .map(ProductResponse::from).toList());
+                .map(productMapper::toResponse).toList());
     }
 
     @GetMapping("/out-of-stock")
     public ResponseEntity<List<ProductResponse>> getOutOfStockProducts() {
         return ResponseEntity.ok(stockService.getOutOfStockProducts().stream()
-                .map(ProductResponse::from).toList());
+                .map(productMapper::toResponse).toList());
     }
 
     @GetMapping("/statistics")

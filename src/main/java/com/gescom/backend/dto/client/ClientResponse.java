@@ -20,23 +20,4 @@ public record ClientResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static ClientResponse from(Client client) {
-        if (client == null) return null;
-        return new ClientResponse(
-                client.getId(),
-                client.getFirstName(),
-                client.getLastName(),
-                client.getEmail(),
-                client.getPhone(),
-                client.getAddress(),
-                client.getCity(),
-                client.getPostalCode(),
-                client.getCountry(),
-                client.getCompany(),
-                client.getType(),
-                client.getActive(),
-                client.getCreatedAt(),
-                client.getUpdatedAt()
-        );
-    }
 }

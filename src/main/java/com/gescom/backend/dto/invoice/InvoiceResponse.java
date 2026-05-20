@@ -28,28 +28,4 @@ public record InvoiceResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static InvoiceResponse from(Invoice invoice) {
-        if (invoice == null) return null;
-        return new InvoiceResponse(
-                invoice.getId(),
-                invoice.getInvoiceNumber(),
-                OrderResponse.from(invoice.getOrder()),
-                invoice.getDelivery() != null ? invoice.getDelivery().getId() : null,
-                invoice.getInvoiceDate(),
-                invoice.getDueDate(),
-                invoice.getSubtotal(),
-                invoice.getDiscount(),
-                invoice.getTaxAmount(),
-                invoice.getTaxRate(),
-                invoice.getTotalAmount(),
-                invoice.getPaidAmount(),
-                invoice.getRemainingAmount(),
-                invoice.getStatus(),
-                invoice.getPaymentMethod(),
-                invoice.getPaymentDate(),
-                invoice.getNotes(),
-                invoice.getCreatedAt(),
-                invoice.getUpdatedAt()
-        );
-    }
 }

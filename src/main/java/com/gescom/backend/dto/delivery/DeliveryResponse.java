@@ -23,25 +23,4 @@ public record DeliveryResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static DeliveryResponse from(Delivery delivery) {
-        if (delivery == null) return null;
-        return new DeliveryResponse(
-                delivery.getId(),
-                delivery.getDeliveryNumber(),
-                OrderResponse.from(delivery.getOrder()),
-                delivery.getDeliveryAddress(),
-                delivery.getDeliveryCity(),
-                delivery.getDeliveryPostalCode(),
-                delivery.getDeliveryCountry(),
-                delivery.getContactName(),
-                delivery.getContactPhone(),
-                delivery.getStatus(),
-                delivery.getScheduledDate(),
-                delivery.getDeliveredDate(),
-                delivery.getDeliveredBy(),
-                delivery.getNotes(),
-                delivery.getCreatedAt(),
-                delivery.getUpdatedAt()
-        );
-    }
 }

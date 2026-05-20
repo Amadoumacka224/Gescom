@@ -1,16 +1,10 @@
 package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.order.OrderCreateRequest;
-import com.gescom.backend.dto.order.OrderItemRequest;
 import com.gescom.backend.dto.order.OrderResponse;
 import com.gescom.backend.dto.order.OrderUpdateRequest;
-import com.gescom.backend.entity.Client;
 import com.gescom.backend.entity.Order;
-import com.gescom.backend.entity.OrderItem;
-import com.gescom.backend.entity.Product;
-import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.repository.ClientRepository;
-import com.gescom.backend.repository.ProductRepository;
+import com.gescom.backend.mapper.OrderMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.OrderService;
 import jakarta.validation.Valid;
@@ -22,7 +16,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -35,38 +28,26 @@ public class OrderController {
 
     private final OrderService orderService;
     private final CsvExportService csvExportService;
-    private final ClientRepository clientRepository;
-    private final ProductRepository productRepository;
+    private final OrderMapper orderMapper;
 
     public OrderController(OrderService orderService,
                            CsvExportService csvExportService,
-                           ClientRepository clientRepository,
-                           ProductRepository productRepository) {
+                           OrderMapper orderMapper) {
         this.orderService = orderService;
         this.csvExportService = csvExportService;
-        this.clientRepository = clientRepository;
-        this.productRepository = productRepository;
-    }
-
-    private OrderItem buildItem(OrderItemRequest req) {
-        Product product = productRepository.findById(req.productId())
-                .orElseThrow(() -> new ResourceNotFoundException("Produit", req.productId()));
-        OrderItem item = new OrderItem();
-        item.setProduct(product);
-        item.setQuantity(req.quantity());
-        return item;
+        this.orderMapper = orderMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAllOrders() {
         return ResponseEntity.ok(orderService.getAllOrders().stream()
-                .map(OrderResponse::from).toList());
+                .map(orderMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getOrderById(@PathVariable Long id) {
         return orderService.getOrderById(id)
-                .map(OrderResponse::from)
+                .map(orderMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -74,7 +55,7 @@ public class OrderController {
     @GetMapping("/number/{orderNumber}")
     public ResponseEntity<OrderResponse> getOrderByOrderNumber(@PathVariable String orderNumber) {
         return orderService.getOrderByOrderNumber(orderNumber)
-                .map(OrderResponse::from)
+                .map(orderMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -82,19 +63,19 @@ public class OrderController {
     @GetMapping("/client/{clientId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByClient(@PathVariable Long clientId) {
         return ResponseEntity.ok(orderService.getOrdersByClient(clientId).stream()
-                .map(OrderResponse::from).toList());
+                .map(orderMapper::toResponse).toList());
     }
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByUser(@PathVariable Long userId) {
         return ResponseEntity.ok(orderService.getOrdersByUser(userId).stream()
-                .map(OrderResponse::from).toList());
+                .map(orderMapper::toResponse).toList());
     }
 
     @GetMapping("/status/{status}")
     public ResponseEntity<List<OrderResponse>> getOrdersByStatus(@PathVariable Order.OrderStatus status) {
         return ResponseEntity.ok(orderService.getOrdersByStatus(status).stream()
-                .map(OrderResponse::from).toList());
+                .map(orderMapper::toResponse).toList());
     }
 
     @GetMapping("/date-range")
@@ -102,51 +83,27 @@ public class OrderController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         return ResponseEntity.ok(orderService.getOrdersByDateRange(start, end).stream()
-                .map(OrderResponse::from).toList());
+                .map(orderMapper::toResponse).toList());
     }
 
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderCreateRequest request) {
-        Client client = clientRepository.findById(request.clientId())
-                .orElseThrow(() -> new ResourceNotFoundException("Client", request.clientId()));
-
-        Order order = new Order();
-        order.setClient(client);
-        order.setDiscount(request.discount() != null ? request.discount() : BigDecimal.ZERO);
-        order.setTax(request.tax() != null ? request.tax() : BigDecimal.ZERO);
-        order.setNotes(request.notes());
-        List<OrderItem> items = request.items().stream().map(this::buildItem).toList();
-        order.getItems().addAll(items);
-
-        Order created = orderService.createOrder(order);
-        return ResponseEntity.status(HttpStatus.CREATED).body(OrderResponse.from(created));
+        Order created = orderService.createOrder(orderMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderMapper.toResponse(created));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<OrderResponse> updateOrder(@PathVariable Long id,
                                                      @Valid @RequestBody OrderUpdateRequest request) {
-        Order patch = new Order();
-        if (request.status() != null) {
-            patch.setStatus(request.status());
-        }
-        if (request.discount() != null) {
-            patch.setDiscount(request.discount());
-        }
-        if (request.tax() != null) {
-            patch.setTax(request.tax());
-        }
-        patch.setNotes(request.notes());
-        List<OrderItem> items = request.items().stream().map(this::buildItem).toList();
-        patch.getItems().addAll(items);
-
-        return ResponseEntity.ok(OrderResponse.from(orderService.updateOrder(id, patch)));
+        Order patch = orderMapper.toUpdate(request);
+        return ResponseEntity.ok(orderMapper.toResponse(orderService.updateOrder(id, patch)));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<OrderResponse> updateOrderStatus(@PathVariable Long id,
                                                            @RequestBody Map<String, String> request) {
         Order.OrderStatus status = Order.OrderStatus.valueOf(request.get("status"));
-        return ResponseEntity.ok(OrderResponse.from(orderService.updateOrderStatus(id, status)));
+        return ResponseEntity.ok(orderMapper.toResponse(orderService.updateOrderStatus(id, status)));
     }
 
     @PatchMapping("/{id}/cancel")

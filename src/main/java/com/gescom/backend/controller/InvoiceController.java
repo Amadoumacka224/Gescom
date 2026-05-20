@@ -4,9 +4,7 @@ import com.gescom.backend.dto.invoice.InvoiceCreateRequest;
 import com.gescom.backend.dto.invoice.InvoicePaymentRequest;
 import com.gescom.backend.dto.invoice.InvoiceResponse;
 import com.gescom.backend.entity.Invoice;
-import com.gescom.backend.entity.Order;
-import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.repository.OrderRepository;
+import com.gescom.backend.mapper.InvoiceMapper;
 import com.gescom.backend.service.InvoiceService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -15,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -25,23 +22,23 @@ import java.util.List;
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
-    private final OrderRepository orderRepository;
+    private final InvoiceMapper invoiceMapper;
 
-    public InvoiceController(InvoiceService invoiceService, OrderRepository orderRepository) {
+    public InvoiceController(InvoiceService invoiceService, InvoiceMapper invoiceMapper) {
         this.invoiceService = invoiceService;
-        this.orderRepository = orderRepository;
+        this.invoiceMapper = invoiceMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<InvoiceResponse>> getAllInvoices() {
         return ResponseEntity.ok(invoiceService.getAllInvoices().stream()
-                .map(InvoiceResponse::from).toList());
+                .map(invoiceMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<InvoiceResponse> getInvoiceById(@PathVariable Long id) {
         return invoiceService.getInvoiceById(id)
-                .map(InvoiceResponse::from)
+                .map(invoiceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -49,7 +46,7 @@ public class InvoiceController {
     @GetMapping("/number/{invoiceNumber}")
     public ResponseEntity<InvoiceResponse> getInvoiceByInvoiceNumber(@PathVariable String invoiceNumber) {
         return invoiceService.getInvoiceByInvoiceNumber(invoiceNumber)
-                .map(InvoiceResponse::from)
+                .map(invoiceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -57,7 +54,7 @@ public class InvoiceController {
     @GetMapping("/order/{orderId}")
     public ResponseEntity<InvoiceResponse> getInvoiceByOrder(@PathVariable Long orderId) {
         return invoiceService.getInvoiceByOrder(orderId)
-                .map(InvoiceResponse::from)
+                .map(invoiceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -65,7 +62,7 @@ public class InvoiceController {
     @GetMapping("/status/{status}")
     public ResponseEntity<List<InvoiceResponse>> getInvoicesByStatus(@PathVariable Invoice.InvoiceStatus status) {
         return ResponseEntity.ok(invoiceService.getInvoicesByStatus(status).stream()
-                .map(InvoiceResponse::from).toList());
+                .map(invoiceMapper::toResponse).toList());
     }
 
     @GetMapping("/date-range")
@@ -73,32 +70,19 @@ public class InvoiceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
         return ResponseEntity.ok(invoiceService.getInvoicesByDateRange(start, end).stream()
-                .map(InvoiceResponse::from).toList());
+                .map(invoiceMapper::toResponse).toList());
     }
 
     @GetMapping("/overdue")
     public ResponseEntity<List<InvoiceResponse>> getOverdueInvoices() {
         return ResponseEntity.ok(invoiceService.getOverdueInvoices().stream()
-                .map(InvoiceResponse::from).toList());
+                .map(invoiceMapper::toResponse).toList());
     }
 
     @PostMapping
     public ResponseEntity<InvoiceResponse> createInvoice(@Valid @RequestBody InvoiceCreateRequest request) {
-        Order order = orderRepository.findById(request.orderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Commande", request.orderId()));
-
-        Invoice invoice = new Invoice();
-        invoice.setOrder(order);
-        invoice.setInvoiceDate(request.invoiceDate());
-        invoice.setDueDate(request.dueDate());
-        invoice.setPaymentMethod(request.paymentMethod());
-        invoice.setTaxRate(request.taxRate() != null ? request.taxRate() : BigDecimal.ZERO);
-        invoice.setDiscount(request.discount() != null ? request.discount() : BigDecimal.ZERO);
-        invoice.setPaidAmount(request.paidAmount() != null ? request.paidAmount() : BigDecimal.ZERO);
-        invoice.setNotes(request.notes());
-
-        Invoice created = invoiceService.createInvoice(invoice);
-        return ResponseEntity.status(HttpStatus.CREATED).body(InvoiceResponse.from(created));
+        Invoice created = invoiceService.createInvoice(invoiceMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(invoiceMapper.toResponse(created));
     }
 
     @PatchMapping("/{id}/payment")
@@ -107,7 +91,7 @@ public class InvoiceController {
         Invoice invoice = request.paymentDate() != null
                 ? invoiceService.recordPayment(id, request.amount(), request.paymentMethod(), request.paymentDate())
                 : invoiceService.recordPayment(id, request.amount(), request.paymentMethod());
-        return ResponseEntity.ok(InvoiceResponse.from(invoice));
+        return ResponseEntity.ok(invoiceMapper.toResponse(invoice));
     }
 
     @PatchMapping("/{id}/cancel")

@@ -16,18 +16,4 @@ public record ActivityLogResponse(
         String details,
         LocalDateTime createdAt
 ) {
-    public static ActivityLogResponse from(ActivityLog log) {
-        if (log == null) return null;
-        return new ActivityLogResponse(
-                log.getId(),
-                log.getUser() != null ? UserResponse.from(log.getUser()) : null,
-                log.getActionType(),
-                log.getEntity(),
-                log.getEntityId(),
-                log.getDescription(),
-                log.getIpAddress(),
-                log.getDetails(),
-                log.getCreatedAt()
-        );
-    }
 }

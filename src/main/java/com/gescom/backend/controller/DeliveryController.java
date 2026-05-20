@@ -4,10 +4,8 @@ import com.gescom.backend.dto.delivery.DeliveryCreateRequest;
 import com.gescom.backend.dto.delivery.DeliveryResponse;
 import com.gescom.backend.dto.delivery.DeliveryUpdateRequest;
 import com.gescom.backend.entity.Delivery;
-import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.BusinessException;
-import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.repository.OrderRepository;
+import com.gescom.backend.mapper.DeliveryMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.DeliveryService;
 import jakarta.validation.Valid;
@@ -31,26 +29,26 @@ public class DeliveryController {
 
     private final DeliveryService deliveryService;
     private final CsvExportService csvExportService;
-    private final OrderRepository orderRepository;
+    private final DeliveryMapper deliveryMapper;
 
     public DeliveryController(DeliveryService deliveryService,
                               CsvExportService csvExportService,
-                              OrderRepository orderRepository) {
+                              DeliveryMapper deliveryMapper) {
         this.deliveryService = deliveryService;
         this.csvExportService = csvExportService;
-        this.orderRepository = orderRepository;
+        this.deliveryMapper = deliveryMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<DeliveryResponse>> getAllDeliveries() {
         return ResponseEntity.ok(deliveryService.getAllDeliveries().stream()
-                .map(DeliveryResponse::from).toList());
+                .map(deliveryMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<DeliveryResponse> getDeliveryById(@PathVariable Long id) {
         return deliveryService.getDeliveryById(id)
-                .map(DeliveryResponse::from)
+                .map(deliveryMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -58,7 +56,7 @@ public class DeliveryController {
     @GetMapping("/number/{deliveryNumber}")
     public ResponseEntity<DeliveryResponse> getDeliveryByDeliveryNumber(@PathVariable String deliveryNumber) {
         return deliveryService.getDeliveryByDeliveryNumber(deliveryNumber)
-                .map(DeliveryResponse::from)
+                .map(deliveryMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -66,7 +64,7 @@ public class DeliveryController {
     @GetMapping("/order/{orderId}")
     public ResponseEntity<DeliveryResponse> getDeliveryByOrder(@PathVariable Long orderId) {
         return deliveryService.getDeliveryByOrder(orderId)
-                .map(DeliveryResponse::from)
+                .map(deliveryMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -74,7 +72,7 @@ public class DeliveryController {
     @GetMapping("/status/{status}")
     public ResponseEntity<List<DeliveryResponse>> getDeliveriesByStatus(@PathVariable Delivery.DeliveryStatus status) {
         return ResponseEntity.ok(deliveryService.getDeliveriesByStatus(status).stream()
-                .map(DeliveryResponse::from).toList());
+                .map(deliveryMapper::toResponse).toList());
     }
 
     @GetMapping("/date-range")
@@ -82,44 +80,20 @@ public class DeliveryController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         return ResponseEntity.ok(deliveryService.getDeliveriesByDateRange(start, end).stream()
-                .map(DeliveryResponse::from).toList());
+                .map(deliveryMapper::toResponse).toList());
     }
 
     @PostMapping
     public ResponseEntity<DeliveryResponse> createDelivery(@Valid @RequestBody DeliveryCreateRequest request) {
-        Order order = orderRepository.findById(request.orderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Commande", request.orderId()));
-
-        Delivery delivery = new Delivery();
-        delivery.setOrder(order);
-        delivery.setDeliveryAddress(request.deliveryAddress());
-        delivery.setDeliveryCity(request.deliveryCity());
-        delivery.setDeliveryPostalCode(request.deliveryPostalCode());
-        delivery.setDeliveryCountry(request.deliveryCountry());
-        delivery.setContactName(request.contactName());
-        delivery.setContactPhone(request.contactPhone());
-        delivery.setScheduledDate(request.scheduledDate());
-        delivery.setNotes(request.notes());
-
-        Delivery created = deliveryService.createDelivery(delivery);
-        return ResponseEntity.status(HttpStatus.CREATED).body(DeliveryResponse.from(created));
+        Delivery created = deliveryService.createDelivery(deliveryMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(deliveryMapper.toResponse(created));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<DeliveryResponse> updateDelivery(@PathVariable Long id,
                                                            @Valid @RequestBody DeliveryUpdateRequest request) {
-        Delivery patch = new Delivery();
-        patch.setDeliveryAddress(request.deliveryAddress());
-        patch.setDeliveryCity(request.deliveryCity());
-        patch.setDeliveryPostalCode(request.deliveryPostalCode());
-        patch.setDeliveryCountry(request.deliveryCountry());
-        patch.setContactName(request.contactName());
-        patch.setContactPhone(request.contactPhone());
-        patch.setScheduledDate(request.scheduledDate());
-        patch.setStatus(request.status());
-        patch.setNotes(request.notes());
-
-        return ResponseEntity.ok(DeliveryResponse.from(deliveryService.updateDelivery(id, patch)));
+        Delivery patch = deliveryMapper.applyUpdate(new Delivery(), request);
+        return ResponseEntity.ok(deliveryMapper.toResponse(deliveryService.updateDelivery(id, patch)));
     }
 
     @PatchMapping("/{id}/status")
@@ -135,13 +109,13 @@ public class DeliveryController {
         } catch (IllegalArgumentException ex) {
             throw new BusinessException("Statut de livraison inconnu : " + raw);
         }
-        return ResponseEntity.ok(DeliveryResponse.from(deliveryService.updateDeliveryStatus(id, status)));
+        return ResponseEntity.ok(deliveryMapper.toResponse(deliveryService.updateDeliveryStatus(id, status)));
     }
 
     @PatchMapping("/{id}/mark-delivered")
     public ResponseEntity<DeliveryResponse> markAsDelivered(@PathVariable Long id, @RequestBody Map<String, String> request) {
         String deliveredBy = request.get("deliveredBy");
-        return ResponseEntity.ok(DeliveryResponse.from(deliveryService.markAsDelivered(id, deliveredBy)));
+        return ResponseEntity.ok(deliveryMapper.toResponse(deliveryService.markAsDelivered(id, deliveredBy)));
     }
 
     @DeleteMapping("/{id}")
