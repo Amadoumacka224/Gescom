@@ -3,6 +3,7 @@ package com.gescom.backend.controller;
 import com.gescom.backend.dto.client.ClientRequest;
 import com.gescom.backend.dto.client.ClientResponse;
 import com.gescom.backend.entity.Client;
+import com.gescom.backend.mapper.ClientMapper;
 import com.gescom.backend.service.ClientService;
 import com.gescom.backend.service.CsvExportService;
 import jakarta.validation.Valid;
@@ -23,45 +24,31 @@ public class ClientController {
 
     private final ClientService clientService;
     private final CsvExportService csvExportService;
+    private final ClientMapper clientMapper;
 
-    public ClientController(ClientService clientService, CsvExportService csvExportService) {
+    public ClientController(ClientService clientService, CsvExportService csvExportService,
+                            ClientMapper clientMapper) {
         this.clientService = clientService;
         this.csvExportService = csvExportService;
-    }
-
-    private Client applyRequest(Client target, ClientRequest request) {
-        target.setFirstName(request.firstName());
-        target.setLastName(request.lastName());
-        target.setEmail(request.email());
-        target.setPhone(request.phone());
-        target.setAddress(request.address());
-        target.setCity(request.city());
-        target.setPostalCode(request.postalCode());
-        target.setCountry(request.country());
-        target.setCompany(request.company());
-        target.setType(request.type());
-        if (request.active() != null) {
-            target.setActive(request.active());
-        }
-        return target;
+        this.clientMapper = clientMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<ClientResponse>> getAllClients() {
         return ResponseEntity.ok(clientService.getAllClients().stream()
-                .map(ClientResponse::from).toList());
+                .map(clientMapper::toResponse).toList());
     }
 
     @GetMapping("/active")
     public ResponseEntity<List<ClientResponse>> getActiveClients() {
         return ResponseEntity.ok(clientService.getActiveClients().stream()
-                .map(ClientResponse::from).toList());
+                .map(clientMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ClientResponse> getClientById(@PathVariable Long id) {
         return clientService.getClientById(id)
-                .map(ClientResponse::from)
+                .map(clientMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -69,7 +56,7 @@ public class ClientController {
     @GetMapping("/email/{email}")
     public ResponseEntity<ClientResponse> getClientByEmail(@PathVariable String email) {
         return clientService.getClientByEmail(email)
-                .map(ClientResponse::from)
+                .map(clientMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -77,21 +64,20 @@ public class ClientController {
     @GetMapping("/type/{type}")
     public ResponseEntity<List<ClientResponse>> getClientsByType(@PathVariable Client.ClientType type) {
         return ResponseEntity.ok(clientService.getClientsByType(type).stream()
-                .map(ClientResponse::from).toList());
+                .map(clientMapper::toResponse).toList());
     }
 
     @PostMapping
     public ResponseEntity<ClientResponse> createClient(@Valid @RequestBody ClientRequest request) {
-        Client client = applyRequest(new Client(), request);
-        Client created = clientService.createClient(client);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ClientResponse.from(created));
+        Client created = clientService.createClient(clientMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(clientMapper.toResponse(created));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ClientResponse> updateClient(@PathVariable Long id,
                                                        @Valid @RequestBody ClientRequest request) {
-        Client details = applyRequest(new Client(), request);
-        return ResponseEntity.ok(ClientResponse.from(clientService.updateClient(id, details)));
+        Client details = clientMapper.toEntity(request);
+        return ResponseEntity.ok(clientMapper.toResponse(clientService.updateClient(id, details)));
     }
 
     @DeleteMapping("/{id}")

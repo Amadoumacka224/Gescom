@@ -5,6 +5,7 @@ import com.gescom.backend.dto.activity.ActivityLogResponse;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
+import com.gescom.backend.mapper.ActivityLogMapper;
 import com.gescom.backend.service.ActivityLogService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -24,9 +25,11 @@ import java.util.List;
 public class ActivityLogController {
 
     private final ActivityLogService activityLogService;
+    private final ActivityLogMapper activityLogMapper;
 
-    public ActivityLogController(ActivityLogService activityLogService) {
+    public ActivityLogController(ActivityLogService activityLogService, ActivityLogMapper activityLogMapper) {
         this.activityLogService = activityLogService;
+        this.activityLogMapper = activityLogMapper;
     }
 
     private Long currentUserId() {
@@ -41,14 +44,14 @@ public class ActivityLogController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ActivityLogResponse>> getAllActivities() {
         return ResponseEntity.ok(activityLogService.getAllActivities().stream()
-                .map(ActivityLogResponse::from).toList());
+                .map(activityLogMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ActivityLogResponse> getActivityById(@PathVariable Long id) {
         return activityLogService.getActivityById(id)
-                .map(ActivityLogResponse::from)
+                .map(activityLogMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -57,21 +60,21 @@ public class ActivityLogController {
     @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#userId)")
     public ResponseEntity<List<ActivityLogResponse>> getActivitiesByUser(@PathVariable Long userId) {
         return ResponseEntity.ok(activityLogService.getActivitiesByUser(userId).stream()
-                .map(ActivityLogResponse::from).toList());
+                .map(activityLogMapper::toResponse).toList());
     }
 
     @GetMapping("/action/{actionType}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ActivityLogResponse>> getActivitiesByActionType(@PathVariable ActivityLog.ActionType actionType) {
         return ResponseEntity.ok(activityLogService.getActivitiesByActionType(actionType).stream()
-                .map(ActivityLogResponse::from).toList());
+                .map(activityLogMapper::toResponse).toList());
     }
 
     @GetMapping("/entity/{entity}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ActivityLogResponse>> getActivitiesByEntity(@PathVariable String entity) {
         return ResponseEntity.ok(activityLogService.getActivitiesByEntity(entity).stream()
-                .map(ActivityLogResponse::from).toList());
+                .map(activityLogMapper::toResponse).toList());
     }
 
     @GetMapping("/date-range")
@@ -80,14 +83,14 @@ public class ActivityLogController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         return ResponseEntity.ok(activityLogService.getActivitiesByDateRange(start, end).stream()
-                .map(ActivityLogResponse::from).toList());
+                .map(activityLogMapper::toResponse).toList());
     }
 
     @GetMapping("/caissiers")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ActivityLogResponse>> getCaissierActivities() {
         return ResponseEntity.ok(activityLogService.getCaissierActivities().stream()
-                .map(ActivityLogResponse::from).toList());
+                .map(activityLogMapper::toResponse).toList());
     }
 
     @PostMapping
@@ -100,7 +103,7 @@ public class ActivityLogController {
                 request.description(),
                 request.details(),
                 request.ipAddress());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ActivityLogResponse.from(log));
+        return ResponseEntity.status(HttpStatus.CREATED).body(activityLogMapper.toResponse(log));
     }
 
     @DeleteMapping("/{id}")

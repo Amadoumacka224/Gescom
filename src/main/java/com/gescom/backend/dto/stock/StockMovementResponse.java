@@ -20,20 +20,4 @@ public record StockMovementResponse(
         UserResponse user,
         LocalDateTime createdAt
 ) {
-    public static StockMovementResponse from(StockMovement movement) {
-        if (movement == null) return null;
-        return new StockMovementResponse(
-                movement.getId(),
-                ProductResponse.from(movement.getProduct()),
-                movement.getType(),
-                movement.getQuantity(),
-                movement.getPreviousStock(),
-                movement.getNewStock(),
-                movement.getUnitCost(),
-                movement.getReason(),
-                movement.getReference(),
-                movement.getUser() != null ? UserResponse.from(movement.getUser()) : null,
-                movement.getCreatedAt()
-        );
-    }
 }
