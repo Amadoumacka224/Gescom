@@ -62,3 +62,6 @@ FRONT/coverage/
 *.log
 logs/
 
+
+### Claude Code ###
+CLAUDE.md
