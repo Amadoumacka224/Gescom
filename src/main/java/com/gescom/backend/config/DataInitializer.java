@@ -8,6 +8,11 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+/**
+ * Initialisation des données au démarrage (CommandLineRunner, exécuté une fois l'application prête).
+ * Crée un compte super administrateur par défaut si la table des utilisateurs est vide, afin de
+ * pouvoir se connecter sur une base fraîche. Le mot de passe est encodé en BCrypt comme tout autre.
+ */
 @Component
 public class DataInitializer implements CommandLineRunner {
 
@@ -34,7 +39,7 @@ public class DataInitializer implements CommandLineRunner {
             superAdmin.setPassword(passwordEncoder.encode("Admin@2024"));
             superAdmin.setFirstName("Super");
             superAdmin.setLastName("Admin");
-            superAdmin.setPhone("+213 000 000 000");
+            superAdmin.setPhone("+32 467 61 34 61");
             superAdmin.setRole(User.Role.ADMIN);
             superAdmin.setActive(true);
 
