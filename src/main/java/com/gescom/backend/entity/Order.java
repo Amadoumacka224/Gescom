@@ -18,7 +18,7 @@ import java.util.Set;
 
 /**
  * Entité commande, pièce maîtresse du domaine. Elle agrège ses lignes (OrderItem) avec
- * cascade complète, mémorise les montants (total, remise, taxe, montant final) et porte
+ * cascade complète, mémorise les montants (total, remise, net à facturer) et porte
  * sa propre machine à états (enum OrderStatus) qui régit les transitions de statut autorisées.
  */
 @Entity
@@ -48,15 +48,16 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
+    // Total HT des lignes, remises de ligne déjà déduites.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
+    // Remise commerciale globale, en euros (les remises de ligne, elles, sont en %).
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal discount = BigDecimal.ZERO;
 
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal tax = BigDecimal.ZERO;
-
+    // Net HT à facturer : totalAmount − discount. C'est exactement la base sur laquelle
+    // InvoiceService applique ensuite la TVA — les deux montants ne doivent jamais diverger.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal finalAmount = BigDecimal.ZERO;
 

@@ -257,10 +257,13 @@ const OrderWorkspaceSteps = ({
         const rate = parseFloat(taxRateValue);
         const rateInvalid = Number.isNaN(rate) || rate < 0 || rate > 100;
         const commercial = parseFloat(invoiceForm.discount) || 0;
-        const base = Math.max(totalHT - commercial, 0);
+        // La remise déjà portée par la commande se cumule à celle consentie ici : la facture
+        // déduit les deux du sous-total (cf. InvoiceService.createInvoice).
+        const totalDiscount = (Number(order.discount) || 0) + commercial;
+        const base = Math.max(totalHT - totalDiscount, 0);
         const tax = rateInvalid ? 0 : base * (rate / 100);
         const dueBefore = !!dueDate && !!invoiceDate && dueDate < invoiceDate;
-        const discountTooLarge = commercial > totalHT + 0.001;
+        const discountTooLarge = totalDiscount > totalHT + 0.001;
         const invalid = rateInvalid || dueBefore || discountTooLarge || !invoiceDate || !dueDate;
 
         return (

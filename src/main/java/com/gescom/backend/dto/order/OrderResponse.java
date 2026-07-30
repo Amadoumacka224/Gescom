@@ -17,7 +17,7 @@ public record OrderResponse(
         List<OrderItemResponse> items,
         BigDecimal totalAmount,
         BigDecimal discount,
-        BigDecimal tax,
+        // Net HT à facturer : totalAmount − discount.
         BigDecimal finalAmount,
         Order.OrderStatus status,
         // Statut de la facture liée (null si aucune) — permet d'afficher « Payée » sur une commande

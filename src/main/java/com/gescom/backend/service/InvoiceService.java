@@ -179,7 +179,23 @@ public class InvoiceService {
         BigDecimal subtotal = order.getTotalAmount();
         invoice.setSubtotal(subtotal);
 
-        BigDecimal discount = invoice.getDiscount() != null ? invoice.getDiscount() : BigDecimal.ZERO;
+        // La remise portée par la commande est reprise ici, cumulée à l'éventuelle remise
+        // consentie au moment de la facturation : sans cela, la facture réclamait le total brut
+        // et ne correspondait plus au montant final de la commande.
+        BigDecimal orderDiscount = order.getDiscount() != null ? order.getDiscount() : BigDecimal.ZERO;
+        BigDecimal invoiceDiscount = invoice.getDiscount() != null ? invoice.getDiscount() : BigDecimal.ZERO;
+        BigDecimal discount = orderDiscount.add(invoiceDiscount);
+
+        // Une remise supérieure au sous-total donnerait une facture à total négatif : son reste
+        // à payer le serait aussi, et recordPayment refuserait alors tout encaissement.
+        if (discount.compareTo(subtotal) > 0) {
+            throw BusinessException.of("invoice.discount.exceedsSubtotal",
+                    "La remise (" + discount + " €) dépasse le sous-total de la facture ("
+                            + subtotal + " €)",
+                    discount, subtotal);
+        }
+
+        invoice.setDiscount(discount);
         BigDecimal subtotalAfterDiscount = subtotal.subtract(discount);
 
         BigDecimal taxRate = invoice.getTaxRate() != null ? invoice.getTaxRate() : BigDecimal.ZERO;
