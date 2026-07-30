@@ -91,6 +91,23 @@ public class OrderService {
         return net;
     }
 
+    /**
+     * Fixe la remise globale (en euros) et en déduit le net à facturer. Une remise supérieure au
+     * total est refusée : elle produirait une commande — puis une facture — à montant négatif,
+     * impossible à encaisser. La commande ne porte pas de TVA : elle est calculée à la facturation.
+     */
+    private void applyGlobalDiscount(Order order, BigDecimal discount) {
+        BigDecimal applied = discount != null ? discount : BigDecimal.ZERO;
+        if (applied.compareTo(order.getTotalAmount()) > 0) {
+            throw BusinessException.of("order.discount.exceedsTotal",
+                    "La remise (" + applied + " €) dépasse le total de la commande ("
+                            + order.getTotalAmount() + " €)",
+                    applied, order.getTotalAmount());
+        }
+        order.setDiscount(applied);
+        order.setFinalAmount(order.getTotalAmount().subtract(applied));
+    }
+
     /** Récupère l'id de l'utilisateur authentifié depuis le contexte de sécurité (null si anonyme). */
     private Long getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -217,7 +234,7 @@ public class OrderService {
         }
 
         order.setTotalAmount(totalAmount);
-        order.setFinalAmount(totalAmount.subtract(order.getDiscount()).add(order.getTax()));
+        applyGlobalDiscount(order, order.getDiscount());
 
         Order savedOrder = orderRepository.save(order);
 
@@ -283,9 +300,13 @@ public class OrderService {
                     existingOrder.getStatus());
         }
 
-        existingOrder.setDiscount(updatedOrder.getDiscount());
-        existingOrder.setTax(updatedOrder.getTax());
-        existingOrder.setNotes(updatedOrder.getNotes());
+        // Mise à jour partielle : seuls les champs réellement envoyés sont écrasés. Un appelant
+        // qui ne gère que les articles (l'écran Commandes, par exemple) ne doit pas remettre la
+        // remise à zéro ni effacer les notes au passage. Une chaîne vide, elle, efface bien les
+        // notes — c'est le seul moyen de les vider.
+        if (updatedOrder.getNotes() != null) {
+            existingOrder.setNotes(updatedOrder.getNotes().isBlank() ? null : updatedOrder.getNotes());
+        }
         existingOrder.getItems().clear();
 
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -301,7 +322,8 @@ public class OrderService {
         }
 
         existingOrder.setTotalAmount(totalAmount);
-        existingOrder.setFinalAmount(totalAmount.subtract(existingOrder.getDiscount()).add(existingOrder.getTax()));
+        applyGlobalDiscount(existingOrder,
+                updatedOrder.getDiscount() != null ? updatedOrder.getDiscount() : existingOrder.getDiscount());
 
         Order savedOrder = orderRepository.save(existingOrder);
 

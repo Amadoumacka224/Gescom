@@ -155,7 +155,7 @@ public class OrderController {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
         String[] headers = {
-            "ID", "Order Number", "Client", "User", "Total Amount", "Discount", "Tax",
+            "ID", "Order Number", "Client", "User", "Total Amount", "Discount",
             "Final Amount", "Status", "Notes", "Created At", "Updated At"
         };
 
@@ -166,7 +166,6 @@ public class OrderController {
             order.getCreatedBy() != null ? csvExportService.toString(order.getCreatedBy().getUsername()) : "",
             csvExportService.toString(order.getTotalAmount()),
             csvExportService.toString(order.getDiscount()),
-            csvExportService.toString(order.getTax()),
             csvExportService.toString(order.getFinalAmount()),
             csvExportService.toString(order.getStatus()),
             csvExportService.toString(order.getNotes()),

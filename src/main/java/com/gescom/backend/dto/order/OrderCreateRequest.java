@@ -16,11 +16,10 @@ public record OrderCreateRequest(
         @Valid
         List<OrderItemRequest> items,
 
+        // Remise commerciale globale en euros, déduite du total HT. La TVA n'est pas de ce
+        // ressort : elle est calculée à la facturation, à partir du taux saisi sur la facture.
         @DecimalMin(value = "0.0", inclusive = true, message = "La remise doit être positive ou nulle")
         BigDecimal discount,
-
-        @DecimalMin(value = "0.0", inclusive = true, message = "La taxe doit être positive ou nulle")
-        BigDecimal tax,
 
         @Size(max = 500)
         String notes

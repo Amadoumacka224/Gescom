@@ -55,7 +55,6 @@ public class OrderMapper {
                         : List.of(),
                 order.getTotalAmount(),
                 order.getDiscount(),
-                order.getTax(),
                 order.getFinalAmount(),
                 order.getStatus(),
                 invoiceStatus,
@@ -88,20 +87,17 @@ public class OrderMapper {
         }
 
         order.setDiscount(request.discount() != null ? request.discount() : BigDecimal.ZERO);
-        order.setTax(request.tax() != null ? request.tax() : BigDecimal.ZERO);
         order.setNotes(request.notes());
         order.getItems().addAll(request.items().stream().map(this::buildItem).toList());
         return order;
     }
 
+    // Objet de patch : les champs absents de la requête restent à null pour que
+    // OrderService.updateOrder les distingue d'une valeur envoyée et les laisse intacts.
+    // D'où le null explicite sur la remise, que l'entité initialise sinon à zéro.
     public Order toUpdate(OrderUpdateRequest request) {
         Order patch = new Order();
-        if (request.discount() != null) {
-            patch.setDiscount(request.discount());
-        }
-        if (request.tax() != null) {
-            patch.setTax(request.tax());
-        }
+        patch.setDiscount(request.discount());
         patch.setNotes(request.notes());
         patch.getItems().addAll(request.items().stream().map(this::buildItem).toList());
         return patch;

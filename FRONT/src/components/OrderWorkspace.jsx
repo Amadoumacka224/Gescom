@@ -390,14 +390,12 @@ const OrderWorkspace = ({
 
   const saveItems = () => runStep('save', async () => {
     try {
+      // La remise globale n'est pas renvoyée : le backend ne touche qu'aux champs présents dans
+      // la requête (cf. OrderService.updateOrder). Les notes, elles, sont bien pilotées par cet
+      // écran — chaîne vide pour les effacer.
       const { data } = await api.put(`/orders/${order.id}`, {
         items: payloadItems(),
-        // Remise et taxe globales reconduites telles quelles : le backend réécrit ces champs
-        // à chaque mise à jour, les omettre les remettrait à zéro sans que personne l'ait
-        // demandé (cf. OrderService.updateOrder).
-        discount: Number(order.discount) || 0,
-        tax: Number(order.tax) || 0,
-        notes: cart.notes.trim() || null,
+        notes: cart.notes.trim(),
       });
       setOrder(data);
       setCart((prev) => ({ ...prev, items: itemsFromOrder(data), notes: data.notes || '' }));
