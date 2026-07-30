@@ -1,69 +1,374 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Plus, Search, Eye, CheckCircle, XCircle, Clock, User, Mail, Phone,
-  MapPin, Package, Calendar, DollarSign, Hash, Truck, ShoppingCart,
-  ChevronLeft, ChevronRight, Edit, Trash2, TrendingUp, AlertCircle
+  Plus, Eye, CheckCircle, XCircle, Clock, User, Mail, Phone,
+  MapPin, Package, Calendar, Euro, Truck, ShoppingCart, ClipboardList,
+  ChevronUp, ChevronDown, ChevronsUpDown, Edit, Trash2,
+  AlertCircle, CreditCard, FileText, Download, RotateCcw, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import clientService from '../services/clientService';
 import Modal from '../components/Modal';
-import ConfirmModal from '../components/ConfirmModal';
-import Pagination from '../components/Pagination';
 import Button from '../components/Button';
-import FormSelect from '../components/FormSelect';
+import SearchableSelect from '../components/SearchableSelect';
+import OrderWorkspace from '../components/OrderWorkspace';
+import Pagination from '../components/Pagination';
+import OrderFilters from '../components/OrderFilters';
+import SegmentedFilter from '../components/SegmentedFilter';
+import useSettings from '../hooks/useSettings';
+import { EMPTY_ORDER_FILTERS } from '../constants/orderFilters';
+import { ORDER_STATUS_TONE, badgeClass, resolveOrderStatusKey } from '../constants/statusBadges';
+import { PAYMENT_METHODS } from '../constants/paymentMethods';
+import { generateInvoicePDF } from '../utils/pdfGenerator';
+import { computeItemsTotal, computeLineTotal } from '../utils/orderTotals';
+import { extractErrorMessage } from '../utils/apiError';
+import { formatCurrency } from '../utils/format';
 import { toast } from 'react-hot-toast';
+
+// Enchaînement linéaire des étapes pilotées depuis ce tableau de bord (hors CANCELED, qui est un
+// échappatoire). La livraison est gérée ailleurs ; en revanche le paiement fait partie intégrante
+// du processus et figure désormais comme dernière étape (« Payée »). L'état de paiement n'est pas
+// porté par la commande mais par la facture liée : il est donc déduit de celle-ci (cf.
+// lifecycleIndexFor, qui reçoit la facture).
+const LIFECYCLE_STEPS = [
+  { key: 'PENDING', labelKey: 'status.order.PENDING' },
+  { key: 'CONFIRMED', labelKey: 'status.order.CONFIRMED' },
+  { key: 'INVOICED', labelKey: 'status.order.INVOICED' },
+  { key: 'PAID', labelKey: 'status.order.PAID' }
+];
+
+// Position de la commande dans la timeline [En attente, Confirmée, Facturée, Payée], en croisant le
+// statut de commande et l'état de la facture liée (source de vérité du paiement) :
+//  - l'index pointe l'étape « courante » (en cours) ; les étapes d'index inférieur sont complétées ;
+//  - un index >= LIFECYCLE_STEPS.length signifie « toutes les étapes franchies » (processus terminé).
+// Règles :
+//  - facturée + intégralement réglée → toutes les étapes complétées ;
+//  - facturée + paiement partiel → étape « Payée » en cours ;
+//  - facturée + impayée → étape « Facturée » en cours, « Payée » à venir ;
+//  - livrée → processus considéré complet (réglé), sauf facture connue encore impayée.
+const lifecycleIndexFor = (status, invoice) => {
+  const fullyPaid = invoice?.status === 'PAID';
+  const partiallyPaid = invoice?.status === 'PARTIALLY_PAID';
+  switch (status) {
+    case 'PENDING':
+      return 0;
+    case 'CONFIRMED':
+      return 1;
+    case 'INVOICED':
+      if (fullyPaid) return LIFECYCLE_STEPS.length;
+      if (partiallyPaid) return 3;
+      return 2;
+    case 'DELIVERED':
+      return fullyPaid || !invoice ? LIFECYCLE_STEPS.length : 3;
+    default:
+      return -1; // CANCELED / inconnu : aucune étape mise en avant
+  }
+};
+
+// Le statut affiché est résolu par `constants/statusBadges.resolveOrderStatusKey`, partagé avec
+// la caisse et le tableau de bord. Cet écran en tenait sa propre version, qui ne reconnaissait
+// que le règlement intégral : une commande partiellement réglée s'affichait « Facturée » ici et
+// « Acompte versé » à la caisse, pour la même donnée.
+
+/**
+ * Avancement d'une commande dans son cycle de vie, en barre à segments.
+ *
+ * Forme choisie : quatre segments côte à côte, un par étape du cycle
+ * [En attente → Confirmée → Facturée → Payée]. C'est la représentation adéquate ICI, dans une
+ * cellule de tableau répétée sur des dizaines de lignes :
+ *   - un anneau de progression (`components/ProgressRing`) demande ~40 px de haut et ferait
+ *     doubler la hauteur de chaque ligne, alors qu'il n'encode pas davantage ;
+ *   - une barre continue dirait « 75 % » sans dire de quoi — or les étapes sont discrètes et
+ *     nommées, pas un pourcentage ;
+ *   - une courbe n'a pas de sens : il n'y a pas de série temporelle, mais une position dans
+ *     une file d'étapes.
+ * Quatre segments alignés se lisent d'un coup d'œil sur toute la colonne, et la comparaison
+ * entre lignes se fait sans lire — c'est ce qu'on demande à un tableau.
+ *
+ * La couleur ne porte jamais seule l'information : la légende sous la barre nomme l'étape
+ * courante et son rang (« 3/4 · Facturée »), et `aria-label` la reprend pour les lecteurs
+ * d'écran. Les nuances suivent l'échelle monochrome de la charte (cf. src/index.css).
+ *
+ * L'avancement est calculé par `lifecycleIndexFor`, qui croise le statut de la commande et
+ * celui de sa facture — le paiement n'est pas porté par la commande. Dans la liste, cette
+ * facture se résume à `order.invoiceStatus`.
+ */
+const OrderProgress = ({ order }) => {
+  const { t } = useTranslation();
+  const index = lifecycleIndexFor(order.status, { status: order.invoiceStatus });
+  const canceled = index < 0;
+  const done = index >= LIFECYCLE_STEPS.length;
+
+  // La dernière étape s'intitule « Payée » : c'est son objectif, pas l'état atteint. Sur un
+  // règlement partiel, la légende annonçait donc « 4/4 · Payée » pour une facture à moitié
+  // réglée. On y nomme l'état réel, dans les mêmes termes que le badge de la colonne voisine.
+  const stepLabel = order.invoiceStatus === 'PARTIALLY_PAID'
+    ? t('status.order.PARTIALLY_PAID')
+    : t(LIFECYCLE_STEPS[index]?.labelKey ?? 'status.order.PENDING');
+
+  const caption = canceled
+    ? t('status.order.CANCELED')
+    : done
+      ? t('orders.progress.done')
+      : t('orders.progress.stepShort', {
+        current: index + 1,
+        total: LIFECYCLE_STEPS.length,
+        label: stepLabel,
+      });
+
+  const ariaLabel = canceled
+    ? t('orders.progress.canceledAria')
+    : done
+      ? t('orders.progress.doneAria')
+      : t('orders.progress.stepAria', {
+        current: index + 1,
+        total: LIFECYCLE_STEPS.length,
+        label: stepLabel,
+      });
+
+  return (
+    <div className="w-32" role="img" aria-label={t('orders.progress.regionAria', { detail: ariaLabel })}>
+      <div className="flex items-center gap-1" aria-hidden="true">
+        {LIFECYCLE_STEPS.map((step, i) => {
+          // Trois états par segment : franchi (dense), en cours (médian), à venir (piste).
+          // Une commande annulée n'a plus d'étape en cours : tout retombe en piste neutre.
+          // Les crans sont choisis pour que « en cours » se détache à la fois du franchi et de
+          // la piste, dans les deux thèmes : en sombre, un bleu trop foncé pour l'étape courante
+          // se confondrait avec le gris bleuté de la piste.
+          // `gray-500` et non `gray-600` en sombre : la piste est posée sur une carte
+          // `gray-800`, et il faut deux crans d'écart pour qu'un filet de 6 px de haut se
+          // détache du bleu nuit du fond.
+          let tone = 'bg-gray-200 dark:bg-gray-500';
+          if (!canceled && i < index) tone = 'bg-primary-600 dark:bg-primary-300';
+          else if (!canceled && i === index) tone = 'bg-primary-400 dark:bg-primary-500';
+          return (
+            <span
+              key={step.key}
+              title={step.label}
+              className={`h-1.5 flex-1 rounded-full transition-colors ${tone}`}
+            />
+          );
+        })}
+      </div>
+      <p
+        className={`mt-1.5 text-[11px] font-medium truncate ${
+          canceled ? 'text-gray-500 dark:text-gray-400' : 'text-gray-600 dark:text-gray-300'
+        }`}
+      >
+        {caption}
+      </p>
+    </div>
+  );
+};
+
+// Palettes des cartes KPI, indexées par jeton (cf. section Tuiles d'indicateurs de index.css).
+// Comme les tuiles du tableau de bord, ce bandeau suit l'échelle MONOCHROME de la charte et
+// non les teintes sémantiques des badges : c'est la profondeur du bleu qui ordonne les cartes,
+// dans l'ordre neutral < success < accent < info < warning < danger. Les badges de la colonne
+// « Statut », eux, gardent vert / ambre / rouge — un bandeau porte l'identité de l'écran, une
+// ligne de tableau doit se lire sans réfléchir.
+// Chaque carte est teintée en entier — surface, bordure, libellé, valeur, disque d'icône —
+// et non plus blanche avec une seule icône colorée. Le jeton `neutral` a été retiré : aucune
+// carte de ce bandeau ne doit tomber en gris, la teinte est ce qui rend le statut lisible
+// d'un coup d'œil. Classes écrites en toutes lettres, sinon Tailwind les purge du build.
+const KPI_ACCENTS = {
+  success: {
+    tile: 'bg-primary-50 border-primary-200/70', label: 'text-primary-800', value: 'text-primary-900',
+    iconBg: 'bg-primary-500/15', iconText: 'text-primary-700', ring: 'ring-primary-500'
+  },
+  accent: {
+    tile: 'bg-secondary-100 border-secondary-200/70', label: 'text-secondary-700', value: 'text-secondary-800',
+    iconBg: 'bg-secondary-500/20', iconText: 'text-secondary-700', ring: 'ring-secondary-500'
+  },
+  info: {
+    tile: 'bg-primary-100 border-primary-300/70', label: 'text-primary-800', value: 'text-primary-900',
+    iconBg: 'bg-primary-600/20', iconText: 'text-primary-700', ring: 'ring-primary-600'
+  },
+  warning: {
+    tile: 'bg-primary-200 border-primary-300/70', label: 'text-primary-900', value: 'text-primary-900',
+    iconBg: 'bg-primary-700/20', iconText: 'text-primary-800', ring: 'ring-primary-700'
+  },
+  danger: {
+    tile: 'bg-primary-300 border-primary-400/70', label: 'text-primary-900', value: 'text-primary-900',
+    iconBg: 'bg-primary-800/25', iconText: 'text-primary-900', ring: 'ring-primary-800'
+  }
+};
+
+// Nombre de lignes par page par défaut. Doit rester une des valeurs proposées par le sélecteur
+// de `components/Pagination` (5/10/20/50/100), sinon celui-ci s'affiche vide au chargement.
+const ORDERS_PER_PAGE = 20;
+
+/** Mémorise le mode d'affichage entre deux visites, comme les autres tableaux de bord. */
+const VIEW_MODE_KEY = 'ordersViewMode';
+
+/** Nombre de commandes mises en avant dans la vue d'aperçu (les dernières créées). */
+const RECENT_COUNT = 8;
+
+/**
+ * En-tête de colonne triable.
+ *
+ * Déclaré au niveau du module et non dans le corps de `Orders` : un composant redéfini à
+ * chaque rendu est démonté puis remonté par React, et le bouton perdrait le focus au clavier
+ * juste après le clic qui a déclenché le tri.
+ *
+ * `aria-sort` porte au lecteur d'écran la même information que l'icône.
+ */
+const SortHeader = ({ label, sortKey, sort, onSort, align = 'left' }) => {
+  const active = sort.key === sortKey;
+  const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={align === 'right' ? 'table-th-right' : 'table-th'}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1.5 hover:text-primary-600 dark:hover:text-primary-400 transition-colors ${
+          active ? 'text-primary-700 dark:text-primary-300' : ''
+        }`}
+      >
+        {label}
+        <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
+    </th>
+  );
+};
+
+// Teintes des actions en icône, graduées par gravité et prises dans la palette sémantique :
+// consultation neutre, modification informative, annulation en avertissement, suppression
+// en danger. L'orange et l'émeraude d'origine sortaient de la palette et mettaient
+// « Annuler » et « Supprimer » sur un pied d'égalité visuelle.
+const ICON_ACTION_STYLES = {
+  neutral: 'text-gray-600 hover:bg-gray-100',
+  info: 'text-blue-600 hover:bg-blue-50',
+  warning: 'text-amber-600 hover:bg-amber-50',
+  danger: 'text-red-600 hover:bg-red-50',
+};
+
+// Bouton d'action secondaire (icône) de la barre d'actions d'une commande.
+// `onClick` reçoit l'évènement : on stoppe la propagation pour ne pas déclencher
+// le clic de la ligne (ouverture du détail). `disabled` couvre les actions asynchrones
+// (génération de PDF) pour empêcher le double déclenchement.
+const IconAction = ({ icon: Icon, title, color = 'neutral', onClick, disabled = false }) => (
+  <button
+    type="button"
+    title={title}
+    aria-label={title}
+    disabled={disabled}
+    onClick={(e) => { e.stopPropagation(); onClick(); }}
+    className={`inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-wait ${ICON_ACTION_STYLES[color]}`}
+  >
+    <Icon className="w-4 h-4" />
+  </button>
+);
 
 const Orders = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  // Critères de recherche regroupés dans un seul objet : la liste en compte quinze, et un
+  // `useState` par critère rendait impossible une réinitialisation ou un comptage global.
+  const [filters, setFilters] = useState(EMPTY_ORDER_FILTERS);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  // Tri du tableau. `dir` bascule asc/desc sur la colonne déjà active.
+  const [sort, setSort] = useState({ key: 'createdAt', dir: 'desc' });
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(ORDERS_PER_PAGE);
+  // Vue par défaut : seules les dernières commandes créées sont mises en avant. La liste
+  // complète s'obtient par la bascule d'affichage — ou d'office dès qu'un filtre est actif.
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showCreateClientModal, setShowCreateClientModal] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Panier de traitement : poste de travail unique du cycle de vie (articles → validation →
+  // confirmation → facturation → encaissement → PDF). Ouvert vierge pour une nouvelle vente,
+  // ou sur une commande existante pour en reprendre le cours là où il en est.
+  const [showWorkspace, setShowWorkspace] = useState(false);
+  const [workspaceOrder, setWorkspaceOrder] = useState(null);
+  // Paiement d'une commande facturée : on encaisse sur la facture liée (GET /invoices/order/:id).
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  // Facture liée à la commande ouverte dans le modal de détail : sert à n'afficher l'action de
+  // paiement que si un reliquat existe réellement (et à montrer un statut « réglée » sinon).
+  const [detailInvoice, setDetailInvoice] = useState(null);
+  const [detailInvoiceLoading, setDetailInvoiceLoading] = useState(false);
+  // Commande dont le PDF de facture est en cours de génération (verrou anti double-clic + retour
+  // visuel : le document est produit côté navigateur après un ou deux appels réseau).
+  const [downloadingOrderId, setDownloadingOrderId] = useState(null);
+  // Facturation en ligne : on crée la facture directement depuis ce tableau de bord (sans renvoi
+  // vers la page Factures). La commande passe alors à INVOICED et l'action « Paiement » apparaît ici.
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceOrder, setInvoiceOrder] = useState(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  // Taux de TVA et échéance viennent des réglages de l'entreprise, comme dans l'atelier de
+  // commande : deux écrans qui facturent la même commande doivent proposer le même taux.
+  const { settings, defaultTaxRate, defaultDueDate } = useSettings();
+  const blankInvoiceForm = () => ({
+    invoiceDate: new Date().toISOString().split('T')[0],
+    dueDate: defaultDueDate(),
+    paymentMethod: 'CASH',
+    taxRate: defaultTaxRate(),
+    notes: '',
+  });
+  const [invoiceForm, setInvoiceForm] = useState(blankInvoiceForm);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: '',
+    paymentMethod: 'CASH',
+    paymentDate: new Date().toISOString().split('T')[0],
+  });
   const [editForm, setEditForm] = useState({
     status: '',
     totalAmount: '',
     orderItems: []
   });
-  const [createForm, setCreateForm] = useState({
-    clientId: '',
-    status: 'PENDING',
-    orderItems: [],
-    totalAmount: 0
-  });
-  const [newClientForm, setNewClientForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    address: '',
-    company: '',
-    type: 'PARTICULIER',
-    active: true
-  });
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  // Modifier un critère renvoie systématiquement en page 1 : rester en page 4 d'un jeu de
+  // résultats qui vient d'en perdre trois affiche une liste vide et se lit comme un bug.
+  const handleFilterChange = (field, value) => {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+    setPage(1);
+  };
+
+  const resetFilters = () => {
+    setFilters(EMPTY_ORDER_FILTERS);
+    setPage(1);
+  };
+
+  // Ouverture du panier de traitement. Sans commande : nouvelle vente. Avec commande : reprise
+  // du traitement là où il en est (confirmation, facturation, encaissement).
+  const openWorkspace = (order = null) => {
+    setWorkspaceOrder(order);
+    setShowWorkspace(true);
+  };
+
+  // Après une action du panier, la liste et le stock des produits ont bougé.
+  const refreshAfterWorkspaceAction = () => {
+    fetchOrders();
+    fetchProducts();
+  };
 
   useEffect(() => {
     fetchOrders();
     fetchProducts();
     fetchClients();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
-    // Check if there's a selected order ID from Reports page
-    const selectedOrderId = localStorage.getItem('selectedOrderId');
+    // Commande à ouvrir au chargement : soit ?orderId= dans l'URL (caisse, supervision — le
+    // lien reste partageable et ouvrable dans un nouvel onglet), soit l'ancien relais par
+    // localStorage encore utilisé par la page Rapports.
+    const selectedOrderId = searchParams.get('orderId') || localStorage.getItem('selectedOrderId');
     if (selectedOrderId && orders.length > 0) {
       const order = orders.find(o => o.id === parseInt(selectedOrderId));
       if (order) {
@@ -77,10 +382,32 @@ const Orders = () => {
           }
         }, 100);
       }
-      // Clear the stored ID
+      // Consommé : on nettoie les deux canaux pour ne pas rouvrir le détail au rechargement.
       localStorage.removeItem('selectedOrderId');
+      if (searchParams.has('orderId')) {
+        setSearchParams({}, { replace: true });
+      }
     }
-  }, [orders]);
+  }, [orders, searchParams, setSearchParams]);
+
+  // À l'ouverture du détail d'une commande facturable, on récupère sa facture pour connaître
+  // l'état réel du paiement (réglée / reliquat / annulée) et adapter l'action proposée. On ignore
+  // un 404 (pas encore de facture) : la section paiement reste alors masquée.
+  useEffect(() => {
+    if (!showDetailsModal || !selectedOrder || !canPayOrder(selectedOrder)) {
+      setDetailInvoice(null);
+      setDetailInvoiceLoading(false);
+      return;
+    }
+    let active = true;
+    setDetailInvoice(null);
+    setDetailInvoiceLoading(true);
+    api.get(`/invoices/order/${selectedOrder.id}`)
+      .then(({ data }) => { if (active) setDetailInvoice(data); })
+      .catch(() => { if (active) setDetailInvoice(null); })
+      .finally(() => { if (active) setDetailInvoiceLoading(false); });
+    return () => { active = false; };
+  }, [showDetailsModal, selectedOrder]);
 
   const fetchProducts = async () => {
     try {
@@ -89,6 +416,19 @@ const Orders = () => {
     } catch (error) {
       console.error('Error fetching products:', error);
       setProducts([]);
+    }
+  };
+
+  // Catégories : on charge la liste complète (et non celles déduites des produits) afin que la
+  // colonne de gauche du POS affiche aussi les catégories encore vides — des produits pourront y
+  // être rattachés plus tard. On masque les catégories désactivées (active === false).
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories');
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      setCategories([]);
     }
   };
 
@@ -170,11 +510,19 @@ const Orders = () => {
   };
 
   const handleEdit = (order) => {
+    // Une commande n'est modifiable qu'au stade brouillon (PENDING). Une fois confirmée,
+    // ses lignes sont figées (elles ont sorti du stock et servent de base à la facture).
+    if (order.status !== 'PENDING') {
+      toast(t('orders.page.onlyPendingEditable'), { icon: 'ℹ️' });
+      handleViewDetails(order);
+      return;
+    }
     setSelectedOrder(order);
     // Transformer les items pour avoir le bon format avec productId
     const formattedItems = (order.items || []).map(item => ({
       productId: item.product?.id?.toString() || '',
       unitPrice: item.unitPrice || 0,
+      discount: item.discount || 0,
       quantity: item.quantity || 1,
       product: item.product // Garder l'objet product pour l'affichage
     }));
@@ -193,44 +541,319 @@ const Orders = () => {
       // Vérifier que tous les articles ont un produit sélectionné
       const hasEmptyProduct = editForm.orderItems.some(item => !item.productId);
       if (hasEmptyProduct) {
-        toast.error('Veuillez sélectionner un produit pour chaque article');
+        toast.error(t('orders.selectProductForItem'));
         return;
       }
 
       if (editForm.orderItems.length === 0) {
-        toast.error('Veuillez ajouter au moins un article à la commande');
+        toast.error(t('orders.addAtLeastOneItem'));
+        return;
+      }
+
+      // Garde de stock : éviter d'enregistrer une commande qui ne pourra pas être confirmée.
+      if (editHasStockIssue) {
+        toast.error(t('orders.page.linesExceedStock'));
         return;
       }
 
       // Transformer les items pour le backend (nouveau format DTO)
       const transformedItems = editForm.orderItems.map(item => ({
         productId: parseInt(item.productId),
-        quantity: parseInt(item.quantity)
+        quantity: parseInt(item.quantity),
+        discount: parseFloat(item.discount) || 0
       }));
 
-      // Préparer les données pour la mise à jour
+      // Préparer les données pour la mise à jour. Le statut n'est plus envoyé : il est piloté
+      // par les actions dédiées (confirmation, annulation) côté backend.
       const updateData = {
-        status: editForm.status,
         items: transformedItems
       };
 
       await api.put(`/orders/${selectedOrder.id}`, updateData);
-      toast.success('Commande modifiée avec succès');
+      toast.success(t('orders.page.updateSuccess'));
       setShowEditModal(false);
       fetchOrders();
     } catch (error) {
       console.error('Error updating order:', error);
       if (error.response?.status === 401) {
-        toast.error('Session expirée, veuillez vous reconnecter');
+        toast.error(t('auth.sessionExpired'));
       } else {
-        const errorMessage = error.response?.data || error.message;
-        toast.error('Erreur: ' + errorMessage);
+        toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
       }
     }
   };
 
-  const handleEditFormChange = (field, value) => {
-    setEditForm(prev => ({ ...prev, [field]: value }));
+  const handleConfirmOrder = async (order) => {
+    try {
+      await api.post(`/orders/${order.id}/confirm`);
+      toast.success(t('orders.workspace.orderConfirmed'));
+      fetchOrders();
+    } catch (error) {
+      console.error('Error confirming order:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    if (!window.confirm(t('orders.page.confirmCancel', { number: order.orderNumber }))) {
+      return;
+    }
+    try {
+      await api.patch(`/orders/${order.id}/cancel`);
+      toast.success(t('orders.workspace.orderCanceled'));
+      fetchOrders();
+    } catch (error) {
+      console.error('Error canceling order:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  };
+
+  // Étape suivante du cycle : facturation en ligne, sans quitter le tableau de bord. On ouvre un
+  // modal pré-rempli (mêmes réglages par défaut que la page Factures) ; la création se fait via
+  // l'API puis la liste est rafraîchie.
+  const handleInvoiceOrder = (order) => {
+    setInvoiceOrder(order);
+    setInvoiceForm(blankInvoiceForm());
+    setShowInvoiceModal(true);
+  };
+
+  const handleSubmitInvoice = async () => {
+    if (!invoiceOrder) return;
+    // Validations alignées sur le contrat backend (InvoiceCreateRequest) + cohérence métier :
+    if (!invoiceForm.invoiceDate || !invoiceForm.dueDate) {
+      toast.error(t('orders.page.invoiceDatesRequired'));
+      return;
+    }
+    // L'échéance ne peut pas précéder l'émission de la facture.
+    if (invoiceForm.dueDate < invoiceForm.invoiceDate) {
+      toast.error(t('orders.steps.dueBeforeInvoice'));
+      return;
+    }
+    const taxRate = parseFloat(invoiceForm.taxRate);
+    if (Number.isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+      toast.error(t('orders.page.taxRateRange'));
+      return;
+    }
+    try {
+      setInvoiceLoading(true);
+      await api.post('/invoices', {
+        orderId: invoiceOrder.id,
+        invoiceDate: invoiceForm.invoiceDate,
+        dueDate: invoiceForm.dueDate,
+        paymentMethod: invoiceForm.paymentMethod,
+        taxRate,
+        notes: invoiceForm.notes?.trim() || null,
+      });
+      toast.success(t('orders.page.invoiceCreated'));
+      setShowInvoiceModal(false);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  // Bouton principal : décrit l'unique « prochaine étape » cohérente du cycle de vie selon le
+  // statut courant — Confirmer → Facturer → Encaisser. La livraison se gère ailleurs ; une commande
+  // déjà livrée (DELIVERED), hors-flux (CANCELED) ou déjà soldée n'expose donc pas d'action
+  // principale (null). La clé `key` permet d'éviter d'afficher en double l'action « Paiement »
+  // là où elle est déjà proposée comme action secondaire (cf. canRecordPayment).
+  // `invoice` est optionnelle : quand elle n'est pas chargée, on retombe sur le statut de facture
+  // porté par la liste (`order.invoiceStatus`).
+  const getPrimaryAction = (order, invoice) => {
+    switch (order?.status) {
+      case 'PENDING':
+        return {
+          key: 'CONFIRM',
+          label: t('orders.steps.confirmOrder'), shortLabel: t('orders.page.confirmShort'), icon: CheckCircle,
+          // Teinte du statut d'arrivée : confirmer mène à CONFIRMED (info).
+          className: 'bg-blue-600 hover:bg-blue-700', onClick: () => handleConfirmOrder(order)
+        };
+      case 'CONFIRMED':
+        return {
+          key: 'INVOICE',
+          label: t('orders.page.invoiceOrder'), shortLabel: t('orders.page.invoiceShort'), icon: Euro,
+          className: 'bg-violet-600 hover:bg-violet-700', onClick: () => handleInvoiceOrder(order)
+        };
+      case 'INVOICED': {
+        // Facture soldée (ou annulée) : plus rien à encaisser, on n'expose aucune action.
+        if (paymentSettled(order, invoice)) return null;
+        // Un acompte déjà versé change la nature de l'action : il ne s'agit plus d'encaisser
+        // la facture mais d'en solder le reliquat. Le libellé le dit.
+        const partial = (invoice?.status ?? order?.invoiceStatus) === 'PARTIALLY_PAID';
+        return {
+          key: 'PAY',
+          label: partial ? t('orders.page.settleBalance') : t('orders.page.recordPayment'),
+          shortLabel: partial ? t('orders.page.balanceShort') : t('orders.page.paymentShort'),
+          icon: CreditCard,
+          className: 'bg-green-600 hover:bg-green-700', onClick: () => handleOpenPayment(order)
+        };
+      }
+      default:
+        return null;
+    }
+  };
+
+  // Règles métier (miroir du backend) garantissant la cohérence des transitions :
+  //  - modification autorisée uniquement au stade brouillon (OrderService.updateOrder exige PENDING) ;
+  //  - annulation possible tant que la commande n'est pas dans un état terminal (livrée/annulée)
+  //    ET qu'aucune facture vivante ne lui est rattachée.
+  const canEditOrder = (order) => order?.status === 'PENDING';
+
+  // Annulation : reproduit fidèlement les deux gardes de OrderService.cancelOrder, pour ne jamais
+  // proposer un bouton qui finirait en erreur 400 :
+  //  1. la machine à états autorise CANCELED depuis PENDING / CONFIRMED / INVOICED uniquement
+  //     (DELIVERED et CANCELED sont terminaux) ;
+  //  2. une commande facturée ne s'annule qu'une fois sa facture elle-même annulée (cohérence
+  //     financière). Une commande payée — ou seulement facturée en attente de règlement — n'expose
+  //     donc pas l'action : le parcours passe d'abord par l'annulation de la facture.
+  // `invoice` est optionnelle : à défaut on lit le statut de facture porté par la liste.
+  const canCancelOrder = (order, invoice = null) => {
+    if (!['PENDING', 'CONFIRMED', 'INVOICED'].includes(order?.status)) return false;
+    if (order?.status !== 'INVOICED') return true;
+    return (invoice?.status ?? order?.invoiceStatus) === 'CANCELED';
+  };
+  // Une commande est *concernée* par le paiement dès qu'elle est facturée : c'est ce prédicat qui
+  // déclenche le chargement de la facture et l'affichage de la section paiement du détail (laquelle
+  // sait montrer « réglée » aussi bien qu'un reliquat).
+  const canPayOrder = (order) => ['INVOICED', 'DELIVERED'].includes(order?.status);
+
+  // Le statut de paiement vit sur la facture. La liste /orders en porte une copie
+  // (`order.invoiceStatus`), ce qui permet de masquer l'action sans attendre un chargement.
+  const paymentSettled = (order, invoice) => {
+    const status = invoice?.status ?? order?.invoiceStatus;
+    return status === 'PAID' || status === 'CANCELED';
+  };
+
+  // Action « Paiement » réellement proposable : facturée et pas encore soldée/annulée.
+  const canRecordPayment = (order, invoice) =>
+    canPayOrder(order) && !paymentSettled(order, invoice);
+
+  // Reste-t-il une étape à traiter ? C'est ce qui décide d'ouvrir — ou non — le panier de
+  // traitement depuis le détail : proposer de « poursuivre » une commande close n'a pas de
+  // suite à offrir, et donne au caissier l'impression d'avoir manqué quelque chose.
+  //
+  // Sont closes : la commande annulée, celle qui est facturée puis intégralement réglée, et la
+  // commande livrée sans reliquat. Une facture *annulée* ne clôt rien en revanche : la commande
+  // reste à annuler à son tour (cf. canCancelOrder), il y a donc bien une suite.
+  //
+  // `invoice` est optionnelle : à défaut on lit le statut de facture porté par la liste. En cas
+  // de statut inconnu on considère qu'il reste du travail — mieux vaut une action de trop qu'un
+  // dossier qu'on ne peut plus reprendre.
+  const hasNextStep = (order, invoice = null) => {
+    if (order?.status === 'CANCELED') return false;
+    if (!canPayOrder(order)) return true; // PENDING / CONFIRMED : confirmation ou facturation
+    const invoiceStatus = invoice?.status ?? order?.invoiceStatus;
+    if (invoiceStatus === 'PAID') return false;
+    if (order?.status === 'DELIVERED' && !invoiceStatus) return false;
+    return true;
+  };
+
+  // Génère et télécharge le PDF de la facture liée à une commande. `invoice` est passée quand
+  // elle est déjà chargée (détail, carte vedette) pour éviter un aller-retour ; depuis la liste
+  // on la résout par commande. Tous les points d'entrée /invoices renvoient le même
+  // InvoiceResponse, qui porte la commande, son client et ses lignes — soit tout ce dont le
+  // générateur a besoin.
+  const handleDownloadInvoice = async (order, invoice = null) => {
+    if (downloadingOrderId) return;
+    setDownloadingOrderId(order.id);
+    try {
+      const fullInvoice = invoice ?? (await api.get(`/invoices/order/${order.id}`)).data;
+      // Coordonnées de l'entreprise (en-tête + mentions légales), déjà chargées par
+      // `useSettings` : leur indisponibilité ne bloque pas l'édition du document, le
+      // générateur applique ses propres valeurs par défaut.
+      generateInvoicePDF(fullInvoice, settings || {});
+    } catch (error) {
+      console.error('Error generating invoice PDF:', error);
+      toast.error(error.response?.status === 404
+        ? t('orders.page.noInvoiceForOrder')
+        : t('orders.workspace.pdfError'));
+    } finally {
+      setDownloadingOrderId(null);
+    }
+  };
+
+  const remainingOf = (invoice) =>
+    Number(invoice?.remainingAmount ?? ((invoice?.totalAmount || 0) - (invoice?.paidAmount || 0))) || 0;
+
+  // Téléchargement du PDF : proposé dès qu'un règlement est intervenu — facture soldée (PAID)
+  // comme partiellement payée (PARTIALLY_PAID). Le document produit reflète fidèlement l'état du
+  // règlement — bandeau « PARTIELLEMENT PAYÉE », montant déjà réglé et reste à payer — il vaut
+  // donc justificatif d'acompte et ne risque pas d'être pris pour une facture soldée.
+  // Restent exclues :
+  //  - la facture annulée, document caduc qui n'a pas à circuler ;
+  //  - la facture encore impayée, qui relève du suivi de facturation plutôt que du tableau de bord
+  //    des commandes — l'écran Factures la fournit à tout stade, aucune capacité n'est perdue.
+  // Le reliquat nul est accepté au même titre que le statut PAID : c'est la règle déjà retenue
+  // par la section paiement du détail, qui tolère les arrondis au centime.
+  const canDownloadInvoice = (order, invoice = null) => {
+    if (!canPayOrder(order)) return false;
+    const status = invoice?.status ?? order?.invoiceStatus;
+    if (status === 'CANCELED') return false;
+    if (status === 'PAID' || status === 'PARTIALLY_PAID') return true;
+    return !!invoice && remainingOf(invoice) <= 0.001;
+  };
+
+  // Récupère la facture liée à la commande puis ouvre le modal de paiement.
+  const handleOpenPayment = async (order) => {
+    try {
+      const { data: invoice } = await api.get(`/invoices/order/${order.id}`);
+      if (invoice.status === 'PAID') {
+        toast(t('orders.page.invoiceAlreadyPaid'), { icon: 'ℹ️' });
+        return;
+      }
+      if (invoice.status === 'CANCELED') {
+        toast.error(t('orders.page.linkedInvoiceCanceled'));
+        return;
+      }
+      setPaymentInvoice(invoice);
+      setPaymentForm({
+        amount: remainingOf(invoice).toFixed(2),
+        paymentMethod: invoice.paymentMethod || 'CASH',
+        paymentDate: new Date().toISOString().split('T')[0],
+      });
+      setShowPaymentModal(true);
+    } catch (error) {
+      if (error.response?.status === 404) {
+        toast.error(t('orders.page.noInvoiceYet'));
+      } else {
+        console.error('Error loading invoice for payment:', error);
+        toast.error(t('orders.page.invoiceLoadError'));
+      }
+    }
+  };
+
+  const handleSubmitPayment = async () => {
+    const amount = parseFloat(paymentForm.amount);
+    const remaining = remainingOf(paymentInvoice);
+    if (!amount || amount <= 0) {
+      toast.error(t('orders.page.enterValidAmount'));
+      return;
+    }
+    // Petite tolérance flottante pour autoriser le solde exact.
+    if (amount > remaining + 0.001) {
+      toast.error(t('orders.steps.amountExceeds', { amount: formatCurrency(remaining) }));
+      return;
+    }
+    try {
+      setPaymentLoading(true);
+      await api.patch(`/invoices/${paymentInvoice.id}/payment`, {
+        amount,
+        paymentMethod: paymentForm.paymentMethod,
+        paymentDate: paymentForm.paymentDate,
+      });
+      toast.success(t('orders.page.paymentRecorded'));
+      setShowPaymentModal(false);
+      setPaymentInvoice(null);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const handleEditItemChange = (index, field, value) => {
@@ -238,6 +861,13 @@ const Orders = () => {
 
     // Si on change le produit, mettre à jour le prix automatiquement
     if (field === 'productId') {
+      // Une ligne par produit : on refuse un produit déjà présent ailleurs dans la commande.
+      const isDuplicate = value &&
+        editForm.orderItems.some((it, i) => i !== index && String(it.productId) === String(value));
+      if (isDuplicate) {
+        toast.error(t('orders.page.duplicateProduct'));
+        return;
+      }
       const selectedProduct = products.find(p => p.id === parseInt(value));
       if (selectedProduct) {
         updatedItems[index] = {
@@ -253,9 +883,7 @@ const Orders = () => {
     }
 
     // Recalculer le total
-    const newTotal = updatedItems.reduce((sum, item) =>
-      sum + (item.unitPrice * item.quantity), 0
-    );
+    const newTotal = computeItemsTotal(updatedItems);
 
     setEditForm(prev => ({
       ...prev,
@@ -266,9 +894,7 @@ const Orders = () => {
 
   const handleRemoveItemFromEdit = (index) => {
     const updatedItems = editForm.orderItems.filter((_, i) => i !== index);
-    const newTotal = updatedItems.reduce((sum, item) =>
-      sum + (item.unitPrice * item.quantity), 0
-    );
+    const newTotal = computeItemsTotal(updatedItems);
 
     setEditForm(prev => ({
       ...prev,
@@ -282,198 +908,50 @@ const Orders = () => {
       ...prev,
       orderItems: [
         ...prev.orderItems,
-        { productId: '', unitPrice: 0, quantity: 1 }
+        { productId: '', unitPrice: 0, discount: 0, quantity: 1 }
       ]
-    }));
-  };
-
-  const handleCreateOrder = () => {
-    setCreateForm({
-      clientId: '',
-      status: 'PENDING',
-      orderItems: [],
-      totalAmount: 0
-    });
-    setShowCreateModal(true);
-  };
-
-  const handleCreateClient = () => {
-    setNewClientForm({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      address: '',
-      company: '',
-      type: 'PARTICULIER',
-      active: true
-    });
-    setShowCreateClientModal(true);
-  };
-
-  const handleNewClientFormChange = (field, value) => {
-    setNewClientForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmitNewClient = async () => {
-    try {
-      if (!newClientForm.firstName || !newClientForm.lastName || !newClientForm.phone) {
-        toast.error('Veuillez remplir tous les champs obligatoires (Prénom, Nom, Téléphone)');
-        return;
-      }
-
-      const response = await clientService.createClient(newClientForm);
-      toast.success('Client créé avec succès');
-      setShowCreateClientModal(false);
-
-      // Recharger la liste des clients et sélectionner le nouveau client
-      await fetchClients();
-      setCreateForm(prev => ({ ...prev, clientId: response.data.id }));
-    } catch (error) {
-      console.error('Error creating client:', error);
-      toast.error('Erreur lors de la création du client');
-    }
-  };
-
-  const handleCreateFormChange = (field, value) => {
-    setCreateForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmitCreateOrder = () => {
-    // Validate form
-    if (!createForm.clientId) {
-      toast.error('Veuillez sélectionner un client');
-      return;
-    }
-
-    if (createForm.orderItems.length === 0) {
-      toast.error('Veuillez ajouter au moins un article à la commande');
-      return;
-    }
-
-    // Vérifier que tous les articles ont un produit sélectionné
-    const hasEmptyProduct = createForm.orderItems.some(item => !item.productId);
-    if (hasEmptyProduct) {
-      toast.error('Veuillez sélectionner un produit pour chaque article');
-      return;
-    }
-
-    setShowConfirmModal(true);
-  };
-
-  const confirmCreateOrder = async () => {
-    try {
-      // Transformer les items pour le backend (nouveau format DTO)
-      const transformedItems = createForm.orderItems.map(item => ({
-        productId: parseInt(item.productId),
-        quantity: parseInt(item.quantity)
-      }));
-
-      const orderData = {
-        clientId: parseInt(createForm.clientId),
-        items: transformedItems
-      };
-
-      await api.post('/orders', orderData);
-      toast.success('✅ Commande créée avec succès');
-      setShowCreateModal(false);
-      fetchOrders();
-    } catch (error) {
-      console.error('Error creating order:', error);
-      const errorMessage = error.response?.data || error.message || 'Erreur lors de la création de la commande';
-      toast.error('❌ Erreur: ' + errorMessage);
-    }
-  };
-
-  const handleAddItemToCreate = () => {
-    setCreateForm(prev => ({
-      ...prev,
-      orderItems: [
-        ...prev.orderItems,
-        { productId: '', unitPrice: 0, quantity: 1 }
-      ]
-    }));
-  };
-
-  const handleCreateItemChange = (index, field, value) => {
-    const updatedItems = [...createForm.orderItems];
-
-    // Si on change le produit, mettre à jour le prix automatiquement
-    if (field === 'productId') {
-      const selectedProduct = products.find(p => p.id === parseInt(value));
-      if (selectedProduct) {
-        updatedItems[index] = {
-          ...updatedItems[index],
-          productId: value,
-          unitPrice: selectedProduct.sellingPrice
-        };
-      } else {
-        updatedItems[index] = { ...updatedItems[index], [field]: value };
-      }
-    } else {
-      updatedItems[index] = { ...updatedItems[index], [field]: value };
-    }
-
-    // Recalculer le total
-    const newTotal = updatedItems.reduce((sum, item) =>
-      sum + (item.unitPrice * item.quantity), 0
-    );
-
-    setCreateForm(prev => ({
-      ...prev,
-      orderItems: updatedItems,
-      totalAmount: newTotal
-    }));
-  };
-
-  const handleRemoveItemFromCreate = (index) => {
-    const updatedItems = createForm.orderItems.filter((_, i) => i !== index);
-    const newTotal = updatedItems.reduce((sum, item) =>
-      sum + (item.unitPrice * item.quantity), 0
-    );
-
-    setCreateForm(prev => ({
-      ...prev,
-      orderItems: updatedItems,
-      totalAmount: newTotal
     }));
   };
 
   const handleDelete = async (order) => {
-    if (window.confirm(`Êtes-vous sûr de vouloir supprimer la commande ${order.orderNumber} ?`)) {
+    if (window.confirm(t('orders.confirmDelete', { number: order.orderNumber }))) {
       try {
         await api.delete(`/orders/${order.id}`);
-        toast.success('Commande supprimée avec succès');
+        toast.success(t('orders.deleteSuccess'));
         fetchOrders();
       } catch (error) {
         console.error('Error deleting order:', error);
-        toast.error('Erreur lors de la suppression');
+        toast.error(t('orders.deleteError'));
       }
     }
   };
 
+  // L'icône est le seul apport local : le libellé vient de la table canonique `status.order.*`,
+  // partagée avec les badges des autres écrans.
   const getStatusBadge = (status) => {
-    const badges = {
-      PENDING: { class: 'bg-yellow-100 text-yellow-700 border-yellow-200', text: 'En attente', icon: Clock },
-      CONFIRMED: { class: 'bg-blue-100 text-blue-700 border-blue-200', text: 'Confirmée', icon: CheckCircle },
-      DELIVERED: { class: 'bg-green-100 text-green-700 border-green-200', text: 'Livrée', icon: Truck },
-      INVOICED: { class: 'bg-purple-100 text-purple-700 border-purple-200', text: 'Facturée', icon: DollarSign },
-      CANCELED: { class: 'bg-red-100 text-red-700 border-red-200', text: 'Annulée', icon: XCircle }
+    const icons = {
+      PENDING: Clock,
+      CONFIRMED: CheckCircle,
+      DELIVERED: Truck,
+      INVOICED: Euro,
+      PARTIALLY_PAID: Euro,
+      PAID: CheckCircle,
+      CANCELED: XCircle
     };
-    const badge = badges[status] || badges.PENDING;
-    const Icon = badge.icon;
+    const key = icons[status] ? status : 'PENDING';
+    const Icon = icons[key];
     return (
-      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${badge.class}`}>
-        <Icon className="w-3 h-3" />
-        {badge.text}
+      <span className={badgeClass(ORDER_STATUS_TONE[key])}>
+        <Icon className="w-3 h-3" aria-hidden="true" />
+        {t(`status.order.${key}`)}
       </span>
     );
   };
 
+  /** Date et heure dans la convention de la langue active. */
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
+    return new Date(dateString).toLocaleDateString(t('export.locale'), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -482,28 +960,320 @@ const Orders = () => {
     });
   };
 
-  // Filtrage
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch =
-      order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      `${order.client?.firstName} ${order.client?.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'ALL' || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  // Rend une ligne de commande. Extraite pour être réutilisée dans chaque groupe de statut.
+  const renderOrderRow = (order) => {
+    const isHighlighted = selectedOrder?.id === order.id && showDetailsModal;
+    return (
+      <motion.tr
+        key={order.id}
+        id={`order-${order.id}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        onClick={() => handleViewDetails(order)}
+        className={`transition-colors cursor-pointer ${
+          isHighlighted
+            ? 'bg-primary-50 dark:bg-primary-500/15 ring-2 ring-primary-400'
+            : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
+        }`}
+      >
+        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-gray-400 shrink-0" />
+            <span className="font-medium text-gray-900 dark:text-gray-100">{order.orderNumber}</span>
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+            <span>{formatDate(order.createdAt)}</span>
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {order.client ? (
+            /* Société affichée sous le nom quand elle existe : c'est souvent elle qu'on cherche
+               dans une liste B2B, et elle départage les homonymes. */
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-gray-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                  {order.client.firstName} {order.client.lastName}
+                </p>
+                {order.client.company && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{order.client.company}</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <span className="badge-neutral">
+              {t('orders.walkInClient')}
+            </span>
+          )}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {/* Nombre d'articles = somme des quantités, pas nombre de lignes : c'est ce qui est
+              réellement sorti du stock. */}
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <Package className="w-4 h-4 text-gray-400 shrink-0" />
+            <span className="tabular-nums">
+              {(order.items || []).reduce((n, i) => n + (parseInt(i.quantity) || 0), 0)}
+            </span>
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          <div className="flex flex-col">
+            <span className="subsection-title tabular-nums">
+              {formatCurrency(order.totalAmount)}
+            </span>
+            {(parseFloat(order.discount) || 0) > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                {t('orders.page.discountAmount', { amount: formatCurrency(order.discount) })}
+              </span>
+            )}
+          </div>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {/* La liste /orders porte le statut de la facture liée : une commande facturée puis
+              réglée s'affiche « Payée » — et « Acompte versé » si le règlement est partiel. */}
+          {getStatusBadge(resolveOrderStatusKey(order))}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {/* Complémentaire du badge, pas redondant : le badge nomme l'état courant, la barre
+              situe la commande dans le cycle et montre ce qu'il reste à faire. */}
+          <OrderProgress order={order} />
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm">
+          {/* Barre d'actions : bouton principal (prochaine étape du cycle
+              PENDING→Confirmer→Facturer→Livrer) + paiement, puis actions
+              secondaires en icônes (détail, modification, annulation, suppression),
+              séparées par un trait fin pour une lecture plus claire. */}
+          <div className="flex items-center justify-end gap-1.5">
+            {(() => {
+              const primary = getPrimaryAction(order);
+              if (!primary) return null;
+              const Icon = primary.icon;
+              return (
+                <button
+                  onClick={(e) => { e.stopPropagation(); primary.onClick(); }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow transition-all ${primary.className}`}
+                  title={primary.label}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {primary.shortLabel}
+                </button>
+              );
+            })()}
 
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentOrders = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+            {/* Cas d'une commande livrée dont la facture garde un reliquat : l'action principale
+                est vide, l'encaissement reste proposé ici. Même vocabulaire que le bouton
+                principal — « Solde » dès qu'un acompte a été versé. */}
+            {canRecordPayment(order) && getPrimaryAction(order)?.key !== 'PAY' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleOpenPayment(order); }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-green-700 bg-green-50 hover:bg-green-100 text-xs font-semibold rounded-lg border border-green-200 transition-colors"
+                title={order.invoiceStatus === 'PARTIALLY_PAID'
+                  ? t('orders.page.settleBalance')
+                  : t('orders.page.recordPayment')}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                {order.invoiceStatus === 'PARTIALLY_PAID'
+                  ? t('orders.page.balanceShort')
+                  : t('orders.page.paymentShort')}
+              </button>
+            )}
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
+            <span className="mx-0.5 h-5 w-px bg-gray-200" aria-hidden="true" />
+
+            <IconAction icon={Eye} title={t('orders.page.viewDetail')} color="neutral" onClick={() => handleViewDetails(order)} />
+
+            {canDownloadInvoice(order) && (
+              <IconAction
+                icon={Download}
+                title={downloadingOrderId === order.id
+                  ? t('orders.steps.generatingPdf')
+                  : t('orders.steps.downloadInvoicePdf')}
+                color="neutral"
+                disabled={downloadingOrderId === order.id}
+                onClick={() => handleDownloadInvoice(order)}
+              />
+            )}
+
+            {canEditOrder(order) && (
+              <IconAction icon={Edit} title={t('orders.page.editOrder')} color="info" onClick={() => handleEdit(order)} />
+            )}
+
+            {canCancelOrder(order) && (
+              <IconAction icon={XCircle} title={t('orders.steps.cancelOrder')} color="warning" onClick={() => handleCancelOrder(order)} />
+            )}
+
+            {order.status === 'CANCELED' && (
+              <IconAction icon={Trash2} title={t('common.delete')} color="danger" onClick={() => handleDelete(order)} />
+            )}
+            {/* DELIVERED : statut terminal — consultation (et paiement si reliquat) uniquement. */}
+          </div>
+        </td>
+      </motion.tr>
+    );
   };
 
-  const handleItemsPerPageChange = (newItemsPerPage) => {
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1);
+  // ---------------------------------------------------------------------------------------
+  // Recherche, tri, pagination
+  //
+  // Tout est appliqué côté client : l'API /orders renvoie la liste complète et il n'existe
+  // pas d'endpoint de recherche paginé. C'est tenable à l'échelle de cet outil interne, mais
+  // c'est LA limite à connaître avant d'ajouter un critère — au-delà de quelques milliers de
+  // commandes, il faudra porter ce filtrage dans OrderRepository plutôt que l'étendre ici.
+  // ---------------------------------------------------------------------------------------
+
+  const norm = (v) => (v ?? '').toString().toLowerCase();
+
+  // Listes d'options déduites des commandes elles-mêmes plutôt que d'appels dédiés : le
+  // caissier n'a pas le droit de lister les utilisateurs (/users est réservé à l'ADMIN), et
+  // n'afficher que les valeurs réellement présentes évite les filtres qui ne rendent rien.
+  const orderUsers = useMemo(() => {
+    const byId = new Map();
+    orders.forEach((o) => {
+      if (!o.createdBy?.id) return;
+      const label = [o.createdBy.firstName, o.createdBy.lastName].filter(Boolean).join(' ')
+        || o.createdBy.username;
+      byId.set(o.createdBy.id, { id: o.createdBy.id, label });
+    });
+    return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [orders]);
+
+  const orderCities = useMemo(() => {
+    const set = new Set();
+    orders.forEach((o) => { if (o.client?.city) set.add(o.client.city); });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    const q = norm(filters.q).trim();
+    const notesQuery = norm(filters.notes).trim();
+    const min = filters.amountMin === '' ? null : parseFloat(filters.amountMin);
+    const max = filters.amountMax === '' ? null : parseFloat(filters.amountMax);
+
+    return orders.filter((order) => {
+      // Recherche plein texte : un seul champ interroge le numéro, le client sous toutes ses
+      // formes, les produits commandés et les notes. C'est ce qui permet de retrouver une
+      // commande à partir de ce dont on se souvient, sans savoir dans quel champ chercher.
+      if (q) {
+        const haystack = [
+          order.orderNumber,
+          order.client?.firstName, order.client?.lastName, order.client?.email,
+          order.client?.phone, order.client?.company, order.client?.city,
+          order.createdBy?.username, order.createdBy?.firstName, order.createdBy?.lastName,
+          order.notes,
+          ...(order.items || []).flatMap((i) => [i.product?.name, i.product?.code, i.product?.barcode]),
+        ].map(norm).join(' ');
+        if (!haystack.includes(q)) return false;
+      }
+
+      if (filters.status !== 'ALL' && order.status !== filters.status) return false;
+
+      // « Pas encore facturée » est l'absence de facture liée, pas un statut de facture.
+      if (filters.payment === 'NONE') {
+        if (order.invoiceStatus) return false;
+      } else if (filters.payment !== 'ALL' && order.invoiceStatus !== filters.payment) {
+        return false;
+      }
+
+      if (filters.clientId && String(order.client?.id) !== String(filters.clientId)) return false;
+      if (filters.clientType !== 'ALL' && order.client?.type !== filters.clientType) return false;
+      if (filters.city && order.client?.city !== filters.city) return false;
+
+      if (filters.productId
+        && !(order.items || []).some((i) => String(i.product?.id) === String(filters.productId))) {
+        return false;
+      }
+      if (filters.categoryId
+        && !(order.items || []).some((i) => String(i.product?.category?.id) === String(filters.categoryId))) {
+        return false;
+      }
+
+      if (filters.createdById && String(order.createdBy?.id) !== String(filters.createdById)) return false;
+
+      // Bornes de date inclusives. On compare sur la partie `yyyy-MM-dd` de l'horodatage :
+      // comparer des Date entières exclurait les commandes du jour de fin passé minuit.
+      if (filters.dateFrom || filters.dateTo) {
+        const day = (order.createdAt || '').slice(0, 10);
+        if (!day) return false;
+        if (filters.dateFrom && day < filters.dateFrom) return false;
+        if (filters.dateTo && day > filters.dateTo) return false;
+      }
+
+      const amount = parseFloat(order.totalAmount) || 0;
+      if (min !== null && !Number.isNaN(min) && amount < min) return false;
+      if (max !== null && !Number.isNaN(max) && amount > max) return false;
+
+      if (notesQuery && !norm(order.notes).includes(notesQuery)) return false;
+      if (filters.onlyDiscounted && !((parseFloat(order.discount) || 0) > 0)) return false;
+
+      return true;
+    });
+  }, [orders, filters]);
+
+  const sortedOrders = useMemo(() => {
+    const value = (order) => {
+      switch (sort.key) {
+        case 'orderNumber': return norm(order.orderNumber);
+        case 'client': return norm(order.client ? `${order.client.lastName} ${order.client.firstName}` : '');
+        case 'items': return (order.items || []).reduce((n, i) => n + (parseInt(i.quantity) || 0), 0);
+        case 'totalAmount': return parseFloat(order.totalAmount) || 0;
+        case 'status': return norm(order.status);
+        // Tri par avancement réel dans le cycle, et non par ordre alphabétique du statut :
+        // c'est ce qui remonte en tête les commandes les plus en retard. Les annulées
+        // (index -1) se regroupent naturellement à une extrémité.
+        case 'progress': return lifecycleIndexFor(order.status, { status: order.invoiceStatus });
+        case 'createdAt':
+        default: return order.createdAt || '';
+      }
+    };
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...filteredOrders].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }, [filteredOrders, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / perPage));
+  // La page demandée est bornée au nombre réel de pages : un filtre qui réduit la liste
+  // pendant qu'on est en page 5 doit ramener du contenu, pas un tableau vide.
+  const currentPage = Math.min(page, totalPages);
+  const pagedOrders = sortedOrders.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  // Un critère actif force la liste complète : filtrer pour n'en voir que six premières
+  // n'aurait aucun sens — et les tuiles d'indicateurs sont elles-mêmes des filtres de statut.
+  const hasActiveFilters = useMemo(
+    () => Object.keys(EMPTY_ORDER_FILTERS).some((key) => filters[key] !== EMPTY_ORDER_FILTERS[key]),
+    [filters],
+  );
+  const showFullList = hasActiveFilters || viewMode === 'all';
+
+  // Les dernières commandes créées. À défaut de date exploitable, on retombe sur l'id décroissant.
+  const recentOrders = useMemo(() => (
+    [...orders]
+      .sort((a, b) => (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)) || (b.id - a.id))
+      .slice(0, RECENT_COUNT)
+  ), [orders]);
+
+  const displayedOrders = showFullList ? pagedOrders : recentOrders;
+
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    setPage(1);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+  };
+
+  const toggleSort = (key) => {
+    setSort((prev) => (
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'createdAt' || key === 'totalAmount' ? 'desc' : 'asc' }
+    ));
+    setPage(1);
   };
 
   // Stats
@@ -511,285 +1281,215 @@ const Orders = () => {
     total: orders.length,
     pending: orders.filter(o => o.status === 'PENDING').length,
     confirmed: orders.filter(o => o.status === 'CONFIRMED').length,
+    invoiced: orders.filter(o => o.status === 'INVOICED').length,
     delivered: orders.filter(o => o.status === 'DELIVERED').length,
-    canceled: orders.filter(o => o.status === 'CANCELED').length,
-    totalRevenue: orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0)
+    canceled: orders.filter(o => o.status === 'CANCELED').length
   };
+
+  // Cartes KPI cliquables (chacune filtre la liste sur son statut).
+  // Chaque carte reprend le jeton du statut qu'elle filtre (cf. ORDER_STATUS_TONE).
+  const kpiCards = [
+    { key: 'ALL', label: t('orders.page.kpiTotal'), value: stats.total, icon: ShoppingCart, accent: 'success' },
+    { key: 'PENDING', label: t('dashboard.status.pending'), value: stats.pending, icon: Clock, accent: ORDER_STATUS_TONE.PENDING },
+    { key: 'CONFIRMED', label: t('dashboard.status.confirmed'), value: stats.confirmed, icon: CheckCircle, accent: ORDER_STATUS_TONE.CONFIRMED },
+    { key: 'INVOICED', label: t('orders.page.kpiInvoiced'), value: stats.invoiced, icon: Euro, accent: ORDER_STATUS_TONE.INVOICED },
+    { key: 'DELIVERED', label: t('dashboard.status.delivered'), value: stats.delivered, icon: Truck, accent: ORDER_STATUS_TONE.DELIVERED },
+    { key: 'CANCELED', label: t('dashboard.status.canceled'), value: stats.canceled, icon: XCircle, accent: ORDER_STATUS_TONE.CANCELED }
+  ];
+
+  // Valeurs dérivées du formulaire d'édition (le client est figé : seuls les articles comptent).
+  const editGrossTotal = editForm.orderItems.reduce(
+    (sum, item) => sum + (parseFloat(item.unitPrice) || 0) * (parseInt(item.quantity) || 0), 0);
+  const editDiscountTotal = editGrossTotal - editForm.totalAmount;
+  const editItemCount = editForm.orderItems.length;
+  // Mêmes garde-fous que la création : une commande PENDING dont une ligne dépasse le stock
+  // serait enregistrée mais ne pourrait jamais être confirmée (confirmOrder lève alors une
+  // InsufficientStockException). On bloque donc en amont.
+  const editHasStockIssue = editForm.orderItems.some((item) => {
+    const product = products.find((p) => p.id === parseInt(item.productId));
+    return product && parseInt(item.quantity) > product.stockQuantity;
+  });
+  const editHasInvalidQty = editForm.orderItems.some((item) => !(parseInt(item.quantity) > 0));
+  const editFormValid =
+    editItemCount > 0 &&
+    editForm.orderItems.every((item) => item.productId) &&
+    !editHasStockIssue &&
+    !editHasInvalidQty;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Commandes</h1>
-          <p className="text-gray-600 mt-1">Gérez vos commandes clients</p>
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <ShoppingCart aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('orders.pageTitle')}</h1>
+            <p className="page-subtitle">
+              {t('orders.page.subtitle')}
+            </p>
+          </div>
         </div>
-        <Button variant="primary" icon={Plus} onClick={handleCreateOrder}>
-          Nouvelle commande
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" icon={RefreshCw} onClick={fetchOrders} loading={loading}>
+            {t('common.refresh')}
+          </Button>
+          <Button variant="primary" icon={Plus} onClick={() => openWorkspace()}>
+            {t('orders.addOrder')}
+          </Button>
+        </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Commandes</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <ShoppingCart className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Chiffre d'affaires</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {stats.totalRevenue.toFixed(2)} €
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">En attente</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.pending}</p>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Livrées</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.delivered}</p>
-            </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Truck className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Status Filter Buttons */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setFilterStatus('ALL')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filterStatus === 'ALL'
-              ? 'bg-primary-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Toutes ({stats.total})
-        </button>
-        <button
-          onClick={() => setFilterStatus('PENDING')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filterStatus === 'PENDING'
-              ? 'bg-yellow-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          En attente ({stats.pending})
-        </button>
-        <button
-          onClick={() => setFilterStatus('CONFIRMED')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filterStatus === 'CONFIRMED'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Confirmées ({stats.confirmed})
-        </button>
-        <button
-          onClick={() => setFilterStatus('DELIVERED')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filterStatus === 'DELIVERED'
-              ? 'bg-green-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Livrées ({stats.delivered})
-        </button>
-        <button
-          onClick={() => setFilterStatus('CANCELED')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            filterStatus === 'CANCELED'
-              ? 'bg-red-600 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          Annulées ({stats.canceled})
-        </button>
-      </div>
-
-      {/* Search */}
-      <div className="card shadow-md">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-500" />
-          <input
-            type="text"
-            placeholder="Rechercher par numéro de commande ou client..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input pl-12 pr-4 py-3 w-full border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg text-sm"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      {/* ---- Étage 1 : indicateurs, qui servent aussi de filtres rapides sur le statut ---- */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        {kpiCards.map((kpi, i) => {
+          // Repli sur `info` plutôt que sur un gris : un jeton inconnu ne doit pas
+          // réintroduire une carte neutre dans le bandeau.
+          const accent = KPI_ACCENTS[kpi.accent] ?? KPI_ACCENTS.info;
+          const active = filters.status === kpi.key;
+          const Icon = kpi.icon;
+          return (
+            <motion.button
+              key={kpi.key}
+              type="button"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              onClick={() => handleFilterChange('status', kpi.key)}
+              aria-pressed={active}
+              className={`text-left rounded-2xl border p-4 transition-all hover:shadow-card-hover ${accent.tile} ${
+                active ? `ring-2 ${accent.ring} border-transparent shadow-sm` : ''
+              }`}
             >
-              <XCircle className="w-5 h-5" />
-            </button>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className={`text-[11px] font-semibold uppercase tracking-wider truncate ${accent.label}`}>{kpi.label}</p>
+                  <p className={`text-2xl font-bold mt-1 tabular-nums ${accent.value}`}>{kpi.value}</p>
+                </div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${accent.iconBg}`}>
+                  <Icon className={`w-5 h-5 ${accent.iconText}`} />
+                </div>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {/* ---- Étage 2 : recherche et filtres ---- */}
+      <OrderFilters
+        filters={filters}
+        onChange={handleFilterChange}
+        onReset={resetFilters}
+        expanded={filtersExpanded}
+        onToggleExpanded={() => setFiltersExpanded((v) => !v)}
+        clients={clients}
+        products={products}
+        categories={categories}
+        users={orderUsers}
+        cities={orderCities}
+      />
+
+      {/* ---- Étage 3 : la liste de travail, toujours visible ---- */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-card overflow-hidden">
+        {/* En-tête du répertoire : ce qu'on regarde, et l'étendue de ce qu'on regarde. */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div>
+            <h2 className="section-title">{t('orders.page.directoryTitle')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              {showFullList
+                ? t('orders.page.directoryAll')
+                : t('orders.page.directoryPreview', { count: RECENT_COUNT })}
+            </p>
+          </div>
+          {/* La bascule disparaît quand un filtre est actif : la liste est alors complète
+              d'office, un sélecteur sans effet se lirait comme une panne. */}
+          {!hasActiveFilters && orders.length > 0 && (
+            <SegmentedFilter
+              label={t('orders.page.viewModeLabel')}
+              value={viewMode}
+              onChange={handleViewModeChange}
+              options={[
+                { value: 'recent', label: t('orders.page.viewRecent', { count: RECENT_COUNT }) },
+                { value: 'all', label: t('orders.page.viewAll'), count: orders.length },
+              ]}
+            />
           )}
         </div>
-      </div>
 
-      {/* Orders Table */}
-      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Commande</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <SortHeader label={t('orders.orderNumber')} sortKey="orderNumber" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.page.columnDateTime')} sortKey="createdAt" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.client')} sortKey="client" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.items')} sortKey="items" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.page.columnAmount')} sortKey="totalAmount" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.status')} sortKey="status" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.page.columnProgress')} sortKey="progress" sort={sort} onSort={toggleSort} />
+                <th scope="col" className="table-th-right">{t('common.actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {currentOrders.map((order) => {
-                const isHighlighted = selectedOrder?.id === order.id && showDetailsModal;
-                return (
-                <motion.tr
-                  key={order.id}
-                  id={`order-${order.id}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  onClick={() => handleViewDetails(order)}
-                  className={`transition-colors cursor-pointer ${
-                    isHighlighted
-                      ? 'bg-blue-50 ring-2 ring-blue-400'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <ShoppingCart className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-gray-900">{order.orderNumber}</span>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {loading ? (
+                /* Lignes squelettes plutôt qu'un « Chargement… » centré : la structure du tableau
+                   reste visible, et rien ne peut se lire à tort comme « aucun résultat ». */
+                Array.from({ length: 5 }).map((_, rowIndex) => (
+                  <tr key={`skeleton-${rowIndex}`}>
+                    {Array.from({ length: 8 }).map((__, cellIndex) => (
+                      <td key={cellIndex} className="px-6 py-4">
+                        <div className="skeleton h-4 w-full max-w-[10rem]" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : displayedOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>
+                    {/* Deux vides différents : « aucune commande » et « aucun résultat » n'appellent
+                        pas la même action, le second doit proposer de relâcher les filtres. */}
+                    <div className="text-center py-12">
+                      <ShoppingCart className="empty-state-icon mb-4" />
+                      {orders.length === 0 ? (
+                        <>
+                          <p className="text-gray-500 dark:text-gray-400">{t('orders.page.emptyNoOrders')}</p>
+                          <button type="button" onClick={() => openWorkspace()} className="btn-primary mt-4">
+                            <Plus className="w-4 h-4" />
+                            {t('orders.page.createFirst')}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-gray-500 dark:text-gray-400">
+                            {t('orders.page.emptyNoMatch')}
+                          </p>
+                          <button type="button" onClick={resetFilters} className="btn-secondary mt-4">
+                            <RotateCcw className="w-4 h-4" />
+                            {t('orders.page.resetFilters')}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {order.client?.firstName} {order.client?.lastName}
-                      </p>
-                      <p className="text-sm text-gray-500">{order.client?.email}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {formatDate(order.createdAt)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="font-semibold text-gray-900">
-                      {order.totalAmount?.toFixed(2)} €
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(order.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewDetails(order);
-                        }}
-                        className="text-blue-600 hover:text-blue-900 transition-colors"
-                        title="Voir détails"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(order);
-                        }}
-                        className="text-green-600 hover:text-green-900 transition-colors"
-                        title="Modifier"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(order);
-                        }}
-                        className="text-red-600 hover:text-red-900 transition-colors"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </motion.tr>
-                );
-              })}
+                </tr>
+              ) : (
+                displayedOrders.map((order) => renderOrderRow(order))
+              )}
             </tbody>
           </table>
-
-          {/* Empty State */}
-          {currentOrders.length === 0 && (
-            <div className="text-center py-12">
-              <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Aucune commande trouvée</p>
-            </div>
-          )}
         </div>
 
-        {/* Pagination */}
-        {filteredOrders.length > 0 && (
+        {/* Pagination : seulement en liste complète — la vue d'aperçu n'affiche que six lignes,
+            un pied de pagination y serait trompeur. */}
+        {showFullList && !loading && sortedOrders.length > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={filteredOrders.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={handlePageChange}
-            onItemsPerPageChange={handleItemsPerPageChange}
+            totalItems={sortedOrders.length}
+            itemsPerPage={perPage}
+            onPageChange={setPage}
+            onItemsPerPageChange={(n) => { setPerPage(n); setPage(1); }}
           />
         )}
       </div>
@@ -800,59 +1500,74 @@ const Orders = () => {
           <Modal
             isOpen={showDetailsModal}
             onClose={() => setShowDetailsModal(false)}
-            title="Détails de la commande"
+            title={t('orders.detailsTitle')}
           >
             <div className="space-y-6">
               {/* Order Info */}
               <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                 <div>
-                  <p className="text-sm text-gray-600">Numéro de commande</p>
-                  <p className="font-semibold text-gray-900">{selectedOrder.orderNumber}</p>
+                  <p className="text-sm text-gray-600">{t('orders.page.orderNumberLabel')}</p>
+                  <p className="subsection-title">{selectedOrder.orderNumber}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Date</p>
-                  <p className="font-semibold text-gray-900">{formatDate(selectedOrder.createdAt)}</p>
+                  <p className="text-sm text-gray-600">{t('orders.date')}</p>
+                  <p className="subsection-title">{formatDate(selectedOrder.createdAt)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Montant total</p>
-                  <p className="font-semibold text-gray-900">{selectedOrder.totalAmount?.toFixed(2)} €</p>
+                  {/* Une fois la facture émise, le montant de référence est le total TTC (HT − remise
+                      + TVA) : c'est lui qui est encaissé. On l'affiche pour rester cohérent avec la
+                      mention « réglée intégralement » ci-dessous. Sans facture, on montre le HT. */}
+                  <p className="text-sm text-gray-600">
+                    {detailInvoice
+                      ? t('orders.page.totalInclTaxLabel')
+                      : t('orders.page.totalExclTaxLabel')}
+                  </p>
+                  <p className="subsection-title">
+                    {formatCurrency(detailInvoice
+                      ? detailInvoice.totalAmount
+                      : selectedOrder.totalAmount)}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Statut</p>
-                  {getStatusBadge(selectedOrder.status)}
+                  <p className="text-sm text-gray-600">{t('orders.status')}</p>
+                  {/* Statut effectif : reflète le paiement réel porté par la facture — « Payée »
+                      une fois soldée, « Acompte versé » tant qu'un reliquat subsiste. */}
+                  {getStatusBadge(resolveOrderStatusKey(selectedOrder, detailInvoice))}
                 </div>
               </div>
 
               {/* Client Info */}
               {selectedOrder.client && (
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <h3 className="subsection-title mb-3 flex items-center gap-2">
                     <User className="w-5 h-5" />
-                    Informations client
+                    {t('orders.clientInfoTitle')}
                   </h3>
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+                  {/* Fond neutre comme les autres sections du détail : le bleu est réservé
+                      à l'information de statut (« Confirmée »), pas au décor. */}
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="text-sm text-gray-600">Nom</p>
-                      <p className="font-semibold text-gray-900">
+                      <p className="text-sm text-gray-600">{t('clients.name')}</p>
+                      <p className="subsection-title">
                         {selectedOrder.client.firstName} {selectedOrder.client.lastName}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Email</p>
+                      <p className="text-sm text-gray-600">{t('common.email')}</p>
                       <p className="font-semibold text-gray-900 flex items-center gap-1">
                         <Mail className="w-4 h-4" />
                         {selectedOrder.client.email}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Téléphone</p>
+                      <p className="text-sm text-gray-600">{t('common.phone')}</p>
                       <p className="font-semibold text-gray-900 flex items-center gap-1">
                         <Phone className="w-4 h-4" />
                         {selectedOrder.client.phone}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Adresse</p>
+                      <p className="text-sm text-gray-600">{t('common.address')}</p>
                       <p className="font-semibold text-gray-900 flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
                         {selectedOrder.client.address}
@@ -862,45 +1577,272 @@ const Orders = () => {
                 </div>
               )}
 
+              {/* Client non enregistré (aucune fiche client rattachée) */}
+              {!selectedOrder.client && (
+                <div>
+                  <h3 className="subsection-title mb-3 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    {t('orders.client')}
+                  </h3>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                    <span className="badge-neutral">
+                      {t('orders.walkInClient')}
+                    </span>
+                    <span className="text-sm text-gray-500">{t('orders.page.noClientInfo')}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Order Items */}
               {selectedOrder.items && selectedOrder.items.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <h3 className="subsection-title mb-3 flex items-center gap-2">
                     <Package className="w-5 h-5" />
-                    Articles commandés
+                    {t('orders.orderItemsTitle')}
                   </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Produit</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Prix unitaire</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Quantité</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Total</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{t('common.product')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('products.sellingPrice')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('common.discount')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('common.quantity')}</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('common.total')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {selectedOrder.items.map((item, index) => (
+                        {selectedOrder.items.map((item, index) => {
+                          const lineTotal = item.totalPrice ?? (item.unitPrice * item.quantity);
+                          return (
                           <tr key={index}>
                             <td className="px-4 py-3 text-sm text-gray-900">
-                              {item.product?.name || item.productName || 'Produit'}
+                              {item.product?.name || item.productName || t('common.product')}
                             </td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900">
-                              {item.unitPrice?.toFixed(2)} €
+                              {formatCurrency(item.unitPrice)}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">
+                              {item.discount > 0 ? `${parseFloat(item.discount).toFixed(2)} %` : '—'}
                             </td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900">
                               {item.quantity}
                             </td>
                             <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                              {(item.unitPrice * item.quantity).toFixed(2)} €
+                              {formatCurrency(lineTotal)}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 </div>
               )}
+
+              {/* Pilotage du processus : progression des statuts + bouton principal qui
+                  fait avancer la commande vers l'étape suivante du cycle. */}
+              <div className="border-t border-gray-200 pt-5 space-y-4">
+                {selectedOrder.status === 'CANCELED' ? (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium">
+                    <XCircle className="w-5 h-5" />
+                    {t('orders.steps.canceledNotice')}
+                  </div>
+                ) : (
+                  (() => {
+                    const currentIndex = lifecycleIndexFor(selectedOrder.status, detailInvoice);
+                    // Même nuance que dans la liste : sur un règlement partiel, l'étape en cours
+                    // s'appelle « Payée » par destination, pas par état. On nomme l'état atteint.
+                    const partiallyPaid =
+                      (detailInvoice?.status ?? selectedOrder.invoiceStatus) === 'PARTIALLY_PAID';
+                    return (
+                      <div className="flex items-center">
+                        {LIFECYCLE_STEPS.map((step, idx) => {
+                          const done = idx < currentIndex;
+                          const current = idx === currentIndex;
+                          const label = current && partiallyPaid
+                            ? t('status.order.PARTIALLY_PAID')
+                            : t(step.labelKey);
+                          return (
+                            <div key={step.key} className={`flex items-center ${idx < LIFECYCLE_STEPS.length - 1 ? 'flex-1' : ''}`}>
+                              <div className="flex flex-col items-center">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                                  done ? 'bg-green-600 text-white'
+                                  : current ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                                  : 'bg-gray-200 text-gray-500'}`}>
+                                  {done ? <CheckCircle className="w-4 h-4" /> : idx + 1}
+                                </div>
+                                <span className={`mt-1 text-xs whitespace-nowrap ${current ? 'font-semibold text-blue-700' : 'text-gray-500'}`}>
+                                  {label}
+                                </span>
+                              </div>
+                              {idx < LIFECYCLE_STEPS.length - 1 && (
+                                <div className={`flex-1 h-0.5 mx-2 ${idx < currentIndex ? 'bg-green-600' : 'bg-gray-200'}`} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                )}
+
+                {/* Passage au panier de traitement : le détail répond à « où en est cette
+                    commande ? », le panier à « qu'est-ce que j'en fais maintenant ? ». La
+                    question ne se pose plus sur un dossier clos — le panier n'est donc proposé
+                    que s'il reste effectivement une étape à traiter. */}
+                {hasNextStep(selectedOrder, detailInvoice) && (
+                  <button
+                    onClick={() => { setShowDetailsModal(false); openWorkspace(selectedOrder); }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-200 dark:border-primary-500/30 text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10 font-semibold rounded-xl transition-colors"
+                  >
+                    <ClipboardList className="w-5 h-5" />
+                    {t('orders.page.continueInWorkspace')}
+                  </button>
+                )}
+
+                {(() => {
+                  const primary = getPrimaryAction(selectedOrder, detailInvoice);
+                  // Le paiement est traité par la section dédiée ci-dessous (statut réglée / reliquat),
+                  // on n'affiche donc pas ici le bouton principal « Paiement » pour éviter le doublon.
+                  if (!primary || primary.key === 'PAY') {
+                    return selectedOrder.status === 'DELIVERED' ? (
+                      <p className="flex items-center justify-center gap-2 text-sm font-medium text-green-700">
+                        <CheckCircle className="w-5 h-5" /> {t('orders.page.deliveredDone')}
+                      </p>
+                    ) : null;
+                  }
+                  const Icon = primary.icon;
+                  return (
+                    <button
+                      onClick={() => { setShowDetailsModal(false); primary.onClick(); }}
+                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all ${primary.className}`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      {primary.label}
+                    </button>
+                  );
+                })()}
+
+                {/* Section paiement : on n'affiche le bouton « Enregistrer un paiement » que s'il
+                    reste un montant dû. Une facture déjà réglée (ou annulée) montre un statut clair
+                    sans action redondante. */}
+                {canPayOrder(selectedOrder) && (() => {
+                  if (detailInvoiceLoading) {
+                    return (
+                      <p className="text-center text-sm text-gray-500 py-2">
+                        {t('orders.page.loadingPaymentStatus')}
+                      </p>
+                    );
+                  }
+                  if (!detailInvoice) return null;
+
+                  if (detailInvoice.status === 'CANCELED') {
+                    return (
+                      <div className="flex items-center gap-2 p-3 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium">
+                        <XCircle className="w-5 h-5" />
+                        {t('orders.steps.invoiceCanceledNotice')}
+                      </div>
+                    );
+                  }
+
+                  const remaining = remainingOf(detailInvoice);
+                  const paid = Number(detailInvoice.paidAmount || 0);
+                  const invoiceTotal = Number(detailInvoice.totalAmount || 0);
+
+                  if (detailInvoice.status === 'PAID' || remaining <= 0.001) {
+                    // Le règlement confirmé est le moment où la facture définitive a de la valeur :
+                    // le téléchargement est proposé dans la foulée du message de confirmation,
+                    // plutôt que relégué à l'écran Factures.
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg text-sm font-medium">
+                          <CheckCircle className="w-5 h-5" />
+                          {t('orders.page.invoiceFullySettled', {
+                            paid: formatCurrency(paid),
+                            total: formatCurrency(invoiceTotal),
+                          })}
+                        </div>
+                        {canDownloadInvoice(selectedOrder, detailInvoice) && (
+                          <button
+                            onClick={() => handleDownloadInvoice(selectedOrder, detailInvoice)}
+                            disabled={downloadingOrderId === selectedOrder.id}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold rounded-xl transition-colors disabled:opacity-60 disabled:cursor-wait"
+                          >
+                            <Download className="w-5 h-5" />
+                            {downloadingOrderId === selectedOrder.id
+                              ? t('orders.steps.generatingPdf')
+                              : t('orders.steps.downloadInvoicePdf')}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {paid > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">{t('invoices.alreadyPaid')}</span>
+                          <span className="subsection-title">{formatCurrency(paid)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">{t('orders.remainingDue')}</span>
+                        <span className="font-semibold text-amber-600">{formatCurrency(remaining)}</span>
+                      </div>
+                      <button
+                        onClick={() => { setShowDetailsModal(false); handleOpenPayment(selectedOrder); }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-green-200 text-green-700 hover:bg-green-50 font-semibold rounded-xl transition-colors"
+                      >
+                        <CreditCard className="w-5 h-5" />
+                        {paid > 0
+                          ? t('orders.page.recordAdditionalPayment')
+                          : t('orders.page.recordPayment')}
+                      </button>
+                      {/* Acompte versé : le PDF sert de justificatif au client. Il reste en retrait
+                          du bouton d'encaissement, qui demeure l'action attendue à ce stade. */}
+                      {canDownloadInvoice(selectedOrder, detailInvoice) && (
+                        <button
+                          onClick={() => handleDownloadInvoice(selectedOrder, detailInvoice)}
+                          disabled={downloadingOrderId === selectedOrder.id}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-wait"
+                        >
+                          <Download className="w-4 h-4" />
+                          {downloadingOrderId === selectedOrder.id
+                            ? t('orders.steps.generatingPdf')
+                            : t('orders.steps.downloadInvoicePdf')}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Renvoi vers la facture liée. Il sert aussi de sortie au cul-de-sac de
+                    l'annulation : « Annuler » est masqué tant que la facture est vivante
+                    (cf. canCancelOrder), et la seule marche à suivre est de l'annuler d'abord
+                    depuis l'écran Factures — la note ne s'affiche donc que dans ce cas.
+                    L'écran Factures ouvre directement le détail via `state.invoiceId`. */}
+                {detailInvoice && (
+                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
+                    <button
+                      onClick={() => {
+                        setShowDetailsModal(false);
+                        navigate('/invoices', { state: { invoiceId: detailInvoice.id } });
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
+                    >
+                      <FileText className="w-4 h-4" />
+                      {t('orders.steps.viewInvoice', { number: detailInvoice.invoiceNumber })}
+                    </button>
+                    {selectedOrder.status === 'INVOICED' && !canCancelOrder(selectedOrder, detailInvoice) && (
+                      <p className="text-xs text-center text-gray-400">
+                        {t('orders.steps.cancelInvoiceFirst')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </Modal>
         )}
@@ -912,440 +1854,204 @@ const Orders = () => {
           <Modal
             isOpen={showEditModal}
             onClose={() => setShowEditModal(false)}
-            title={`Modifier la commande ${selectedOrder.orderNumber}`}
+            title={t('orders.editOrderTitle', { number: selectedOrder.orderNumber })}
             size="fullscreen"
           >
-            <div className="space-y-5">
-              {/* Order Number & Date Info */}
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl border-2 border-gray-300 shadow-sm">
-                <div className="grid grid-cols-2 gap-4">
+            <div className="max-w-3xl mx-auto space-y-4">
+              {/* Méta commande (lecture seule) + client, regroupés dans une seule carte compacte. */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <p className="text-xs text-gray-600 mb-1 font-semibold">Numéro de commande</p>
-                    <p className="font-bold text-gray-900">{selectedOrder.orderNumber}</p>
+                    <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-0.5">{t('orders.orderNumber')}</p>
+                    <p className="font-bold text-gray-900 text-sm">{selectedOrder.orderNumber}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-600 mb-1 font-semibold">Date de commande</p>
-                    <p className="font-semibold text-gray-900">{formatDate(selectedOrder.createdAt)}</p>
+                    <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-0.5">{t('orders.date')}</p>
+                    <p className="font-semibold text-gray-700 text-sm">{formatDate(selectedOrder.createdAt)}</p>
+                  </div>
+                  <div>
+                    {/* Statut en lecture seule : il évolue via la confirmation, la facturation et la livraison. */}
+                    <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-0.5">{t('orders.status')}</p>
+                    {getStatusBadge(selectedOrder.status)}
                   </div>
                 </div>
-              </div>
 
-              {/* Client Info Display */}
-              <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-5 rounded-xl border-2 border-blue-300 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-base">Client</h3>
-                </div>
-                {selectedOrder.client && (
-                  <div className="p-4 bg-white rounded-lg border-2 border-blue-200 shadow-sm">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 pb-2 border-b border-blue-100">
-                        <User className="w-4 h-4 text-blue-600" />
-                        <span className="font-bold text-gray-900">
-                          {selectedOrder.client.firstName} {selectedOrder.client.lastName}
+                <div className="pt-3 border-t border-gray-200">
+                  <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-1">{t('orders.client')}</p>
+                  {selectedOrder.client ? (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span className="inline-flex items-center gap-1 font-bold text-gray-900">
+                        <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        {selectedOrder.client.firstName} {selectedOrder.client.lastName}
+                      </span>
+                      {selectedOrder.client.company && (
+                        <span className="font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+                          {selectedOrder.client.company}
                         </span>
-                        {selectedOrder.client.company && (
-                          <span className="ml-auto text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                            {selectedOrder.client.company}
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 gap-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-4 h-4 text-gray-500" />
-                          <span className="text-gray-600">Email:</span>
-                          <span className="font-semibold text-gray-900">{selectedOrder.client.email}</span>
-                        </div>
-                        {selectedOrder.client.phone && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-gray-500" />
-                            <span className="text-gray-600">Téléphone:</span>
-                            <span className="font-semibold text-gray-900">{selectedOrder.client.phone}</span>
-                          </div>
-                        )}
-                        {selectedOrder.client.address && (
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
-                            <span className="text-gray-600">Adresse:</span>
-                            <span className="font-semibold text-gray-900 flex-1">{selectedOrder.client.address}</span>
-                          </div>
-                        )}
-                      </div>
+                      )}
+                      <span className="inline-flex items-center gap-1 text-gray-600 min-w-0">
+                        <Mail className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate">{selectedOrder.client.email}</span>
+                      </span>
+                      {selectedOrder.client.phone && (
+                        <span className="inline-flex items-center gap-1 text-gray-600">
+                          <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          {selectedOrder.client.phone}
+                        </span>
+                      )}
+                      {selectedOrder.client.address && (
+                        <span className="inline-flex items-center gap-1 text-gray-600 min-w-0">
+                          <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          <span className="truncate">{selectedOrder.client.address}</span>
+                        </span>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Order Status */}
-              <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 p-5 rounded-xl border-2 border-purple-300 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-base">Statut de la commande</h3>
-                </div>
-                <select
-                  value={editForm.status}
-                  onChange={(e) => handleEditFormChange('status', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border-2 border-purple-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition-all"
-                >
-                  <option value="PENDING">⏳ En attente</option>
-                  <option value="CONFIRMED">✅ Confirmée</option>
-                  <option value="DELIVERED">🚚 Livrée</option>
-                  <option value="INVOICED">💳 Facturée</option>
-                  <option value="CANCELED">❌ Annulée</option>
-                </select>
-              </div>
-
-              {/* Order Items */}
-              <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 p-5 rounded-xl border-2 border-green-300 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
-                      <Package className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="font-bold text-gray-900 text-base">Articles de la commande</h3>
-                  </div>
-                  <button
-                    onClick={handleAddItemToEdit}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Ajouter
-                  </button>
-                </div>
-
-                {editForm.orderItems.length === 0 ? (
-                  <div className="text-center py-10 bg-white rounded-xl border-2 border-dashed border-green-300">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Package className="w-8 h-8 text-green-600" />
-                    </div>
-                    <p className="text-gray-700 font-semibold text-sm mb-1">Aucun article ajouté</p>
-                    <p className="text-gray-500 text-xs">Cliquez sur "Ajouter" pour commencer</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {editForm.orderItems.map((item, index) => {
-                      const selectedProduct = products.find(p => p.id === parseInt(item.productId));
-                      return (
-                        <div key={index} className="p-4 bg-white rounded-xl border-2 border-green-200 shadow-md hover:shadow-lg transition-shadow">
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                            <div className="md:col-span-5">
-                              <label className="block text-xs font-bold text-gray-700 mb-2">
-                                Produit <span className="text-red-600">*</span>
-                              </label>
-                              <select
-                                value={item.productId}
-                                onChange={(e) => handleEditItemChange(index, 'productId', e.target.value)}
-                                className="w-full px-3 py-2 bg-white border-2 border-green-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition-all"
-                              >
-                                <option value="">-- Sélectionner --</option>
-                                {products.map((product) => (
-                                  <option key={product.id} value={product.id}>
-                                    {product.name} • {product.sellingPrice.toFixed(2)} €
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="md:col-span-3">
-                              <label className="block text-xs font-bold text-gray-700 mb-2">Prix unitaire (€)</label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.unitPrice}
-                                onChange={(e) => handleEditItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                className="w-full px-3 py-2 bg-white border-2 border-green-300 rounded-lg text-sm font-semibold text-gray-900 focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition-all"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="block text-xs font-bold text-gray-700 mb-2">Quantité</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => handleEditItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                                className="w-full px-3 py-2 bg-white border-2 border-green-300 rounded-lg text-sm font-semibold text-gray-900 focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition-all"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <button
-                                onClick={() => handleRemoveItemFromEdit(index)}
-                                className="w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md"
-                                title="Supprimer l'article"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Retirer
-                              </button>
-                            </div>
-                          </div>
-                          <div className="mt-3 pt-3 border-t-2 border-green-200 flex justify-between items-center">
-                            {selectedProduct && (
-                              <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
-                                <Package className="w-4 h-4 text-green-700" />
-                                <span className="text-xs font-semibold text-gray-700">Stock:</span>
-                                <span className="text-xs font-bold text-green-700">{selectedProduct.stockQuantity} {selectedProduct.unit}</span>
-                              </div>
-                            )}
-                            <div className="ml-auto bg-gradient-to-r from-green-100 to-emerald-100 px-4 py-1.5 rounded-lg border-2 border-green-400">
-                              <span className="text-xs font-semibold text-gray-700">Sous-total: </span>
-                              <span className="text-base font-black text-green-700">
-                                {(item.unitPrice * item.quantity).toFixed(2)} €
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Total */}
-              <div className="bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 p-6 rounded-xl border-2 border-amber-400 shadow-lg">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="text-lg font-bold text-gray-900">Montant total</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-4xl font-black text-amber-600">
-                      {editForm.totalAmount.toFixed(2)} €
+                  ) : (
+                    <span className="badge-neutral">
+                      {t('orders.walkInClient')}
                     </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 justify-end pt-2">
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-lg font-semibold transition-all shadow-sm hover:shadow-md"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleUpdateOrder}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  Enregistrer les modifications
-                </button>
-              </div>
-            </div>
-          </Modal>
-        )}
-      </AnimatePresence>
-
-      {/* Create Order Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <Modal
-            isOpen={showCreateModal}
-            onClose={() => setShowCreateModal(false)}
-            title="Créer une nouvelle commande"
-            size="fullscreen"
-          >
-            <div className="space-y-5">
-              {/* Client Selection */}
-              <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-5 rounded-xl border-2 border-blue-300 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <User className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="font-bold text-gray-900 text-base">Client</h3>
-                  </div>
-                  <button
-                    onClick={handleCreateClient}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Nouveau
-                  </button>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Sélectionner un client <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    value={createForm.clientId}
-                    onChange={(e) => handleCreateFormChange('clientId', e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
-                  >
-                    <option value="">-- Sélectionner un client --</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.firstName} {client.lastName} • {client.email}
-                        {client.company && ` • ${client.company}`}
-                      </option>
-                    ))}
-                  </select>
-                  {createForm.clientId && (
-                    <div className="mt-3 p-4 bg-white rounded-lg border-2 border-blue-200 shadow-sm">
-                      {(() => {
-                        const selectedClient = clients.find(c => c.id === parseInt(createForm.clientId));
-                        return selectedClient ? (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 pb-2 border-b border-blue-100">
-                              <User className="w-4 h-4 text-blue-600" />
-                              <span className="font-bold text-gray-900">
-                                {selectedClient.firstName} {selectedClient.lastName}
-                              </span>
-                              {selectedClient.company && (
-                                <span className="ml-auto text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                                  {selectedClient.company}
-                                </span>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-1 gap-2 text-sm">
-                              <div className="flex items-center gap-2">
-                                <Mail className="w-4 h-4 text-gray-500" />
-                                <span className="text-gray-600">Email:</span>
-                                <span className="font-semibold text-gray-900">{selectedClient.email}</span>
-                              </div>
-                              {selectedClient.phone && (
-                                <div className="flex items-center gap-2">
-                                  <Phone className="w-4 h-4 text-gray-500" />
-                                  <span className="text-gray-600">Téléphone:</span>
-                                  <span className="font-semibold text-gray-900">{selectedClient.phone}</span>
-                                </div>
-                              )}
-                              {selectedClient.address && (
-                                <div className="flex items-start gap-2">
-                                  <MapPin className="w-4 h-4 text-gray-500 mt-0.5" />
-                                  <span className="text-gray-600">Adresse:</span>
-                                  <span className="font-semibold text-gray-900 flex-1">{selectedClient.address}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : null;
-                      })()}
-                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Order Status */}
-              <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 p-5 rounded-xl border-2 border-purple-300 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-5 h-5 text-white" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-base">Statut de la commande</h3>
-                </div>
-                <select
-                  value={createForm.status}
-                  onChange={(e) => handleCreateFormChange('status', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white border-2 border-purple-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition-all"
-                >
-                  <option value="PENDING">⏳ En attente</option>
-                  <option value="CONFIRMED">✅ Confirmée</option>
-                  <option value="DELIVERED">🚚 Livrée</option>
-                  <option value="INVOICED">💳 Facturée</option>
-                  <option value="CANCELED">❌ Annulée</option>
-                </select>
-              </div>
-
               {/* Order Items */}
-              <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 p-5 rounded-xl border-2 border-green-300 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
-                      <Package className="w-5 h-5 text-white" />
-                    </div>
-                    <h3 className="font-bold text-gray-900 text-base">Articles de la commande</h3>
-                  </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <h3 className="subsection-title flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-600" /> {t('orders.items')}
+                    {editItemCount > 0 && (
+                      <span className="text-xs font-medium text-gray-400">· {editItemCount}</span>
+                    )}
+                  </h3>
                   <button
-                    onClick={handleAddItemToCreate}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
+                    onClick={handleAddItemToEdit}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
                   >
-                    <Plus className="w-4 h-4" />
-                    Ajouter
+                    <Plus className="w-3.5 h-3.5" />
+                    {t('common.add')}
                   </button>
                 </div>
 
-                {createForm.orderItems.length === 0 ? (
-                  <div className="text-center py-10 bg-white rounded-xl border-2 border-dashed border-green-300">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Package className="w-8 h-8 text-green-600" />
-                    </div>
-                    <p className="text-gray-700 font-semibold text-sm mb-1">Aucun article ajouté</p>
-                    <p className="text-gray-500 text-xs">Cliquez sur "Ajouter" pour commencer</p>
-                  </div>
+                {editForm.orderItems.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleAddItemToEdit}
+                    className="w-full flex flex-col items-center gap-1 py-6 bg-white rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50/40 transition-colors group"
+                  >
+                    <Package className="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                    <p className="text-gray-500 text-xs">{t('orders.page.noItemClickToAdd')}</p>
+                  </button>
                 ) : (
-                  <div className="space-y-3">
-                    {createForm.orderItems.map((item, index) => {
+                  <div className="space-y-2">
+                    {/* En-tête de colonnes (desktop) : labels affichés une seule fois ici. */}
+                    <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      <span className="col-span-5">{t('common.product')}</span>
+                      <span className="col-span-2 text-right">{t('orders.page.discountPercent')}</span>
+                      <span className="col-span-2 text-right">{t('orders.recap.qtyShort')}</span>
+                      <span className="col-span-2 text-right">{t('common.total')}</span>
+                      <span className="col-span-1" />
+                    </div>
+                    {editForm.orderItems.map((item, index) => {
                       const selectedProduct = products.find(p => p.id === parseInt(item.productId));
+                      const exceedsStock = selectedProduct && parseInt(item.quantity) > selectedProduct.stockQuantity;
                       return (
-                        <div key={index} className="p-4 bg-white rounded-xl border-2 border-green-200 shadow-md hover:shadow-lg transition-shadow">
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                            <div className="md:col-span-5">
-                              <label className="block text-xs font-bold text-gray-700 mb-2">
-                                Produit <span className="text-red-600">*</span>
-                              </label>
-                              <select
-                                value={item.productId}
-                                onChange={(e) => handleCreateItemChange(index, 'productId', e.target.value)}
-                                className="w-full px-3 py-2 bg-white border-2 border-green-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition-all"
-                              >
-                                <option value="">-- Sélectionner --</option>
-                                {products.map((product) => (
-                                  <option key={product.id} value={product.id}>
-                                    {product.name} • {product.sellingPrice.toFixed(2)} €
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="md:col-span-3">
-                              <label className="block text-xs font-bold text-gray-700 mb-2">Prix unitaire (€)</label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.unitPrice}
-                                onChange={(e) => handleCreateItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                className="w-full px-3 py-2 bg-white border-2 border-green-300 rounded-lg text-sm font-semibold text-gray-900 focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition-all"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="block text-xs font-bold text-gray-700 mb-2">Quantité</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => handleCreateItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                                className="w-full px-3 py-2 bg-white border-2 border-green-300 rounded-lg text-sm font-semibold text-gray-900 focus:outline-none focus:border-green-600 focus:ring-4 focus:ring-green-100 transition-all"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <button
-                                onClick={() => handleRemoveItemFromCreate(index)}
-                                className="w-full bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md"
-                                title="Supprimer l'article"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Retirer
-                              </button>
-                            </div>
-                          </div>
-                          <div className="mt-3 pt-3 border-t-2 border-green-200 flex justify-between items-center">
+                        <div key={index} className="grid grid-cols-12 gap-2 items-start bg-white rounded-lg border border-gray-200 p-2">
+                          {/* Produit + légende prix/stock */}
+                          <div className="col-span-12 md:col-span-5 min-w-0">
+                            <SearchableSelect
+                              options={products}
+                              value={item.productId}
+                              onChange={(value) => handleEditItemChange(index, 'productId', value)}
+                              getOptionValue={(product) => product.id}
+                              getOptionLabel={(product) => product.name}
+                              getOptionSearch={(product) => `${product.code || ''} ${product.barcode || ''}`}
+                              placeholder={t('orders.page.searchProduct')}
+                              noResultsText={t('orders.page.noProductFound')}
+                              minChars={1}
+                              inputClassName="w-full pl-9 pr-9 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                              renderOption={(product) => (
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="flex flex-col min-w-0">
+                                    <span className="font-medium truncate">{product.name}</span>
+                                    <span className="text-xs text-gray-400 truncate">
+                                      {t('orders.page.productCode', { code: product.code })}
+                                      {product.barcode ? ` · ${product.barcode}` : ''}
+                                    </span>
+                                  </span>
+                                  <span className="text-xs text-gray-500 shrink-0">
+                                    {formatCurrency(product.sellingPrice)} · {product.stockQuantity} {product.unit}
+                                  </span>
+                                </span>
+                              )}
+                            />
                             {selectedProduct && (
-                              <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
-                                <Package className="w-4 h-4 text-green-700" />
-                                <span className="text-xs font-semibold text-gray-700">Stock:</span>
-                                <span className="text-xs font-bold text-green-700">{selectedProduct.stockQuantity} {selectedProduct.unit}</span>
-                              </div>
+                              <p className="mt-1 px-1 text-[11px] text-gray-400 truncate">
+                                {t('orders.page.unitPriceAndStock', {
+                                  price: formatCurrency(selectedProduct.sellingPrice),
+                                  stock: selectedProduct.stockQuantity,
+                                  unit: selectedProduct.unit || '',
+                                })}
+                              </p>
                             )}
-                            <div className="ml-auto bg-gradient-to-r from-green-100 to-emerald-100 px-4 py-1.5 rounded-lg border-2 border-green-400">
-                              <span className="text-xs font-semibold text-gray-700">Sous-total: </span>
-                              <span className="text-base font-black text-green-700">
-                                {(item.unitPrice * item.quantity).toFixed(2)} €
+                          </div>
+
+                          {/* Remise */}
+                          <div className="col-span-4 md:col-span-2">
+                            <label className="md:hidden block text-[11px] font-semibold text-gray-500 mb-1">{t('orders.page.discountPercent')}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={item.discount}
+                              onChange={(e) => handleEditItemChange(index, 'discount', Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 100))}
+                              className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-900 text-right focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                            />
+                          </div>
+
+                          {/* Quantité */}
+                          <div className="col-span-4 md:col-span-2">
+                            <label className="md:hidden block text-[11px] font-semibold text-gray-500 mb-1">{t('orders.recap.qtyShort')}</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleEditItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                              className={`w-full px-2 py-1.5 bg-white border rounded-lg text-sm font-semibold text-gray-900 text-right focus:outline-none focus:ring-2 transition-all ${
+                                exceedsStock
+                                  ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+                                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                              }`}
+                            />
+                            {exceedsStock && (
+                              <p className="mt-1 text-[11px] font-medium text-red-600 text-right">
+                                {t('orders.page.maxShort', { qty: selectedProduct.stockQuantity })}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Total ligne */}
+                          <div className="col-span-3 md:col-span-2 text-right md:pt-1.5">
+                            {parseFloat(item.discount) > 0 && (
+                              <span className="block text-[11px] text-gray-400 line-through leading-tight">
+                                {formatCurrency(item.unitPrice * item.quantity)}
                               </span>
-                            </div>
+                            )}
+                            <span className="text-sm font-bold text-gray-900">
+                              {formatCurrency(computeLineTotal(item))}
+                            </span>
+                          </div>
+
+                          {/* Retirer */}
+                          <div className="col-span-1 flex justify-end md:pt-1">
+                            <button
+                              onClick={() => handleRemoveItemFromEdit(index)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title={t('orders.cart.removeLine')}
+                              aria-label={t('orders.cart.removeLine')}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       );
@@ -1354,37 +2060,56 @@ const Orders = () => {
                 )}
               </div>
 
-              {/* Total */}
-              <div className="bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50 p-6 rounded-xl border-2 border-amber-400 shadow-lg">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 bg-amber-500 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="text-lg font-bold text-gray-900">Montant total</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-4xl font-black text-amber-600">
-                      {createForm.totalAmount.toFixed(2)} €
-                    </span>
-                  </div>
+              {/* Récapitulatif compact : métadonnées à gauche, total à droite. */}
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-end justify-between gap-4">
+                <div className="text-xs text-gray-500 space-y-0.5">
+                  <p>
+                    {t('orders.page.lineCount', { count: editItemCount })}
+                    {editDiscountTotal > 0.001 && (
+                      <span className="text-red-600">
+                        {' '}
+                        {t('orders.page.discountDeducted', {
+                          amount: formatCurrency(editDiscountTotal),
+                        })}
+                      </span>
+                    )}
+                  </p>
+                  <p>{t('orders.page.exclTaxNotice')}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('orders.totalAmountLabel')}</span>
+                  <span className="text-2xl font-black text-blue-600">
+                    {formatCurrency(editForm.totalAmount)}
+                  </span>
                 </div>
               </div>
 
+              {/* Avertissement bloquant : explique pourquoi l'enregistrement est désactivé. */}
+              {editHasStockIssue && (
+                <div className="flex items-center gap-2 p-2.5 bg-red-50 text-red-700 rounded-lg text-xs font-medium border border-red-200">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {t('orders.page.stockBlocking')}
+                </div>
+              )}
+
               {/* Actions */}
-              <div className="flex gap-3 justify-end pt-2">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-1">
                 <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-lg font-semibold transition-all shadow-sm hover:shadow-md"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-5 py-2 border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-lg font-semibold text-sm transition-all"
                 >
-                  Annuler
+                  {t('common.cancel')}
                 </button>
                 <button
-                  onClick={handleSubmitCreateOrder}
-                  className="px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                  onClick={handleUpdateOrder}
+                  disabled={!editFormValid}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  Créer la commande
+                  <CheckCircle className="w-4 h-4" />
+                  {t('common.saveChanges')}
+                  {editForm.totalAmount > 0 && (
+                    <span className="font-black">· {formatCurrency(editForm.totalAmount)}</span>
+                  )}
                 </button>
               </div>
             </div>
@@ -1392,142 +2117,331 @@ const Orders = () => {
         )}
       </AnimatePresence>
 
-      {/* Create Client Modal */}
+      {/* Panier de traitement : création d'une commande et suite de son cycle de vie au même
+          endroit (articles, remises, validation, confirmation, facturation, encaissement, PDF). */}
+      <OrderWorkspace
+        isOpen={showWorkspace}
+        onClose={() => setShowWorkspace(false)}
+        initialOrder={workspaceOrder}
+        products={products}
+        clients={clients}
+        categories={categories}
+        onDataChanged={refreshAfterWorkspaceAction}
+        onClientsChanged={fetchClients}
+        onDetachOrder={() => setWorkspaceOrder(null)}
+        onOpenInvoice={(invoice) => {
+          setShowWorkspace(false);
+          navigate('/invoices', { state: { invoiceId: invoice.id } });
+        }}
+      />
+
+      {/* Invoice Modal — facturation en ligne, sans renvoi vers la page Factures */}
       <AnimatePresence>
-        {showCreateClientModal && (
+        {showInvoiceModal && invoiceOrder && (
           <Modal
-            isOpen={showCreateClientModal}
-            onClose={() => setShowCreateClientModal(false)}
-            title="Créer un nouveau client"
-            size="lg"
+            isOpen={showInvoiceModal}
+            onClose={() => setShowInvoiceModal(false)}
+            title={t('orders.page.invoiceOrderTitle', { number: invoiceOrder.orderNumber })}
           >
-            <div className="space-y-5">
-              <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-5 rounded-xl border-2 border-blue-300 shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(() => {
+              // Aperçu du calcul (miroir de InvoiceService) : HT − remise + TVA = TTC. La remise n'est
+              // pas saisie ici (gérée au niveau des lignes de commande), elle vaut donc 0.
+              const subtotal = Number(invoiceOrder.totalAmount || 0);
+              const parsedRate = parseFloat(invoiceForm.taxRate);
+              const rate = Number.isNaN(parsedRate) ? 0 : parsedRate;
+              const taxAmount = subtotal * (rate / 100);
+              const totalTTC = subtotal + taxAmount;
+              const dueBeforeInvoice =
+                invoiceForm.invoiceDate && invoiceForm.dueDate &&
+                invoiceForm.dueDate < invoiceForm.invoiceDate;
+              const rateInvalid = Number.isNaN(parsedRate) || rate < 0 || rate > 100;
+
+              return (
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleSubmitInvoice(); }}
+                  className="space-y-5"
+                >
+                  {/* Récapitulatif + aperçu du montant facturé (HT → TVA → TTC) */}
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center gap-1.5">
+                        <ShoppingCart className="w-4 h-4" /> {t('orders.page.orderWord')}
+                      </span>
+                      <span className="subsection-title">{invoiceOrder.orderNumber}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">{t('orders.page.amountExclTax')}</span>
+                      <span className="subsection-title">{formatCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">
+                        {rateInvalid
+                          ? t('orders.page.taxUnknownRate')
+                          : t('orders.taxWithRate', { rate: rate.toFixed(2) })}
+                      </span>
+                      <span className="subsection-title">{rateInvalid ? '—' : formatCurrency(taxAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-gray-200 pt-2 mt-1">
+                      <span className="text-gray-800 font-semibold">{t('orders.page.totalToInvoiceInclTax')}</span>
+                      <span className="text-base font-bold text-violet-700">{rateInvalid ? '—' : formatCurrency(totalTTC)}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {t('invoices.invoiceDateLabel')} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        autoFocus
+                        required
+                        value={invoiceForm.invoiceDate}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, invoiceDate: e.target.value })}
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {t('orders.recap.dueOn')} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        min={invoiceForm.invoiceDate || undefined}
+                        value={invoiceForm.dueDate}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })}
+                        className={`w-full px-3 py-2.5 bg-white border rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 transition-all ${
+                          dueBeforeInvoice
+                            ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                        }`}
+                      />
+                      {dueBeforeInvoice && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {t('orders.page.dueOnOrAfterInvoice')}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('orders.page.plannedPaymentMethod')}</label>
+                      <select
+                        value={invoiceForm.paymentMethod}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, paymentMethod: e.target.value })}
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                      >
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m.value} value={m.value}>{t(m.labelKey)}</option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {t('orders.page.noPaymentAtThisStage')}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {t('settings.taxRateLabel')} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        required
+                        value={invoiceForm.taxRate}
+                        onChange={(e) => setInvoiceForm({ ...invoiceForm, taxRate: e.target.value })}
+                        className={`w-full px-3 py-2.5 bg-white border rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 transition-all ${
+                          rateInvalid
+                            ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                        }`}
+                        placeholder="0.00"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {t('orders.page.taxAppliedToNet')}
+                      </p>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Type de client <span className="text-red-600">*</span>
-                    </label>
-                    <select
-                      value={newClientForm.type}
-                      onChange={(e) => handleNewClientFormChange('type', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('orders.page.notesOptional')}</label>
+                    <textarea
+                      rows={2}
+                      maxLength={500}
+                      value={invoiceForm.notes}
+                      onChange={(e) => setInvoiceForm({ ...invoiceForm, notes: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                      placeholder={t('orders.page.invoiceMentionPlaceholder')}
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowInvoiceModal(false)}
+                      disabled={invoiceLoading}
+                      className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-lg font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <option value="PARTICULIER">👤 Particulier</option>
-                      <option value="ENTREPRISE">🏢 Entreprise</option>
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={invoiceLoading || dueBeforeInvoice || rateInvalid}
+                      className="px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Euro className="w-5 h-5" />
+                      {invoiceLoading ? t('orders.steps.creating') : t('orders.steps.createInvoice')}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Modal — encaissement sur la facture liée à la commande */}
+      <AnimatePresence>
+        {showPaymentModal && paymentInvoice && (
+          <Modal
+            isOpen={showPaymentModal}
+            onClose={() => setShowPaymentModal(false)}
+            title={t('orders.page.recordPayment')}
+          >
+            {(() => {
+              const remaining = remainingOf(paymentInvoice);
+              const amountNum = parseFloat(paymentForm.amount);
+              const amountEntered = paymentForm.amount !== '' && !Number.isNaN(amountNum);
+              const amountValid = amountEntered && amountNum > 0 && amountNum <= remaining + 0.001;
+              const exceeds = amountEntered && amountNum > remaining + 0.001;
+              const newRemaining = amountValid ? Math.max(remaining - amountNum, 0) : remaining;
+              const willSettle = amountValid && newRemaining <= 0.001;
+              const today = new Date().toISOString().split('T')[0];
+
+              return (
+                <form
+                  onSubmit={(e) => { e.preventDefault(); handleSubmitPayment(); }}
+                  className="space-y-5"
+                >
+                  {/* Récapitulatif de la facture */}
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center gap-1.5">
+                        <FileText className="w-4 h-4" /> {t('invoices.sectionInvoice')}
+                      </span>
+                      <span className="subsection-title">{paymentInvoice.invoiceNumber}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">{t('orders.page.totalInvoiced')}</span>
+                      <span className="subsection-title">{formatCurrency(paymentInvoice.totalAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">{t('invoices.paidAmount')}</span>
+                      <span className="font-semibold text-green-600">{formatCurrency(paymentInvoice.paidAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                      <span className="text-gray-700 font-semibold">{t('orders.remainingDue')}</span>
+                      <span className="text-lg font-black text-amber-600">{formatCurrency(remaining)}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
+                        {t('orders.steps.amountReceived')} <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentForm({ ...paymentForm, amount: remaining.toFixed(2) })}
+                        className="text-xs font-semibold text-green-700 hover:text-green-800 hover:underline"
+                      >
+                        {t('orders.page.payAllAmount', { amount: formatCurrency(remaining) })}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={remaining.toFixed(2)}
+                        autoFocus
+                        required
+                        value={paymentForm.amount}
+                        onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                        className={`w-full px-3 py-2.5 bg-white border rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 transition-all ${
+                          exceeds
+                            ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                        }`}
+                        placeholder="0.00"
+                      />
+                      <span className="text-gray-600">€</span>
+                    </div>
+                    {exceeds ? (
+                      <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {t('orders.steps.amountExceeds', { amount: formatCurrency(remaining) })}
+                      </p>
+                    ) : amountValid ? (
+                      <p className="mt-1 text-xs text-gray-500">
+                        {willSettle
+                          ? t('orders.page.paymentWillSettle')
+                          : t('orders.page.remainingAfterPayment', {
+                            amount: formatCurrency(newRemaining),
+                          })}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('orders.page.paymentMethod')}</label>
+                    <select
+                      value={paymentForm.paymentMethod}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                    >
+                      {PAYMENT_METHODS.map((m) => (
+                        <option key={m.value} value={m.value}>{t(m.labelKey)}</option>
+                      ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Société
-                    </label>
-                    <input
-                      type="text"
-                      value={newClientForm.company}
-                      onChange={(e) => handleNewClientFormChange('company', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
-                      placeholder="Nom de la société (si entreprise)"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Prénom <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newClientForm.firstName}
-                      onChange={(e) => handleNewClientFormChange('firstName', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
-                      placeholder="Prénom"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Nom <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newClientForm.lastName}
-                      onChange={(e) => handleNewClientFormChange('lastName', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
-                      placeholder="Nom"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                      <Phone className="w-4 h-4 text-blue-600" />
-                      Téléphone <span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={newClientForm.phone}
-                      onChange={(e) => handleNewClientFormChange('phone', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
-                      placeholder="0612345678"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                      <Mail className="w-4 h-4 text-blue-600" />
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={newClientForm.email}
-                      onChange={(e) => handleNewClientFormChange('email', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all"
-                      placeholder="email@exemple.com"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-1">
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                      Adresse
-                    </label>
-                    <textarea
-                      value={newClientForm.address}
-                      onChange={(e) => handleNewClientFormChange('address', e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 transition-all resize-none"
-                      placeholder="Adresse complète"
-                      rows="2"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 justify-end pt-2">
-                <button
-                  onClick={() => setShowCreateClientModal(false)}
-                  className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-lg font-semibold transition-all shadow-sm hover:shadow-md"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleSubmitNewClient}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  Créer le client
-                </button>
-              </div>
-            </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('orders.page.paymentDate')}</label>
+                    <input
+                      type="date"
+                      max={today}
+                      value={paymentForm.paymentDate}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentModal(false)}
+                      disabled={paymentLoading}
+                      className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 bg-white hover:bg-gray-100 rounded-lg font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={paymentLoading || !amountValid}
+                      className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      {paymentLoading ? t('orders.steps.saving') : t('orders.page.submitPayment')}
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </Modal>
         )}
       </AnimatePresence>
 
-      {/* Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        onConfirm={confirmCreateOrder}
-        title="Confirmer la création"
-        message={`Voulez-vous vraiment créer cette commande avec ${createForm.orderItems.length} article(s) ?`}
-        type="info"
-      />
     </div>
   );
 };

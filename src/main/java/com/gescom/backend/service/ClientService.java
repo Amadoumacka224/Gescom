@@ -16,6 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Service métier des clients (CRUD).
+ * Chaque opération est journalisée dans la piste d'audit et l'unicité des identifiants
+ * (email / code client selon le cas) est contrôlée avant enregistrement.
+ */
 @Service
 @Transactional
 public class ClientService {
@@ -76,7 +81,7 @@ public class ClientService {
 
     public Client createClient(Client client) {
         if (client.getEmail() != null && clientRepository.existsByEmail(client.getEmail())) {
-            throw new DuplicateResourceException("Client", "email", client.getEmail());
+            throw new DuplicateResourceException("client", "email", client.getEmail());
         }
         Client savedClient = clientRepository.save(client);
 
@@ -89,7 +94,13 @@ public class ClientService {
 
     public Client updateClient(Long id, Client clientDetails) {
         Client client = clientRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", id));
+                .orElseThrow(() -> new ResourceNotFoundException("client", id));
+
+        // Un email ne peut pas être repris par un autre client (l'enregistrement courant est exclu).
+        if (clientDetails.getEmail() != null
+                && clientRepository.existsByEmailAndIdNot(clientDetails.getEmail(), id)) {
+            throw new DuplicateResourceException("client", "email", clientDetails.getEmail());
+        }
 
         client.setFirstName(clientDetails.getFirstName());
         client.setLastName(clientDetails.getLastName());
@@ -114,7 +125,7 @@ public class ClientService {
 
     public void deleteClient(Long id) {
         Client client = clientRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", id));
+                .orElseThrow(() -> new ResourceNotFoundException("client", id));
         String clientName = client.getFirstName() + " " + client.getLastName();
         clientRepository.delete(client);
 
@@ -124,7 +135,7 @@ public class ClientService {
 
     public void deactivateClient(Long id) {
         Client client = clientRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Client", id));
+                .orElseThrow(() -> new ResourceNotFoundException("client", id));
         client.setActive(false);
         clientRepository.save(client);
 

@@ -2,50 +2,23 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
-  TrendingUp,
   ShoppingCart,
   Users,
   AlertTriangle,
-  DollarSign,
+  Euro,
   Package,
   FileText,
   Truck,
-  CheckCircle,
-  Clock,
   CreditCard,
-  ArrowRight
+  ArrowRight,
+  LayoutDashboard
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../services/api';
-
-const StatCard = ({ title, value, icon: Icon, color, subtitle }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    whileHover={{ y: -4 }}
-    className="card"
-  >
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-        <h3 className="text-3xl font-bold text-gray-900">{value}</h3>
-        {subtitle && (
-          <p className="text-sm mt-2 text-gray-500">{subtitle}</p>
-        )}
-      </div>
-      <div className={`p-4 bg-gradient-to-br ${color} rounded-xl`}>
-        <Icon className="w-8 h-8 text-white" />
-      </div>
-    </div>
-  </motion.div>
-);
-
-const MiniStat = ({ label, value, color }) => (
-  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-    <span className="text-sm text-gray-600">{label}</span>
-    <span className={`text-sm font-bold ${color}`}>{value}</span>
-  </div>
-);
+import OrderStatusBadge from '../components/OrderStatusBadge';
+import StatCard from '../components/StatCard';
+import SummaryPanel from '../components/SummaryPanel';
+import { formatCurrency, safeRatio } from '../utils/format';
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -63,13 +36,16 @@ const Dashboard = () => {
     lowStock: 0,
     totalInvoices: 0,
     totalRevenue: 0,
+    invoicedAmount: 0,
     pendingAmount: 0,
     unpaidInvoices: 0,
+    partiallyPaidInvoices: 0,
     paidInvoices: 0,
+    canceledInvoices: 0,
     totalDeliveries: 0,
     pendingDeliveries: 0,
     deliveredDeliveries: 0,
-    canceledDeliveries: 0,
+    ordersToSchedule: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
   const [topStockProducts, setTopStockProducts] = useState([]);
@@ -97,13 +73,16 @@ const Dashboard = () => {
         lowStock: data.lowStock || 0,
         totalInvoices: data.totalInvoices || 0,
         totalRevenue: data.totalRevenue || 0,
+        invoicedAmount: data.invoicedAmount || 0,
         pendingAmount: data.pendingAmount || 0,
         unpaidInvoices: data.unpaidInvoices || 0,
+        partiallyPaidInvoices: data.partiallyPaidInvoices || 0,
         paidInvoices: data.paidInvoices || 0,
+        canceledInvoices: data.canceledInvoices || 0,
         totalDeliveries: data.totalDeliveries || 0,
         pendingDeliveries: data.pendingDeliveries || 0,
         deliveredDeliveries: data.deliveredDeliveries || 0,
-        canceledDeliveries: data.canceledDeliveries || 0,
+        ordersToSchedule: data.ordersToSchedule || 0,
       });
 
       setRecentOrders(data.recentOrders || []);
@@ -116,31 +95,27 @@ const Dashboard = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const badges = {
-      PENDING: { class: 'badge-warning', text: 'En attente' },
-      CONFIRMED: { class: 'badge-info', text: 'Confirmee' },
-      INVOICED: { class: 'badge-primary', text: 'Facturee' },
-      DELIVERED: { class: 'badge-success', text: 'Livree' },
-      CANCELED: { class: 'badge-danger', text: 'Annulee' }
-    };
-    const badge = badges[status] || badges.PENDING;
-    return <span className={badge.class}>{badge.text}</span>;
-  };
+  const getStatusBadge = (order) => <OrderStatusBadge order={order} />;
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
-  };
+  /* --- Dérivés des panneaux de synthèse ---
+   *
+   * Rien n'est reconstitué ici qui dépende d'un invariant du backend : les montants facturés
+   * (`invoicedAmount`) et le reste à planifier (`ordersToSchedule`) sont calculés côté serveur,
+   * sur les données réelles, et repris tels quels. Seules subsistent deux sommes de compteurs
+   * exacts et exhaustifs (les cinq statuts de commande couvrent la table entière) :
+   *   - `activeOrders` — hors annulées : le périmètre du taux de finalisation, identique à
+   *     celui de `totalSales` et du sous-titre « N commandes honorées » ;
+   *   - `ordersInProgress` — ni livrées ni annulées, donc encore à traiter.
+   */
+  const activeOrders = stats.totalOrders - stats.canceledOrders;
+  const ordersInProgress = stats.pendingOrders + stats.confirmedOrders + stats.invoicedOrders;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement des donnees...</p>
+          <p className="mt-4 text-gray-600">{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -149,129 +124,143 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          {t('dashboard.welcome')}
-        </h1>
-        <p className="text-gray-600">
-          Voici un apercu de votre activite commerciale
-        </p>
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <LayoutDashboard aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('dashboard.welcome')}</h1>
+            <p className="page-subtitle">{t('dashboard.subtitle')}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Stats principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats principales — même grille que la supervision des caisses : quatre colonnes
+          seulement à partir de `xl`, la barre latérale mangeant 288 px dès `lg`. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('dashboard.totalSales')}
-          value={`${formatCurrency(stats.totalSales)} €`}
-          icon={DollarSign}
-          color="from-green-500 to-emerald-600"
-          subtitle={`${stats.totalOrders - stats.canceledOrders} commandes honorées`}
+          value={formatCurrency(stats.totalSales)}
+          icon={Euro}
+          tone="success"
+          subtitle={`${activeOrders} commandes honorées`}
         />
         <StatCard
-          title="Revenus encaisses"
-          value={`${formatCurrency(stats.totalRevenue)} €`}
+          title={t('dashboard.revenueCollected')}
+          value={formatCurrency(stats.totalRevenue)}
           icon={CreditCard}
-          color="from-blue-500 to-cyan-600"
+          tone="info"
           subtitle={`${stats.paidInvoices} factures payees`}
         />
         <StatCard
           title={t('dashboard.totalClients')}
           value={stats.totalClients}
           icon={Users}
-          color="from-purple-500 to-pink-600"
+          tone="accent"
         />
         <StatCard
           title={t('dashboard.lowStock')}
           value={stats.lowStock}
           icon={AlertTriangle}
-          color="from-orange-500 to-red-600"
+          tone="warning"
           subtitle={stats.lowStock > 0 ? 'Attention requise' : 'Stock OK'}
         />
       </div>
 
-      {/* Blocs de synthese : Commandes / Factures / Livraisons */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Commandes */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-blue-600" />
-              Commandes
-            </h3>
-            <span className="text-2xl font-bold text-blue-600">{stats.totalOrders}</span>
-          </div>
-          <div className="space-y-2">
-            <MiniStat label="En attente" value={stats.pendingOrders} color="text-yellow-600" />
-            <MiniStat label="Confirmees" value={stats.confirmedOrders} color="text-blue-600" />
-            <MiniStat label="Facturees" value={stats.invoicedOrders} color="text-purple-600" />
-            <MiniStat label="Livrees" value={stats.deliveredOrders} color="text-green-600" />
-            <MiniStat label="Annulees" value={stats.canceledOrders} color="text-red-600" />
-          </div>
-          <button
-            onClick={() => navigate('/orders')}
-            className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1 py-2 rounded-lg hover:bg-blue-50 transition-colors"
-          >
-            Voir les commandes <ArrowRight className="w-4 h-4" />
-          </button>
-        </motion.div>
+      {/* Panneaux de synthèse : Commandes / Factures / Livraisons.
+       *
+       * Deux colonnes dès `md` et trois seulement à partir de `xl` : à 1024 px, la barre
+       * latérale prend 288 px et trois colonnes ne laisseraient que ~220 px par panneau,
+       * trop peu pour l'anneau et son libellé côte à côte. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        <SummaryPanel
+          icon={ShoppingCart}
+          tone="info"
+          title={t('dashboard.orders')}
+          total={stats.totalOrders}
+          totalLabel={t('dashboard.ordersTotal')}
+          rate={{
+            ratio: safeRatio(stats.deliveredOrders, activeOrders),
+            label: t('dashboard.completionRate'),
+            caption: t('dashboard.completionCaption', {
+              done: stats.deliveredOrders,
+              active: activeOrders,
+            }),
+          }}
+          highlight={{
+            label: t('dashboard.inProgress'),
+            value: ordersInProgress,
+            tone: 'info',
+          }}
+          rows={[
+            { key: 'PENDING', label: t('dashboard.status.pending'), value: stats.pendingOrders, tone: 'warning' },
+            { key: 'CONFIRMED', label: t('dashboard.status.confirmed'), value: stats.confirmedOrders, tone: 'info' },
+            { key: 'INVOICED', label: t('dashboard.status.invoiced'), value: stats.invoicedOrders, tone: 'accent' },
+            { key: 'DELIVERED', label: t('dashboard.status.delivered'), value: stats.deliveredOrders, tone: 'success' },
+            { key: 'CANCELED', label: t('dashboard.status.canceled'), value: stats.canceledOrders, tone: 'danger' },
+          ]}
+          actionLabel={t('dashboard.viewOrders')}
+          onAction={() => navigate('/orders')}
+        />
 
-        {/* Factures */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-purple-600" />
-              Factures
-            </h3>
-            <span className="text-2xl font-bold text-purple-600">{stats.totalInvoices}</span>
-          </div>
-          <div className="space-y-2">
-            <MiniStat label="Payees" value={stats.paidInvoices} color="text-green-600" />
-            <MiniStat label="Non payees" value={stats.unpaidInvoices} color="text-red-600" />
-            <MiniStat label="En attente" value={`${formatCurrency(stats.pendingAmount)} €`} color="text-orange-600" />
-          </div>
-          <button
-            onClick={() => navigate('/invoices')}
-            className="w-full mt-4 text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center justify-center gap-1 py-2 rounded-lg hover:bg-purple-50 transition-colors"
-          >
-            Voir les factures <ArrowRight className="w-4 h-4" />
-          </button>
-        </motion.div>
+        <SummaryPanel
+          icon={FileText}
+          tone="accent"
+          title={t('dashboard.invoices')}
+          total={stats.totalInvoices}
+          totalLabel={t('dashboard.invoicesTotal')}
+          rate={{
+            ratio: safeRatio(stats.totalRevenue, stats.invoicedAmount),
+            label: t('dashboard.collectionRate'),
+            caption: t('dashboard.collectionCaption', {
+              collected: formatCurrency(stats.totalRevenue),
+              total: formatCurrency(stats.invoicedAmount),
+            }),
+          }}
+          highlight={{
+            label: t('dashboard.toCollect'),
+            value: formatCurrency(stats.pendingAmount),
+            tone: 'warning',
+          }}
+          rows={[
+            { key: 'PAID', label: t('dashboard.status.paid'), value: stats.paidInvoices, tone: 'success' },
+            { key: 'PARTIALLY_PAID', label: t('dashboard.status.partiallyPaid'), value: stats.partiallyPaidInvoices, tone: 'warning' },
+            { key: 'UNPAID', label: t('dashboard.status.unpaid'), value: stats.unpaidInvoices, tone: 'danger' },
+            { key: 'CANCELED', label: t('dashboard.status.canceled'), value: stats.canceledInvoices, tone: 'neutral' },
+          ]}
+          actionLabel={t('dashboard.viewInvoices')}
+          onAction={() => navigate('/invoices')}
+          delay={0.08}
+        />
 
-        {/* Livraisons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <Truck className="w-5 h-5 text-orange-600" />
-              Livraisons
-            </h3>
-            <span className="text-2xl font-bold text-orange-600">{stats.totalDeliveries}</span>
-          </div>
-          <div className="space-y-2">
-            <MiniStat label="En attente" value={stats.pendingDeliveries} color="text-yellow-600" />
-            <MiniStat label="Livrees" value={stats.deliveredDeliveries} color="text-green-600" />
-            <MiniStat label="Annulees" value={stats.canceledDeliveries} color="text-red-600" />
-          </div>
-          <button
-            onClick={() => navigate('/deliveries')}
-            className="w-full mt-4 text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center justify-center gap-1 py-2 rounded-lg hover:bg-orange-50 transition-colors"
-          >
-            Voir les livraisons <ArrowRight className="w-4 h-4" />
-          </button>
-        </motion.div>
+        <SummaryPanel
+          icon={Truck}
+          tone="success"
+          title={t('dashboard.deliveries')}
+          total={stats.totalDeliveries}
+          totalLabel={t('dashboard.deliveriesTotal')}
+          rate={{
+            ratio: safeRatio(stats.deliveredDeliveries, stats.totalDeliveries),
+            label: t('dashboard.deliveryRate'),
+            caption: t('dashboard.deliveryCaption', {
+              done: stats.deliveredDeliveries,
+              total: stats.totalDeliveries,
+            }),
+          }}
+          highlight={{
+            label: t('dashboard.toSchedule'),
+            value: stats.ordersToSchedule,
+            tone: 'accent',
+          }}
+          rows={[
+            { key: 'PENDING', label: t('dashboard.status.pending'), value: stats.pendingDeliveries, tone: 'warning' },
+            { key: 'DELIVERED', label: t('dashboard.status.delivered'), value: stats.deliveredDeliveries, tone: 'success' },
+          ]}
+          actionLabel={t('dashboard.viewDeliveries')}
+          onAction={() => navigate('/deliveries')}
+          delay={0.16}
+        />
       </div>
 
       {/* Section inferieure */}
@@ -283,7 +272,7 @@ const Dashboard = () => {
           className="card"
         >
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="section-title">
               {t('dashboard.recentOrders')}
             </h2>
             <button
@@ -310,13 +299,13 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900">{formatCurrency(order.finalAmount)} €</p>
-                    {getStatusBadge(order.status)}
+                    <p className="subsection-title">{formatCurrency(order.finalAmount)}</p>
+                    {getStatusBadge(order)}
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-center text-gray-500 py-8">Aucune commande recente</p>
+              <p className="text-center text-gray-500 py-8">{t('dashboard.noRecentOrders')}</p>
             )}
           </div>
         </motion.div>
@@ -328,7 +317,7 @@ const Dashboard = () => {
           className="card"
         >
           <div className="flex items-center justify-between mb-1">
-            <h2 className="text-xl font-bold text-gray-900">
+            <h2 className="section-title">
               Stock le plus important
             </h2>
             <button
@@ -338,7 +327,7 @@ const Dashboard = () => {
               Voir tout <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-          <p className="text-xs text-gray-500 mb-6">Produits avec les plus grandes quantites en stock — pas un classement des ventes</p>
+          <p className="text-xs text-gray-500 mb-6">{t('dashboard.topStockHint')}</p>
           <div className="space-y-4">
             {topStockProducts.length > 0 ? (
               topStockProducts.map((product) => {
@@ -362,14 +351,14 @@ const Dashboard = () => {
                 );
               })
             ) : (
-              <p className="text-center text-gray-500 py-8">Aucun produit disponible</p>
+              <p className="text-center text-gray-500 py-8">{t('products.noProducts')}</p>
             )}
           </div>
 
           {/* Alertes stock bas */}
           {lowStockProducts.length > 0 && (
             <div className="mt-6 pt-4 border-t border-gray-200">
-              <h3 className="text-sm font-bold text-red-600 mb-3 flex items-center gap-2">
+              <h3 className="subsection-title font-bold text-red-600 mb-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
                 Alertes stock bas
               </h3>

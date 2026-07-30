@@ -2,7 +2,9 @@ package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.product.ProductRequest;
 import com.gescom.backend.dto.product.ProductResponse;
+import com.gescom.backend.dto.product.StockUpdateRequest;
 import com.gescom.backend.entity.Product;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.ProductMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.CsvImportService;
@@ -57,7 +59,7 @@ public class ProductController {
         return productService.getProductById(id)
                 .map(productMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("product", id));
     }
 
     @GetMapping("/code/{code}")
@@ -65,7 +67,20 @@ public class ProductController {
         return productService.getProductByCode(code)
                 .map(productMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("product", "code", code));
+    }
+
+    /**
+     * Recherche d'un produit par code-barres (scan lors de la saisie d'une commande).
+     * Renvoie le produit même s'il est désactivé (le client distingue alors « indisponible »
+     * de « inconnu ») ; 404 si aucun produit ne porte ce code-barres.
+     */
+    @GetMapping("/barcode/{barcode}")
+    public ResponseEntity<ProductResponse> getProductByBarcode(@PathVariable String barcode) {
+        return productService.getProductByBarcode(barcode)
+                .map(productMapper::toResponse)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new ResourceNotFoundException("product", "barcode", barcode));
     }
 
     @GetMapping("/category/{categoryId}")
@@ -97,9 +112,9 @@ public class ProductController {
 
     @PatchMapping("/{id}/stock")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> updateStock(@PathVariable Long id, @RequestBody Map<String, Integer> request) {
-        Integer quantity = request.get("quantity");
-        productService.updateStock(id, quantity);
+    public ResponseEntity<Map<String, String>> updateStock(@PathVariable Long id,
+                                                            @Valid @RequestBody StockUpdateRequest request) {
+        productService.updateStock(id, request.quantity());
         return ResponseEntity.ok(Map.of("message", "Stock mis à jour avec succès"));
     }
 

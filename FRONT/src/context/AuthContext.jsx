@@ -26,10 +26,27 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  /**
+   * Met à jour l'utilisateur connecté après une modification de son propre profil.
+   *
+   * La barre latérale et l'en-tête lisent ce contexte : sans lui, la page Profil devait
+   * recharger la fenêtre entière (`window.location.reload()`) pour que le nouveau nom
+   * s'y affiche. Le token n'est jamais touché — seules les données d'affichage le sont.
+   */
+  const updateUser = (changes) => {
+    setUser((prev) => {
+      const next = { ...(prev || {}), ...changes };
+      // Le stockage local reste la source consultée au prochain démarrage (cf. authService).
+      localStorage.setItem('user', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const value = {
     user,
     login,
     logout,
+    updateUser,
     isAuthenticated: !!user,
     loading,
   };

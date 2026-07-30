@@ -3,14 +3,13 @@ package com.gescom.backend.dto.order;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 public record OrderCreateRequest(
-        @NotNull(message = "L'identifiant du client est obligatoire")
+        // Optionnel : null pour une vente de passage (aucun client enregistré).
         Long clientId,
 
         @NotEmpty(message = "La commande doit contenir au moins un article")

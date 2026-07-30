@@ -8,6 +8,13 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
       sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.011em;
+  }
+
+  /* Hiérarchie typographique cohérente */
+  h1 {
+    @apply tracking-tight;
   }
 
   html.dark body {
@@ -17,59 +24,560 @@
   html.dark {
     color-scheme: dark;
   }
+
+  /* Anneau de focus accessible (WCAG) homogène sur les éléments interactifs au clavier */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500/60 ring-offset-2 ring-offset-white;
+  }
+
+  html.dark :focus-visible {
+    @apply ring-offset-gray-900;
+  }
 }
 
 @layer components {
+  /* ---- En-tête de page ----
+   *
+   * Un seul gabarit pour tous les écrans, quel que soit le rôle. La caisse du caissier et le
+   * tableau de bord de l'administrateur — les deux pages d'accueil de la même application —
+   * partaient sinon sur deux traitements différents : médaillon d'icône d'un côté, titre nu de
+   * l'autre, et deux nuances de gris pour le même niveau de titre.
+   *
+   * Le médaillon reprend le gabarit de `.stat-icon` (48 px, icône 24 px) : l'en-tête et la
+   * rangée de tuiles qui le suit partagent ainsi la même échelle d'icônes.
+   */
+  /* `flex-wrap` plutôt qu'un empilement au point de rupture : les actions passent à la ligne
+   * quand elles n'ont plus la place, sans dépendre d'une largeur de fenêtre qui ignore les
+   * 288 px pris par la barre latérale. */
+  .page-header {
+    @apply flex items-center justify-between flex-wrap gap-4;
+  }
+
+  .page-header-icon {
+    @apply w-12 h-12 rounded-xl bg-primary-600 flex items-center justify-center flex-shrink-0;
+  }
+
+  .page-header-icon > svg {
+    @apply w-6 h-6 text-white;
+  }
+
+  /* `text-2xl` en dessous de `sm` : à 320 px, un titre en 30 px passait sur trois lignes et
+   * repoussait les actions de l'en-tête sous la ligne de flottaison. */
+  .page-title {
+    @apply text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm text-gray-600 dark:text-gray-400;
+  }
+
+  /* ---- Titres internes ----
+   *
+   * Deux niveaux, pas davantage : `.section-title` pour l'en-tête d'une carte ou d'un panneau,
+   * `.subsection-title` pour un bloc à l'intérieur d'une carte. Des cartes de même rang
+   * portaient jusqu'ici `text-lg`, `text-xl`, `text-2xl` ou aucune taille selon la page —
+   * y compris entre deux sections voisines d'un même écran.
+   *
+   * La classe ne fixe pas le niveau de titre : `<h2>` ou `<h3>` reste choisi selon
+   * l'imbrication réelle, seul l'aspect est mutualisé.
+   */
+  .section-title {
+    @apply text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100;
+  }
+
+  .subsection-title {
+    @apply text-sm font-semibold text-gray-700 dark:text-gray-300;
+  }
+
+  /* Titre d'une fenêtre modale. Reprend ce que posait déjà `components/Modal.jsx` ; les
+   * modales écrites à la main (fiche produit, fiche stock, formulaire de catégorie) y
+   * allaient chacune de sa taille, entre `text-lg` et `text-2xl`. */
+  .modal-title {
+    @apply text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100;
+  }
+
+  /* Icône illustrant un tableau ou une liste vide. Elle oscillait entre 40, 48 et 64 px selon
+   * l'écran, la plus grosse étant sur les pages admin. */
+  .empty-state-icon {
+    @apply w-12 h-12 mx-auto text-gray-300 dark:text-gray-600;
+  }
+
+  /* ---- En-tête de colonne de tableau ----
+   * Utilisée par `components/Table.jsx` comme par les tableaux écrits à la main, qui
+   * divergeaient sur la graisse (`font-medium` contre `font-semibold`), l'interlettrage et
+   * la prise en charge du mode sombre. */
+  .table-th {
+    @apply px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400;
+  }
+
+  .table-th-right {
+    @apply table-th text-right;
+  }
+
+  /* ---- Boutons ---- */
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-150 shadow-soft hover:shadow-card-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-all duration-200 active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-medium py-2.5 px-4 rounded-lg border border-gray-300 transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-150 shadow-soft hover:shadow-card-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
+  /* ---- Cartes ---- */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200;
+    @apply bg-white rounded-2xl shadow-card border border-gray-200/80 p-6 transition-all duration-200 hover:shadow-card-hover;
   }
 
   html.dark .card {
     @apply bg-gray-800 border-gray-700;
   }
 
+  /* ---- Champs de saisie ---- */
   .input-field {
-    @apply w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 outline-none;
+    @apply w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 hover:border-gray-400 focus:ring-4 focus:ring-primary-500/15 focus:border-primary-500 transition-all duration-150 outline-none disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed;
   }
 
   html.dark .input-field {
-    @apply bg-gray-700 border-gray-600 text-gray-100;
+    @apply bg-gray-700 border-gray-600 text-gray-100 placeholder:text-gray-500 hover:border-gray-500;
   }
 
   html.dark .btn-secondary {
-    @apply bg-gray-700 hover:bg-gray-600 text-gray-100;
+    @apply bg-gray-700 hover:bg-gray-600 text-gray-100 border-gray-600;
   }
 
+  /* ---- Badges ----
+   *
+   * Palette sémantique unique de l'application. Chaque teinte porte un sens et un seul :
+   *   success (vert)   — état final positif : payée, livrée, actif, entrée de stock
+   *   warning (ambre)  — en cours / demande attention : en attente, partiellement payée, stock bas
+   *   danger  (rouge)  — état négatif ou bloquant : annulée, non payée, rupture de stock
+   *   info    (bleu)   — étape intermédiaire neutre : confirmée
+   *   accent  (indigo) — jalon de facturation : facturée
+   *   neutral (gris)   — inactif, inconnu, hors cycle
+   *
+   * `info` reprend le bleu de marque et `neutral` les gris bleutés de la charte
+   * (cf. `tailwind.config.js`) : les jetons `blue-*`, `violet-*` et `gray-*` employés ici
+   * pointent tous vers les rampes redéfinies là-bas, jamais vers celles de Tailwind.
+   *
+   * Ne pas introduire de couleur de statut en dur dans les pages : passer par ces classes
+   * ou par `src/constants/statusBadges.js`, sans quoi la même donnée change de couleur
+   * d'un écran à l'autre (c'était le cas de « Livrée », affichée en trois verts différents).
+   */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ring-1 ring-inset;
   }
 
   .badge-success {
-    @apply badge bg-green-100 text-green-800;
+    @apply badge bg-green-50 text-green-700 ring-green-600/20;
   }
 
   .badge-warning {
-    @apply badge bg-yellow-100 text-yellow-800;
+    @apply badge bg-amber-50 text-amber-700 ring-amber-600/20;
   }
 
   .badge-danger {
-    @apply badge bg-red-100 text-red-800;
+    @apply badge bg-red-50 text-red-700 ring-red-600/20;
   }
 
   .badge-info {
-    @apply badge bg-blue-100 text-blue-800;
+    @apply badge bg-blue-50 text-blue-700 ring-blue-600/20;
+  }
+
+  .badge-accent {
+    @apply badge bg-violet-50 text-violet-700 ring-violet-600/20;
+  }
+
+  .badge-neutral {
+    @apply badge bg-gray-100 text-gray-600 ring-gray-500/20;
+  }
+
+  html.dark .badge-success {
+    @apply bg-green-500/10 text-green-300 ring-green-500/20;
+  }
+
+  html.dark .badge-warning {
+    @apply bg-amber-500/10 text-amber-300 ring-amber-500/20;
+  }
+
+  html.dark .badge-danger {
+    @apply bg-red-500/10 text-red-300 ring-red-500/20;
+  }
+
+  html.dark .badge-info {
+    @apply bg-blue-500/10 text-blue-300 ring-blue-500/20;
+  }
+
+  html.dark .badge-accent {
+    @apply bg-violet-500/10 text-violet-300 ring-violet-500/20;
+  }
+
+  html.dark .badge-neutral {
+    @apply bg-gray-500/10 text-gray-300 ring-gray-500/20;
+  }
+
+  /* ---- Tuiles d'indicateurs ----
+   *
+   * Écrans de synthèse (tuiles KPI, panneaux, diagrammes) : ils ne reprennent PAS les teintes
+   * sémantiques des badges mais une échelle monochrome tirée de la charte, pour que les pages
+   * d'accueil portent l'identité bleue plutôt qu'un arc-en-ciel vert/ambre/rouge/indigo.
+   *
+   * Ce qui remplace la teinte comme porteur du sens, c'est la PROFONDEUR du bleu. L'ordre
+   * ci-dessous est le contrat à ne pas casser — il est repris à l'identique par les tuiles,
+   * les barres de répartition, les pastilles et les anneaux, chacun à sa propre intensité :
+   *
+   *   neutral  <  success  <  accent  <  info  <  warning  <  danger
+   *   (le plus clair)                                    (le plus soutenu)
+   *
+   * `accent` (jalon de facturation) prend la branche désaturée `secondary-*` plutôt qu'un
+   * cran de bleu vif : c'est ce qui le rend distinguable de `info` et `warning`, ses deux
+   * voisins immédiats sur l'échelle.
+   *
+   * Les badges des tableaux gardent en revanche vert / ambre / rouge : dans une liste de
+   * cinquante lignes, l'état doit se repérer sans lire, ce qu'une échelle monochrome ne
+   * permet pas. Les deux systèmes cohabitent donc volontairement.
+   *
+   * Fond teinté clair + chiffre saturé plutôt que blanc sur aplat : le contraste du texte
+   * reste garanti (WCAG AA) à tous les crans, ce qu'un texte blanc sur `primary-500`
+   * (3,1:1) ne tiendrait pas pour le libellé et la légende.
+   */
+  /* La tuile est déclarée conteneur de requête : son contenu se dimensionne sur SA largeur,
+   * pas sur celle de la fenêtre. C'est le seul repère juste ici — derrière la barre latérale
+   * de 288 px, une grille à quatre colonnes ne laissait que ~150 px par tuile à 1024 px alors
+   * que le point de rupture `lg` était bien franchi, et le chiffre s'y retrouvait rogné.
+   * (Le rembourrage reste sur les points de rupture classiques : une tuile ne peut pas
+   * interroger son propre conteneur, seuls ses descendants le peuvent.) */
+  .stat-tile {
+    @apply rounded-2xl border p-5 sm:p-6 transition-all duration-200 shadow-card hover:shadow-card-hover;
+    container-type: inline-size;
+  }
+
+  .stat-tile-neutral {
+    @apply stat-tile bg-gray-50 border-gray-200/70 text-gray-700;
+  }
+
+  .stat-tile-success {
+    @apply stat-tile bg-primary-50 border-primary-200/70 text-primary-800;
+  }
+
+  .stat-tile-accent {
+    @apply stat-tile bg-secondary-100 border-secondary-200/70 text-secondary-700;
+  }
+
+  .stat-tile-info {
+    @apply stat-tile bg-primary-100 border-primary-300/70 text-primary-800;
+  }
+
+  .stat-tile-warning {
+    @apply stat-tile bg-primary-200 border-primary-300/70 text-primary-900;
+  }
+
+  .stat-tile-danger {
+    @apply stat-tile bg-primary-300 border-primary-400/70 text-primary-900;
+  }
+
+  /* Disque d'icône, teinté par la tuile qui le contient.
+   * Tailwind ne sait pas appliquer d'opacité à `currentColor` (`bg-current/15` ne génère
+   * aucune règle) : la teinte est donc déclinée explicitement par jeton ci-dessous. */
+  .stat-icon {
+    @apply w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0;
+  }
+
+  .stat-icon > svg {
+    @apply w-6 h-6;
+  }
+
+  /* Sous ~15 rem de tuile, le disque de 48 px mangeait la moitié de la place utile et
+   * poussait le chiffre à la troncature : il cède du terrain plutôt que le chiffre. */
+  @container (max-width: 15rem) {
+    .stat-icon {
+      @apply w-10 h-10;
+    }
+
+    .stat-icon > svg {
+      @apply w-5 h-5;
+    }
+  }
+
+  /* Le disque suit le même cran que la tuile, un ton plus dense qu'elle pour s'en détacher. */
+  .stat-tile-neutral .stat-icon {
+    @apply bg-gray-500/15;
+  }
+
+  .stat-tile-success .stat-icon {
+    @apply bg-primary-500/15;
+  }
+
+  .stat-tile-accent .stat-icon {
+    @apply bg-secondary-500/20;
+  }
+
+  .stat-tile-info .stat-icon {
+    @apply bg-primary-600/20;
+  }
+
+  .stat-tile-warning .stat-icon {
+    @apply bg-primary-700/20;
+  }
+
+  .stat-tile-danger .stat-icon {
+    @apply bg-primary-800/25;
+  }
+
+  /* Libellé et légende d'une tuile.
+   * Ils étaient figés en gris, ce qui laissait deux palettes cohabiter dans une même carte :
+   * fond, disque d'icône et chiffre teintés, textes neutres. Ils suivent désormais le jeton,
+   * la hiérarchie restant portée par la taille et la graisse, pas par un changement de teinte.
+   * Nuances choisies (-800 / -700 en clair) plutôt qu'une opacité sur `currentColor` : sur
+   * ambre, un texte translucide passait sous le seuil AA une fois fondu dans le fond clair. */
+  .stat-label {
+    @apply text-sm font-medium;
+  }
+
+  /* Le chiffre était figé à `text-3xl` puis coupé par `truncate` : un KPI rogné (« 12 34… »)
+   * n'informe plus de rien, c'est le pire des replis possibles pour une valeur. Il se
+   * dimensionne désormais entre 1,25 et 1,875 rem selon la largeur de la tuile (`cqi` = 1 %
+   * de celle-ci) et, en dernier recours, revient à la ligne au lieu d'être tronqué.
+   * `tabular-nums` garde les chiffres alignés d'une tuile à l'autre. La valeur en `rem`
+   * qui précède sert de repli aux navigateurs sans unités de conteneur. */
+  .stat-value {
+    @apply font-bold mt-2 leading-tight text-current;
+    font-size: 1.5rem;
+    font-size: clamp(1.25rem, 0.9rem + 2.6cqi, 1.875rem);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: break-word;
+  }
+
+  .stat-hint {
+    @apply text-xs mt-1;
+  }
+
+  /* Les crans clairs de l'échelle (`warning`, `danger`) ont un fond déjà soutenu : leur texte
+   * descend en -900 pour rester au-dessus de AA, là où -800 suffit sur les crans pâles. */
+  .stat-tile-neutral .stat-label { @apply text-gray-800; }
+  .stat-tile-neutral .stat-hint  { @apply text-gray-600; }
+  .stat-tile-success .stat-label { @apply text-primary-900; }
+  .stat-tile-success .stat-hint  { @apply text-primary-700; }
+  .stat-tile-accent .stat-label  { @apply text-secondary-800; }
+  .stat-tile-accent .stat-hint   { @apply text-secondary-600; }
+  .stat-tile-info .stat-label    { @apply text-primary-900; }
+  .stat-tile-info .stat-hint     { @apply text-primary-700; }
+  .stat-tile-warning .stat-label { @apply text-primary-900; }
+  .stat-tile-warning .stat-hint  { @apply text-primary-800; }
+  .stat-tile-danger .stat-label  { @apply text-primary-900; }
+  .stat-tile-danger .stat-hint   { @apply text-primary-800; }
+
+  html.dark .stat-tile-neutral .stat-label { @apply text-gray-200; }
+  html.dark .stat-tile-neutral .stat-hint  { @apply text-gray-400; }
+  html.dark .stat-tile-success .stat-label { @apply text-primary-100; }
+  html.dark .stat-tile-success .stat-hint  { @apply text-primary-300; }
+  html.dark .stat-tile-accent .stat-label  { @apply text-secondary-100; }
+  html.dark .stat-tile-accent .stat-hint   { @apply text-secondary-300; }
+  html.dark .stat-tile-info .stat-label    { @apply text-primary-100; }
+  html.dark .stat-tile-info .stat-hint     { @apply text-primary-300; }
+  html.dark .stat-tile-warning .stat-label { @apply text-primary-100; }
+  html.dark .stat-tile-warning .stat-hint  { @apply text-primary-300; }
+  html.dark .stat-tile-danger .stat-label  { @apply text-white; }
+  html.dark .stat-tile-danger .stat-hint   { @apply text-primary-200; }
+
+  /* Ligne de détail d'un bloc de synthèse (Commandes / Factures / Livraisons du tableau de
+   * bord). Seule la valeur portait la teinte du statut, sur un fond et un libellé gris : la
+   * ligne entière la porte désormais, comme les tuiles. Fond -50 et texte -800 en clair,
+   * la hiérarchie libellé/valeur restant portée par la graisse. */
+  .mini-stat {
+    @apply flex items-center justify-between p-3 rounded-lg text-sm;
+  }
+
+  .mini-stat-neutral { @apply mini-stat bg-gray-100 text-gray-800; }
+  .mini-stat-success { @apply mini-stat bg-primary-50 text-primary-900; }
+  .mini-stat-accent  { @apply mini-stat bg-secondary-100 text-secondary-800; }
+  .mini-stat-info    { @apply mini-stat bg-primary-100 text-primary-900; }
+  .mini-stat-warning { @apply mini-stat bg-primary-200 text-primary-900; }
+  .mini-stat-danger  { @apply mini-stat bg-primary-300 text-primary-900; }
+
+  html.dark .mini-stat-neutral { @apply bg-gray-700/40 text-gray-200; }
+  html.dark .mini-stat-success { @apply bg-primary-500/10 text-primary-200; }
+  html.dark .mini-stat-accent  { @apply bg-secondary-400/20 text-secondary-100; }
+  html.dark .mini-stat-info    { @apply bg-primary-500/20 text-primary-100; }
+  html.dark .mini-stat-warning { @apply bg-primary-500/30 text-primary-100; }
+  html.dark .mini-stat-danger  { @apply bg-primary-500/45 text-white; }
+
+  /* ---- Panneaux de synthèse (Commandes / Factures / Livraisons) ----
+   *
+   * Ces panneaux n'affichent plus une liste de compteurs mais deux encodages complémentaires :
+   * un anneau de progression (le taux qui résume le domaine) et une barre par statut (la
+   * répartition). D'où la séparation des rôles de couleur, qui est le point à ne pas casser :
+   *
+   *   - la PROFONDEUR DE DOMAINE (`.panel-tone-*`) identifie le panneau — un cran de bleu par
+   *     domaine, commandes / factures / livraisons. Elle habille le médaillon et l'anneau,
+   *     et rien d'autre ;
+   *   - la PROFONDEUR DE STATUT (`.metric-bar-*`, `.tone-dot-*`) suit l'échelle monochrome
+   *     décrite plus haut : « En attente » est un bleu plus dense que « Confirmée ».
+   *
+   * Aucun texte ne porte la couleur de la donnée (le chiffre au centre de l'anneau reste en
+   * encre) : sur ambre ou vert clair, une valeur colorée passe sous le seuil de contraste AA,
+   * et l'identité est déjà portée par la pastille placée à côté du libellé.
+   *
+   * Les statuts ne sont volontairement PAS empilés dans une barre unique : sur une échelle
+   * monochrome, deux crans voisins collés l'un à l'autre sont indissociables. Une barre par
+   * ligne, chacune accompagnée de son libellé, de son effectif et de sa part, ne fait jamais
+   * reposer la lecture sur la couleur — c'est ce qui rend l'échelle monochrome acceptable ici.
+   */
+  .panel-icon {
+    @apply w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0;
+  }
+
+  .panel-icon > svg {
+    @apply w-5 h-5;
+  }
+
+  /* Jeton de domaine : posé sur le médaillon et sur l'anneau, il ne fait que fixer
+   * `currentColor` (les arcs SVG s'en servent) et le fond translucide du médaillon.
+   * Nuances -600 en clair / -400 en sombre : les deux dépassent 3:1 sur leur fond. */
+  /* Le jeton de domaine sert de trait à l'anneau SVG : il lui faut 3:1 minimum sur son fond,
+   * seuil des éléments non textuels. Les crans clairs de l'échelle (`primary-200/300`) n'y
+   * arrivent pas en thème clair — l'anneau reprend donc la même PROGRESSION, décalée vers le
+   * bas de la rampe, tous crans confondus au-dessus du seuil. */
+  .panel-tone-neutral { @apply text-gray-500; }
+  .panel-tone-success { @apply text-primary-500; }
+  .panel-tone-accent  { @apply text-secondary-500; }
+  .panel-tone-info    { @apply text-primary-600; }
+  .panel-tone-warning { @apply text-primary-700; }
+  .panel-tone-danger  { @apply text-primary-900; }
+
+  html.dark .panel-tone-neutral { @apply text-gray-400; }
+  html.dark .panel-tone-success { @apply text-primary-200; }
+  html.dark .panel-tone-accent  { @apply text-secondary-300; }
+  html.dark .panel-tone-info    { @apply text-primary-300; }
+  html.dark .panel-tone-warning { @apply text-primary-400; }
+  html.dark .panel-tone-danger  { @apply text-primary-500; }
+
+  /* Fond du médaillon. Sélecteur composé plutôt qu'hérité : Tailwind ne sait pas appliquer
+   * d'opacité à `currentColor` (cf. `.stat-icon`), la teinte est donc redite explicitement. */
+  .panel-icon.panel-tone-neutral { @apply bg-gray-500/10; }
+  .panel-icon.panel-tone-success { @apply bg-primary-500/10; }
+  .panel-icon.panel-tone-accent  { @apply bg-secondary-500/15; }
+  .panel-icon.panel-tone-info    { @apply bg-primary-600/15; }
+  .panel-icon.panel-tone-warning { @apply bg-primary-700/15; }
+  .panel-icon.panel-tone-danger  { @apply bg-primary-900/15; }
+
+  html.dark .panel-icon.panel-tone-neutral { @apply bg-gray-500/15; }
+  html.dark .panel-icon.panel-tone-success { @apply bg-primary-500/15; }
+  html.dark .panel-icon.panel-tone-accent  { @apply bg-secondary-400/20; }
+  html.dark .panel-icon.panel-tone-info    { @apply bg-primary-500/20; }
+  html.dark .panel-icon.panel-tone-warning { @apply bg-primary-400/20; }
+  html.dark .panel-icon.panel-tone-danger  { @apply bg-primary-400/25; }
+
+  /* Anneau de progression. Piste et arc partagent `currentColor` — la piste est la même
+   * teinte à faible opacité, jamais un gris neutre : l'état se lit sur tout l'anneau. */
+  .ring-track {
+    stroke: currentColor;
+    opacity: 0.15;
+  }
+
+  html.dark .ring-track {
+    opacity: 0.28;
+  }
+
+  .ring-fill {
+    stroke: currentColor;
+  }
+
+  /* ---- Barres de répartition ----
+   * Piste neutre (elle ne porte aucune donnée) + remplissage à la teinte du statut. */
+  .metric-track {
+    @apply h-1.5 w-full rounded-full bg-gray-100 overflow-hidden;
+  }
+
+  html.dark .metric-track {
+    @apply bg-gray-700/60;
+  }
+
+  .metric-fill {
+    @apply h-full rounded-full;
+  }
+
+  /* Même ordre que les tuiles, en version saturée : la barre la plus foncée est la plus
+   * urgente. Une barre est un aplat de quelques pixels de haut, d'où des crans nettement
+   * plus denses que les fonds de tuiles pour rester lisibles sur la piste. */
+  .metric-bar-neutral { @apply metric-fill bg-gray-300; }
+  .metric-bar-success { @apply metric-fill bg-primary-300; }
+  .metric-bar-accent  { @apply metric-fill bg-secondary-400; }
+  .metric-bar-info    { @apply metric-fill bg-primary-500; }
+  .metric-bar-warning { @apply metric-fill bg-primary-600; }
+  .metric-bar-danger  { @apply metric-fill bg-primary-800; }
+
+  html.dark .metric-bar-neutral { @apply bg-gray-500; }
+  html.dark .metric-bar-success { @apply bg-primary-700; }
+  html.dark .metric-bar-accent  { @apply bg-secondary-400; }
+  html.dark .metric-bar-info    { @apply bg-primary-500; }
+  html.dark .metric-bar-warning { @apply bg-primary-400; }
+  html.dark .metric-bar-danger  { @apply bg-primary-200; }
+
+  /* Pastille de légende : 8 px, la taille plancher pour rester repérable. */
+  .tone-dot {
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+
+  /* La pastille reprend exactement la barre de sa ligne — c'est ce qui permet de relier la
+   * légende à la barre sans compter les lignes. */
+  .tone-dot-neutral { @apply tone-dot bg-gray-300; }
+  .tone-dot-success { @apply tone-dot bg-primary-300; }
+  .tone-dot-accent  { @apply tone-dot bg-secondary-400; }
+  .tone-dot-info    { @apply tone-dot bg-primary-500; }
+  .tone-dot-warning { @apply tone-dot bg-primary-600; }
+  .tone-dot-danger  { @apply tone-dot bg-primary-800; }
+
+  html.dark .tone-dot-neutral { @apply bg-gray-500; }
+  html.dark .tone-dot-success { @apply bg-primary-700; }
+  html.dark .tone-dot-accent  { @apply bg-secondary-400; }
+  html.dark .tone-dot-info    { @apply bg-primary-500; }
+  html.dark .tone-dot-warning { @apply bg-primary-400; }
+  html.dark .tone-dot-danger  { @apply bg-primary-200; }
+
+  /* Bloc de chargement d'une tuile : teinté comme elle, pour ne pas réintroduire un gris
+   * neutre au milieu d'une carte colorée. `currentColor` n'acceptant pas d'opacité via
+   * Tailwind, on la porte par `opacity` sur le bloc lui-même. */
+  .stat-skeleton {
+    @apply animate-pulse rounded bg-current opacity-20;
+  }
+
+  /* En sombre, l'échelle s'inverse : le fond est un voile de bleu sur le bleu nuit, dont
+   * l'opacité croît avec l'urgence. Même ordre que le thème clair, lu à l'envers. */
+  html.dark .stat-tile-neutral {
+    @apply bg-gray-700/40 border-gray-600/50 text-gray-300;
+  }
+
+  html.dark .stat-tile-success {
+    @apply bg-primary-500/10 border-primary-500/20 text-primary-200;
+  }
+
+  html.dark .stat-tile-accent {
+    @apply bg-secondary-400/20 border-secondary-400/30 text-secondary-200;
+  }
+
+  html.dark .stat-tile-info {
+    @apply bg-primary-500/20 border-primary-500/30 text-primary-200;
+  }
+
+  html.dark .stat-tile-warning {
+    @apply bg-primary-500/30 border-primary-400/40 text-primary-100;
+  }
+
+  html.dark .stat-tile-danger {
+    @apply bg-primary-500/45 border-primary-400/50 text-white;
+  }
+
+  /* Squelette de chargement réutilisable */
+  .skeleton {
+    @apply animate-pulse rounded-md bg-gray-200;
+  }
+
+  html.dark .skeleton {
+    @apply bg-gray-700;
   }
 }
 
@@ -79,29 +587,31 @@
   height: 8px;
 }
 
+/* Nuances reprises de la rampe `gray` bleutée de `tailwind.config.js` (100/300/400 en clair,
+ * 900/700/600 en sombre) : la barre de défilement suivait sinon des gris neutres. */
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #e8ecf4;
 }
 
 html.dark ::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: #1a2740;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #b0bcd2;
   border-radius: 4px;
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: #3b4b68;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #8496b4;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: #4d5e7d;
 }
 
 /* Animations */

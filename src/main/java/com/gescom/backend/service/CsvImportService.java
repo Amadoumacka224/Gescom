@@ -20,6 +20,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Service d'import de produits depuis un fichier CSV.
+ * Conçu pour être tolérant aux fichiers réels : détection automatique du séparateur
+ * (; , ou tabulation), correspondance des colonnes par alias multilingues (ex : « name »,
+ * « nom », « designation »), et valeurs par défaut quand une cellule est absente ou invalide.
+ * L'import est ligne par ligne : une ligne en erreur stoppe l'analyse, mais un produit
+ * impossible à sauvegarder (ex : code en doublon) est seulement ignoré et tracé.
+ */
 @Service
 public class CsvImportService {
 
@@ -44,11 +52,13 @@ public class CsvImportService {
 
             String headerLine = reader.readLine();
             if (headerLine == null) {
-                throw new BusinessException("Le fichier est vide");
+                throw BusinessException.of("import.file.empty", "Le fichier est vide");
             }
 
             log.debug("CSV Header: {}", headerLine);
 
+            // Détection du séparateur d'après la ligne d'en-tête : point-virgule (Excel FR),
+            // tabulation, ou virgule par défaut.
             char delimiter = ';';
             if (headerLine.contains(";")) {
                 delimiter = ';';
@@ -59,6 +69,8 @@ public class CsvImportService {
             }
             log.debug("Detected delimiter: {}", delimiter);
 
+            // Indexe chaque nom de colonne (en minuscules) vers sa position, pour ensuite
+            // retrouver une valeur par son nom plutôt que par un numéro de colonne figé.
             String[] headers = parseCsvLine(headerLine, delimiter);
             Map<String, Integer> columnMap = new HashMap<>();
             for (int i = 0; i < headers.length; i++) {
@@ -158,6 +170,10 @@ public class CsvImportService {
         return product;
     }
 
+    /**
+     * Récupère la valeur d'une colonne en testant plusieurs alias possibles
+     * (ex : "name", "nom", "designation") — rend l'import indépendant de la langue de l'en-tête.
+     */
     private String getColumnValue(String[] values, Map<String, Integer> columnMap, String... possibleNames) {
         for (String name : possibleNames) {
             Integer index = columnMap.get(name.toLowerCase());
@@ -168,10 +184,14 @@ public class CsvImportService {
         return null;
     }
 
+    /**
+     * Découpe une ligne CSV en respectant les guillemets : un séparateur situé à l'intérieur
+     * d'une paire de guillemets fait partie de la valeur et ne coupe pas le champ.
+     */
     private String[] parseCsvLine(String line, char delimiter) {
         List<String> values = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        boolean inQuotes = false;
+        boolean inQuotes = false; // bascule à chaque guillemet rencontré
 
         for (int i = 0; i < line.length(); i++) {
             char c = line.charAt(i);

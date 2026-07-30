@@ -11,6 +11,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * Entité catégorie servant à classer les produits.
+ * Le nom est unique ; le drapeau active permet de retirer une catégorie de la sélection
+ * sans la supprimer (et donc sans casser les produits qui y sont déjà rattachés).
+ */
 @Entity
 @Table(name = "categories")
 @Data

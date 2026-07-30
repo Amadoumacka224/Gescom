@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8085/api';
+import i18n from '../i18n';
+
+// En dev, '/api' est relayé vers le backend par le proxy Vite (voir vite.config.js).
+// En prod, surcharger avec VITE_API_URL (URL absolue du backend).
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -15,6 +19,11 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Langue de l'interface : le backend s'en sert pour traduire ses messages d'erreur métier
+    // (`AcceptHeaderLocaleResolver`, cf. LocaleConfiguration). Sans cet en-tête, il répondait
+    // toujours en français — un utilisateur en anglais lisait des toasts français.
+    config.headers['Accept-Language'] = i18n.language || 'fr';
 
     // Laisse le navigateur gérer le Content-Type pour les FormData (boundary multipart).
     if (config.data instanceof FormData) {

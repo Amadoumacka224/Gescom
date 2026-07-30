@@ -16,6 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Service métier des catégories de produits (CRUD).
+ * Veille à l'unicité du nom et du code, aussi bien à la création qu'à la modification
+ * (où l'on exclut la catégorie courante du contrôle de doublon).
+ */
 @Service
 @Transactional
 public class CategoryService {
@@ -76,12 +81,12 @@ public class CategoryService {
 
     public Category createCategory(Category category) {
         if (category.getName() != null && categoryRepository.findByName(category.getName()).isPresent()) {
-            throw new DuplicateResourceException("Catégorie", "nom", category.getName());
+            throw new DuplicateResourceException("category", "name", category.getName());
         }
 
         if (category.getCode() != null && !category.getCode().isEmpty()
             && categoryRepository.findByCode(category.getCode()).isPresent()) {
-            throw new DuplicateResourceException("Catégorie", "code", category.getCode());
+            throw new DuplicateResourceException("category", "code", category.getCode());
         }
 
         Category savedCategory = categoryRepository.save(category);
@@ -94,12 +99,12 @@ public class CategoryService {
 
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
 
         if (categoryDetails.getName() != null) {
             Optional<Category> existingCategory = categoryRepository.findByName(categoryDetails.getName());
             if (existingCategory.isPresent() && !existingCategory.get().getId().equals(id)) {
-                throw new DuplicateResourceException("Catégorie", "nom", categoryDetails.getName());
+                throw new DuplicateResourceException("category", "name", categoryDetails.getName());
             }
             category.setName(categoryDetails.getName());
         }
@@ -107,7 +112,7 @@ public class CategoryService {
         if (categoryDetails.getCode() != null && !categoryDetails.getCode().isEmpty()) {
             Optional<Category> existingCategory = categoryRepository.findByCode(categoryDetails.getCode());
             if (existingCategory.isPresent() && !existingCategory.get().getId().equals(id)) {
-                throw new DuplicateResourceException("Catégorie", "code", categoryDetails.getCode());
+                throw new DuplicateResourceException("category", "code", categoryDetails.getCode());
             }
             category.setCode(categoryDetails.getCode());
         }
@@ -130,7 +135,7 @@ public class CategoryService {
 
     public void deleteCategory(Long id) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
         String categoryName = category.getName();
         categoryRepository.delete(category);
 
@@ -140,7 +145,7 @@ public class CategoryService {
 
     public void toggleCategoryStatus(Long id) {
         Category category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Catégorie", id));
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
         category.setActive(!category.getActive());
         categoryRepository.save(category);
 

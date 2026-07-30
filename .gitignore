@@ -1,67 +1,165 @@
-HELP.md
+# ==============================================================================
+# GESCOM — fichiers exclus du versionnement
+#
+# Ce dépôt héberge deux applications : l'API Spring Boot (Maven, à la racine) et
+# le client React/Vite sous FRONT/, qui conserve son propre .gitignore pour ses
+# artefacts locaux.
+#
+# Rappel : ces règles n'ont AUCUN effet sur un fichier déjà suivi par git.
+# Pour cesser de suivre un fichier committé par erreur :
+#     git rm --cached <fichier>
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Build Maven / Java
+# ------------------------------------------------------------------------------
 target/
-!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+*.class
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# Archives produites par le build. Le jar du wrapper Maven fait exception : il se
+# versionne, c'est ce qui permet de construire le projet sans installer Maven.
+*.jar
+*.war
+*.ear
+!.mvn/wrapper/maven-wrapper.jar
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# Diagnostics de plantage de la JVM
+hs_err_pid*
+replay_pid*
+*.hprof
+.attach_pid*
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
+# ------------------------------------------------------------------------------
+# Frontend / Node
+# ------------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+stats.html
+.eslintcache
+.npm/
+.pnpm-store/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-### VS Code ###
-.vscode/
-
-### Maven ###
-.mvn/
-mvnw
-mvnw.cmd
-
-### Application ###
-application-local.properties
-
-### Secrets & environment ###
+# ------------------------------------------------------------------------------
+# Configuration locale, secrets et environnement
+#
+# L'application lit ses paramètres sensibles depuis l'environnement (DB_URL,
+# JWT_SECRET, STRIPE_API_KEY…) : aucun de ces fichiers ne doit être committé.
+# ------------------------------------------------------------------------------
 .env
 .env.*
 !.env.example
+!.env.*.example
 
-### SQL dumps (never commit data) ###
+application-local.properties
+application-*-local.properties
+src/main/resources/application-local.properties
+
+# Certificats, clés et magasins de clés
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# ------------------------------------------------------------------------------
+# Base de données
+#
+# Les dumps contiennent des données et restent hors du dépôt. Les scripts de
+# migration, eux, DOIVENT être versionnés : les exceptions ci-dessous évitent
+# qu'un futur passage à Flyway ou Liquibase soit silencieusement ignoré.
+# ------------------------------------------------------------------------------
 *.sql
 *.sql.gz
 *.dump
-# Exception : schéma versionné (structure uniquement, sans données)
+*.bak
 !db/schema.sql
+!src/main/resources/db/migration/**/*.sql
+!src/main/resources/db/changelog/**/*.sql
 
-### Node / Frontend ###
-FRONT/node_modules/
-FRONT/dist/
-FRONT/.vite/
-FRONT/coverage/
-
-### Logs ###
+# ------------------------------------------------------------------------------
+# Journaux et fichiers temporaires
+# ------------------------------------------------------------------------------
 *.log
 logs/
+*.pid
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
 
+# ------------------------------------------------------------------------------
+# IDE et éditeurs
+# ------------------------------------------------------------------------------
 
-### Claude Code ###
+# IntelliJ IDEA (out/ est son répertoire de compilation)
+.idea/
+out/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse / Spring Tool Suite
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+bin/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
+
+# VS Code : les réglages partagés d'équipe restent versionnés
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# ------------------------------------------------------------------------------
+# Systèmes d'exploitation
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------------------------------------------
+# Outillage Claude Code
+#
+# settings.json porte la configuration partagée de l'équipe et se versionne ;
+# settings.local.json est propre à chaque poste. Jusqu'ici ce dernier n'était
+# exclu que par le .gitignore global du poste, donc pas pour un collaborateur.
+# ------------------------------------------------------------------------------
+.claude/settings.local.json
+
+# CLAUDE.md décrit les conventions du projet et gagnerait à être partagé ; il
+# reste exclu par choix hérité. Retirer cette ligne pour le versionner.
 CLAUDE.md
+
+# ------------------------------------------------------------------------------
+# Divers
+# ------------------------------------------------------------------------------
+HELP.md

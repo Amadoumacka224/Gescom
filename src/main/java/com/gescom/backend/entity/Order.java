@@ -16,6 +16,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Entité commande, pièce maîtresse du domaine. Elle agrège ses lignes (OrderItem) avec
+ * cascade complète, mémorise les montants (total, remise, taxe, montant final) et porte
+ * sa propre machine à états (enum OrderStatus) qui régit les transitions de statut autorisées.
+ */
 @Entity
 @Table(name = "orders")
 @Data
@@ -31,8 +36,9 @@ public class Order {
     @Column(nullable = false, unique = true, length = 50)
     private String orderNumber;
 
+    // Optionnel : null pour une vente de passage (client non enregistré).
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "client_id", nullable = false)
+    @JoinColumn(name = "client_id")
     private Client client;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -103,7 +109,9 @@ public class Order {
             map.put(PENDING,   Collections.unmodifiableSet(EnumSet.of(CONFIRMED, CANCELED)));
             map.put(CONFIRMED, Collections.unmodifiableSet(EnumSet.of(INVOICED, CANCELED)));
             map.put(INVOICED,  Collections.unmodifiableSet(EnumSet.of(DELIVERED, CANCELED)));
-            map.put(DELIVERED, Collections.unmodifiableSet(EnumSet.of(CANCELED)));
+            // DELIVERED est terminal : on n'annule pas des marchandises déjà livrées
+            // (ce serait un retour, hors périmètre de ce flux).
+            map.put(DELIVERED, Collections.emptySet());
             map.put(CANCELED,  Collections.emptySet());
             ALLOWED_TRANSITIONS = Collections.unmodifiableMap(map);
         }

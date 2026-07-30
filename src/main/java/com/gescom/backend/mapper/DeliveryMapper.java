@@ -44,7 +44,7 @@ public class DeliveryMapper {
 
     public Delivery toEntity(DeliveryCreateRequest request) {
         Order order = orderRepository.findById(request.orderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Commande", request.orderId()));
+                .orElseThrow(() -> new ResourceNotFoundException("order", request.orderId()));
 
         Delivery delivery = new Delivery();
         delivery.setOrder(order);

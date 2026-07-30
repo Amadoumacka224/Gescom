@@ -13,6 +13,11 @@ import java.util.Map;
 import java.util.Set;
 
 
+/**
+ * Entité livraison (bon de livraison), liée à une commande en relation 1-1.
+ * Porte l'adresse et le contact de livraison, la date planifiée vs. effective, et une
+ * machine à états simple (PENDING → DELIVERED) garantissant des transitions cohérentes.
+ */
 @Entity
 @Table(name = "deliveries")
 @Data
@@ -92,20 +97,14 @@ public class Delivery {
 
     public enum DeliveryStatus {
         PENDING,    // Planifiée
-        DELIVERED,  // Livrée — terminal commercial
-        // Conservée pour les données existantes (ancien flux livraison→facture).
-        // Aucun nouveau code ne doit transitionner vers ou depuis INVOICED.
-        INVOICED,
-        CANCELED;
+        DELIVERED;  // Livrée — terminal
 
         private static final Map<DeliveryStatus, Set<DeliveryStatus>> ALLOWED_TRANSITIONS;
 
         static {
             Map<DeliveryStatus, Set<DeliveryStatus>> map = new EnumMap<>(DeliveryStatus.class);
-            map.put(PENDING, EnumSet.of(DELIVERED, CANCELED));
+            map.put(PENDING, EnumSet.of(DELIVERED));
             map.put(DELIVERED, EnumSet.noneOf(DeliveryStatus.class));
-            map.put(INVOICED, EnumSet.noneOf(DeliveryStatus.class));
-            map.put(CANCELED, EnumSet.noneOf(DeliveryStatus.class));
             ALLOWED_TRANSITIONS = map;
         }
 

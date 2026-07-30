@@ -3,6 +3,7 @@ package com.gescom.backend.controller;
 import com.gescom.backend.dto.category.CategoryRequest;
 import com.gescom.backend.dto.category.CategoryResponse;
 import com.gescom.backend.entity.Category;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.CategoryMapper;
 import com.gescom.backend.service.CategoryService;
 import jakarta.validation.Valid;
@@ -44,7 +45,7 @@ public class CategoryController {
         return categoryService.getCategoryById(id)
                 .map(categoryMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 
     @PostMapping

@@ -19,6 +19,12 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * Entité utilisateur, qui sert aussi de principal Spring Security (implémente UserDetails).
+ * Le mot de passe est exclu de la sérialisation JSON (jamais renvoyé au client) et les
+ * autorisations sont dérivées du rôle (ADMIN / CAISSIER) sous la forme « ROLE_<rôle> ».
+ * Le compte est considéré « activé » uniquement si le champ active est vrai (isEnabled()).
+ */
 @Entity
 @Table(name = "users")
 @Data
@@ -85,7 +91,8 @@ public class User implements UserDetails {
         updatedAt = LocalDateTime.now();
     }
 
-    // UserDetails implementation
+    // ── Implémentation de UserDetails (contrat Spring Security) ──────────────
+    // Convertit le rôle métier en autorité Spring Security (préfixe « ROLE_ » exigé par hasRole()).
     @Override
     @JsonIgnore
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -121,12 +128,14 @@ public class User implements UserDetails {
         return true;
     }
 
+    // Un compte désactivé (active = false) ne peut pas se connecter.
     @Override
     @JsonIgnore
     public boolean isEnabled() {
         return active;
     }
 
+    // ADMIN : accès complet ; CAISSIER : opérations de caisse (ventes, encaissements).
     public enum Role {
         ADMIN, CAISSIER
     }

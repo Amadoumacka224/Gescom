@@ -1,5 +1,6 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.user.UserResponse;
 import com.gescom.backend.entity.*;
 import com.gescom.backend.service.ActivityLogService;
 import com.gescom.backend.service.ClientService;
@@ -7,6 +8,7 @@ import com.gescom.backend.service.InvoiceService;
 import com.gescom.backend.service.DeliveryService;
 import com.gescom.backend.service.OrderService;
 import com.gescom.backend.service.ProductService;
+import com.gescom.backend.service.UserService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,16 +34,19 @@ public class DashboardController {
     private final InvoiceService invoiceService;
     private final DeliveryService deliveryService;
     private final ActivityLogService activityLogService;
+    private final UserService userService;
 
     public DashboardController(OrderService orderService, ClientService clientService,
                                ProductService productService, InvoiceService invoiceService,
-                               DeliveryService deliveryService, ActivityLogService activityLogService) {
+                               DeliveryService deliveryService, ActivityLogService activityLogService,
+                               UserService userService) {
         this.orderService = orderService;
         this.clientService = clientService;
         this.productService = productService;
         this.invoiceService = invoiceService;
         this.deliveryService = deliveryService;
         this.activityLogService = activityLogService;
+        this.userService = userService;
     }
 
     private void logView(String description) {
@@ -57,6 +62,7 @@ public class DashboardController {
     }
 
     @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
 
@@ -74,6 +80,7 @@ public class DashboardController {
     }
 
     @GetMapping("/recent-orders")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<Map<String, Object>>> getRecentOrders() {
         List<Order> orders = orderService.getAllOrders().stream()
                 .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
@@ -85,6 +92,7 @@ public class DashboardController {
     }
 
     @GetMapping("/top-products")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<Map<String, Object>>> getTopProducts() {
         List<Product> products = productService.getAllProducts().stream()
                 .filter(p -> p.getStockQuantity() > 0)
@@ -104,6 +112,7 @@ public class DashboardController {
     }
 
     @GetMapping("/overview")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getDashboardOverview() {
         logView("Consultation du tableau de bord");
         Map<String, Object> overview = new HashMap<>();
@@ -112,9 +121,14 @@ public class DashboardController {
         List<Order> allOrders = orderService.getAllOrders();
 
         // Bug fix : exclure les commandes annulées du CA (elles n'ont jamais été honorées).
+        // Même périmètre que `honoredOrders` (vues caisse) et que le sous-titre « N commandes
+        // honorées » du tableau de bord : les trois doivent parler du même ensemble.
+        // Montants nuls filtrés comme dans buildDayMetrics : un `null` hérité faisait tomber
+        // tout l'aperçu en 500, donc affichait un tableau de bord vide plutôt qu'un total.
         BigDecimal totalSales = allOrders.stream()
                 .filter(o -> o.getStatus() != Order.OrderStatus.CANCELED)
                 .map(Order::getFinalAmount)
+                .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         long pendingOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.PENDING).count();
@@ -134,41 +148,88 @@ public class DashboardController {
         overview.put("lowStock", productService.getLowStockProducts().size());
 
         // --- Invoices ---
+        //
+        // Les trois montants exposés décrivent UN SEUL ensemble : les factures non annulées.
+        // Une facture annulée sort des livres — compter ses encaissements sans compter son
+        // reliquat (ou l'inverse) donnerait un « encaissé sur facturé » qui n'est le total
+        // d'aucun périmètre, et un taux d'encaissement faux.
+        //
+        // L'identité pendingAmount = invoicedAmount − totalRevenue est garantie ici, par
+        // construction : le tableau de bord affiche les trois chiffres côte à côte (anneau,
+        // légende, « reste à encaisser ») et ils doivent tomber juste à l'euro près.
         List<Invoice> allInvoices = invoiceService.getAllInvoices();
-        BigDecimal totalRevenue = allInvoices.stream()
+        List<Invoice> liveInvoices = allInvoices.stream()
+                .filter(inv -> inv.getStatus() != Invoice.InvoiceStatus.CANCELED)
+                .collect(Collectors.toList());
+
+        BigDecimal invoicedAmount = liveInvoices.stream()
+                .map(Invoice::getTotalAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalRevenue = liveInvoices.stream()
                 .map(Invoice::getPaidAmount)
+                .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal pendingAmount = allInvoices.stream()
-                .map(inv -> inv.getTotalAmount().subtract(inv.getPaidAmount()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal pendingAmount = invoicedAmount.subtract(totalRevenue);
+
         long unpaidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.UNPAID).count();
+        long partiallyPaidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.PARTIALLY_PAID).count();
         long paidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.PAID).count();
+        long canceledInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.CANCELED).count();
 
         overview.put("totalInvoices", allInvoices.size());
         overview.put("totalRevenue", totalRevenue);
+        overview.put("invoicedAmount", invoicedAmount);
         overview.put("pendingAmount", pendingAmount);
+        // Les quatre statuts sont exposés au complet : le tableau de bord en fait une
+        // répartition dont les parts doivent totaliser 100 % (payées + partielles + non
+        // payées + annulées = totalInvoices). Il manquait PARTIALLY_PAID et CANCELED.
         overview.put("unpaidInvoices", unpaidInvoices);
+        overview.put("partiallyPaidInvoices", partiallyPaidInvoices);
         overview.put("paidInvoices", paidInvoices);
+        overview.put("canceledInvoices", canceledInvoices);
 
         // --- Deliveries ---
         List<Delivery> allDeliveries = deliveryService.getAllDeliveries();
         long pendingDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.PENDING).count();
-        // Bug fix : compter explicitement DELIVERED plutôt que (total - pending), pour ne
-        // pas inclure les CANCELED ni le statut legacy INVOICED.
         long deliveredDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.DELIVERED).count();
-        long canceledDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.CANCELED).count();
+
+        // Commandes facturées pour lesquelles aucune livraison n'existe encore : le reste à
+        // planifier. Compté sur la jointure réelle, et non déduit de
+        // « invoicedOrders − pendingDeliveries » : une livraison en attente peut survivre à
+        // l'annulation de sa facture puis de sa commande (cancelInvoice ne vérifie pas les
+        // livraisons), auquel cas la soustraction sous-compte — voire passe sous zéro.
+        Set<Long> orderIdsWithDelivery = allDeliveries.stream()
+                .map(Delivery::getOrder)
+                .filter(Objects::nonNull)
+                .map(Order::getId)
+                .collect(Collectors.toSet());
+        long ordersToSchedule = allOrders.stream()
+                .filter(o -> o.getStatus() == Order.OrderStatus.INVOICED)
+                .filter(o -> !orderIdsWithDelivery.contains(o.getId()))
+                .count();
+
         overview.put("totalDeliveries", allDeliveries.size());
         overview.put("pendingDeliveries", pendingDeliveries);
         overview.put("deliveredDeliveries", deliveredDeliveries);
-        overview.put("canceledDeliveries", canceledDeliveries);
+        overview.put("ordersToSchedule", ordersToSchedule);
 
-        // --- Recent orders ---
+        // --- Recent orders (avec statut de facturation pour l'affichage « Payée ») ---
         List<Order> recentOrders = allOrders.stream()
                 .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
                 .limit(5)
                 .collect(Collectors.toList());
 
-        overview.put("recentOrders", recentOrders.stream().map(this::mapOrder).collect(Collectors.toList()));
+        Map<Long, Invoice.InvoiceStatus> recentInvoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
+                recentOrders.stream().map(Order::getId).collect(Collectors.toList()));
+
+        overview.put("recentOrders", recentOrders.stream()
+                .map(o -> {
+                    Map<String, Object> data = mapOrder(o);
+                    data.put("invoiceStatus", recentInvoiceStatuses.get(o.getId()));
+                    return data;
+                })
+                .collect(Collectors.toList()));
 
         // --- Produits avec le plus de stock (tri par stock DESC) ---
         // NB : ce n'est PAS un classement des meilleures ventes — pour cela il faudrait
@@ -218,6 +279,15 @@ public class DashboardController {
         orderData.put("finalAmount", order.getFinalAmount());
         orderData.put("status", order.getStatus());
         orderData.put("createdAt", order.getCreatedAt());
+        // Nombre d'articles de la commande : la supervision en fait une colonne, et le total
+        // d'une ligne doit se retrouver dans `dayItemsCount`. Les lignes sont chargées par
+        // jointure dans les trois requêtes qui alimentent ce mapping (findAllWithDetails,
+        // findDayOrders, findDayOrdersForCashier) — pas de N+1 ni d'accès hors transaction.
+        orderData.put("itemsCount", order.getItems() != null
+            ? order.getItems().stream()
+                .mapToInt(it -> it.getQuantity() != null ? it.getQuantity() : 0)
+                .sum()
+            : 0);
         return orderData;
     }
 
@@ -243,83 +313,220 @@ public class DashboardController {
 
         logView("Consultation du tableau de bord caisse (" + target + ")");
 
-        // Commandes du caissier (toutes dates) — base pour tous les filtres ci-dessous.
-        List<Order> myOrders = orderService.getAllOrders().stream()
-                .filter(o -> o.getCreatedBy() != null && currentUserId.equals(o.getCreatedBy().getId()))
-                .collect(Collectors.toList());
+        // Commandes du jour du caissier — une seule requête, lignes et client déjà chargés
+        // (remplace l'ancien chargement intégral filtré en mémoire).
+        List<Order> dayOrders = orderService.getDayOrdersForCashier(currentUserId, dayStart, dayEnd);
 
-        // Commandes du jour (filtre + exclusion CANCELED pour les agrégats financiers).
-        List<Order> dayOrders = myOrders.stream()
-                .filter(o -> o.getCreatedAt() != null
-                        && !o.getCreatedAt().isBefore(dayStart)
-                        && o.getCreatedAt().isBefore(dayEnd))
-                .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
-                .collect(Collectors.toList());
+        // Encaissé du jour : montant réellement perçu (factures soldées à cette date).
+        // À distinguer de daySales (CA commandé, qui inclut des commandes non encore payées).
+        BigDecimal dayCollected = invoiceService.getCollectedByCashierOnDate(currentUserId, target);
 
-        List<Order> dayHonoredOrders = dayOrders.stream()
-                .filter(o -> o.getStatus() != Order.OrderStatus.CANCELED)
-                .collect(Collectors.toList());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("selectedDate", target.toString());
+        result.putAll(buildDayMetrics(dayOrders, dayCollected));
+        result.put("hourlySales", buildHourlySales(honoredOrders(dayOrders)));
+        result.put("dayOrders", mapDayOrders(dayOrders));
 
-        BigDecimal daySales = dayHonoredOrders.stream()
-                .map(Order::getFinalAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return ResponseEntity.ok(result);
+    }
 
-        int dayItemsCount = dayHonoredOrders.stream()
-                .flatMap(o -> o.getItems() != null ? o.getItems().stream() : java.util.stream.Stream.empty())
-                .mapToInt(it -> it.getQuantity() != null ? it.getQuantity() : 0)
-                .sum();
+    /**
+     * Supervision des caisses : les mêmes indicateurs que {@link #getCashierDashboard}, mais
+     * pour tous les caissiers sur la date demandée. Les deux vues partagent
+     * {@link #buildDayMetrics} — c'est ce qui garantit qu'un caissier et son responsable
+     * lisent les mêmes chiffres pour une même journée (notamment l'exclusion des annulées).
+     */
+    @GetMapping("/cashiers")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> getCashiersDashboard(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 
-        BigDecimal averageBasket = !dayHonoredOrders.isEmpty()
-                ? daySales.divide(BigDecimal.valueOf(dayHonoredOrders.size()), 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+        LocalDate target = date != null ? date : LocalDate.now();
+        LocalDateTime dayStart = target.atStartOfDay();
+        LocalDateTime dayEnd = target.plusDays(1).atStartOfDay();
 
-        long dayCanceledCount = dayOrders.stream()
-                .filter(o -> o.getStatus() == Order.OrderStatus.CANCELED)
-                .count();
+        logView("Consultation de la supervision des caisses (" + target + ")");
 
-        // « À faire » — factures impayées sur mes commandes (toutes dates).
-        Set<Long> myOrderIds = myOrders.stream().map(Order::getId).collect(Collectors.toSet());
-        List<Invoice> myPendingInvoices = invoiceService.getAllInvoices().stream()
-                .filter(inv -> inv.getOrder() != null && myOrderIds.contains(inv.getOrder().getId()))
-                .filter(inv -> inv.getStatus() == Invoice.InvoiceStatus.UNPAID
-                        || inv.getStatus() == Invoice.InvoiceStatus.PARTIALLY_PAID)
-                .sorted(Comparator.comparing(Invoice::getDueDate, Comparator.nullsLast(Comparator.naturalOrder())))
-                .collect(Collectors.toList());
+        List<Order> dayOrders = orderService.getDayOrders(dayStart, dayEnd);
+        Map<Long, BigDecimal> collectedPerCashier = invoiceService.getCollectedPerCashierOnDate(target);
 
-        BigDecimal myPendingInvoicesAmount = myPendingInvoices.stream()
-                .map(inv -> inv.getRemainingAmount() != null ? inv.getRemainingAmount()
-                        : inv.getTotalAmount().subtract(inv.getPaidAmount() != null ? inv.getPaidAmount() : BigDecimal.ZERO))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Statuts de facture résolus une seule fois pour toute la journée (cf. mapDayOrders).
+        Map<Long, Invoice.InvoiceStatus> invoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
+                dayOrders.stream().map(Order::getId).collect(Collectors.toList()));
 
-        // « À faire » — livraisons en attente sur mes commandes.
-        List<Delivery> myPendingDeliveries = deliveryService.getAllDeliveries().stream()
-                .filter(d -> d.getOrder() != null && myOrderIds.contains(d.getOrder().getId()))
-                .filter(d -> d.getStatus() == Delivery.DeliveryStatus.PENDING)
-                .sorted(Comparator.comparing(Delivery::getScheduledDate, Comparator.nullsLast(Comparator.naturalOrder())))
+        Map<Long, List<Order>> ordersByCashier = dayOrders.stream()
+                .filter(o -> o.getCreatedBy() != null)
+                .collect(Collectors.groupingBy(o -> o.getCreatedBy().getId()));
+
+        // Le détail part de la liste des caissiers — un caissier sans vente doit apparaître à
+        // zéro plutôt que disparaître du classement — puis on y ajoute tout autre utilisateur
+        // ayant passé des commandes ce jour-là (typiquement un admin en renfort). Sans cela,
+        // son chiffre resterait dans les totaux sans aucune ligne pour l'expliquer.
+        Map<Long, Map<String, Object>> entriesById = new LinkedHashMap<>();
+
+        for (UserResponse caissier : userService.getCaissiers()) {
+            entriesById.put(caissier.id(), buildCashierEntry(
+                    caissier.id(), caissier.firstName(), caissier.lastName(), caissier.email(),
+                    caissier.role(), ordersByCashier, collectedPerCashier, invoiceStatuses));
+        }
+
+        for (Order order : dayOrders) {
+            User creator = order.getCreatedBy();
+            if (creator == null || entriesById.containsKey(creator.getId())) {
+                continue;
+            }
+            entriesById.put(creator.getId(), buildCashierEntry(
+                    creator.getId(), creator.getFirstName(), creator.getLastName(), creator.getEmail(),
+                    creator.getRole() != null ? creator.getRole().name() : null,
+                    ordersByCashier, collectedPerCashier, invoiceStatuses));
+        }
+
+        List<Map<String, Object>> cashiers = entriesById.values().stream()
+                .sorted(Comparator.comparing(
+                        (Map<String, Object> e) -> (BigDecimal) e.get("daySales")).reversed())
                 .collect(Collectors.toList());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("selectedDate", target.toString());
-
-        // Indicateurs de la journée
-        result.put("daySales", daySales);
-        result.put("dayOrdersCount", dayHonoredOrders.size());
-        result.put("dayCanceledCount", dayCanceledCount);
-        result.put("dayItemsCount", dayItemsCount);
-        result.put("averageBasket", averageBasket);
-
-        // À faire
-        result.put("pendingInvoicesCount", myPendingInvoices.size());
-        result.put("pendingInvoicesAmount", myPendingInvoicesAmount);
-        result.put("pendingDeliveriesCount", myPendingDeliveries.size());
-
-        // Listes
-        result.put("dayOrders", dayOrders.stream().map(this::mapOrder).collect(Collectors.toList()));
-        result.put("pendingInvoices", myPendingInvoices.stream().limit(5).map(this::mapInvoice).collect(Collectors.toList()));
-        result.put("pendingDeliveries", myPendingDeliveries.stream().limit(5).map(this::mapDelivery).collect(Collectors.toList()));
+        // Totaux calculés sur l'ensemble des commandes du jour, pas en resommant les lignes
+        // par caissier : les commandes sans créateur (imports, reprises) restent comptées.
+        result.putAll(buildDayMetrics(dayOrders, totalOf(collectedPerCashier)));
+        result.put("hourlySales", buildHourlySales(honoredOrders(dayOrders)));
+        result.put("activeCashiers", ordersByCashier.values().stream()
+                .filter(orders -> !honoredOrders(orders).isEmpty())
+                .count());
+        result.put("cashiers", cashiers);
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Ligne de détail d'un opérateur de caisse. Le rôle est exposé pour que l'UI puisse
+     * signaler une ligne non-caissier plutôt que de la présenter comme un caissier ordinaire.
+     */
+    private Map<String, Object> buildCashierEntry(Long userId, String firstName, String lastName,
+                                                  String email, String role,
+                                                  Map<Long, List<Order>> ordersByCashier,
+                                                  Map<Long, BigDecimal> collectedPerCashier,
+                                                  Map<Long, Invoice.InvoiceStatus> invoiceStatuses) {
+        List<Order> orders = ordersByCashier.getOrDefault(userId, Collections.emptyList());
+        BigDecimal collected = collectedPerCashier.getOrDefault(userId, BigDecimal.ZERO);
+
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("cashierId", userId);
+        entry.put("firstName", firstName);
+        entry.put("lastName", lastName);
+        entry.put("email", email);
+        entry.put("role", role);
+        entry.putAll(buildDayMetrics(orders, collected));
+        entry.put("dayOrders", mapDayOrders(orders, invoiceStatuses));
+        return entry;
+    }
+
+    /** Commandes honorées : les annulées n'ont jamais été encaissées, elles sortent du financier. */
+    private List<Order> honoredOrders(List<Order> orders) {
+        return orders.stream()
+                .filter(o -> o.getStatus() != Order.OrderStatus.CANCELED)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Indicateurs d'une journée pour un périmètre de commandes donné (un caissier ou tous).
+     * Source unique des chiffres de la caisse : toute évolution ici se propage aux deux vues.
+     */
+    private Map<String, Object> buildDayMetrics(List<Order> orders, BigDecimal collected) {
+        List<Order> honored = honoredOrders(orders);
+
+        BigDecimal daySales = honored.stream()
+                .map(Order::getFinalAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        int dayItemsCount = honored.stream()
+                .flatMap(o -> o.getItems() != null ? o.getItems().stream() : java.util.stream.Stream.empty())
+                .mapToInt(it -> it.getQuantity() != null ? it.getQuantity() : 0)
+                .sum();
+
+        BigDecimal averageBasket = !honored.isEmpty()
+                ? daySales.divide(BigDecimal.valueOf(honored.size()), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        metrics.put("daySales", daySales);
+        metrics.put("dayCollected", collected);
+        metrics.put("dayOrdersCount", honored.size());
+        metrics.put("dayCanceledCount", (long) (orders.size() - honored.size()));
+        metrics.put("dayItemsCount", dayItemsCount);
+        metrics.put("averageBasket", averageBasket);
+        return metrics;
+    }
+
+    /**
+     * Commandes du jour enrichies du statut de facturation, pour distinguer une commande
+     * facturée mais réglée (affichée « Payée ») d'une commande seulement facturée.
+     */
+    private List<Map<String, Object>> mapDayOrders(List<Order> orders) {
+        List<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toList());
+        return mapDayOrders(orders, invoiceService.getInvoiceStatusesByOrderIds(orderIds));
+    }
+
+    /**
+     * Variante à statuts pré-chargés : la supervision résout les statuts une fois pour toute
+     * la journée, au lieu d'une requête par caissier.
+     */
+    private List<Map<String, Object>> mapDayOrders(List<Order> orders,
+                                                   Map<Long, Invoice.InvoiceStatus> invoiceStatuses) {
+        return orders.stream()
+                .map(o -> {
+                    Map<String, Object> data = mapOrder(o);
+                    data.put("invoiceStatus", invoiceStatuses.get(o.getId()));
+                    return data;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private BigDecimal totalOf(Map<Long, BigDecimal> amountsByCashier) {
+        return amountsByCashier.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Ventes agrégées par heure (0–23) à partir des commandes honorées de la journée.
+     * Renvoie une plage contiguë [première heure active, dernière heure active], les heures
+     * creuses intermédiaires étant remplies à zéro pour un histogramme lisible. Liste vide si
+     * aucune commande.
+     */
+    private List<Map<String, Object>> buildHourlySales(List<Order> honoredOrders) {
+        if (honoredOrders.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Integer, BigDecimal> salesByHour = new TreeMap<>();
+        Map<Integer, Integer> ordersByHour = new TreeMap<>();
+        for (Order o : honoredOrders) {
+            if (o.getCreatedAt() == null) continue;
+            int hour = o.getCreatedAt().getHour();
+            BigDecimal amount = o.getFinalAmount() != null ? o.getFinalAmount() : BigDecimal.ZERO;
+            salesByHour.merge(hour, amount, BigDecimal::add);
+            ordersByHour.merge(hour, 1, Integer::sum);
+        }
+
+        if (salesByHour.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        int minHour = Collections.min(salesByHour.keySet());
+        int maxHour = Collections.max(salesByHour.keySet());
+
+        List<Map<String, Object>> buckets = new ArrayList<>();
+        for (int h = minHour; h <= maxHour; h++) {
+            Map<String, Object> bucket = new LinkedHashMap<>();
+            bucket.put("hour", h);
+            bucket.put("label", String.format("%02dh", h));
+            bucket.put("sales", salesByHour.getOrDefault(h, BigDecimal.ZERO));
+            bucket.put("orders", ordersByHour.getOrDefault(h, 0));
+            buckets.add(bucket);
+        }
+        return buckets;
     }
 
     private Long currentUserId() {
@@ -328,34 +535,5 @@ public class DashboardController {
             return ((User) auth.getPrincipal()).getId();
         }
         return null;
-    }
-
-    private Map<String, Object> mapInvoice(Invoice invoice) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", invoice.getId());
-        data.put("invoiceNumber", invoice.getInvoiceNumber());
-        data.put("orderNumber", invoice.getOrder() != null ? invoice.getOrder().getOrderNumber() : null);
-        data.put("clientName", invoice.getOrder() != null && invoice.getOrder().getClient() != null
-                ? invoice.getOrder().getClient().getFirstName() + " " + invoice.getOrder().getClient().getLastName()
-                : "N/A");
-        data.put("totalAmount", invoice.getTotalAmount());
-        data.put("remainingAmount", invoice.getRemainingAmount());
-        data.put("dueDate", invoice.getDueDate());
-        data.put("status", invoice.getStatus());
-        return data;
-    }
-
-    private Map<String, Object> mapDelivery(Delivery delivery) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", delivery.getId());
-        data.put("deliveryNumber", delivery.getDeliveryNumber());
-        data.put("orderNumber", delivery.getOrder() != null ? delivery.getOrder().getOrderNumber() : null);
-        data.put("clientName", delivery.getOrder() != null && delivery.getOrder().getClient() != null
-                ? delivery.getOrder().getClient().getFirstName() + " " + delivery.getOrder().getClient().getLastName()
-                : "N/A");
-        data.put("contactName", delivery.getContactName());
-        data.put("scheduledDate", delivery.getScheduledDate());
-        data.put("status", delivery.getStatus());
-        return data;
     }
 }

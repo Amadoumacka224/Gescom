@@ -14,6 +14,7 @@ public class ClientMapper {
                 client.getId(),
                 client.getFirstName(),
                 client.getLastName(),
+                buildFullName(client),
                 client.getEmail(),
                 client.getPhone(),
                 client.getAddress(),
@@ -26,6 +27,14 @@ public class ClientMapper {
                 client.getCreatedAt(),
                 client.getUpdatedAt()
         );
+    }
+
+    // Concatène prénom et nom en un nom complet propre (gère les valeurs manquantes).
+    private String buildFullName(Client client) {
+        return java.util.stream.Stream.of(client.getFirstName(), client.getLastName())
+                .filter(part -> part != null && !part.isBlank())
+                .reduce((a, b) -> a + " " + b)
+                .orElse("");
     }
 
     public Client toEntity(ClientRequest request) {

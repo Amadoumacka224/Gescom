@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, DollarSign, ArrowUpDown, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { Plus, Search, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, Euro, ArrowUpDown, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import productService from '../services/productService';
@@ -11,6 +12,9 @@ import FormInput from '../components/FormInput';
 import FormSelect from '../components/FormSelect';
 import Button from '../components/Button';
 import Table from '../components/Table';
+import SearchBox from '../components/SearchBox';
+import { rankSuggestions } from '../utils/searchSuggestions';
+import i18n from '../i18n';
 
 const Products = () => {
   const { t } = useTranslation();
@@ -37,7 +41,8 @@ const Products = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  // On affiche le maximum de produits par page par défaut (100, le plus grand pas du sélecteur).
+  const [itemsPerPage, setItemsPerPage] = useState(100);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -98,23 +103,21 @@ const Products = () => {
     setLoading(true);
 
     try {
-      // Préparer les données du produit
+      // Préparer les données du produit. Le backend (ProductRequest) attend `categoryId` (Long),
+      // pas un objet `category` : on envoie donc l'identifiant numérique (ou null si aucune catégorie).
       const productData = {
         ...formData,
-        category: formData.categoryId ? { id: parseInt(formData.categoryId) } : null
+        categoryId: formData.categoryId ? parseInt(formData.categoryId) : null
       };
-
-      // Supprimer categoryId car le backend attend category
-      delete productData.categoryId;
-
-      console.log('Sending product data:', productData);
+      // On retire l'objet `category` éventuellement hérité du produit en édition (champ inconnu du DTO).
+      delete productData.category;
 
       if (editingProduct) {
         await productService.updateProduct(editingProduct.id, productData);
-        alert('✅ Produit modifié avec succès!');
+        toast.success(t('products.updatedSuccess'));
       } else {
         await productService.createProduct(productData);
-        alert('✅ Produit créé avec succès!');
+        toast.success(t('products.createdSuccess'));
       }
 
       await fetchProducts();
@@ -123,7 +126,7 @@ const Products = () => {
       console.error('Error saving product:', error);
       console.error('Error response:', error.response);
       const errorMessage = error.response?.data || error.message || 'Erreur lors de l\'enregistrement du produit';
-      alert('❌ Erreur: ' + errorMessage);
+      toast.error(t('common.errorPrefixed', { message: errorMessage }));
     } finally {
       setLoading(false);
     }
@@ -152,13 +155,13 @@ const Products = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
+    if (window.confirm(t('products.confirmDelete'))) {
       try {
         await productService.deleteProduct(id);
         await fetchProducts();
       } catch (error) {
         console.error('Error deleting product:', error);
-        alert('Erreur lors de la suppression du produit');
+        toast.error(t('products.deleteError'));
       }
     }
   };
@@ -187,13 +190,13 @@ const Products = () => {
     if (file) {
       // Vérifier le type de fichier
       if (!file.type.startsWith('image/')) {
-        alert('Veuillez sélectionner une image valide');
+        toast.error(t('products.selectValidImage'));
         return;
       }
 
       // Vérifier la taille du fichier (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('L\'image ne doit pas dépasser 5MB');
+        toast.error(t('products.imageSizeLimit'));
         return;
       }
 
@@ -258,9 +261,18 @@ const Products = () => {
   };
 
   const filteredProducts = products.filter((product) =>
-    `${product.name} ${product.code} ${product.category?.name || ''}`
+    `${product.name} ${product.code} ${product.barcode || ''} ${product.category?.name || ''}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
+  );
+
+  // Suggestions d'autocomplétion classées par pertinence (nom prioritaire sur
+  // code / code-barres / catégorie), distinctes du filtrage du tableau.
+  const productSuggestions = rankSuggestions(
+    products,
+    searchTerm,
+    (p) => [p.name, p.code, p.barcode, p.category?.name],
+    8
   );
 
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -280,6 +292,10 @@ const Products = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedProducts = sortedProducts.slice(startIndex, endIndex);
 
+  // On affiche le maximum de produits : la liste complète, triée et paginée (jusqu'à 100 par page),
+  // que l'on soit en navigation normale ou en recherche.
+  const displayedProducts = paginatedProducts;
+
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -298,7 +314,7 @@ const Products = () => {
   const columns = [
     {
       key: 'code',
-      label: 'Code',
+      label: t('products.code'),
       render: (product) => (
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-900">{product.code}</span>
@@ -313,7 +329,7 @@ const Products = () => {
     },
     {
       key: 'name',
-      label: 'Produit',
+      label: t('common.product'),
       render: (product) => (
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
@@ -328,17 +344,17 @@ const Products = () => {
     },
     {
       key: 'category',
-      label: 'Catégorie',
+      label: t('products.category'),
       render: (product) => (
         <span className="text-sm text-gray-600">{product.category?.name || '-'}</span>
       )
     },
     {
       key: 'sellingPrice',
-      label: 'Prix Vente',
+      label: t('products.sellingPrice'),
       render: (product) => (
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-900">{product.sellingPrice}€</span>
+          <span className="subsection-title">{product.sellingPrice}€</span>
           <button
             onClick={() => handleSort('sellingPrice')}
             className="text-gray-400 hover:text-gray-600"
@@ -350,20 +366,20 @@ const Products = () => {
     },
     {
       key: 'stockQuantity',
-      label: 'Stock',
+      label: t('products.stock'),
       render: (product) => (
         <div className="flex items-center gap-2">
           <span className={`font-medium ${
             product.stockQuantity === 0
               ? 'text-red-600'
               : product.stockQuantity < product.minStockAlert
-              ? 'text-orange-600'
+              ? 'text-amber-600'
               : 'text-green-600'
           }`}>
             {product.stockQuantity}
           </span>
           {product.stockQuantity < product.minStockAlert && (
-            <AlertTriangle className="w-4 h-4 text-orange-600" />
+            <AlertTriangle className="w-4 h-4 text-amber-600" />
           )}
           <button
             onClick={() => handleSort('stockQuantity')}
@@ -376,7 +392,7 @@ const Products = () => {
     },
     {
       key: 'active',
-      label: 'Statut',
+      label: t('products.columnStatus'),
       render: (product) => (
         <span className={`badge ${product.active ? 'badge-success' : 'badge-danger'}`}>
           {product.active ? 'Actif' : 'Inactif'}
@@ -388,16 +404,22 @@ const Products = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('products.title')}</h1>
-          <p className="text-gray-600 mt-1">Gérez votre catalogue de produits</p>
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <Package aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('products.title')}</h1>
+            <p className="page-subtitle">{t('products.subtitle')}</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
             icon={RefreshCw}
             onClick={fetchProducts}
+            loading={loading}
           >
             Actualiser
           </Button>
@@ -406,7 +428,7 @@ const Products = () => {
               <Button
                 variant="secondary"
                 icon={Upload}
-                onClick={() => alert('Import en cours de développement')}
+                onClick={() => toast(t('common.comingSoon'), { icon: 'ℹ️' })}
               >
                 Importer
               </Button>
@@ -431,43 +453,43 @@ const Products = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+        <div className="stat-tile-info">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-600 font-medium">Total Produits</p>
-              <p className="text-3xl font-bold text-blue-700">{totalProducts}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('products.totalCount')}</p>
+              <p className="text-3xl font-bold text-current">{totalProducts}</p>
             </div>
-            <Package className="w-12 h-12 text-blue-600 opacity-50" />
+            <Package className="w-12 h-12 text-current opacity-60" />
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-red-50 to-orange-50 border-red-200">
+        <div className="stat-tile-danger">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-red-600 font-medium">Rupture de Stock</p>
-              <p className="text-3xl font-bold text-red-700">{outOfStockCount}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('products.outOfStockLabel')}</p>
+              <p className="text-3xl font-bold text-current">{outOfStockCount}</p>
             </div>
-            <TrendingDown className="w-12 h-12 text-red-600 opacity-50" />
+            <TrendingDown className="w-12 h-12 text-current opacity-60" />
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-orange-50 to-yellow-50 border-orange-200">
+        <div className="stat-tile-warning">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-orange-600 font-medium">Stock Faible</p>
-              <p className="text-3xl font-bold text-orange-700">{lowStockCount}</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('products.lowStockLabel')}</p>
+              <p className="text-3xl font-bold text-current">{lowStockCount}</p>
             </div>
-            <AlertTriangle className="w-12 h-12 text-orange-600 opacity-50" />
+            <AlertTriangle className="w-12 h-12 text-current opacity-60" />
           </div>
         </div>
 
-        <div className="card bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+        <div className="stat-tile-success">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-green-600 font-medium">Valeur du Stock</p>
-              <p className="text-3xl font-bold text-green-700">{stockValue.toFixed(2)}€</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{t('products.stockValueLabel')}</p>
+              <p className="text-3xl font-bold text-current">{stockValue.toFixed(2)}€</p>
             </div>
-            <DollarSign className="w-12 h-12 text-green-600 opacity-50" />
+            <Euro className="w-12 h-12 text-current opacity-60" />
           </div>
         </div>
       </div>
@@ -475,16 +497,28 @@ const Products = () => {
       {/* Search & View Toggle */}
       <div className="card">
         <div className="flex items-center gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('common.search') + ' produits par code, nom ou catégorie...'}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input-field pl-10"
-            />
-          </div>
+          <SearchBox
+            className="flex-1"
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={t('products.searchPlaceholder')}
+            suggestions={productSuggestions}
+            getKey={(p) => p.id}
+            onSelectSuggestion={(p) => setSearchTerm(p.name)}
+            renderSuggestion={(p) => (
+              <span className="flex items-center justify-between gap-2">
+                <span className="flex flex-col min-w-0">
+                  <span className="font-medium truncate">{p.name}</span>
+                  <span className="text-xs text-gray-400 truncate">
+                    Code : {p.code}{p.barcode ? ` · ${p.barcode}` : ''}
+                  </span>
+                </span>
+                <span className="text-xs text-gray-500 shrink-0">
+                  {Number(p.sellingPrice).toFixed(2)} € · {p.stockQuantity} {p.unit}
+                </span>
+              </span>
+            )}
+          />
           <div className="flex items-center gap-2 border border-gray-300 rounded-lg p-1">
             <button
               onClick={() => handleViewModeChange('list')}
@@ -493,7 +527,7 @@ const Products = () => {
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
-              title="Vue liste"
+              title={t('products.listViewTitle')}
             >
               <List className="w-5 h-5" />
             </button>
@@ -504,7 +538,7 @@ const Products = () => {
                   ? 'bg-primary-600 text-white'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
-              title="Vue grille"
+              title={t('products.gridViewTitle')}
             >
               <Grid3x3 className="w-5 h-5" />
             </button>
@@ -517,29 +551,31 @@ const Products = () => {
         <div className="card overflow-hidden">
           <Table
             columns={columns}
-            data={paginatedProducts}
+            data={displayedProducts}
             actions={(product) => (
               <>
                 <button
                   onClick={() => handleViewDetails(product)}
                   className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Voir les détails"
+                  title={t('common.viewDetails')}
                 >
                   <Eye className="w-4 h-4" />
                 </button>
+                {/* Le caissier est en lecture seule sur les produits : seules les actions
+                    « Modifier » et « Supprimer » sont réservées à l'ADMIN. */}
                 {isAdmin && (
                   <>
                     <button
                       onClick={() => handleEdit(product)}
                       className="text-primary-600 hover:text-primary-900 p-2 hover:bg-primary-50 rounded-lg transition-colors"
-                      title="Modifier"
+                      title={t('common.edit')}
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(product.id)}
                       className="text-red-600 hover:text-red-900 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Supprimer"
+                      title={t('common.delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -549,7 +585,7 @@ const Products = () => {
             )}
           />
 
-          {/* Pagination */}
+          {/* Pagination : affichée dès qu'il y a des produits (la liste complète est montrée). */}
           {sortedProducts.length > 0 && (
             <Pagination
               currentPage={currentPage}
@@ -563,12 +599,12 @@ const Products = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {sortedProducts.length === 0 ? (
+          {displayedProducts.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
               Aucun produit disponible
             </div>
           ) : (
-            paginatedProducts.map((product, index) => (
+            displayedProducts.map((product, index) => (
               <motion.div
                 key={product.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -607,7 +643,7 @@ const Products = () => {
                   )}
                   {product.stockQuantity > 0 && product.stockQuantity < product.minStockAlert && (
                     <div className="absolute top-2 left-2">
-                      <span className="badge bg-orange-100 text-orange-700 border-orange-200 flex items-center gap-1">
+                      <span className="badge-warning">
                         <AlertTriangle className="w-3 h-3" />
                         Stock faible
                       </span>
@@ -618,23 +654,24 @@ const Products = () => {
                     <button
                       onClick={(e) => { e.stopPropagation(); handleViewDetails(product); }}
                       className="bg-white text-gray-700 p-3 rounded-lg hover:bg-gray-100 transition-colors"
-                      title="Voir les détails"
+                      title={t('common.viewDetails')}
                     >
                       <Eye className="w-5 h-5" />
                     </button>
+                    {/* Caissier en lecture seule : édition et suppression réservées à l'ADMIN. */}
                     {isAdmin && (
                       <>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleEdit(product); }}
                           className="bg-white text-primary-600 p-3 rounded-lg hover:bg-primary-50 transition-colors"
-                          title="Modifier"
+                          title={t('common.edit')}
                         >
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(product.id); }}
                           className="bg-white text-red-600 p-3 rounded-lg hover:bg-red-50 transition-colors"
-                          title="Supprimer"
+                          title={t('common.delete')}
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
@@ -664,16 +701,16 @@ const Products = () => {
 
                   <div className="pt-2 border-t border-gray-200">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Prix de vente</span>
+                      <span className="text-sm text-gray-600">{t('products.sellingPrice')}</span>
                       <span className="text-lg font-bold text-primary-600">{product.sellingPrice}€</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Stock</span>
+                      <span className="text-sm text-gray-600">{t('products.stock')}</span>
                       <span className={`font-semibold ${
                         product.stockQuantity === 0
                           ? 'text-red-600'
                           : product.stockQuantity < product.minStockAlert
-                          ? 'text-orange-600'
+                          ? 'text-amber-600'
                           : 'text-green-600'
                       }`}>
                         {product.stockQuantity} {product.unit?.toLowerCase() || ''}
@@ -685,7 +722,7 @@ const Products = () => {
             ))
           )}
 
-          {/* Pagination */}
+          {/* Pagination : affichée dès qu'il y a des produits (la liste complète est montrée). */}
           {sortedProducts.length > 0 && (
             <div className="col-span-full mt-6">
               <div className="card">
@@ -716,59 +753,59 @@ const Products = () => {
               <Package className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-sm font-medium text-blue-900">Code produit: {editingProduct.code}</p>
-                <p className="text-xs text-blue-700">Le code produit ne peut pas être modifié</p>
+                <p className="text-xs text-blue-700">{t('products.codeImmutable')}</p>
               </div>
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormInput
-              label="Nom du produit"
+              label={t('products.nameLabel')}
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              placeholder="Nom du produit"
+              placeholder={t('products.namePlaceholder')}
               required
               icon={Package}
             />
 
             <div className="md:col-span-2">
               <FormInput
-                label="Description"
+                label={t('common.description')}
                 name="description"
                 type="textarea"
                 value={formData.description}
                 onChange={handleInputChange}
-                placeholder="Description du produit"
+                placeholder={t('products.descriptionPlaceholder')}
               />
             </div>
 
             <FormSelect
-              label="Catégorie"
+              label={t('products.categoryLabel')}
               name="categoryId"
               value={formData.categoryId}
               onChange={handleInputChange}
               options={categories.map(cat => ({ value: cat.id, label: cat.name }))}
-              placeholder="Sélectionner une catégorie"
+              placeholder={t('products.selectCategory')}
             />
 
             <FormSelect
-              label="Unité"
+              label={t('products.unitLabel')}
               name="unit"
               value={formData.unit}
               onChange={handleInputChange}
               required
               options={[
-                { value: 'PIECE', label: 'Pièce' },
-                { value: 'KILOGRAM', label: 'Kilogramme' },
-                { value: 'LITER', label: 'Litre' },
-                { value: 'METER', label: 'Mètre' },
-                { value: 'BOX', label: 'Boîte' }
+                { value: 'PIECE', label: t('products.units.PIECE') },
+                { value: 'KILOGRAM', label: t('products.units.KILOGRAM') },
+                { value: 'LITER', label: t('products.units.LITER') },
+                { value: 'METER', label: t('products.units.METER') },
+                { value: 'BOX', label: t('products.units.BOX') }
               ]}
             />
 
             <FormInput
-              label="Prix d'achat"
+              label={t('products.purchasePriceLabel')}
               name="purchasePrice"
               type="number"
               step="0.01"
@@ -776,11 +813,11 @@ const Products = () => {
               onChange={handleInputChange}
               placeholder="0.00"
               required
-              icon={DollarSign}
+              icon={Euro}
             />
 
             <FormInput
-              label="Prix de vente"
+              label={t('products.sellingPriceLabel')}
               name="sellingPrice"
               type="number"
               step="0.01"
@@ -788,11 +825,11 @@ const Products = () => {
               onChange={handleInputChange}
               placeholder="0.00"
               required
-              icon={DollarSign}
+              icon={Euro}
             />
 
             <FormInput
-              label="Quantité en stock"
+              label={t('products.stockQuantityLabel')}
               name="stockQuantity"
               type="number"
               value={formData.stockQuantity}
@@ -803,7 +840,7 @@ const Products = () => {
             />
 
             <FormInput
-              label="Stock minimum (alerte)"
+              label={t('products.minStockAlertLabel')}
               name="minStockAlert"
               type="number"
               value={formData.minStockAlert}
@@ -814,7 +851,7 @@ const Products = () => {
             />
 
             <FormInput
-              label="Code-barres"
+              label={t('products.barcodeLabel')}
               name="barcode"
               value={formData.barcode}
               onChange={handleInputChange}
@@ -835,7 +872,7 @@ const Products = () => {
                     <div className="relative w-full h-full group">
                       <img
                         src={imagePreview || formData.imageUrl}
-                        alt="Preview"
+                        alt={t('products.imagePreviewAlt')}
                         className="w-full h-full object-cover"
                       />
                       <button
@@ -876,7 +913,7 @@ const Products = () => {
                 </p>
                 <div className="pt-2">
                   <FormInput
-                    label="Ou entrez l'URL de l'image"
+                    label={t('products.imageUrlLabel')}
                     name="imageUrl"
                     value={formData.imageUrl}
                     onChange={handleInputChange}
@@ -938,15 +975,16 @@ const Products = () => {
         <Modal
           isOpen={showDetailsModal}
           onClose={handleCloseDetails}
-          title="Détails du produit"
+          title={t('products.productDetails')}
           size="lg"
         >
           <ProductDetails
             product={selectedProduct}
-            onEdit={() => {
+            // Caissier en lecture seule : pas de onEdit → le bouton « Modifier » du détail disparaît.
+            onEdit={isAdmin ? () => {
               handleCloseDetails();
               handleEdit(selectedProduct);
-            }}
+            } : undefined}
             onClose={handleCloseDetails}
           />
         </Modal>
@@ -957,9 +995,10 @@ const Products = () => {
 };
 
 const formatDateTime = (value) => {
+  // Convention de date de la langue active (cf. `export.locale`).
   if (!value) return '—';
   try {
-    return new Date(value).toLocaleString('fr-FR', {
+    return new Date(value).toLocaleString(i18n.t('export.locale'), {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });
@@ -969,6 +1008,7 @@ const formatDateTime = (value) => {
 };
 
 const ProductDetails = ({ product, onEdit, onClose }) => {
+  const { t } = useTranslation();
   const purchase = Number(product.purchasePrice) || 0;
   const selling = Number(product.sellingPrice) || 0;
   const stock = Number(product.stockQuantity) || 0;
@@ -979,11 +1019,11 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
 
   let stockStatus;
   if (stock === 0) {
-    stockStatus = { label: 'Rupture de stock', class: 'badge-danger', icon: TrendingDown };
+    stockStatus = { label: t('stock.statOut'), class: 'badge-danger', icon: TrendingDown };
   } else if (stock < minAlert) {
-    stockStatus = { label: 'Stock faible', class: 'bg-orange-100 text-orange-700 border-orange-200', icon: AlertTriangle };
+    stockStatus = { label: t('stock.status.low'), class: 'badge-warning', icon: AlertTriangle };
   } else {
-    stockStatus = { label: 'Stock normal', class: 'badge-success', icon: TrendingUp };
+    stockStatus = { label: t('products.stockNormal'), class: 'badge-success', icon: TrendingUp };
   }
   const StockIcon = stockStatus.icon;
 
@@ -1010,7 +1050,7 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
               </span>
             )}
           </div>
-          <h2 className="text-xl font-bold text-gray-900 break-words">{product.name}</h2>
+          <h2 className="modal-title break-words">{product.name}</h2>
           <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
             <Hash className="w-3 h-3" />
             {product.code}
@@ -1027,7 +1067,7 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
       {/* Description */}
       {product.description && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
+          <h3 className="subsection-title mb-2">{t('common.description')}</h3>
           <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg">
             {product.description}
           </p>
@@ -1036,20 +1076,20 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
 
       {/* Prix & marge */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-          <DollarSign className="w-4 h-4" /> Prix
+        <h3 className="subsection-title mb-2 flex items-center gap-2">
+          <Euro className="w-4 h-4" /> Prix
         </h3>
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Prix d'achat</p>
+            <p className="text-xs text-gray-500">{t('products.purchasePrice')}</p>
             <p className="text-lg font-semibold text-gray-900">{purchase.toFixed(2)}€</p>
           </div>
           <div className="bg-primary-50 rounded-lg p-3">
-            <p className="text-xs text-primary-600">Prix de vente</p>
+            <p className="text-xs text-primary-600">{t('products.sellingPrice')}</p>
             <p className="text-lg font-semibold text-primary-700">{selling.toFixed(2)}€</p>
           </div>
           <div className={`rounded-lg p-3 ${marginAbs >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-            <p className={`text-xs ${marginAbs >= 0 ? 'text-green-600' : 'text-red-600'}`}>Marge brute</p>
+            <p className={`text-xs ${marginAbs >= 0 ? 'text-green-600' : 'text-red-600'}`}>{t('products.grossMargin')}</p>
             <p className={`text-lg font-semibold ${marginAbs >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               {marginAbs.toFixed(2)}€
               {marginPct !== null && (
@@ -1062,26 +1102,26 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
 
       {/* Stock */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+        <h3 className="subsection-title mb-2 flex items-center gap-2">
           <Package className="w-4 h-4" /> Stock
         </h3>
         <div className="grid grid-cols-3 gap-3 mb-3">
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Quantité actuelle</p>
+            <p className="text-xs text-gray-500">{t('products.currentQuantity')}</p>
             <p className="text-lg font-semibold text-gray-900">
               {stock} <span className="text-sm font-normal text-gray-500">{product.unit || ''}</span>
             </p>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Seuil d'alerte</p>
+            <p className="text-xs text-gray-500">{t('products.alertThreshold')}</p>
             <p className="text-lg font-semibold text-gray-900">{minAlert}</p>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Valeur du stock</p>
+            <p className="text-xs text-gray-500">{t('stock.statValue')}</p>
             <p className="text-lg font-semibold text-gray-900">{stockValue.toFixed(2)}€</p>
           </div>
         </div>
-        <span className={`badge ${stockStatus.class} inline-flex items-center gap-1`}>
+        <span className={stockStatus.class}>
           <StockIcon className="w-3 h-3" />
           {stockStatus.label}
         </span>
@@ -1103,9 +1143,13 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
         <Button variant="secondary" type="button" onClick={onClose}>
           Fermer
         </Button>
-        <Button variant="primary" type="button" icon={Edit} onClick={onEdit}>
-          Modifier
-        </Button>
+        {/* « Modifier » n'est rendu que si l'appelant fournit onEdit (ADMIN) : le caissier,
+            en lecture seule, ne voit que « Fermer ». */}
+        {onEdit && (
+          <Button variant="primary" type="button" icon={Edit} onClick={onEdit}>
+            Modifier
+          </Button>
+        )}
       </div>
     </div>
   );

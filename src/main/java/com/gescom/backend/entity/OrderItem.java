@@ -9,6 +9,12 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
+/**
+ * Ligne de commande : un produit, une quantité et le prix au moment de la vente.
+ * Le prix unitaire est figé ici (copié depuis le produit lors de la création par OrderService)
+ * pour que la commande ne soit pas affectée par les changements de tarif ultérieurs.
+ * La référence vers l'Order est masquée du JSON (@JsonIgnore) afin d'éviter la récursion infinie.
+ */
 @Entity
 @Table(name = "order_items")
 @Data

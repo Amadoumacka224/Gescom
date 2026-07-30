@@ -1,18 +1,24 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.common.PageResponse;
 import com.gescom.backend.dto.product.ProductResponse;
 import com.gescom.backend.dto.stock.StockAddRequest;
 import com.gescom.backend.dto.stock.StockAdjustRequest;
 import com.gescom.backend.dto.stock.StockDamageRequest;
 import com.gescom.backend.dto.stock.StockMovementResponse;
 import com.gescom.backend.dto.stock.StockRemoveRequest;
+import com.gescom.backend.dto.stock.StockReturnRequest;
 import com.gescom.backend.entity.StockMovement;
 import com.gescom.backend.entity.User;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.ProductMapper;
 import com.gescom.backend.mapper.StockMovementMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.StockService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -54,10 +60,19 @@ public class StockController {
         return null;
     }
 
+    // Le grand livre des mouvements est append-only : ses listes sont paginées, contrairement
+    // à /export qui doit rester exhaustif.
     @GetMapping("/movements")
-    public ResponseEntity<List<StockMovementResponse>> getAllMovements() {
-        return ResponseEntity.ok(stockService.getAllMovements().stream()
-                .map(stockMovementMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<StockMovementResponse>> getAllMovements(
+            @RequestParam(required = false) StockMovement.MovementType type,
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                stockService.searchMovements(type, productId, start, end, search, pageable),
+                stockMovementMapper::toResponse));
     }
 
     @GetMapping("/movements/{id}")
@@ -65,27 +80,32 @@ public class StockController {
         return stockService.getMovementById(id)
                 .map(stockMovementMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("stockMovement", id));
     }
 
     @GetMapping("/movements/product/{productId}")
-    public ResponseEntity<List<StockMovementResponse>> getMovementsByProduct(@PathVariable Long productId) {
-        return ResponseEntity.ok(stockService.getMovementsByProduct(productId).stream()
-                .map(stockMovementMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<StockMovementResponse>> getMovementsByProduct(
+            @PathVariable Long productId,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                stockService.getMovementsByProduct(productId, pageable), stockMovementMapper::toResponse));
     }
 
     @GetMapping("/movements/type/{type}")
-    public ResponseEntity<List<StockMovementResponse>> getMovementsByType(@PathVariable StockMovement.MovementType type) {
-        return ResponseEntity.ok(stockService.getMovementsByType(type).stream()
-                .map(stockMovementMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<StockMovementResponse>> getMovementsByType(
+            @PathVariable StockMovement.MovementType type,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                stockService.getMovementsByType(type, pageable), stockMovementMapper::toResponse));
     }
 
     @GetMapping("/movements/date-range")
-    public ResponseEntity<List<StockMovementResponse>> getMovementsByDateRange(
+    public ResponseEntity<PageResponse<StockMovementResponse>> getMovementsByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return ResponseEntity.ok(stockService.getMovementsByDateRange(start, end).stream()
-                .map(stockMovementMapper::toResponse).toList());
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                stockService.getMovementsByDateRange(start, end, pageable), stockMovementMapper::toResponse));
     }
 
     // Les opérations d'écriture de stock sont réservées aux ADMIN (cohérent avec
@@ -122,6 +142,15 @@ public class StockController {
     public ResponseEntity<StockMovementResponse> recordDamage(@Valid @RequestBody StockDamageRequest request) {
         StockMovement movement = stockService.recordDamage(
                 request.productId(), request.quantity(), request.reason(), currentUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
+    }
+
+    @PostMapping("/return")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<StockMovementResponse> returnStock(@Valid @RequestBody StockReturnRequest request) {
+        StockMovement movement = stockService.returnStock(
+                request.productId(), request.quantity(),
+                request.reason(), request.reference(), currentUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
     }
 

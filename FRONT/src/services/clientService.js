@@ -8,6 +8,8 @@ const clientService = {
   updateClient: (id, client) => axios.put(`/clients/${id}`, client),
   deleteClient: (id) => axios.delete(`/clients/${id}`),
   deactivateClient: (id) => axios.patch(`/clients/${id}/deactivate`),
+  // Export CSV (réservé à l'ADMIN côté backend) : réponse binaire, d'où `responseType: 'blob'`.
+  exportClients: () => axios.get('/clients/export', { responseType: 'blob' }),
 };
 
 export default clientService;

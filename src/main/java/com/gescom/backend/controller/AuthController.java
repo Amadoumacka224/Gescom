@@ -1,7 +1,7 @@
 package com.gescom.backend.controller;
 
-import com.gescom.backend.dto.LoginRequest;
-import com.gescom.backend.dto.LoginResponse;
+import com.gescom.backend.dto.auth.LoginRequest;
+import com.gescom.backend.dto.auth.LoginResponse;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.security.JwtUtils;
@@ -10,14 +10,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,54 +44,44 @@ public class AuthController {
         return xfHeader.split(",")[0].trim();
     }
 
+    // Les échecs d'authentification (BadCredentials, DisabledException…) ne sont pas rattrapés
+    // ici : ils remontent au GlobalExceptionHandler qui produit un ErrorResponse homogène (401),
+    // identique au reste de l'API — le frontend n'a donc qu'un seul format d'erreur à traiter.
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request) {
+    public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
+                                                          HttpServletRequest request) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String jwt = jwtUtils.generateJwtToken(authentication);
+
+        User userDetails = (User) authentication.getPrincipal();
+
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            String jwt = jwtUtils.generateJwtToken(authentication);
-
-            User userDetails = (User) authentication.getPrincipal();
-
-            try {
-                activityLogService.logActivity(
-                    userDetails.getId(),
-                    ActivityLog.ActionType.LOGIN,
-                    "User",
-                    userDetails.getId(),
-                    "Connexion de l'utilisateur " + userDetails.getUsername(),
-                    null,
-                    getClientIp(request)
-                );
-            } catch (Exception e) {
-                log.warn("Échec du log de connexion: {}", e.getMessage());
-            }
-
-            return ResponseEntity.ok(new LoginResponse(
-                    jwt,
-                    userDetails.getId(),
-                    userDetails.getUsername(),
-                    userDetails.getFirstName(),
-                    userDetails.getLastName(),
-                    userDetails.getEmail(),
-                    userDetails.getPhone(),
-                    userDetails.getRole().name()
-            ));
-        } catch (DisabledException e) {
-            log.warn("Tentative de connexion sur un compte désactivé: {}", loginRequest.getUsername());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", "Ce compte est désactivé. Contactez un administrateur."));
-        } catch (BadCredentialsException e) {
-            log.warn("Échec de connexion (identifiants invalides): {}", loginRequest.getUsername());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", "Nom d'utilisateur ou mot de passe incorrect."));
-        } catch (AuthenticationException e) {
-            log.warn("Échec de connexion: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("message", "Échec de l'authentification."));
+            activityLogService.logActivity(
+                userDetails.getId(),
+                ActivityLog.ActionType.LOGIN,
+                "User",
+                userDetails.getId(),
+                "Connexion de l'utilisateur " + userDetails.getUsername(),
+                null,
+                getClientIp(request)
+            );
+        } catch (Exception e) {
+            log.warn("Échec du log de connexion: {}", e.getMessage());
         }
+
+        return ResponseEntity.ok(new LoginResponse(
+                jwt,
+                userDetails.getId(),
+                userDetails.getUsername(),
+                userDetails.getFirstName(),
+                userDetails.getLastName(),
+                userDetails.getEmail(),
+                userDetails.getPhone(),
+                userDetails.getRole().name()
+        ));
     }
 
     @PostMapping("/logout")

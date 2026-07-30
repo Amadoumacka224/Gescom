@@ -1,24 +1,31 @@
 package com.gescom.backend.controller;
 
-import com.gescom.backend.dto.activity.ActivityLogRequest;
 import com.gescom.backend.dto.activity.ActivityLogResponse;
+import com.gescom.backend.dto.activity.ActivityLogSummary;
+import com.gescom.backend.dto.common.PageResponse;
 import com.gescom.backend.entity.ActivityLog;
-import com.gescom.backend.entity.User;
-import com.gescom.backend.exception.BusinessException;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.ActivityLogMapper;
 import com.gescom.backend.service.ActivityLogService;
-import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
+/**
+ * Consultation (lecture seule) du journal d'activité. Les entrées sont produites
+ * automatiquement côté serveur par les services métier ; il n'existe volontairement
+ * PAS d'endpoint de création exposé, pour préserver l'intégrité de l'audit.
+ *
+ * Les listes sont paginées ({@link PageResponse}) : c'est le seul registre qui croît sans
+ * borne, et le renvoyer d'un bloc chargeait déjà près d'un mégaoctet par appel. Le filtrage
+ * est fait en base, faute de quoi il ne porterait que sur la page reçue.
+ */
 @RestController
 @RequestMapping("/api/activities")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")
@@ -32,19 +39,27 @@ public class ActivityLogController {
         this.activityLogMapper = activityLogMapper;
     }
 
-    private Long currentUserId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof User user) {
-            return user.getId();
-        }
-        throw new BusinessException("Aucun utilisateur authentifié");
-    }
-
+    /** Page du journal. Tous les critères sont optionnels et se combinent. */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ActivityLogResponse>> getAllActivities() {
-        return ResponseEntity.ok(activityLogService.getAllActivities().stream()
-                .map(activityLogMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<ActivityLogResponse>> getAllActivities(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) ActivityLog.ActionType actionType,
+            @RequestParam(required = false) String entity,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                activityLogService.searchActivities(userId, actionType, entity, start, end, search, pageable),
+                activityLogMapper::toResponse));
+    }
+
+    /** Indicateurs sur l'ensemble du journal (la page affichée n'en dit rien). */
+    @GetMapping("/summary")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ActivityLogSummary> getSummary() {
+        return ResponseEntity.ok(activityLogService.getSummary());
     }
 
     @GetMapping("/{id}")
@@ -53,57 +68,52 @@ public class ActivityLogController {
         return activityLogService.getActivityById(id)
                 .map(activityLogMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("activity", id));
     }
 
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#userId)")
-    public ResponseEntity<List<ActivityLogResponse>> getActivitiesByUser(@PathVariable Long userId) {
-        return ResponseEntity.ok(activityLogService.getActivitiesByUser(userId).stream()
-                .map(activityLogMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<ActivityLogResponse>> getActivitiesByUser(
+            @PathVariable Long userId,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                activityLogService.getActivitiesByUser(userId, pageable), activityLogMapper::toResponse));
     }
 
     @GetMapping("/action/{actionType}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ActivityLogResponse>> getActivitiesByActionType(@PathVariable ActivityLog.ActionType actionType) {
-        return ResponseEntity.ok(activityLogService.getActivitiesByActionType(actionType).stream()
-                .map(activityLogMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<ActivityLogResponse>> getActivitiesByActionType(
+            @PathVariable ActivityLog.ActionType actionType,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                activityLogService.getActivitiesByActionType(actionType, pageable), activityLogMapper::toResponse));
     }
 
     @GetMapping("/entity/{entity}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ActivityLogResponse>> getActivitiesByEntity(@PathVariable String entity) {
-        return ResponseEntity.ok(activityLogService.getActivitiesByEntity(entity).stream()
-                .map(activityLogMapper::toResponse).toList());
+    public ResponseEntity<PageResponse<ActivityLogResponse>> getActivitiesByEntity(
+            @PathVariable String entity,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                activityLogService.getActivitiesByEntity(entity, pageable), activityLogMapper::toResponse));
     }
 
     @GetMapping("/date-range")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ActivityLogResponse>> getActivitiesByDateRange(
+    public ResponseEntity<PageResponse<ActivityLogResponse>> getActivitiesByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return ResponseEntity.ok(activityLogService.getActivitiesByDateRange(start, end).stream()
-                .map(activityLogMapper::toResponse).toList());
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                activityLogService.getActivitiesByDateRange(start, end, pageable), activityLogMapper::toResponse));
     }
 
     @GetMapping("/caissiers")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ActivityLogResponse>> getCaissierActivities() {
-        return ResponseEntity.ok(activityLogService.getCaissierActivities().stream()
-                .map(activityLogMapper::toResponse).toList());
-    }
-
-    @PostMapping
-    public ResponseEntity<ActivityLogResponse> logActivity(@Valid @RequestBody ActivityLogRequest request) {
-        ActivityLog log = activityLogService.logActivity(
-                currentUserId(),
-                request.actionType(),
-                request.entity(),
-                request.entityId(),
-                request.description(),
-                request.details(),
-                request.ipAddress());
-        return ResponseEntity.status(HttpStatus.CREATED).body(activityLogMapper.toResponse(log));
+    public ResponseEntity<PageResponse<ActivityLogResponse>> getCaissierActivities(
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                activityLogService.getCaissierActivities(pageable), activityLogMapper::toResponse));
     }
 
     @DeleteMapping("/{id}")

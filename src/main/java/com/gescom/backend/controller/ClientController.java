@@ -3,6 +3,7 @@ package com.gescom.backend.controller;
 import com.gescom.backend.dto.client.ClientRequest;
 import com.gescom.backend.dto.client.ClientResponse;
 import com.gescom.backend.entity.Client;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.ClientMapper;
 import com.gescom.backend.service.ClientService;
 import com.gescom.backend.service.CsvExportService;
@@ -50,7 +51,7 @@ public class ClientController {
         return clientService.getClientById(id)
                 .map(clientMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("client", id));
     }
 
     @GetMapping("/email/{email}")
@@ -58,7 +59,7 @@ public class ClientController {
         return clientService.getClientByEmail(email)
                 .map(clientMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("client", "email", email));
     }
 
     @GetMapping("/type/{type}")

@@ -9,6 +9,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Service générique d'export CSV. Le rowMapper passé en paramètre rend la méthode réutilisable
+ * pour n'importe quel type de données (produits, commandes…). Détails d'interopérabilité Excel :
+ * séparateur « ; », BOM UTF-8 en tête de fichier, et échappement des valeurs contenant des
+ * caractères spéciaux (guillemets, retours ligne, séparateur).
+ */
 @Service
 public class CsvExportService {
 

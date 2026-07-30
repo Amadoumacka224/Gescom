@@ -4,6 +4,7 @@ import com.gescom.backend.dto.invoice.InvoiceCreateRequest;
 import com.gescom.backend.dto.invoice.InvoicePaymentRequest;
 import com.gescom.backend.dto.invoice.InvoiceResponse;
 import com.gescom.backend.entity.Invoice;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.InvoiceMapper;
 import com.gescom.backend.service.InvoiceService;
 import jakarta.validation.Valid;
@@ -40,7 +41,7 @@ public class InvoiceController {
         return invoiceService.getInvoiceById(id)
                 .map(invoiceMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
     }
 
     @GetMapping("/number/{invoiceNumber}")
@@ -48,7 +49,7 @@ public class InvoiceController {
         return invoiceService.getInvoiceByInvoiceNumber(invoiceNumber)
                 .map(invoiceMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", "number", invoiceNumber));
     }
 
     @GetMapping("/order/{orderId}")
@@ -56,7 +57,7 @@ public class InvoiceController {
         return invoiceService.getInvoiceByOrder(orderId)
                 .map(invoiceMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", "order", String.valueOf(orderId)));
     }
 
     @GetMapping("/status/{status}")

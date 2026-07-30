@@ -14,6 +14,12 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Entité produit du catalogue.
+ * Porte le prix d'achat (coût) et le prix de vente, la quantité en stock et le seuil
+ * d'alerte minStockAlert qui déclenche les notifications de stock bas. Les contraintes de
+ * validation (prix positifs, stock ≥ 0, code unique) protègent l'intégrité des données.
+ */
 @Entity
 @Table(name = "products")
 @Data
@@ -47,6 +53,7 @@ public class Product {
     @DecimalMin(value = "0.0", inclusive = true, message = "Le prix de vente doit être positif ou nul")
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal sellingPrice;
+
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id")
@@ -83,6 +90,7 @@ public class Product {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // Callbacks JPA : horodatage automatique de création et de dernière modification.
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -91,6 +99,7 @@ public class Product {
 
     @PreUpdate
     protected void onUpdate() {
+
         updatedAt = LocalDateTime.now();
     }
 }

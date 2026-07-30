@@ -8,6 +8,12 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Entité d'historique des mouvements de stock (traçabilité).
+ * Chaque ligne fige un instantané : le type de mouvement, la quantité concernée, et surtout
+ * le stock avant (previousStock) et après (newStock) — ce qui permet d'auditer et d'annuler
+ * un mouvement sans recalculer toute la chaîne. Renseigne aussi l'auteur et le motif.
+ */
 @Entity
 @Table(name = "stock_movements")
 @Data
@@ -61,7 +67,7 @@ public class StockMovement {
         STOCK_IN,           // Entrée de stock (achat, retour client, etc.)
         STOCK_OUT,          // Sortie de stock (vente, perte, etc.)
         ADJUSTMENT,         // Ajustement d'inventaire
-        RETURN,             // Retour fournisseur
+        RETURN,             // Retour client (la marchandise revient en stock)
         DAMAGE,             // Produit endommagé
         TRANSFER            // Transfert entre entrepôts
     }

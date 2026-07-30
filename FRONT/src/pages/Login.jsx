@@ -48,11 +48,15 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4 overflow-hidden">
+      {/* Halos décoratifs en arrière-plan */}
+      <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 bg-primary-300/30 rounded-full blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-secondary-300/30 rounded-full blur-3xl" />
+
       {/* Language Toggle */}
       <button
         onClick={toggleLanguage}
-        className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+        className="absolute top-6 right-6 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-soft ring-1 ring-gray-900/5 hover:shadow-card-hover transition-all duration-200"
       >
         <Globe className="w-4 h-4 text-primary-600" />
         <span className="text-sm font-medium text-gray-700">
@@ -64,7 +68,7 @@ const Login = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        className="relative z-10 w-full max-w-md"
       >
         {/* Logo & Title */}
         <div className="text-center mb-8">
@@ -99,7 +103,7 @@ const Login = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-white rounded-2xl shadow-xl p-8"
+          className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-elevated ring-1 ring-gray-900/5 p-8"
         >
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-1">
@@ -195,7 +199,7 @@ const Login = () => {
           transition={{ delay: 0.8 }}
           className="text-center text-sm text-gray-600 mt-6"
         >
-          © 2025 GESCOM. Tous droits réservés.
+          © 2026 GESCOM. Tous droits réservés.
         </motion.p>
       </motion.div>
     </div>

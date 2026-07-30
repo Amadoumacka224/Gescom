@@ -2,9 +2,12 @@ package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.delivery.DeliveryCreateRequest;
 import com.gescom.backend.dto.delivery.DeliveryResponse;
+import com.gescom.backend.dto.delivery.DeliveryStatusUpdateRequest;
 import com.gescom.backend.dto.delivery.DeliveryUpdateRequest;
+import com.gescom.backend.dto.delivery.MarkDeliveredRequest;
 import com.gescom.backend.entity.Delivery;
 import com.gescom.backend.exception.BusinessException;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.DeliveryMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.DeliveryService;
@@ -20,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/deliveries")
@@ -50,7 +52,7 @@ public class DeliveryController {
         return deliveryService.getDeliveryById(id)
                 .map(deliveryMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
     }
 
     @GetMapping("/number/{deliveryNumber}")
@@ -58,7 +60,7 @@ public class DeliveryController {
         return deliveryService.getDeliveryByDeliveryNumber(deliveryNumber)
                 .map(deliveryMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", "number", deliveryNumber));
     }
 
     @GetMapping("/order/{orderId}")
@@ -66,7 +68,7 @@ public class DeliveryController {
         return deliveryService.getDeliveryByOrder(orderId)
                 .map(deliveryMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", "order", String.valueOf(orderId)));
     }
 
     @GetMapping("/status/{status}")
@@ -98,24 +100,21 @@ public class DeliveryController {
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<DeliveryResponse> updateDeliveryStatus(@PathVariable Long id,
-                                                                  @RequestBody Map<String, String> request) {
-        String raw = request != null ? request.get("status") : null;
-        if (raw == null || raw.isBlank()) {
-            throw new BusinessException("Le champ 'status' est obligatoire");
-        }
+                                                                  @Valid @RequestBody DeliveryStatusUpdateRequest request) {
         Delivery.DeliveryStatus status;
         try {
-            status = Delivery.DeliveryStatus.valueOf(raw.trim().toUpperCase());
+            status = Delivery.DeliveryStatus.valueOf(request.status().trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new BusinessException("Statut de livraison inconnu : " + raw);
+            throw BusinessException.of("delivery.status.unknown",
+                    "Statut de livraison inconnu : " + request.status(), request.status());
         }
         return ResponseEntity.ok(deliveryMapper.toResponse(deliveryService.updateDeliveryStatus(id, status)));
     }
 
     @PatchMapping("/{id}/mark-delivered")
-    public ResponseEntity<DeliveryResponse> markAsDelivered(@PathVariable Long id, @RequestBody Map<String, String> request) {
-        String deliveredBy = request.get("deliveredBy");
-        return ResponseEntity.ok(deliveryMapper.toResponse(deliveryService.markAsDelivered(id, deliveredBy)));
+    public ResponseEntity<DeliveryResponse> markAsDelivered(@PathVariable Long id,
+                                                            @Valid @RequestBody MarkDeliveredRequest request) {
+        return ResponseEntity.ok(deliveryMapper.toResponse(deliveryService.markAsDelivered(id, request.deliveredBy())));
     }
 
     @DeleteMapping("/{id}")
