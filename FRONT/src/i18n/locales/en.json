@@ -1397,6 +1397,7 @@
     "showOrders": "Show orders",
     "hideOrders": "Hide orders",
     "loadError": "Failed to load the dashboard",
+    "openOrderAria": "Open order {{number}}",
     "columns": {
       "time": "Time",
       "orderNumber": "Order no.",
