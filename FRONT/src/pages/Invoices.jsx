@@ -556,7 +556,8 @@ const Invoices = () => {
     setAdvanced((prev) => ({ ...prev, [field]: value }));
   };
 
-  /* Colonnes : identité de la facture, à qui, combien, où en est le règlement, quand elle est due.
+  /* Colonnes : identité de la facture, à qui, combien, où en est le règlement, quand elle a été
+   * émise et quand elle est due.
    * La progression du règlement est encodée deux fois — barre ET montants chiffrés — afin que
    * l'information ne repose jamais sur la seule longueur d'une barre. */
   const columns = [
@@ -634,6 +635,19 @@ const Invoices = () => {
           </div>
         );
       },
+    },
+    {
+      // Date d'émission. Dernière colonne à apparaître quand l'écran s'élargit (lg) : c'est la
+      // moins urgente à lire des deux dates — l'échéance, elle, signale les retards.
+      key: 'invoiceDate',
+      label: t('invoices.invoiceDate'),
+      sortable: true,
+      className: 'hidden lg:table-cell',
+      render: (invoice) => (
+        <div className="tabular-nums text-gray-700 dark:text-gray-300">
+          {formatDate(invoice.invoiceDate)}
+        </div>
+      ),
     },
     {
       key: 'dueDate',
