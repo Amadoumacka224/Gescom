@@ -1397,6 +1397,7 @@
     "showOrders": "Afficher les commandes",
     "hideOrders": "Masquer les commandes",
     "loadError": "Erreur lors du chargement du tableau de bord",
+    "openOrderAria": "Ouvrir la commande {{number}}",
     "columns": {
       "time": "Heure",
       "orderNumber": "N° commande",

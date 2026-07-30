@@ -1397,6 +1397,7 @@
     "showOrders": "Bestellingen tonen",
     "hideOrders": "Bestellingen verbergen",
     "loadError": "Fout bij het laden van het dashboard",
+    "openOrderAria": "Bestelling {{number}} openen",
     "columns": {
       "time": "Uur",
       "orderNumber": "Bestelnr.",

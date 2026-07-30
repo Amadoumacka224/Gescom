@@ -49,7 +49,9 @@ const HourlyTooltip = ({ active, payload, t }) => {
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow px-3 py-2 text-sm">
       <p className="font-semibold text-gray-800 dark:text-gray-100">{d.label}</p>
-      <p className="text-green-600 dark:text-green-400 font-medium">{formatCurrency(d.sales)}</p>
+      {/* Même teinte que la barre qu'il décrit (`primary`) : le vert du jeton `success` porte
+          un ÉTAT, or une vente horaire n'en porte aucun. */}
+      <p className="text-primary-700 dark:text-primary-300 font-medium">{formatCurrency(d.sales)}</p>
       {/* `ordersHint` compte des ARTICLES (« N article(s) vendu(s) ») : l'appliquer au nombre
           de commandes de la tranche horaire annonçait un volume d'articles qui n'en était pas un. */}
       <p className="text-gray-500 dark:text-gray-400 text-xs">{t('caisse.ordersCountHint', { count: d.orders })}</p>
@@ -145,7 +147,9 @@ const Caisse = () => {
           <button
             type="button"
             onClick={() => navigate('/orders')}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all shadow"
+            /* `py-2` : `btn-primary` monte à `py-2.5`, ce qui décalerait ce bouton
+               de 4 px par rapport aux deux autres actions de l'en-tête. */
+            className="btn-primary py-2"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             {t('caisse.newOrder')}
@@ -210,7 +214,7 @@ const Caisse = () => {
         className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6"
       >
         <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-5 h-5 text-green-600 dark:text-green-400" aria-hidden="true" />
+          <BarChart3 className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
           <h2 id="caisse-hourly-heading" className="section-title">
             {t('caisse.hourlySales')}
           </h2>
@@ -302,7 +306,7 @@ const Caisse = () => {
                     <button
                       type="button"
                       onClick={() => navigate('/orders')}
-                      className="mt-3 text-sm text-green-600 dark:text-green-400 hover:text-green-700 font-medium inline-flex items-center gap-1"
+                      className="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium inline-flex items-center gap-1"
                     >
                       {t('caisse.createOrder')} <ArrowRight className="w-3 h-3" aria-hidden="true" />
                     </button>
@@ -314,17 +318,14 @@ const Caisse = () => {
                   return (
                     <tr
                       key={order.id}
-                      // Ligne actionnable au clavier autant qu'à la souris : la commande est
-                      // ouverte via son identifiant, pas par un simple renvoi vers la liste.
-                      tabIndex={0}
+                      /* La ligne reste cliquable à la souris, mais ce n'est plus elle qui porte
+                         le focus. Une `<tr tabindex=0>` s'annonce « ligne » — jamais ce qu'elle
+                         ouvre — et oblige à recâbler Entrée/Espace à la main. Le numéro de
+                         commande ci-dessous est un vrai bouton, nommé : il est atteignable au
+                         clavier, annoncé correctement, et hérite de l'anneau de focus commun
+                         (`:focus-visible` dans index.css) sans gestion de touches. */
                       onClick={() => openOrder(order.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openOrder(order.id);
-                        }
-                      }}
-                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-500 ${
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer transition-colors ${
                         isCanceled ? 'opacity-60' : ''
                       }`}
                     >
@@ -334,8 +335,17 @@ const Caisse = () => {
                           {formatTime(order.createdAt)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {order.orderNumber}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {/* Porteur de l'action de la ligne : c'est lui qui reçoit le focus et
+                            qui annonce au lecteur d'écran ce que l'activation va faire. */}
+                        <button
+                          type="button"
+                          onClick={() => openOrder(order.id)}
+                          aria-label={t('caisse.openOrderAria', { number: order.orderNumber })}
+                          className="rounded font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                          {order.orderNumber}
+                        </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                         {/* Le backend renvoie « N/A » pour une commande sans client. */}
