@@ -29,13 +29,11 @@ Créer la base de données PostgreSQL (le nom par défaut attendu est `GESCOM_2`
 CREATE DATABASE "GESCOM_2";
 ```
 
-(Optionnel — **développement uniquement**) Initialiser des comptes de test :
+Le schéma est créé au démarrage (`spring.jpa.hibernate.ddl-auto=update`) : aucun script à jouer.
 
-```bash
-psql -U postgres -d GESCOM_2 -f init-admin.sql
-```
+Sur une base vide, `config/DataInitializer` crée un compte super administrateur au premier démarrage (`admin` / `Admin@2024`) et l'affiche dans les logs.
 
-> ⚠️ Le script `init-admin.sql` crée des comptes avec des mots de passe par défaut destinés au développement local. **Ne jamais l'exécuter tel quel en production** : changez les mots de passe immédiatement après la première connexion, ou créez vos comptes via l'API.
+> ⚠️ Ce compte n'existe que pour amorcer une base neuve. **Changez son mot de passe dès la première connexion**, et créez les comptes suivants via l'API.
 
 ### 2. Variables d'environnement
 
@@ -236,19 +234,25 @@ Les fichiers de messages se trouvent dans `src/main/resources/i18n/` (basename `
 
 ## Structure du projet
 
+Ce dépôt héberge **deux applications** malgré son nom : l'API Spring Boot à la racine, et le
+client React sous `FRONT/`.
+
 ```
 BACK/
 ├── src/main/java/com/gescom/backend/
-│   ├── controller/    # Contrôleurs REST
+│   ├── controller/    # Contrôleurs REST (fins : ils délèguent au service et mappent)
 │   ├── service/       # Logique métier
-│   ├── repository/    # Accès aux données (JPA)
+│   ├── mapper/        # Entité <-> DTO, écrits à la main (@Component)
+│   ├── repository/    # Accès aux données (Spring Data JPA)
 │   ├── entity/        # Entités JPA
-│   ├── dto/           # DTOs Request / Response
+│   ├── dto/           # DTOs, un sous-package par domaine (+ common/, auth/)
+│   ├── exception/     # Exceptions métier et handler global
 │   ├── security/      # Filtres et configuration JWT
 │   └── config/        # Configuration Spring
 ├── src/main/resources/
 │   ├── application.properties
-│   └── i18n/          # Fichiers de traduction
-├── init-admin.sql     # Script d'initialisation admin
+│   └── i18n/          # Messages serveur (fr / en / nl)
+├── src/test/java/     # Tests JUnit
+├── FRONT/             # Client React + Vite + Tailwind (voir FRONT/README.md)
 └── pom.xml
 ```

@@ -55,7 +55,7 @@ public class ProductMapper {
 
         if (request.categoryId() != null) {
             Category category = categoryRepository.findById(request.categoryId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Catégorie", request.categoryId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("category", request.categoryId()));
             target.setCategory(category);
         } else {
             target.setCategory(null);

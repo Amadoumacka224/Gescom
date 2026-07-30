@@ -13,6 +13,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     Boolean existsByUsername(String username);
     Boolean existsByEmail(String email);
+    // Variante pour la mise à jour : vrai si un AUTRE utilisateur (id différent) utilise déjà cet email.
+    // (le username n'est pas modifiable après création, d'où l'absence de variante équivalente)
+    Boolean existsByEmailAndIdNot(String email, Long id);
     List<User> findByRole(User.Role role);
     List<User> findByActive(Boolean active);
     List<User> findByRoleAndActive(User.Role role, Boolean active);

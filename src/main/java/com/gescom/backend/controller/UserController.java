@@ -6,6 +6,7 @@ import com.gescom.backend.dto.user.UserResponse;
 import com.gescom.backend.dto.user.UserUpdateAdminRequest;
 import com.gescom.backend.dto.user.UserUpdateSelfRequest;
 import com.gescom.backend.entity.User;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -44,9 +45,10 @@ public class UserController {
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getCurrentUser() {
-        return userService.getUserById(currentUserId())
+        Long id = currentUserId();
+        return userService.getUserById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("user", id));
     }
 
     @PutMapping("/me")
@@ -65,7 +67,7 @@ public class UserController {
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("user", id));
     }
 
     @GetMapping("/username/{username}")
@@ -73,7 +75,7 @@ public class UserController {
     public ResponseEntity<UserResponse> getUserByUsername(@PathVariable String username) {
         return userService.getUserByUsername(username)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("user", "username", username));
     }
 
     @PostMapping

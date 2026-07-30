@@ -13,6 +13,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * Entité client (destinataire des commandes).
+ * Distingue les particuliers des entreprises via le type, et applique des contraintes de
+ * validation sur les coordonnées (email unique et valide, format de téléphone, champs requis).
+ */
 @Entity
 @Table(name = "clients")
 @Data

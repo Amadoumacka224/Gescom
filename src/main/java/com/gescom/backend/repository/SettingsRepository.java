@@ -1,6 +1,6 @@
 package com.gescom.backend.repository;
 
-import com.gescom.backend.model.Settings;
+import com.gescom.backend.entity.Settings;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

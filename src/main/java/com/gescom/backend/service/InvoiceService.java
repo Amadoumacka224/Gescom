@@ -18,9 +18,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+/**
+ * Service métier des factures : émission, enregistrement des paiements et annulation.
+ * Maillon central du cycle de vie d'une commande — facturer fait passer l'Order de
+ * CONFIRMED à INVOICED (pré-requis pour la livraison). Le statut de la facture
+ * (UNPAID / PARTIALLY_PAID / PAID) est déduit du rapport montant payé / montant total.
+ */
 @Service
 @Transactional
 public class InvoiceService {
@@ -61,7 +71,10 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public List<Invoice> getAllInvoices() {
-        return invoiceRepository.findAll();
+        // Ordre déterministe (facture la plus récente en tête) + chargement de la commande
+        // associée en une seule requête pour éviter le N+1 au mapping (chaque réponse embarque
+        // un OrderResponse complet).
+        return invoiceRepository.findAllWithDetails();
     }
 
     @Transactional(readOnly = true)
@@ -112,20 +125,57 @@ public class InvoiceService {
         return invoiceRepository.findByDueDateBeforeAndStatusNot(LocalDate.now(), Invoice.InvoiceStatus.PAID);
     }
 
+    // ── Agrégats du tableau de bord caisse (filtrés sur Order.createdBy) ──────────
+
+    @Transactional(readOnly = true)
+    public BigDecimal getCollectedByCashierOnDate(Long userId, LocalDate date) {
+        return invoiceRepository.sumCollectedByCashierOnDate(userId, date);
+    }
+
+    /**
+     * Encaissé du jour ventilé par caissier. Les caissiers sans encaissement sont absents
+     * de la map — l'appelant retombe sur zéro.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> getCollectedPerCashierOnDate(LocalDate date) {
+        return invoiceRepository.sumCollectedPerCashierOnDate(date).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (BigDecimal) row[1]));
+    }
+
+    /**
+     * Statut de la facture (s'il y en a une) pour chaque commande passée — permet d'afficher
+     * « Payée » sur une commande facturée dont la facture est soldée, le statut de la commande
+     * elle-même restant INVOICED jusqu'à la livraison.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Invoice.InvoiceStatus> getInvoiceStatusesByOrderIds(Collection<Long> orderIds) {
+        if (orderIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return invoiceRepository.findByOrderIdIn(orderIds).stream()
+                .filter(inv -> inv.getOrder() != null)
+                .collect(Collectors.toMap(inv -> inv.getOrder().getId(), Invoice::getStatus, (a, b) -> a));
+    }
+
     public Invoice createInvoice(Invoice invoice) {
         Order order = orderRepository.findById(invoice.getOrder().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Commande", invoice.getOrder().getId()));
+                .orElseThrow(() -> new ResourceNotFoundException("order", invoice.getOrder().getId()));
 
         // La facturation précède la livraison : seule une commande CONFIRMED peut être facturée.
         if (order.getStatus() != Order.OrderStatus.CONFIRMED) {
-            throw new BusinessException("La commande doit être confirmée pour être facturée (statut actuel : " + order.getStatus() + ")");
+            throw BusinessException.of("invoice.order.mustBeConfirmed",
+                    "La commande doit être confirmée pour être facturée (statut actuel : " + order.getStatus() + ")",
+                    order.getStatus());
         }
 
         // Vérifier qu'une facture n'existe pas déjà pour cette commande
         if (invoiceRepository.findByOrderId(order.getId()).isPresent()) {
-            throw new BusinessException("Une facture existe déjà pour cette commande");
+            throw BusinessException.of("invoice.alreadyExists",
+                    "Une facture existe déjà pour cette commande");
         }
 
+        // Calcul du montant : sous-total (HT) → remise → TVA appliquée sur le net après remise → total TTC.
+        // La taxe est arrondie à 2 décimales (HALF_UP) pour éviter les écarts de centimes.
         BigDecimal subtotal = order.getTotalAmount();
         invoice.setSubtotal(subtotal);
 
@@ -169,23 +219,44 @@ public class InvoiceService {
 
     public Invoice recordPayment(Long id, BigDecimal amount, Invoice.PaymentMethod paymentMethod, LocalDate paymentDate) {
         Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Facture", id));
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
 
+        // Règles métier d'encaissement : on ne paie ni une facture annulée ni une facture soldée.
+        if (invoice.getStatus() == Invoice.InvoiceStatus.CANCELED) {
+            throw BusinessException.of("invoice.payment.canceled",
+                    "Impossible d'enregistrer un paiement sur une facture annulée");
+        }
         if (invoice.getStatus() == Invoice.InvoiceStatus.PAID) {
-            throw new BusinessException("La facture est déjà payée");
+            throw BusinessException.of("invoice.alreadyPaid", "La facture est déjà payée");
         }
 
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("Le montant du paiement doit être positif");
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw BusinessException.of("payment.amount.positive",
+                    "Le montant du paiement doit être positif");
         }
 
-        invoice.setPaidAmount(invoice.getPaidAmount().add(amount));
+        // Montant normalisé à 2 décimales, cohérent avec la précision monétaire stockée.
+        BigDecimal payment = amount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal alreadyPaid = invoice.getPaidAmount() != null ? invoice.getPaidAmount() : BigDecimal.ZERO;
+        BigDecimal remaining = invoice.getTotalAmount().subtract(alreadyPaid);
+
+        // Un paiement (partiel ou total) ne peut pas dépasser le reste à payer. On refuse explicitement
+        // plutôt que d'écrêter en silence : l'encaissement enregistré doit refléter le montant réel.
+        if (payment.compareTo(remaining) > 0) {
+            throw BusinessException.of("payment.amount.exceedsRemaining",
+                    "Le montant dépasse le reste à payer (" + remaining + " €)", remaining);
+        }
+
+        BigDecimal newPaidAmount = alreadyPaid.add(payment);
+        invoice.setPaidAmount(newPaidAmount);
         invoice.setPaymentMethod(paymentMethod);
 
-        if (invoice.getPaidAmount().compareTo(invoice.getTotalAmount()) >= 0) {
+        // Solde atteint → facture soldée (la date de paiement marque le règlement complet) ;
+        // sinon paiement partiel, la facture reste due.
+        if (newPaidAmount.compareTo(invoice.getTotalAmount()) >= 0) {
             invoice.setStatus(Invoice.InvoiceStatus.PAID);
-            invoice.setPaymentDate(paymentDate != null ? paymentDate : LocalDate.now());
             invoice.setPaidAmount(invoice.getTotalAmount());
+            invoice.setPaymentDate(paymentDate != null ? paymentDate : LocalDate.now());
         } else {
             invoice.setStatus(Invoice.InvoiceStatus.PARTIALLY_PAID);
         }
@@ -193,17 +264,18 @@ public class InvoiceService {
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
         logActivity(ActivityLog.ActionType.PAYMENT, "Invoice", savedInvoice.getId(),
-            "Paiement de " + amount + " sur la facture " + savedInvoice.getInvoiceNumber() + " (" + paymentMethod + ")");
+            "Paiement de " + payment + " sur la facture " + savedInvoice.getInvoiceNumber() + " (" + paymentMethod + ")");
 
         return savedInvoice;
     }
 
     public void cancelInvoice(Long id) {
         Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Facture", id));
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
 
         if (invoice.getStatus() == Invoice.InvoiceStatus.PAID) {
-            throw new BusinessException("Impossible d'annuler une facture déjà payée");
+            throw BusinessException.of("invoice.cancel.alreadyPaid",
+                    "Impossible d'annuler une facture déjà payée");
         }
 
         invoice.setStatus(Invoice.InvoiceStatus.CANCELED);
@@ -215,7 +287,7 @@ public class InvoiceService {
 
     public void deleteInvoice(Long id) {
         Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Facture", id));
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
         String invoiceNumber = invoice.getInvoiceNumber();
         invoiceRepository.delete(invoice);
 

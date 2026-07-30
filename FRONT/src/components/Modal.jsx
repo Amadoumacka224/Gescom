@@ -1,7 +1,9 @@
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+  const { t } = useTranslation();
   const sizes = {
     sm: 'max-w-md',
     md: 'max-w-2xl',
@@ -20,24 +22,26 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
             {/* Modal */}
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.96, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0, y: 8 }}
+              transition={{ type: 'spring', duration: 0.3, bounce: 0.15 }}
               onClick={(e) => e.stopPropagation()}
-              className={`bg-white rounded-2xl shadow-2xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col`}
+              className={`bg-white dark:bg-gray-800 rounded-2xl shadow-elevated ring-1 ring-gray-900/5 w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col`}
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
+                <h2 className="modal-title">{title}</h2>
                 <button
                   onClick={onClose}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label={t('common.close')}
+                  className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 

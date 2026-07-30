@@ -23,6 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Service métier de gestion des utilisateurs (comptes, rôles, mots de passe).
+ * Distingue deux niveaux de mise à jour : updateUserAsAdmin (rôle, activation, reset mot de passe)
+ * et updateSelf (l'utilisateur édite uniquement son propre profil). Les mots de passe sont
+ * toujours validés (politique de robustesse) puis encodés en BCrypt avant persistance.
+ */
 @Service
 @Transactional
 public class UserService {
@@ -62,18 +68,26 @@ public class UserService {
         }
     }
 
+    /**
+     * Applique la politique de robustesse des mots de passe : au moins 8 caractères,
+     * une majuscule, une minuscule et un chiffre. Lève BusinessException au premier critère manqué.
+     */
     private void validatePassword(String password) {
         if (password == null || password.isEmpty()) {
-            throw new BusinessException("Le mot de passe ne peut pas être vide");
+            throw BusinessException.of("user.password.empty", "Le mot de passe ne peut pas être vide");
         }
         if (password.length() < MIN_PASSWORD_LENGTH) {
-            throw new BusinessException("Le mot de passe doit contenir au moins " + MIN_PASSWORD_LENGTH + " caractères");
+            throw BusinessException.of("user.password.tooShort",
+                    "Le mot de passe doit contenir au moins " + MIN_PASSWORD_LENGTH + " caractères",
+                    MIN_PASSWORD_LENGTH);
         }
         if (!password.matches(".*[A-Z].*")) {
-            throw new BusinessException("Le mot de passe doit contenir au moins une lettre majuscule");
+            throw BusinessException.of("user.password.needsUppercase",
+                    "Le mot de passe doit contenir au moins une lettre majuscule");
         }
         if (!password.matches(".*[a-z].*")) {
-            throw new BusinessException("Le mot de passe doit contenir au moins une lettre minuscule");
+            throw BusinessException.of("user.password.needsLowercase",
+                    "Le mot de passe doit contenir au moins une lettre minuscule");
         }
         if (!password.matches(".*\\d.*")) {
             throw new BusinessException("Le mot de passe doit contenir au moins un chiffre");
@@ -97,10 +111,10 @@ public class UserService {
 
     public UserResponse createUser(UserCreateRequest request) {
         if (userRepository.existsByUsername(request.username())) {
-            throw new DuplicateResourceException("Utilisateur", "username", request.username());
+            throw new DuplicateResourceException("user", "username", request.username());
         }
         if (userRepository.existsByEmail(request.email())) {
-            throw new DuplicateResourceException("Utilisateur", "email", request.email());
+            throw new DuplicateResourceException("user", "email", request.email());
         }
 
         validatePassword(request.password());
@@ -125,7 +139,12 @@ public class UserService {
 
     public UserResponse updateUserAsAdmin(Long id, UserUpdateAdminRequest request) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+                .orElseThrow(() -> new ResourceNotFoundException("user", id));
+
+        // L'email ne peut pas être repris par un autre utilisateur (l'enregistrement courant est exclu).
+        if (userRepository.existsByEmailAndIdNot(request.email(), id)) {
+            throw new DuplicateResourceException("user", "email", request.email());
+        }
 
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
@@ -149,7 +168,12 @@ public class UserService {
 
     public UserResponse updateSelf(Long id, UserUpdateSelfRequest request) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+                .orElseThrow(() -> new ResourceNotFoundException("user", id));
+
+        // L'email ne peut pas être repris par un autre utilisateur (l'enregistrement courant est exclu).
+        if (userRepository.existsByEmailAndIdNot(request.email(), id)) {
+            throw new DuplicateResourceException("user", "email", request.email());
+        }
 
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
@@ -166,7 +190,7 @@ public class UserService {
 
     public void deleteUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+                .orElseThrow(() -> new ResourceNotFoundException("user", id));
         String username = user.getUsername();
         userRepository.delete(user);
 
@@ -176,7 +200,7 @@ public class UserService {
 
     public void deactivateUser(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+                .orElseThrow(() -> new ResourceNotFoundException("user", id));
         user.setActive(false);
         userRepository.save(user);
 
@@ -206,8 +230,10 @@ public class UserService {
 
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
+                .orElseThrow(() -> new ResourceNotFoundException("user", userId));
 
+        // Si l'ancien mot de passe est fourni, il doit correspondre (cas « je change mon propre
+        // mot de passe »). Un admin réinitialisant un compte peut l'omettre.
         if (request.currentPassword() != null && !request.currentPassword().isEmpty()) {
             if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
                 throw new BusinessException("Mot de passe actuel incorrect");

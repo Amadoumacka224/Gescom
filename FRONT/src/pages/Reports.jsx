@@ -1,567 +1,1071 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   TrendingUp,
-  DollarSign,
+  Euro,
   ShoppingCart,
-  Users,
-  Calendar,
-  Download,
+  Package,
   Filter,
-  Search,
-  Eye,
   FileText,
-  ChevronLeft,
-  ChevronRight
+  FileSpreadsheet,
+  RefreshCw,
+  User,
+  Repeat,
+  CalendarClock,
+  ShoppingBag,
+  Mail,
+  Phone,
+  MapPin,
+  Building2,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import api from '../services/api';
+import SearchableSelect from '../components/SearchableSelect';
+import SearchBox from '../components/SearchBox';
+import SegmentedFilter from '../components/SegmentedFilter';
+import StatCard from '../components/StatCard';
+import Pagination from '../components/Pagination';
+import OrderStatusBadge from '../components/OrderStatusBadge';
+import { exportToCsv, exportToPdf } from '../utils/exportData';
+import {
+  formatCurrency,
+  formatAmount,
+  formatCompactCurrency,
+  formatDate,
+  safeRatio,
+  todayISO,
+} from '../utils/format';
+
+/**
+ * Rapports des ventes.
+ *
+ * Trois principes tiennent cet écran, chacun corrigeant un défaut de la version précédente :
+ *
+ *   1. Un seul jeu de données. Les indicateurs, le graphique, l'analyse client, le tableau et
+ *      les exports partent tous de `filteredOrders`. L'export lisait auparavant d'autres
+ *      champs que le tableau (`totalAmount` au lieu de `finalAmount`, `orderDate` — jamais
+ *      renvoyé par l'API — au lieu de `createdAt`) : le fichier livré ne correspondait donc
+ *      ni à l'écran ni à la réalité, avec des dates « Invalid Date » et des montants hors TVA.
+ *
+ *   2. Le même périmètre financier que le reste de l'application. Une commande annulée n'est
+ *      pas un chiffre d'affaires : le backend l'exclut dans `/dashboard/overview` comme dans
+ *      `buildDayMetrics`, ce rapport l'incluait. Les annulées restent affichées et comptées à
+ *      part, jamais sommées dans le CA.
+ *
+ *   3. Des bornes de date inclusives. Le filtre comparait la date de commande à
+ *      `new Date('2026-07-28')`, soit minuit UTC : toutes les commandes du dernier jour de la
+ *      période disparaissaient du rapport, silencieusement.
+ */
+
+const ROWS_PER_PAGE = 25;
+
+const EMPTY_FILTERS = {
+  search: '',
+  userId: '',
+  clientId: '',
+  startDate: '',
+  endDate: '',
+  status: '',
+};
+
+/** Date d'une commande. `orderDate` n'existe pas dans `OrderResponse` — repli défensif. */
+const orderDateOf = (order) => new Date(order.createdAt || order.orderDate || Date.now());
+
+/** Montant net de la commande (remise et TVA appliquées), celui qui figure sur la facture. */
+const orderAmountOf = (order) => Number(order.finalAmount ?? order.totalAmount ?? 0);
+
+const orderItemCount = (order) =>
+  (order.items || order.orderItems || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+/**
+ * Nom du client. L'expression d'origine — `client?.name || client?.firstName ? \`${firstName}
+ * ${lastName}\` : 'anonyme'` — évalue `||` avant `?:` : dès qu'un `name` existait, elle
+ * affichait la concaténation prénom/nom, soit une chaîne vide pour un client professionnel
+ * n'ayant qu'une raison sociale.
+ */
+const clientNameOf = (order, fallback) => {
+  const client = order.client;
+  if (!client) return fallback;
+  return client.name
+    || `${client.firstName || ''} ${client.lastName || ''}`.trim()
+    || client.company
+    || fallback;
+};
+
+const cashierNameOf = (order, fallback) => {
+  const author = order.createdBy || order.user;
+  if (!author) return fallback;
+  return `${author.firstName || ''} ${author.lastName || ''}`.trim() || author.username || fallback;
+};
+
+/** Début de la semaine ISO (lundi) contenant `date`. */
+const startOfIsoWeek = (date) => {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const shift = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - shift);
+  return start;
+};
+
+/**
+ * Clé locale d'une date, `YYYY-MM-DD`. Volontairement pas `toISOString()` : celui-ci convertit
+ * en UTC, si bien qu'un minuit local à l'est de Greenwich retombe sur la veille et range la
+ * commande dans le mauvais seau.
+ */
+const localDayKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+/**
+ * Bornage temporel d'une date selon la granularité choisie.
+ *
+ * `next` sert à parcourir la période sans trou — un intervalle sans vente doit apparaître à
+ * zéro, sinon la courbe relie deux points distants et suggère une activité continue. `prev`
+ * sert à remonter depuis la fin de la période quand celle-ci dépasse `maxBuckets` : c'est la
+ * période RÉCENTE qu'on conserve, alors qu'une troncature depuis le début aurait affiché les
+ * premiers jours de l'historique en prétendant montrer les derniers.
+ */
+const GRANULARITY = {
+  day: {
+    startOf: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()),
+    next: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1),
+    prev: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1),
+    key: localDayKey,
+    label: (d) => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+    maxBuckets: 62,
+  },
+  week: {
+    startOf: startOfIsoWeek,
+    next: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7),
+    prev: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7),
+    key: localDayKey,
+    label: (d) => `S. ${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`,
+    maxBuckets: 53,
+  },
+  month: {
+    startOf: (d) => new Date(d.getFullYear(), d.getMonth(), 1),
+    next: (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1),
+    prev: (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1),
+    key: (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+    label: (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
+    maxBuckets: 36,
+  },
+};
+
+const TrendTooltip = ({ active, payload, t }) => {
+  if (!active || !payload || payload.length === 0) return null;
+  const point = payload[0].payload;
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow px-3 py-2 text-sm">
+      <p className="font-semibold text-gray-800 dark:text-gray-100">{point.label}</p>
+      <p className="text-primary-600 dark:text-primary-400 font-medium">{formatCurrency(point.total)}</p>
+      <p className="text-gray-500 dark:text-gray-400 text-xs">
+        {t('reports.ordersCount', { count: point.count })}
+      </p>
+    </div>
+  );
+};
+
+/** En-tête de colonne triable : le tri se pilote au clavier et s'annonce via `aria-sort`. */
+const SortableHeader = ({ label, columnKey, sort, onSort, align = 'left' }) => {
+  const isActive = sort.key === columnKey;
+  const direction = isActive ? sort.direction : null;
+  const Icon = !isActive ? ArrowUpDown : direction === 'asc' ? ArrowUp : ArrowDown;
+
+  return (
+    <th
+      scope="col"
+      className={align === 'right' ? 'table-th-right' : 'table-th'}
+      aria-sort={!isActive ? 'none' : direction === 'asc' ? 'ascending' : 'descending'}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(columnKey)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-200 transition-colors rounded ${
+          align === 'right' ? 'flex-row-reverse' : ''
+        } ${isActive ? 'text-gray-900 dark:text-gray-100' : ''}`}
+      >
+        {label}
+        <Icon className="w-3 h-3" aria-hidden="true" />
+      </button>
+    </th>
+  );
+};
 
 const Reports = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+
+  const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [filteredOrders, setFilteredOrders] = useState([]);
-  const [filters, setFilters] = useState({
-    userId: '',
-    startDate: '',
-    endDate: '',
-    status: ''
-  });
-  const [stats, setStats] = useState({
-    totalSales: 0,
-    totalOrders: 0,
-    totalQuantity: 0,
-    averageOrderValue: 0
-  });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [granularity, setGranularity] = useState('day');
+  const [sort, setSort] = useState({ key: 'date', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(ROWS_PER_PAGE);
 
-  useEffect(() => {
-    fetchUsers();
-    fetchOrders();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [filters, orders]);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await api.get('/users');
-      setUsers(response.data.filter(u => u.role === 'CAISSIER'));
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      toast.error('❌ Erreur lors du chargement des caissiers');
-    }
-  };
-
-  const fetchOrders = async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get('/orders');
-      setOrders(response.data);
+      // En parallèle : les trois appels sont indépendants, les enchaîner triplait l'attente.
+      const [ordersRes, usersRes, clientsRes] = await Promise.all([
+        api.get('/orders'),
+        api.get('/users'),
+        api.get('/clients'),
+      ]);
+      setOrders(ordersRes.data);
+      setUsers(usersRes.data.filter((u) => u.role === 'CAISSIER'));
+      setClients(clientsRes.data);
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('❌ Erreur lors du chargement des commandes');
+      console.error('Error loading reports data:', error);
+      toast.error(t('reports.loadError'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  const applyFilters = () => {
-    let filtered = [...orders];
-
-    // Filter by cashier
-    if (filters.userId) {
-      const userId = parseInt(filters.userId);
-      filtered = filtered.filter(order =>
-        order.createdBy?.id === userId || order.user?.id === userId
-      );
-    }
-
-    // Filter by date range
-    if (filters.startDate) {
-      filtered = filtered.filter(order => {
-        const orderDate = new Date(order.createdAt || order.orderDate);
-        return orderDate >= new Date(filters.startDate);
-      });
-    }
-
-    if (filters.endDate) {
-      filtered = filtered.filter(order => {
-        const orderDate = new Date(order.createdAt || order.orderDate);
-        return orderDate <= new Date(filters.endDate);
-      });
-    }
-
-    // Filter by status
-    if (filters.status) {
-      filtered = filtered.filter(order => order.status === filters.status);
-    }
-
-    setFilteredOrders(filtered);
-    calculateStats(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
-  };
-
-  const calculateStats = (ordersList) => {
-    const totalSales = ordersList.reduce((sum, order) =>
-      sum + (order.finalAmount || order.totalAmount || 0), 0
-    );
-    const totalOrders = ordersList.length;
-    const totalQuantity = ordersList.reduce((sum, order) => {
-      const items = order.items || order.orderItems || [];
-      return sum + items.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0);
-    }, 0);
-    const averageOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
-
-    setStats({
-      totalSales,
-      totalOrders,
-      totalQuantity,
-      averageOrderValue
-    });
-  };
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFilters((prev) => ({ ...prev, [name]: value }));
   };
 
-  const resetFilters = () => {
-    setFilters({
-      userId: '',
-      startDate: '',
-      endDate: '',
-      status: ''
+  const setFilter = (name, value) => setFilters((prev) => ({ ...prev, [name]: value }));
+
+  // Toute modification de filtre ramène à la première page : rester page 7 d'un résultat qui
+  // n'en compte plus que 2 affichait un tableau vide sans expliquer pourquoi.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, itemsPerPage]);
+
+  /** Raccourcis de période — la sélection manuelle de deux dates est l'usage le plus fréquent. */
+  const applyPreset = (preset) => {
+    const now = new Date();
+    const iso = (d) => {
+      const offset = d.getTimezoneOffset() * 60 * 1000;
+      return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    };
+
+    if (preset === 'today') {
+      setFilters((prev) => ({ ...prev, startDate: todayISO(), endDate: todayISO() }));
+    } else if (preset === 'week') {
+      setFilters((prev) => ({ ...prev, startDate: iso(startOfIsoWeek(now)), endDate: todayISO() }));
+    } else if (preset === 'month') {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      setFilters((prev) => ({ ...prev, startDate: iso(first), endDate: todayISO() }));
+    } else if (preset === 'year') {
+      const first = new Date(now.getFullYear(), 0, 1);
+      setFilters((prev) => ({ ...prev, startDate: iso(first), endDate: todayISO() }));
+    }
+  };
+
+  const filteredOrders = useMemo(() => {
+    // Bornes construites en heure LOCALE et fin de journée incluse : `new Date('2026-07-28')`
+    // vaut minuit UTC, ce qui excluait toute la dernière journée de la période demandée.
+    const startBound = filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
+    const endBound = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999`) : null;
+    const needle = filters.search.trim().toLowerCase();
+    const userId = filters.userId ? parseInt(filters.userId, 10) : null;
+    const clientId = filters.clientId ? parseInt(filters.clientId, 10) : null;
+
+    return orders.filter((order) => {
+      if (userId && (order.createdBy?.id ?? order.user?.id) !== userId) return false;
+      if (clientId && order.client?.id !== clientId) return false;
+      if (filters.status && order.status !== filters.status) return false;
+
+      const date = orderDateOf(order);
+      if (startBound && date < startBound) return false;
+      if (endBound && date > endBound) return false;
+
+      if (needle) {
+        const haystack = [
+          order.orderNumber,
+          clientNameOf(order, ''),
+          cashierNameOf(order, ''),
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
+
+      return true;
     });
-  };
+  }, [orders, filters]);
 
-  const exportToCSV = () => {
-    const headers = ['Date', 'N° Commande', 'Caissier', 'Client', 'Statut', 'Montant Total'];
-    const rows = filteredOrders.map(order => [
-      new Date(order.orderDate).toLocaleDateString('fr-FR'),
-      `CMD${order.id.toString().padStart(5, '0')}`,
-      order.createdBy ? `${order.createdBy.firstName} ${order.createdBy.lastName}` : 'N/A',
-      order.client?.name || 'Client anonyme',
-      order.status,
-      `${order.totalAmount?.toFixed(2)} €`
-    ]);
+  /**
+   * Indicateurs de la sélection. Les annulées sont sorties du financier — comme partout
+   * ailleurs dans l'application — mais restent comptées pour être signalées explicitement.
+   */
+  const stats = useMemo(() => {
+    const honored = filteredOrders.filter((o) => o.status !== 'CANCELED');
+    const totalSales = honored.reduce((sum, o) => sum + orderAmountOf(o), 0);
+    const totalQuantity = honored.reduce((sum, o) => sum + orderItemCount(o), 0);
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `rapport_ventes_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-
-    toast.success('✅ Rapport exporté avec succès!');
-  };
-
-  const getStatusBadgeColor = (status) => {
-    const colors = {
-      'PENDING': 'bg-yellow-100 text-yellow-800',
-      'CONFIRMED': 'bg-blue-100 text-blue-800',
-      'IN_PROGRESS': 'bg-purple-100 text-purple-800',
-      'DELIVERED': 'bg-green-100 text-green-800',
-      'CANCELLED': 'bg-red-100 text-red-800'
+    return {
+      totalSales,
+      totalOrders: honored.length,
+      canceledOrders: filteredOrders.length - honored.length,
+      totalQuantity,
+      averageOrderValue: honored.length > 0 ? totalSales / honored.length : 0,
+      honored,
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
+  }, [filteredOrders]);
 
-  const getStatusLabel = (status) => {
-    const labels = {
-      'PENDING': 'En attente',
-      'CONFIRMED': 'Confirmée',
-      'IN_PROGRESS': 'En cours',
-      'DELIVERED': 'Livrée',
-      'CANCELLED': 'Annulée'
+  /** Évolution du chiffre d'affaires sur la période, au pas choisi. */
+  const trend = useMemo(() => {
+    const config = GRANULARITY[granularity];
+    const purchases = [...stats.honored].sort((a, b) => orderDateOf(a) - orderDateOf(b));
+    if (purchases.length === 0) return [];
+
+    const buckets = new Map();
+    purchases.forEach((order) => {
+      const bucketStart = config.startOf(orderDateOf(order));
+      const key = config.key(bucketStart);
+      const entry = buckets.get(key) || { total: 0, count: 0 };
+      entry.total += orderAmountOf(order);
+      entry.count += 1;
+      buckets.set(key, entry);
+    });
+
+    const first = config.startOf(orderDateOf(purchases[0]));
+    const last = config.startOf(orderDateOf(purchases[purchases.length - 1]));
+
+    // Point de départ : au plus `maxBuckets` intervalles avant la fin. Au-delà, l'axe devient
+    // illisible — et c'est la période récente qu'on garde. On remonte donc depuis `last` au
+    // lieu d'avancer depuis `first`, ce qui borne aussi le nombre d'itérations sur un
+    // historique de plusieurs années au pas journalier.
+    let start = last;
+    for (let i = 1; i < config.maxBuckets && start > first; i += 1) {
+      start = config.prev(start);
+    }
+    if (start < first) start = first;
+
+    const series = [];
+    let cursor = start;
+    while (cursor <= last) {
+      const key = config.key(cursor);
+      const entry = buckets.get(key) || { total: 0, count: 0 };
+      series.push({ key, label: config.label(cursor), total: entry.total, count: entry.count });
+      cursor = config.next(cursor);
+    }
+
+    return series;
+  }, [stats.honored, granularity]);
+
+  const selectedClient = filters.clientId
+    ? clients.find((c) => c.id === parseInt(filters.clientId, 10))
+    : null;
+
+  /**
+   * Analyse des achats d'un client, calculée sur les commandes DÉJÀ filtrées : ce qui est
+   * résumé ici correspond exactement à ce qu'affiche le tableau plus bas.
+   */
+  const clientAnalytics = useMemo(() => {
+    if (!filters.clientId) return null;
+
+    const purchases = [...stats.honored].sort((a, b) => orderDateOf(a) - orderDateOf(b));
+    const orderCount = purchases.length;
+    const totalSpent = purchases.reduce((sum, o) => sum + orderAmountOf(o), 0);
+
+    const firstDate = orderCount > 0 ? orderDateOf(purchases[0]) : null;
+    const lastDate = orderCount > 0 ? orderDateOf(purchases[orderCount - 1]) : null;
+
+    // Fréquence : délai moyen entre deux achats (au moins deux achats requis).
+    let avgDaysBetween = null;
+    if (orderCount >= 2) {
+      const spanDays = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
+      avgDaysBetween = spanDays / (orderCount - 1);
+    }
+
+    // Produits les plus achetés : agrégation par produit (quantité + montant).
+    const byProduct = new Map();
+    purchases.forEach((order) => {
+      (order.items || order.orderItems || []).forEach((item) => {
+        const name = item.product?.name || item.productName || t('reports.unknownProduct');
+        const key = item.product?.id ?? name;
+        const quantity = item.quantity || 0;
+        const amount = Number(item.totalPrice ?? (item.unitPrice || 0) * quantity);
+        const entry = byProduct.get(key) || { name, quantity: 0, amount: 0 };
+        entry.quantity += quantity;
+        entry.amount += amount;
+        byProduct.set(key, entry);
+      });
+    });
+    const topProducts = [...byProduct.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 6);
+
+    return {
+      orderCount,
+      totalSpent,
+      averageBasket: orderCount > 0 ? totalSpent / orderCount : 0,
+      canceledCount: stats.canceledOrders,
+      firstDate,
+      lastDate,
+      avgDaysBetween,
+      topProducts,
+      maxProductQty: topProducts.reduce((max, p) => Math.max(max, p.quantity), 0),
     };
-    return labels[status] || status;
+  }, [filters.clientId, stats, t]);
+
+  const sortedOrders = useMemo(() => {
+    const factor = sort.direction === 'asc' ? 1 : -1;
+    const accessors = {
+      date: (o) => orderDateOf(o).getTime(),
+      orderNumber: (o) => o.orderNumber || '',
+      cashier: (o) => cashierNameOf(o, ''),
+      client: (o) => clientNameOf(o, ''),
+      items: (o) => orderItemCount(o),
+      status: (o) => o.status || '',
+      amount: (o) => orderAmountOf(o),
+    };
+    const accessor = accessors[sort.key] || accessors.date;
+
+    return [...filteredOrders].sort((a, b) => {
+      const left = accessor(a);
+      const right = accessor(b);
+      if (typeof left === 'string') return factor * left.localeCompare(right, 'fr');
+      return factor * (left - right);
+    });
+  }, [filteredOrders, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / itemsPerPage));
+  const pageOrders = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedOrders.slice(start, start + itemsPerPage);
+  }, [sortedOrders, currentPage, itemsPerPage]);
+
+  const handleSort = (key) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        // Un montant ou une date se lisent d'abord du plus grand au plus petit ; un libellé,
+        // dans l'ordre alphabétique.
+        : { key, direction: ['amount', 'date', 'items'].includes(key) ? 'desc' : 'asc' }
+    );
   };
 
-  // Pagination calculations
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentOrders = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const activeFilterCount = Object.entries(filters)
+    .filter(([, value]) => value !== '').length;
 
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const periodLabel = filters.startDate || filters.endDate
+    ? `${filters.startDate ? formatDate(filters.startDate) : '…'} → ${filters.endDate ? formatDate(filters.endDate) : '…'}`
+    : t('reports.allPeriods');
+
+  /** Colonnes communes au tableau et aux deux exports : ils ne peuvent pas diverger. */
+  const exportColumns = useMemo(() => [
+    { header: t('reports.columns.date'), value: (o) => formatDate(orderDateOf(o)) },
+    { header: t('reports.columns.orderNumber'), value: (o) => o.orderNumber || '' },
+    { header: t('reports.columns.cashier'), value: (o) => cashierNameOf(o, '—') },
+    { header: t('reports.columns.client'), value: (o) => clientNameOf(o, t('reports.anonymousClient')) },
+    { header: t('reports.columns.items'), value: (o) => orderItemCount(o), align: 'right' },
+    { header: t('reports.columns.status'), value: (o) => t(`caisse.status.${o.status}`), align: 'left' },
+    { header: t('reports.columns.amount'), value: (o) => formatAmount(orderAmountOf(o)), align: 'right' },
+  ], [t]);
+
+  const exportSummary = useMemo(() => [
+    { label: t('reports.totalSales'), value: formatCurrency(stats.totalSales) },
+    { label: t('reports.totalOrders'), value: String(stats.totalOrders) },
+    { label: t('reports.totalItems'), value: String(stats.totalQuantity) },
+    { label: t('reports.averageBasket'), value: formatCurrency(stats.averageOrderValue) },
+  ], [t, stats]);
+
+  const handleExportCsv = () => {
+    exportToCsv({ filename: 'rapport-ventes', columns: exportColumns, rows: sortedOrders });
+    toast.success(t('reports.exportDone'));
   };
 
-  const handleOrderClick = (orderId) => {
-    navigate(`/orders`);
-    // Store the selected order ID in localStorage to highlight it
-    localStorage.setItem('selectedOrderId', orderId);
+  const handleExportPdf = () => {
+    exportToPdf({
+      filename: 'rapport-ventes',
+      title: t('reports.title'),
+      subtitle: t('reports.exportScope', { period: periodLabel, count: sortedOrders.length }),
+      summary: exportSummary,
+      columns: exportColumns,
+      rows: sortedOrders,
+    });
+    toast.success(t('reports.exportDone'));
   };
+
+  const openOrder = (orderId) => navigate(`/orders?orderId=${orderId}`);
+
+  const canExport = sortedOrders.length > 0 && !loading;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
+    <div className="space-y-6">
+      {/* En-tête */}
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <TrendingUp aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('reports.title')}</h1>
+            <p className="page-subtitle">{t('reports.subtitle')}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={fetchAll}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {t('common.refresh')}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={!canExport}
+            className="btn-secondary py-2 disabled:opacity-50"
+          >
+            <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />
+            {t('reports.exportCsv')}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            disabled={!canExport}
+            className="btn-primary py-2 disabled:opacity-50"
+          >
+            <FileText className="w-4 h-4" aria-hidden="true" />
+            {t('reports.exportPdf')}
+          </button>
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-7xl mx-auto"
+        aria-labelledby="reports-filters-heading"
+        className="card"
       >
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl">
-                <TrendingUp className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800">Rapports des Ventes</h1>
-                <p className="text-gray-600 mt-1">Analyse des ventes par caissier</p>
-              </div>
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
+            <h2 id="reports-filters-heading" className="section-title">{t('reports.filters')}</h2>
+            {activeFilterCount > 0 && (
+              <span className="badge-info">{t('reports.activeFilters', { count: activeFilterCount })}</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Raccourcis de période : des actions, pas un état. Ils remplissent les deux
+                champs de date, qui restent modifiables à la main — d'où de simples boutons
+                plutôt qu'un groupe exclusif, qui aurait affiché « ce mois » sélectionné
+                alors que les dates ont pu être ajustées depuis. */}
+            <div role="group" aria-label={t('reports.period')} className="inline-flex items-center gap-1 p-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40">
+              {[
+                { value: 'today', label: t('reports.presetToday') },
+                { value: 'week', label: t('reports.presetWeek') },
+                { value: 'month', label: t('reports.presetMonth') },
+                { value: 'year', label: t('reports.presetYear') },
+              ].map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => applyPreset(preset.value)}
+                  className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 transition-colors"
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
-            <button
-              onClick={exportToCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Download className="w-5 h-5" />
-              Exporter CSV
-            </button>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilters(EMPTY_FILTERS)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+                {t('reports.resetFilters')}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Filters */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 mb-6"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-800">Filtres</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* Recherche libre : n° de commande, client ou caissier. */}
+          <div className="xl:col-span-3">
+            <label htmlFor="reports-search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('common.search')}
+            </label>
+            <SearchBox
+              id="reports-search"
+              value={filters.search}
+              onChange={(value) => setFilter('search', value)}
+              placeholder={t('reports.searchPlaceholder')}
+              inputClassName="input-field pl-10 pr-9 w-full"
+            />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Cashier Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Caissier
-              </label>
-              <select
-                name="userId"
-                value={filters.userId}
-                onChange={handleFilterChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Tous les caissiers</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.firstName} {user.lastName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Start Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Date début
-              </label>
-              <input
-                type="date"
-                name="startDate"
-                value={filters.startDate}
-                onChange={handleFilterChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* End Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Date fin
-              </label>
-              <input
-                type="date"
-                name="endDate"
-                value={filters.endDate}
-                onChange={handleFilterChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Statut
-              </label>
-              <select
-                name="status"
-                value={filters.status}
-                onChange={handleFilterChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Tous les statuts</option>
-                <option value="PENDING">En attente</option>
-                <option value="CONFIRMED">Confirmée</option>
-                <option value="IN_PROGRESS">En cours</option>
-                <option value="DELIVERED">Livrée</option>
-                <option value="CANCELLED">Annulée</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <button
-              onClick={resetFilters}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          <div>
+            <label htmlFor="reports-cashier" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('reports.cashier')}
+            </label>
+            <select
+              id="reports-cashier"
+              name="userId"
+              value={filters.userId}
+              onChange={handleFilterChange}
+              className="input-field"
             >
-              Réinitialiser les filtres
-            </button>
+              <option value="">{t('reports.allCashiers')}</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.firstName} {user.lastName}
+                </option>
+              ))}
+            </select>
           </div>
-        </motion.div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-green-100 rounded-xl">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Chiffre d'affaires total</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalSales.toFixed(2)} €</p>
-          </motion.div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('reports.client')}
+            </label>
+            <SearchableSelect
+              options={clients}
+              value={filters.clientId}
+              onChange={(value) => setFilter('clientId', value)}
+              getOptionValue={(client) => client.id}
+              getOptionLabel={(client) =>
+                `${client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim() || `#${client.id}`}${client.company ? ` • ${client.company}` : ''}`
+              }
+              getOptionSearch={(client) => client.company || ''}
+              placeholder={t('reports.clientPlaceholder')}
+              noResultsText={t('reports.noClientFound')}
+              minChars={1}
+              inputClassName="input-field pl-10 pr-9 w-full"
+              renderOption={(client) => (
+                <span className="flex flex-col">
+                  <span className="font-medium">
+                    {client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim() || `#${client.id}`}
+                    {client.company && <span className="ml-2 text-xs text-primary-600">{client.company}</span>}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {[client.email, client.phone].filter(Boolean).join(' · ') || t('reports.noContact')}
+                  </span>
+                </span>
+              )}
+            />
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <ShoppingCart className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Nombre de commandes</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalOrders}</p>
-          </motion.div>
+          <div>
+            <label htmlFor="reports-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('reports.status')}
+            </label>
+            <select
+              id="reports-status"
+              name="status"
+              value={filters.status}
+              onChange={handleFilterChange}
+              className="input-field"
+            >
+              <option value="">{t('reports.allStatuses')}</option>
+              {['PENDING', 'CONFIRMED', 'INVOICED', 'DELIVERED', 'CANCELED'].map((status) => (
+                <option key={status} value={status}>{t(`caisse.status.${status}`)}</option>
+              ))}
+            </select>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-purple-100 rounded-xl">
-                <FileText className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Articles vendus</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalQuantity}</p>
-          </motion.div>
+          <div>
+            <label htmlFor="reports-start" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('reports.startDate')}
+            </label>
+            <input
+              id="reports-start"
+              type="date"
+              name="startDate"
+              value={filters.startDate}
+              max={filters.endDate || undefined}
+              onChange={handleFilterChange}
+              className="input-field"
+            />
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-orange-100 rounded-xl">
-                <TrendingUp className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-            <h3 className="text-gray-600 text-sm font-medium mb-1">Panier moyen</h3>
-            <p className="text-3xl font-bold text-gray-900">{stats.averageOrderValue.toFixed(2)} €</p>
-          </motion.div>
+          <div>
+            <label htmlFor="reports-end" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('reports.endDate')}
+            </label>
+            {/* `min` lié à la date de début : une période inversée ne renvoie aucun résultat,
+                autant empêcher la saisie plutôt que d'afficher un tableau vide inexplicable. */}
+            <input
+              id="reports-end"
+              type="date"
+              name="endDate"
+              value={filters.endDate}
+              min={filters.startDate || undefined}
+              onChange={handleFilterChange}
+              className="input-field"
+            />
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Indicateurs de la sélection */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+        <StatCard
+          title={t('reports.totalSales')}
+          value={formatCurrency(stats.totalSales)}
+          subtitle={
+            stats.canceledOrders > 0
+              ? t('reports.canceledExcluded', { count: stats.canceledOrders })
+              : t('reports.honoredOnly')
+          }
+          icon={Euro}
+          tone="success"
+          loading={loading}
+        />
+        <StatCard
+          title={t('reports.totalOrders')}
+          value={stats.totalOrders}
+          subtitle={t('reports.overTotal', { total: filteredOrders.length })}
+          icon={ShoppingCart}
+          tone="info"
+          loading={loading}
+        />
+        <StatCard
+          title={t('reports.totalItems')}
+          value={stats.totalQuantity}
+          icon={Package}
+          tone="accent"
+          loading={loading}
+        />
+        <StatCard
+          title={t('reports.averageBasket')}
+          value={formatCurrency(stats.averageOrderValue)}
+          subtitle={t('reports.averageBasketHint')}
+          icon={TrendingUp}
+          tone="warning"
+          loading={loading}
+        />
+      </div>
+
+      {/* Évolution du chiffre d'affaires sur la sélection */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        aria-labelledby="reports-trend-heading"
+        className="card"
+      >
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
+            <h2 id="reports-trend-heading" className="section-title">{t('reports.trend')}</h2>
+            <span className="text-xs text-gray-400 dark:text-gray-500">{t('reports.trendHint')}</span>
+          </div>
+          <SegmentedFilter
+            label={t('reports.groupBy')}
+            value={granularity}
+            onChange={setGranularity}
+            options={[
+              { value: 'day', label: t('reports.byDay') },
+              { value: 'week', label: t('reports.byWeek') },
+              { value: 'month', label: t('reports.byMonth') },
+            ]}
+          />
         </div>
 
-        {/* Orders Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
+        {loading ? (
+          <div className="h-64 rounded-lg bg-gray-100 dark:bg-gray-700/40 animate-pulse" />
+        ) : trend.length === 0 ? (
+          <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+            <TrendingUp className="empty-state-icon mb-2" aria-hidden="true" />
+            {t('reports.noDataForPeriod')}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="reportsTrendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1f77b4" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#1f77b4" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-gray-100 dark:text-gray-700" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 12, fill: '#647697' }}
+                tickLine={false}
+                axisLine={{ stroke: '#d3dae8' }}
+                minTickGap={16}
+              />
+              <YAxis
+                tickFormatter={formatCompactCurrency}
+                tick={{ fontSize: 12, fill: '#647697' }}
+                tickLine={false}
+                axisLine={false}
+                width={52}
+              />
+              <Tooltip content={<TrendTooltip t={t} />} cursor={{ stroke: '#1f77b4', strokeOpacity: 0.2 }} />
+              <Area type="monotone" dataKey="total" stroke="#1f77b4" strokeWidth={2} fill="url(#reportsTrendFill)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </motion.section>
+
+      {/* Analyse des achats d'un client */}
+      {clientAnalytics && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
+          aria-labelledby="reports-client-heading"
+          className="card"
         >
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-800">Détail des commandes</h2>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="panel-icon panel-tone-info">
+              <User aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h2 id="reports-client-heading" className="section-title truncate">
+                {t('reports.clientAnalysis', {
+                  name: selectedClient?.name
+                    || `${selectedClient?.firstName || ''} ${selectedClient?.lastName || ''}`.trim()
+                    || t('reports.client'),
+                })}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {clientAnalytics.orderCount > 0
+                  ? t('reports.fromTo', {
+                      from: formatDate(clientAnalytics.firstDate),
+                      to: formatDate(clientAnalytics.lastDate),
+                    })
+                  : t('reports.noPurchaseInPeriod')}
+                {clientAnalytics.canceledCount > 0
+                  && ` · ${t('reports.canceledExcluded', { count: clientAnalytics.canceledCount })}`}
+              </p>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    N° Commande
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Caissier
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Client
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Articles
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Statut
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Montant
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                      Chargement...
-                    </td>
-                  </tr>
-                ) : filteredOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                      Aucune commande trouvée
-                    </td>
-                  </tr>
-                ) : (
-                  currentOrders.map((order) => (
-                    <tr
-                      key={order.id}
-                      onClick={() => handleOrderClick(order.id)}
-                      className="hover:bg-blue-50 cursor-pointer transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {order.createdAt
-                          ? new Date(order.createdAt).toLocaleDateString('fr-FR')
-                          : new Date(order.orderDate || Date.now()).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                        {order.orderNumber || `CMD${order.id.toString().padStart(5, '0')}`}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {order.createdBy
-                          ? `${order.createdBy.firstName || ''} ${order.createdBy.lastName || ''}`.trim()
-                          : order.user
-                          ? `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim()
-                          : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {order.client?.name || order.client?.firstName
-                          ? `${order.client.firstName || ''} ${order.client.lastName || ''}`.trim()
-                          : 'Client anonyme'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) ||
-                         order.orderItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) ||
-                         0}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(order.status)}`}>
-                          {getStatusLabel(order.status)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        {(order.finalAmount || order.totalAmount || 0).toFixed(2)} €
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {filteredOrders.length > 0 && (
-            <div className="mt-6 flex items-center justify-between px-6">
-              <div className="text-sm text-gray-700">
-                Affichage de {indexOfFirstItem + 1} à {Math.min(indexOfLastItem, filteredOrders.length)} sur {filteredOrders.length} commandes
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className={`flex items-center gap-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    currentPage === 1
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Précédent
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => {
-                    // Show first page, last page, current page, and pages around current
-                    const showPage =
-                      pageNumber === 1 ||
-                      pageNumber === totalPages ||
-                      (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1);
-
-                    if (!showPage) {
-                      // Show ellipsis
-                      if (pageNumber === currentPage - 2 || pageNumber === currentPage + 2) {
-                        return (
-                          <span key={pageNumber} className="px-2 text-gray-400">
-                            ...
-                          </span>
-                        );
-                      }
-                      return null;
-                    }
-
-                    return (
-                      <button
-                        key={pageNumber}
-                        onClick={() => handlePageChange(pageNumber)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-colors ${
-                          currentPage === pageNumber
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                        }`}
-                      >
-                        {pageNumber}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className={`flex items-center gap-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    currentPage === totalPages
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                  }`}
-                >
-                  Suivant
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+          {selectedClient && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {selectedClient.company && (
+                <span className="badge-neutral">
+                  <Building2 className="w-3.5 h-3.5" aria-hidden="true" /> {selectedClient.company}
+                </span>
+              )}
+              {selectedClient.email && (
+                <a href={`mailto:${selectedClient.email}`} className="badge-neutral hover:ring-gray-500/40 transition-shadow">
+                  <Mail className="w-3.5 h-3.5" aria-hidden="true" /> {selectedClient.email}
+                </a>
+              )}
+              {selectedClient.phone && (
+                <a href={`tel:${selectedClient.phone}`} className="badge-neutral hover:ring-gray-500/40 transition-shadow">
+                  <Phone className="w-3.5 h-3.5" aria-hidden="true" /> {selectedClient.phone}
+                </a>
+              )}
+              {(selectedClient.city || selectedClient.postalCode) && (
+                <span className="badge-neutral">
+                  <MapPin className="w-3.5 h-3.5" aria-hidden="true" />
+                  {[selectedClient.postalCode, selectedClient.city].filter(Boolean).join(' ')}
+                </span>
+              )}
             </div>
           )}
-        </motion.div>
-      </motion.div>
+
+          {clientAnalytics.orderCount === 0 ? (
+            <div className="py-10 text-center text-gray-500 dark:text-gray-400">
+              <ShoppingBag className="empty-state-icon mb-2" aria-hidden="true" />
+              {t('reports.noClientPurchase')}
+            </div>
+          ) : (
+            <>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+                <div className="mini-stat-success">
+                  <dt className="flex items-center gap-2"><Euro className="w-4 h-4" aria-hidden="true" />{t('reports.totalSpent')}</dt>
+                  <dd className="font-bold tabular-nums">{formatCurrency(clientAnalytics.totalSpent)}</dd>
+                </div>
+                <div className="mini-stat-info">
+                  <dt className="flex items-center gap-2"><ShoppingBag className="w-4 h-4" aria-hidden="true" />{t('reports.purchaseCount')}</dt>
+                  <dd className="font-bold tabular-nums">{clientAnalytics.orderCount}</dd>
+                </div>
+                <div className="mini-stat-accent">
+                  <dt className="flex items-center gap-2"><TrendingUp className="w-4 h-4" aria-hidden="true" />{t('reports.averageBasket')}</dt>
+                  <dd className="font-bold tabular-nums">{formatCurrency(clientAnalytics.averageBasket)}</dd>
+                </div>
+                <div className="mini-stat-warning">
+                  <dt className="flex items-center gap-2"><Repeat className="w-4 h-4" aria-hidden="true" />{t('reports.frequency')}</dt>
+                  <dd className="font-bold tabular-nums">
+                    {clientAnalytics.avgDaysBetween != null
+                      ? t('reports.daysBetween', { days: Math.round(clientAnalytics.avgDaysBetween) })
+                      : '—'}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="rounded-xl border border-gray-100 dark:border-gray-700 p-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Package className="w-5 h-5 text-secondary-500" aria-hidden="true" />
+                  <h3 className="subsection-title">{t('reports.topProducts')}</h3>
+                </div>
+                {clientAnalytics.topProducts.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
+                    {t('reports.noProductDetail')}
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {clientAnalytics.topProducts.map((product) => (
+                      <li key={product.name}>
+                        <div className="flex items-center justify-between text-sm mb-1 gap-2">
+                          <span className="font-medium text-gray-800 dark:text-gray-200 truncate">{product.name}</span>
+                          <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
+                            {t('reports.unitsAndAmount', {
+                              units: product.quantity,
+                              amount: formatCurrency(product.amount),
+                            })}
+                          </span>
+                        </div>
+                        <div className="metric-track">
+                          <div
+                            className="metric-bar-info"
+                            style={{ width: `${safeRatio(product.quantity, clientAnalytics.maxProductQty) * 100}%` }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </motion.section>
+      )}
+
+      {/* Détail des commandes */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        aria-labelledby="reports-orders-heading"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-card border border-gray-200/80 dark:border-gray-700 overflow-hidden"
+      >
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-wrap gap-2">
+          <h2 id="reports-orders-heading" className="section-title">{t('reports.orderDetails')}</h2>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {t('reports.resultCount', { count: sortedOrders.length })} · {periodLabel}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-900/40">
+              <tr>
+                <SortableHeader label={t('reports.columns.date')} columnKey="date" sort={sort} onSort={handleSort} />
+                <SortableHeader label={t('reports.columns.orderNumber')} columnKey="orderNumber" sort={sort} onSort={handleSort} />
+                <SortableHeader label={t('reports.columns.cashier')} columnKey="cashier" sort={sort} onSort={handleSort} />
+                <SortableHeader label={t('reports.columns.client')} columnKey="client" sort={sort} onSort={handleSort} />
+                <SortableHeader label={t('reports.columns.items')} columnKey="items" sort={sort} onSort={handleSort} align="right" />
+                <SortableHeader label={t('reports.columns.status')} columnKey="status" sort={sort} onSort={handleSort} />
+                <SortableHeader label={t('reports.columns.amount')} columnKey="amount" sort={sort} onSort={handleSort} align="right" />
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {loading ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" aria-hidden="true" />
+                    {t('common.loading')}
+                  </td>
+                </tr>
+              ) : pageOrders.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-12 text-center">
+                    <FileText className="empty-state-icon mb-3" aria-hidden="true" />
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">{t('reports.noOrderFound')}</p>
+                    {activeFilterCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setFilters(EMPTY_FILTERS)}
+                        className="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
+                      >
+                        {t('reports.resetFilters')}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                pageOrders.map((order) => {
+                  const isCanceled = order.status === 'CANCELED';
+                  return (
+                    <tr
+                      key={order.id}
+                      tabIndex={0}
+                      onClick={() => openOrder(order.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openOrder(order.id);
+                        }
+                      }}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${
+                        isCanceled ? 'opacity-60' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                        {formatDate(orderDateOf(order))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary-600 dark:text-primary-400">
+                        {order.orderNumber}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                        {cashierNameOf(order, '—')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                        {clientNameOf(order, t('reports.anonymousClient'))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100 tabular-nums">
+                        {orderItemCount(order)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {/* Badge partagé : une commande facturée puis réglée s'affiche « Payée »,
+                            comme sur la caisse et la supervision. Cette page tenait sa propre
+                            table de libellés, qui ignorait le règlement. */}
+                        <OrderStatusBadge order={order} />
+                      </td>
+                      <td
+                        className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right tabular-nums ${
+                          isCanceled ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'
+                        }`}
+                      >
+                        {formatCurrency(orderAmountOf(order))}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination partagée : la version précédente en réimplémentait une, sans choix du
+            nombre de lignes ni raccourci vers la première ou la dernière page. */}
+        {!loading && sortedOrders.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={sortedOrders.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        )}
+      </motion.section>
     </div>
   );
 };

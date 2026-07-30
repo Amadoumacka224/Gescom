@@ -14,6 +14,12 @@ import java.util.Optional;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findByCode(String code);
+
+    /**
+     * Produits portant ce code-barres. Renvoie une liste car la colonne barcode n'est pas unique
+     * en base : le service privilégiera un produit actif s'il en existe plusieurs.
+     */
+    List<Product> findByBarcode(String barcode);
     List<Product> findByActiveTrue();
     List<Product> findByCategory(Category category);
     List<Product> findByCategoryId(Long categoryId);

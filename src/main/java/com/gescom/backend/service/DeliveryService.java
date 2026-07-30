@@ -21,6 +21,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Service métier des livraisons : création, suivi de statut et confirmation de livraison.
+ * Dernière étape du cycle de vie d'une commande — une livraison ne peut exister que pour
+ * une commande facturée (INVOICED), et son passage à DELIVERED fait basculer l'Order en
+ * DELIVERED (état commercial final). Règle : une seule livraison par commande.
+ */
 @Service
 @Transactional
 public class DeliveryService {
@@ -64,7 +70,9 @@ public class DeliveryService {
 
     @Transactional(readOnly = true)
     public List<Delivery> getAllDeliveries() {
-        return deliveryRepository.findAll();
+        // Chargement de la commande associée (client, créateur, lignes, produits) en une requête
+        // pour éviter le N+1 au mapping (chaque DeliveryResponse embarque un OrderResponse complet).
+        return deliveryRepository.findAllWithDetails();
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +102,7 @@ public class DeliveryService {
 
     public Delivery createDelivery(Delivery delivery) {
         Order order = orderRepository.findById(delivery.getOrder().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Commande", delivery.getOrder().getId()));
+                .orElseThrow(() -> new ResourceNotFoundException("order", delivery.getOrder().getId()));
 
         // Pré-requis métier : la livraison ne peut être créée qu'après la facturation.
         if (order.getStatus() != Order.OrderStatus.INVOICED) {
@@ -114,7 +122,8 @@ public class DeliveryService {
 
         // Une seule livraison par commande.
         if (deliveryRepository.findByOrderId(order.getId()).isPresent()) {
-            throw new BusinessException("Une livraison existe déjà pour cette commande");
+            throw BusinessException.of("delivery.alreadyExists",
+                    "Une livraison existe déjà pour cette commande");
         }
 
         // Les nouvelles livraisons démarrent toujours en PENDING — le statut envoyé par
@@ -159,14 +168,11 @@ public class DeliveryService {
 
     public Delivery updateDelivery(Long id, Delivery updatedDelivery) {
         Delivery existingDelivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Livraison", id));
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
 
         Delivery.DeliveryStatus current = existingDelivery.getStatus();
         Delivery.DeliveryStatus target = updatedDelivery.getStatus();
         if (target != null && target != current) {
-            if (target == Delivery.DeliveryStatus.INVOICED) {
-                throw new BusinessException("Le statut INVOICED est obsolète et ne peut plus être appliqué");
-            }
             if (!current.canTransitionTo(target)) {
                 throw new BusinessException(
                         "Transition de statut invalide : " + current + " → " + target);
@@ -192,14 +198,11 @@ public class DeliveryService {
 
     public Delivery updateDeliveryStatus(Long id, Delivery.DeliveryStatus status) {
         if (status == null) {
-            throw new BusinessException("Le statut cible est obligatoire");
-        }
-        if (status == Delivery.DeliveryStatus.INVOICED) {
-            throw new BusinessException("Le statut INVOICED est obsolète et ne peut plus être appliqué");
+            throw BusinessException.of("status.target.required", "Le statut cible est obligatoire");
         }
 
         Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Livraison", id));
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
 
         Delivery.DeliveryStatus current = delivery.getStatus();
         if (current == status) {
@@ -221,7 +224,7 @@ public class DeliveryService {
 
     public Delivery markAsDelivered(Long id, String deliveredBy) {
         Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Livraison", id));
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
 
         Delivery.DeliveryStatus current = delivery.getStatus();
         if (current != Delivery.DeliveryStatus.DELIVERED
@@ -241,7 +244,7 @@ public class DeliveryService {
 
     public void deleteDelivery(Long id) {
         Delivery delivery = deliveryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Livraison", id));
+                .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
         deliveryRepository.delete(delivery);
 
         logActivity(ActivityLog.ActionType.DELETE, "Delivery", id,

@@ -9,6 +9,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * Entité facture, liée à une commande (relation 1-1) et optionnellement à une livraison.
+ * Conserve la décomposition du montant (sous-total, remise, TVA, total) et le suivi des
+ * paiements (montant payé, restant dû). Le numéro de facture et le montant restant sont
+ * calculés automatiquement via les callbacks @PrePersist / @PreUpdate.
+ */
 @Entity
 @Table(name = "invoices")
 @Data
@@ -102,10 +108,12 @@ public class Invoice {
         remainingAmount = totalAmount.subtract(paidAmount);
     }
 
+    // État de règlement de la facture, déduit du rapport montant payé / montant total (cf. InvoiceService).
     public enum InvoiceStatus {
         UNPAID, PARTIALLY_PAID, PAID, CANCELED
     }
 
+    // Moyen de paiement enregistré lors du règlement.
     public enum PaymentMethod {
         CASH, CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, CHECK, MOBILE_PAYMENT
     }

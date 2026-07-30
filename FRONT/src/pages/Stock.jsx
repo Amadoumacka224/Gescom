@@ -1,977 +1,1224 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Warehouse,
+  Package,
+  Euro,
+  AlertTriangle,
+  PackageX,
+  RefreshCw,
   Plus,
   Minus,
-  RefreshCw,
-  AlertTriangle,
+  Edit2,
+  RotateCcw,
   TrendingUp,
   TrendingDown,
-  Package,
-  Calendar,
-  User,
-  FileText,
-  DollarSign,
-  Edit2,
-  Trash2,
-  Search,
-  Filter,
+  Boxes,
+  ArrowRightLeft,
   Eye,
-  BarChart3,
-  List,
-  Box,
-  X
+  X,
+  ShieldAlert,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
+import Table from '../components/Table';
 import Pagination from '../components/Pagination';
 import FormInput from '../components/FormInput';
-import FormSelect from '../components/FormSelect';
+import SearchBox from '../components/SearchBox';
+import SearchableSelect from '../components/SearchableSelect';
+import SegmentedFilter from '../components/SegmentedFilter';
+import StatCard from '../components/StatCard';
 import Button from '../components/Button';
+import { normalizeText, rankSuggestions } from '../utils/searchSuggestions';
+import { formatCurrency, formatDate, formatTime } from '../utils/format';
+import { STOCK_MOVEMENT_TONE, badgeClass } from '../constants/statusBadges';
+
+/* Types de mouvement, dans l'ordre du flux métier. Les libellés passent par i18n ;
+ * la teinte vient de `STOCK_MOVEMENT_TONE`, partagée avec les autres écrans. */
+const MOVEMENT_TYPES = [
+  { value: 'STOCK_IN', icon: TrendingUp },
+  { value: 'STOCK_OUT', icon: TrendingDown },
+  { value: 'ADJUSTMENT', icon: Edit2 },
+  { value: 'RETURN', icon: RotateCcw },
+  { value: 'DAMAGE', icon: AlertTriangle },
+  { value: 'TRANSFER', icon: ArrowRightLeft },
+];
+
+const MOVEMENT_ICONS = Object.fromEntries(MOVEMENT_TYPES.map((m) => [m.value, m.icon]));
+
+/* Colonnes triables du grand livre et champ trié en base. `delta` n'y figure pas : la
+ * variation est calculée à l'affichage (newStock - previousStock) et n'existe pas en base. */
+const MOVEMENT_SORT_FIELDS = {
+  createdAt: 'createdAt',
+  product: 'product.name',
+  type: 'type',
+  quantity: 'quantity',
+};
+
+/* Les cinq opérations de stock, avec leur endpoint et le champ de quantité attendu.
+ * `sign` sert au calcul du stock projeté affiché avant validation. */
+const OPERATIONS = {
+  add: { endpoint: '/stock/add', icon: Plus, sign: 1, withUnitCost: true, withReference: true },
+  remove: { endpoint: '/stock/remove', icon: Minus, sign: -1, withReference: true },
+  adjust: { endpoint: '/stock/adjust', icon: Edit2, sign: 0 },
+  // Pas de référence pour un dommage : `StockDamageRequest` n'expose pas ce champ et
+  // `recordDamage` ne le prend pas. Le formulaire l'affichait pourtant, et la valeur
+  // saisie était silencieusement perdue — le n° de constat va dans « Raison ».
+  damage: { endpoint: '/stock/damage', icon: AlertTriangle, sign: -1 },
+  return: { endpoint: '/stock/return', icon: RotateCcw, sign: 1, withReference: true },
+};
+
+const EMPTY_FORM = {
+  productId: '',
+  quantity: '',
+  newQuantity: '',
+  unitCost: '',
+  reason: '',
+  reference: '',
+};
+
+/* État de stock d'un produit. Les deux seuils sont volontairement disjoints — un produit
+ * épuisé est « en rupture », pas « en stock faible » — et la comparaison est stricte, comme
+ * la requête `stockQuantity < minStockAlert` du backend. */
+const stockStatus = (product) => {
+  const quantity = product.stockQuantity ?? 0;
+  const threshold = product.minStockAlert ?? 0;
+  if (quantity <= 0) return 'out';
+  if (quantity < threshold) return 'low';
+  return 'ok';
+};
+
+const stockValueOf = (product) => (product.stockQuantity ?? 0) * (product.purchasePrice ?? 0);
 
 const Stock = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  // Gestion du stock = réservée ADMIN (sidebar le masque déjà au CAISSIER, backend
-  // durci au niveau StockController). Garde defense-in-depth si l'URL est tapée.
+  // Gestion du stock = réservée ADMIN (la barre latérale la masque déjà au CAISSIER,
+  // le backend la refuse). Garde defense-in-depth si l'URL est tapée à la main.
   const isAdmin = user?.role === 'ADMIN';
-  const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'movements', 'details'
-  const [movements, setMovements] = useState([]);
+
+  const [activeTab, setActiveTab] = useState('stock');
   const [products, setProducts] = useState([]);
-  const [statistics, setStatistics] = useState({
-    totalProducts: 0,
-    lowStockCount: 0,
-    outOfStockCount: 0,
-    totalStockValue: 0,
-    totalStockQuantity: 0
-  });
+  // `movements` ne contient que la page courante du grand livre.
+  const [movements, setMovements] = useState([]);
+  const [movementsMeta, setMovementsMeta] = useState({ totalElements: 0, totalPages: 1 });
+  const [movementsLoading, setMovementsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState('add'); // add, remove, adjust, damage
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [selectedProductForDetails, setSelectedProductForDetails] = useState(null);
-  const [productMovements, setProductMovements] = useState([]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState('ALL');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [productSort, setProductSort] = useState({ key: 'name', direction: 'asc' });
+  const [movementSort, setMovementSort] = useState({ key: 'createdAt', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [formData, setFormData] = useState({
-    productId: '',
-    quantity: '',
-    newQuantity: '',
-    unitCost: '',
-    reason: '',
-    reference: ''
-  });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('ALL');
-  const [stockFilter, setStockFilter] = useState('ALL'); // ALL, LOW, OUT
+
+  const [operation, setOperation] = useState(null);
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Seul l'identifiant est conservé : la fiche lit ensuite le produit dans la liste
+  // rafraîchie, sinon elle continuerait d'afficher le stock d'avant l'opération.
+  const [detailsProductId, setDetailsProductId] = useState(null);
+  const [productMovements, setProductMovements] = useState([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
+  // Le grand livre des mouvements est paginé côté serveur (registre append-only) : filtre,
+  // recherche et tri lui sont délégués, sinon ils ne porteraient que sur la page reçue.
+  // La liste des produits, elle, est bornée par le catalogue et reste traitée côté client.
+  useEffect(() => {
+    if (isAdmin) fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, stockFilter, typeFilter, activeTab, itemsPerPage]);
+
+  const movementParams = useMemo(() => {
+    const params = {};
+    if (typeFilter !== 'ALL') params.type = typeFilter;
+    if (debouncedSearch) params.search = debouncedSearch;
+    return params;
+  }, [typeFilter, debouncedSearch]);
+
+  const movementSortParam = `${MOVEMENT_SORT_FIELDS[movementSort.key] ?? 'createdAt'},${movementSort.direction}`;
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchMovements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, movementParams, movementSortParam, currentPage, itemsPerPage]);
+
+  const fetchProducts = async () => {
     try {
       setLoading(true);
-      const [movementsRes, productsRes, statsRes] = await Promise.all([
-        api.get('/stock/movements'),
-        api.get('/products'),
-        api.get('/stock/statistics')
-      ]);
-
-      setMovements(movementsRes.data);
-      setProducts(productsRes.data);
-      setStatistics(statsRes.data);
+      const { data } = await api.get('/products');
+      setProducts(data || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching stock data:', error);
+      toast.error(t('stock.loadError'));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenModal = (type, product = null) => {
-    // Force close modal first to ensure state updates properly
-    setShowModal(false);
-
-    // Use setTimeout to ensure modal closes before reopening with new data
-    setTimeout(() => {
-      setModalType(type);
-      setSelectedProduct(product);
-      setFormData({
-        productId: product?.id || '',
-        quantity: '',
-        newQuantity: product?.stockQuantity || '',
-        unitCost: '',
-        reason: '',
-        reference: ''
+  const fetchMovements = async () => {
+    try {
+      setMovementsLoading(true);
+      const { data } = await api.get('/stock/movements', {
+        params: {
+          ...movementParams,
+          page: currentPage - 1,
+          size: itemsPerPage,
+          sort: movementSortParam,
+        },
       });
-      setShowModal(true);
-    }, 0);
+      setMovements(data.content || []);
+      setMovementsMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
+    } catch (error) {
+      console.error('Error fetching stock movements:', error);
+      toast.error(t('stock.loadError'));
+    } finally {
+      setMovementsLoading(false);
+    }
   };
+
+  // Après une opération de stock, produit ET grand livre ont changé.
+  const fetchData = async () => {
+    await Promise.all([fetchProducts(), fetchMovements()]);
+  };
+
+  /* Indicateurs calculés depuis la liste des produits plutôt que depuis `/stock/statistics`.
+   * L'endpoint compte comme « stock faible » tous les produits sous leur seuil, ruptures
+   * comprises : la tuile annonçait donc un total que le filtre correspondant ne retrouvait
+   * jamais. Ici tuiles, filtres et pastilles du tableau appliquent la même règle. */
+  const stats = useMemo(() => {
+    const statuses = products.map(stockStatus);
+    return {
+      totalProducts: products.length,
+      totalQuantity: products.reduce((sum, p) => sum + (p.stockQuantity ?? 0), 0),
+      totalValue: products.reduce((sum, p) => sum + stockValueOf(p), 0),
+      low: statuses.filter((s) => s === 'low').length,
+      out: statuses.filter((s) => s === 'out').length,
+      ok: statuses.filter((s) => s === 'ok').length,
+    };
+  }, [products]);
+
+  // Recherche insensible à la casse ET aux accents, comme le moteur de suggestions.
+  const query = normalizeText(searchTerm);
+  const matchesQuery = (...fields) =>
+    !query || fields.some((field) => field && normalizeText(field).includes(query));
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      if (!matchesQuery(product.name, product.code, product.barcode, product.category?.name)) {
+        return false;
+      }
+      if (stockFilter === 'ALL') return true;
+      return stockStatus(product) === stockFilter;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, query, stockFilter]);
+
+  const sortedProducts = useMemo(() => {
+    const { key, direction } = productSort;
+    const factor = direction === 'asc' ? 1 : -1;
+    const rank = { out: 0, low: 1, ok: 2 };
+
+    const valueOf = (product) => {
+      if (key === 'status') return rank[stockStatus(product)];
+      if (key === 'value') return stockValueOf(product);
+      if (key === 'category') return product.category?.name || '';
+      if (key === 'stockQuantity') return product.stockQuantity ?? 0;
+      if (key === 'minStockAlert') return product.minStockAlert ?? 0;
+      return product[key] ?? '';
+    };
+
+    return [...filteredProducts].sort((a, b) => {
+      const left = valueOf(a);
+      const right = valueOf(b);
+      if (typeof left === 'string' || typeof right === 'string') {
+        return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base' }) * factor;
+      }
+      return (left - right) * factor;
+    });
+  }, [filteredProducts, productSort]);
+
+  const isStockTab = activeTab === 'stock';
+
+  /* Les deux onglets ne se paginent pas de la même façon : le catalogue est borné et découpé
+   * côté client, le grand livre arrive déjà paginé du serveur (filtré, cherché et trié par
+   * lui). D'où deux sources pour le total et pour les lignes affichées. */
+  const totalItems = isStockTab ? sortedProducts.length : movementsMeta.totalElements;
+  const totalPages = isStockTab
+    ? Math.max(1, Math.ceil(sortedProducts.length / itemsPerPage))
+    : movementsMeta.totalPages;
+  const displayedRows = isStockTab
+    ? sortedProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : movements;
+
+  const productSuggestions = useMemo(
+    () => rankSuggestions(products, searchTerm, (p) => [p.name, p.code, p.barcode], 6),
+    [products, searchTerm]
+  );
+
+  const hasActiveFilters =
+    searchTerm.trim() !== '' || (isStockTab ? stockFilter !== 'ALL' : typeFilter !== 'ALL');
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setStockFilter('ALL');
+    setTypeFilter('ALL');
+  };
+
+  const handleSort = (key) => {
+    const setter = isStockTab ? setProductSort : setMovementSort;
+    setter((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  /* ---- Opérations de stock ---- */
+
+  const openOperation = (type, product = null) => {
+    setOperation(type);
+    setFormError('');
+    setFormData({
+      ...EMPTY_FORM,
+      productId: product?.id ?? '',
+      newQuantity: product?.stockQuantity ?? '',
+    });
+  };
+
+  const closeOperation = () => {
+    setOperation(null);
+    setFormData(EMPTY_FORM);
+    setFormError('');
+  };
+
+  // Produit visé par l'opération, déduit du seul `productId` : une même valeur pilote
+  // le sélecteur, l'aperçu du stock projeté et la validation.
+  const operationProduct = useMemo(
+    () => products.find((p) => String(p.id) === String(formData.productId)) || null,
+    [products, formData.productId]
+  );
+
+  const config = operation ? OPERATIONS[operation] : null;
+  const isAdjust = operation === 'adjust';
+
+  // Stock projeté après validation : le chiffre que l'utilisateur vient vérifier avant
+  // de confirmer, et que l'écran ne montrait nulle part.
+  const projection = useMemo(() => {
+    if (!operationProduct || !config) return null;
+    const current = operationProduct.stockQuantity ?? 0;
+    if (isAdjust) {
+      if (formData.newQuantity === '') return null;
+      const target = parseInt(formData.newQuantity, 10);
+      if (Number.isNaN(target)) return null;
+      return { current, next: target, delta: target - current };
+    }
+    if (formData.quantity === '') return null;
+    const amount = parseInt(formData.quantity, 10);
+    if (Number.isNaN(amount)) return null;
+    const delta = amount * config.sign;
+    return { current, next: current + delta, delta };
+  }, [operationProduct, config, isAdjust, formData.quantity, formData.newQuantity]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!config) return;
+
+    if (!formData.productId) {
+      setFormError(t('stock.productRequired'));
+      return;
+    }
+    if (!projection) {
+      setFormError(t('stock.quantityRequired'));
+      return;
+    }
+    if (isAdjust ? projection.next < 0 : projection.delta === 0) {
+      setFormError(t('stock.quantityPositive'));
+      return;
+    }
+    // Une sortie supérieure au stock disponible part sinon pour revenir en
+    // InsufficientStockException : autant le dire avant l'appel.
+    if (projection.next < 0) {
+      setFormError(t('stock.insufficientStock', { available: projection.current }));
+      return;
+    }
+    setFormError('');
+
+    const payload = { productId: formData.productId, reason: formData.reason };
+    if (isAdjust) {
+      payload.newQuantity = parseInt(formData.newQuantity, 10);
+    } else {
+      payload.quantity = parseInt(formData.quantity, 10);
+      if (config.withReference) payload.reference = formData.reference;
+      if (config.withUnitCost && formData.unitCost) {
+        payload.unitCost = parseFloat(formData.unitCost);
+      }
+    }
 
     try {
-      let endpoint = '';
-      let payload = {};
-
-      switch (modalType) {
-        case 'add':
-          endpoint = '/stock/add';
-          payload = {
-            productId: formData.productId,
-            quantity: parseInt(formData.quantity),
-            unitCost: formData.unitCost ? parseFloat(formData.unitCost) : null,
-            reason: formData.reason,
-            reference: formData.reference
-          };
-          break;
-        case 'remove':
-          endpoint = '/stock/remove';
-          payload = {
-            productId: formData.productId,
-            quantity: parseInt(formData.quantity),
-            reason: formData.reason,
-            reference: formData.reference
-          };
-          break;
-        case 'adjust':
-          endpoint = '/stock/adjust';
-          payload = {
-            productId: formData.productId,
-            newQuantity: parseInt(formData.newQuantity),
-            reason: formData.reason
-          };
-          break;
-        case 'damage':
-          endpoint = '/stock/damage';
-          payload = {
-            productId: formData.productId,
-            quantity: parseInt(formData.quantity),
-            reason: formData.reason
-          };
-          break;
-        default:
-          throw new Error('Invalid modal type');
-      }
-
-      await api.post(endpoint, payload);
-      setShowModal(false);
-      fetchData();
-      alert('Opération effectuée avec succès!');
+      setSubmitting(true);
+      await api.post(config.endpoint, payload);
+      toast.success(t('stock.operationSuccess'));
+      closeOperation();
+      await fetchData();
+      // La fiche ouverte doit refléter le mouvement qui vient d'être enregistré.
+      if (detailsProductId) await fetchProductMovements(detailsProductId);
     } catch (error) {
-      console.error('Error:', error);
-      alert(error.response?.data || 'Erreur lors de l\'opération');
+      console.error('Error submitting stock operation:', error);
+      const raw = error.response?.data;
+      const message =
+        typeof raw === 'string' ? raw : raw?.message || raw?.error || t('stock.operationError');
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getMovementTypeInfo = (type) => {
-    const types = {
-      STOCK_IN: { icon: TrendingUp, class: 'text-green-600 bg-green-100', text: 'Entrée' },
-      STOCK_OUT: { icon: TrendingDown, class: 'text-red-600 bg-red-100', text: 'Sortie' },
-      ADJUSTMENT: { icon: Edit2, class: 'text-blue-600 bg-blue-100', text: 'Ajustement' },
-      RETURN: { icon: RefreshCw, class: 'text-purple-600 bg-purple-100', text: 'Retour' },
-      DAMAGE: { icon: AlertTriangle, class: 'text-orange-600 bg-orange-100', text: 'Dommage' },
-      TRANSFER: { icon: Package, class: 'text-indigo-600 bg-indigo-100', text: 'Transfert' }
-    };
-    return types[type] || types.STOCK_IN;
-  };
+  /* ---- Fiche produit ---- */
 
+  const detailsProduct = useMemo(
+    () => products.find((p) => p.id === detailsProductId) || null,
+    [products, detailsProductId]
+  );
+
+  // Fiche produit : on montre l'historique récent, borné à une page — l'onglet Mouvements
+  // reste l'endroit où parcourir le grand livre entier.
   const fetchProductMovements = async (productId) => {
+    setDetailsLoading(true);
     try {
-      const response = await api.get(`/stock/movements/product/${productId}`);
-      setProductMovements(response.data);
+      const response = await api.get(`/stock/movements/product/${productId}`, {
+        params: { page: 0, size: 50, sort: 'createdAt,desc' },
+      });
+      setProductMovements(response.data.content || []);
     } catch (error) {
       console.error('Error fetching product movements:', error);
       setProductMovements([]);
+    } finally {
+      setDetailsLoading(false);
     }
   };
 
-  const handleViewDetails = (product) => {
-    setSelectedProductForDetails(product);
+  const openDetails = (product) => {
+    setDetailsProductId(product.id);
+    setProductMovements([]);
     fetchProductMovements(product.id);
-    setActiveTab('details');
   };
 
-  const filteredMovements = movements.filter(movement => {
-    const matchesSearch = movement.product?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          movement.reference?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'ALL' || movement.type === filterType;
-    return matchesSearch && matchesFilter;
-  });
+  /* ---- Rendu partagé ---- */
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.barcode?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    let matchesStockFilter = true;
-    if (stockFilter === 'LOW') {
-      matchesStockFilter = product.stockQuantity > 0 && product.stockQuantity <= product.minStockAlert;
-    } else if (stockFilter === 'OUT') {
-      matchesStockFilter = product.stockQuantity === 0;
-    }
-
-    return matchesSearch && matchesStockFilter;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedMovements = filteredMovements.slice(startIndex, endIndex);
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
+  const statusBadge = (product) => {
+    const status = stockStatus(product);
+    const tone = { out: 'badge-danger', low: 'badge-warning', ok: 'badge-success' }[status];
+    return <span className={tone}>{t(`stock.status.${status}`)}</span>;
   };
 
-  const handleItemsPerPageChange = (newItemsPerPage) => {
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1);
+  const movementBadge = (type) => {
+    const Icon = MOVEMENT_ICONS[type] || Package;
+    return (
+      <span className={badgeClass(STOCK_MOVEMENT_TONE[type])}>
+        <Icon className="w-3 h-3" aria-hidden="true" />
+        {t(`stock.movementTypes.${type}`, { defaultValue: type })}
+      </span>
+    );
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleString('fr-FR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const productColumns = [
+    {
+      key: 'name',
+      label: t('stock.columnProduct'),
+      sortable: true,
+      render: (product) => (
+        <div className="min-w-0">
+          <div className="font-semibold text-gray-900 dark:text-gray-100 truncate">{product.name}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            {product.code || product.barcode || '—'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      label: t('stock.columnCategory'),
+      sortable: true,
+      className: 'hidden lg:table-cell',
+      render: (product) => (
+        <span className="text-gray-600 dark:text-gray-400">{product.category?.name || '—'}</span>
+      ),
+    },
+    {
+      key: 'stockQuantity',
+      label: t('stock.columnStock'),
+      sortable: true,
+      render: (product) => (
+        <div className="flex items-baseline gap-1">
+          <span className="text-base font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+            {product.stockQuantity ?? 0}
+          </span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{product.unit}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'minStockAlert',
+      label: t('stock.columnThreshold'),
+      sortable: true,
+      className: 'hidden xl:table-cell',
+      render: (product) => (
+        <span className="tabular-nums text-gray-600 dark:text-gray-400">
+          {product.minStockAlert ?? 0}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: t('stock.columnStatus'),
+      sortable: true,
+      render: statusBadge,
+    },
+    {
+      key: 'value',
+      label: t('stock.columnValue'),
+      sortable: true,
+      className: 'hidden md:table-cell',
+      render: (product) => (
+        <span className="tabular-nums font-semibold text-gray-900 dark:text-gray-100">
+          {formatCurrency(stockValueOf(product))}
+        </span>
+      ),
+    },
+  ];
+
+  const movementColumns = [
+    {
+      key: 'createdAt',
+      label: t('stock.columnDate'),
+      sortable: true,
+      render: (movement) => (
+        <div className="tabular-nums">
+          <div className="text-gray-900 dark:text-gray-100">{formatDate(movement.createdAt)}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{formatTime(movement.createdAt)}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      label: t('stock.columnType'),
+      sortable: true,
+      render: (movement) => movementBadge(movement.type),
+    },
+    {
+      key: 'product',
+      label: t('stock.columnProduct'),
+      sortable: true,
+      render: (movement) => (
+        <div className="min-w-0">
+          <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+            {movement.product?.name || '—'}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            {movement.product?.code || '—'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'delta',
+      label: t('stock.columnMovement'),
+      // Non triable : l'écart est calculé à l'affichage et n'existe pas en base, or le tri
+      // du grand livre est délégué au serveur. Trier ici n'ordonnerait que la page visible.
+      sortable: false,
+      render: (movement) => {
+        /* L'écart est recalculé depuis previousStock/newStock : `quantity` est stocké en
+         * valeur absolue (cf. StockService.adjustStock), il ne porte donc pas le sens du
+         * mouvement. Le signe affiché est ainsi toujours celui de l'effet réel. */
+        const delta = (movement.newStock ?? 0) - (movement.previousStock ?? 0);
+        const tone =
+          delta > 0
+            ? 'text-green-600 dark:text-green-400'
+            : delta < 0
+              ? 'text-red-600 dark:text-red-400'
+              : 'text-gray-500 dark:text-gray-400';
+        return (
+          <div>
+            <span className={`font-semibold tabular-nums ${tone}`}>
+              {delta > 0 ? '+' : ''}
+              {delta}
+            </span>
+            <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+              {movement.previousStock} → {movement.newStock}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'reference',
+      label: t('stock.columnReference'),
+      className: 'hidden lg:table-cell',
+      render: (movement) => (
+        <span className="text-gray-600 dark:text-gray-400">{movement.reference || '—'}</span>
+      ),
+    },
+    {
+      key: 'user',
+      label: t('stock.columnBy'),
+      className: 'hidden xl:table-cell',
+      render: (movement) => (
+        <span className="text-gray-600 dark:text-gray-400">
+          {movement.user
+            ? `${movement.user.firstName || ''} ${movement.user.lastName || ''}`.trim() ||
+              movement.user.username
+            : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'reason',
+      label: t('stock.columnReason'),
+      className: 'hidden 2xl:table-cell',
+      nowrap: false,
+      render: (movement) => (
+        <span className="block max-w-xs truncate text-gray-600 dark:text-gray-400" title={movement.reason}>
+          {movement.reason || '—'}
+        </span>
+      ),
+    },
+  ];
+
+  const emptyState = hasActiveFilters ? (
+    <div className="flex flex-col items-center gap-3">
+      <Boxes className="empty-state-icon" aria-hidden="true" />
+      <div>
+        <p className="font-medium text-gray-700 dark:text-gray-300">{t('stock.noResultsTitle')}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('stock.noResultsHint')}</p>
+      </div>
+      <Button variant="secondary" size="sm" icon={X} onClick={resetFilters}>
+        {t('stock.resetFilters')}
+      </Button>
+    </div>
+  ) : (
+    <div className="flex flex-col items-center gap-3">
+      <Boxes className="empty-state-icon" aria-hidden="true" />
+      <p className="font-medium text-gray-700 dark:text-gray-300">
+        {isStockTab ? t('stock.emptyProducts') : t('stock.emptyMovements')}
+      </p>
+    </div>
+  );
 
   if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
-          <AlertTriangle className="w-8 h-8 text-red-600" />
+        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-500/15 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8 text-red-600 dark:text-red-400" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Accès refusé</h1>
-        <p className="text-gray-600 max-w-md">
-          La gestion du stock est réservée aux administrateurs. Si vous pensez qu'il s'agit
-          d'une erreur, contactez votre administrateur.
-        </p>
+        <h1 className="page-title mb-2">{t('stock.deniedTitle')}</h1>
+        <p className="text-gray-600 dark:text-gray-400 max-w-md">{t('stock.deniedHint')}</p>
       </div>
     );
   }
 
+  const tabs = [
+    { value: 'stock', label: t('stock.tabStock'), icon: Boxes, count: products.length },
+    // Total du grand livre, pas le nombre de lignes de la page affichée.
+    { value: 'movements', label: t('stock.tabMovements'), icon: ArrowRightLeft, count: movementsMeta.totalElements },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestion de Stock</h1>
-          <p className="text-gray-600 mt-1">Consultez et gérez votre inventaire</p>
+      {/* ---- En-tête ---- */}
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <Warehouse aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('stock.title')}</h1>
+            <p className="page-subtitle">{t('stock.subtitle')}</p>
+          </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" icon={RefreshCw} onClick={fetchData} loading={loading}>
+            {t('common.refresh')}
+          </Button>
+          <Button variant="primary" icon={Plus} onClick={() => openOperation('add')}>
+            {t('stock.opAdd')}
+          </Button>
+        </div>
+      </div>
+
+      {/* ---- Indicateurs ---- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
+        <StatCard
+          title={t('stock.statQuantity')}
+          value={stats.totalQuantity}
+          subtitle={t('stock.statQuantityHint', { products: stats.totalProducts })}
+          icon={Package}
+          tone="info"
+          loading={loading}
+        />
+        <StatCard
+          title={t('stock.statValue')}
+          value={formatCurrency(stats.totalValue)}
+          subtitle={t('stock.statValueHint')}
+          icon={Euro}
+          tone="success"
+          loading={loading}
+        />
+        <StatCard
+          title={t('stock.statLow')}
+          value={stats.low}
+          subtitle={t('stock.statLowHint')}
+          icon={AlertTriangle}
+          tone="warning"
+          loading={loading}
+        />
+        <StatCard
+          title={t('stock.statOut')}
+          value={stats.out}
+          subtitle={t('stock.statOutHint')}
+          icon={PackageX}
+          tone="danger"
+          loading={loading}
+        />
+      </div>
+
+      {/* ---- Opérations ----
+       * Les quatre opérations secondaires vivaient dans l'onglet « Mouvements », tout comme
+       * la modale elle-même : le bouton « Ajouter du stock » de l'en-tête n'ouvrait donc
+       * rien tant qu'on était sur l'onglet « Stock actuel ». Elles sont désormais hors des
+       * onglets, donc accessibles en permanence. */}
+      <div className="card">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mr-1">
+            {t('stock.operationsLabel')}
+          </span>
+          <Button variant="secondary" size="sm" icon={Minus} onClick={() => openOperation('remove')}>
+            {t('stock.opRemove')}
+          </Button>
+          <Button variant="secondary" size="sm" icon={Edit2} onClick={() => openOperation('adjust')}>
+            {t('stock.opAdjust')}
+          </Button>
           <Button
             variant="secondary"
-            onClick={fetchData}
-            icon={RefreshCw}
+            size="sm"
+            icon={AlertTriangle}
+            onClick={() => openOperation('damage')}
           >
-            Actualiser
+            {t('stock.opDamage')}
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => handleOpenModal('add')}
-            icon={Plus}
-          >
-            Ajouter du stock
+          <Button variant="secondary" size="sm" icon={RotateCcw} onClick={() => openOperation('return')}>
+            {t('stock.opReturn')}
           </Button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="card p-0">
-        <div className="flex border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('stock')}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
-              activeTab === 'stock'
-                ? 'border-b-2 border-primary-600 text-primary-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Box className="w-5 h-5" />
-            Stock Actuel
-          </button>
-          <button
-            onClick={() => setActiveTab('movements')}
-            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
-              activeTab === 'movements'
-                ? 'border-b-2 border-primary-600 text-primary-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <List className="w-5 h-5" />
-            Mouvements
-          </button>
-          {selectedProductForDetails && (
-            <button
-              onClick={() => setActiveTab('details')}
-              className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors ${
-                activeTab === 'details'
-                  ? 'border-b-2 border-primary-600 text-primary-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <BarChart3 className="w-5 h-5" />
-              Détail - {selectedProductForDetails.name}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-blue-600 font-medium">Stock total</p>
-              <p className="text-3xl font-bold text-blue-700">{statistics.totalStockQuantity || 0}</p>
-              <p className="text-xs text-blue-600 mt-1">{statistics.totalProducts || 0} produits</p>
-            </div>
-            <Package className="w-12 h-12 text-blue-600 opacity-50" />
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-green-600 font-medium">Valeur du stock</p>
-              <p className="text-3xl font-bold text-green-700">
-                {(statistics.totalStockValue || 0).toFixed(2)}€
-              </p>
-            </div>
-            <DollarSign className="w-12 h-12 text-green-600 opacity-50" />
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-orange-600 font-medium">Stock faible</p>
-              <p className="text-3xl font-bold text-orange-700">{statistics.lowStockCount || 0}</p>
-              <p className="text-xs text-orange-600 mt-1">À réapprovisionner</p>
-            </div>
-            <AlertTriangle className="w-12 h-12 text-orange-600 opacity-50" />
-          </div>
-        </div>
-
-        <div className="card bg-gradient-to-br from-red-50 to-pink-50 border-red-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-red-600 font-medium">Rupture de stock</p>
-              <p className="text-3xl font-bold text-red-700">{statistics.outOfStockCount || 0}</p>
-              <p className="text-xs text-red-600 mt-1">Produits épuisés</p>
-            </div>
-            <AlertTriangle className="w-12 h-12 text-red-600 opacity-50" />
-          </div>
-        </div>
-      </div>
-
-      {/* Alerts for low/out of stock */}
-      {(statistics.lowStockCount > 0 || statistics.outOfStockCount > 0) && (
-        <div className="card bg-orange-50 border-orange-200">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-orange-900">Alertes de stock</h3>
-              {statistics.outOfStockCount > 0 && (
-                <p className="text-sm text-orange-700 mt-1">
-                  {statistics.outOfStockCount} produit(s) en rupture de stock
-                </p>
+      {/* ---- Alerte actionnable ----
+       * L'ancien bandeau répétait mot pour mot les deux tuiles qui le précédaient. Il sert
+       * maintenant de raccourci : un clic bascule sur l'onglet stock avec le filtre posé. */}
+      {!loading && (stats.out > 0 || stats.low > 0) && (
+        <div className="card border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200 flex-1 min-w-[12rem]">
+              {stats.out > 0 && stats.low > 0
+                ? t('stock.alertBoth', { out: stats.out, low: stats.low })
+                : stats.out > 0
+                  ? t('stock.alertOut', { out: stats.out })
+                  : t('stock.alertLow', { low: stats.low })}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {stats.out > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('stock');
+                    setStockFilter('out');
+                  }}
+                >
+                  {t('stock.alertViewOut')}
+                </Button>
               )}
-              {statistics.lowStockCount > 0 && (
-                <p className="text-sm text-orange-700 mt-1">
-                  {statistics.lowStockCount} produit(s) avec un stock faible
-                </p>
+              {stats.low > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setActiveTab('stock');
+                    setStockFilter('low');
+                  }}
+                >
+                  {t('stock.alertViewLow')}
+                </Button>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Stock Actuel Tab */}
-      {activeTab === 'stock' && (
-        <>
-          {/* Filters */}
-          <div className="card">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un produit..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input pl-10 w-full"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-400" />
-                <select
-                  value={stockFilter}
-                  onChange={(e) => setStockFilter(e.target.value)}
-                  className="input"
+      {/* ---- Onglets et contenu ----
+       * Barre d'onglets et panneau dans une même carte : la barre flottait auparavant dans
+       * sa propre carte, séparée de son contenu par les indicateurs et le bandeau d'alerte. */}
+      <div className="card overflow-hidden p-0">
+        <div role="tablist" aria-label={t('stock.title')} className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+          {tabs.map((tab) => {
+            const selected = activeTab === tab.value;
+            return (
+              <button
+                key={tab.value}
+                role="tab"
+                aria-selected={selected}
+                aria-controls={`panel-${tab.value}`}
+                onClick={() => setActiveTab(tab.value)}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
+                  selected
+                    ? 'border-primary-600 text-primary-700 dark:text-primary-300'
+                    : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" aria-hidden="true" />
+                {tab.label}
+                <span
+                  className={`tabular-nums text-xs ${
+                    selected ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'
+                  }`}
                 >
-                  <option value="ALL">Tous les produits</option>
-                  <option value="LOW">Stock faible</option>
-                  <option value="OUT">Rupture de stock</option>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Barre de recherche et filtres du panneau actif. Les suggestions de produits
+            servent aux deux onglets : choisir un produit revient à filtrer ses mouvements,
+            la recherche portant sur son nom de part et d'autre. */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <SearchBox
+            className="flex-1"
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder={isStockTab ? t('stock.searchProducts') : t('stock.searchMovements')}
+            suggestions={productSuggestions}
+            getKey={(p) => p.id}
+            onSelectSuggestion={(p) => setSearchTerm(p.name)}
+            renderSuggestion={(p) => (
+              <span className="flex items-center justify-between gap-2">
+                <span className="flex flex-col min-w-0">
+                  <span className="font-medium truncate">{p.name}</span>
+                  <span className="text-xs text-gray-400 truncate">{p.code || p.barcode || '—'}</span>
+                </span>
+                <span className="text-xs text-gray-500 shrink-0">
+                  {p.stockQuantity ?? 0} {p.unit}
+                </span>
+              </span>
+            )}
+          />
+
+          <div className="flex flex-wrap items-center gap-3">
+            {isStockTab ? (
+              <SegmentedFilter
+                label={t('stock.columnStatus')}
+                value={stockFilter}
+                onChange={setStockFilter}
+                options={[
+                  { value: 'ALL', label: t('stock.filterAll'), count: stats.totalProducts },
+                  { value: 'ok', label: t('stock.status.ok'), count: stats.ok },
+                  { value: 'low', label: t('stock.status.low'), count: stats.low },
+                  { value: 'out', label: t('stock.status.out'), count: stats.out },
+                ]}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <label htmlFor="movement-type" className="text-sm text-gray-500 dark:text-gray-400">
+                  {t('stock.columnType')}
+                </label>
+                <select
+                  id="movement-type"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="input-field w-auto py-2"
+                >
+                  <option value="ALL">{t('stock.filterAllMovements')}</option>
+                  {MOVEMENT_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {t(`stock.movementTypes.${type.value}`)}
+                    </option>
+                  ))}
                 </select>
               </div>
-            </div>
-          </div>
-
-          {/* Products Stock Table */}
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock Actuel</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Seuil Min</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valeur</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredProducts.map((product) => {
-                    const stockValue = (product.stockQuantity || 0) * (product.purchasePrice || 0);
-                    const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= product.minStockAlert;
-                    const isOutOfStock = product.stockQuantity === 0;
-
-                    return (
-                      <motion.tr
-                        key={product.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="hover:bg-gray-50"
-                      >
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-medium text-gray-900">{product.name}</p>
-                            <p className="text-xs text-gray-500">{product.reference || product.barcode}</p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {product.category?.name || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-lg font-bold text-gray-900">{product.stockQuantity || 0}</span>
-                          <span className="text-sm text-gray-500 ml-1">{product.unit}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {product.minStockAlert || 0}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {isOutOfStock ? (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Rupture
-                            </span>
-                          ) : isLowStock ? (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                              Stock faible
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Disponible
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          {stockValue.toFixed(2)} €
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewDetails(product);
-                            }}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                            title="Voir les détails"
-                          >
-                            <Eye className="w-4 h-4" />
-                            Détails
-                          </button>
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Movements Tab */}
-      {activeTab === 'movements' && (
-        <>
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleOpenModal('add')}
-          className="card hover:shadow-lg transition-shadow text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <Plus className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">Ajouter du stock</p>
-              <p className="text-xs text-gray-600">Entrée de marchandises</p>
-            </div>
-          </div>
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleOpenModal('remove')}
-          className="card hover:shadow-lg transition-shadow text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-              <Minus className="w-5 h-5 text-red-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">Retirer du stock</p>
-              <p className="text-xs text-gray-600">Sortie de marchandises</p>
-            </div>
-          </div>
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleOpenModal('adjust')}
-          className="card hover:shadow-lg transition-shadow text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <Edit2 className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">Ajuster le stock</p>
-              <p className="text-xs text-gray-600">Correction d'inventaire</p>
-            </div>
-          </div>
-        </motion.button>
-
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => handleOpenModal('damage')}
-          className="card hover:shadow-lg transition-shadow text-left"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">Déclarer un dommage</p>
-              <p className="text-xs text-gray-600">Produit endommagé</p>
-            </div>
-          </div>
-        </motion.button>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Rechercher par produit ou référence..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="input pl-10 w-full"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="input"
-            >
-              <option value="ALL">Tous les mouvements</option>
-              <option value="STOCK_IN">Entrées</option>
-              <option value="STOCK_OUT">Sorties</option>
-              <option value="ADJUSTMENT">Ajustements</option>
-              <option value="DAMAGE">Dommages</option>
-              <option value="RETURN">Retours</option>
-              <option value="TRANSFER">Transferts</option>
-            </select>
+            )}
+            {hasActiveFilters && (
+              <Button variant="secondary" size="sm" icon={X} onClick={resetFilters}>
+                {t('stock.resetFilters')}
+              </Button>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Movements Table */}
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produit</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock avant</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock après</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raison</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedMovements.map((movement) => {
-                const typeInfo = getMovementTypeInfo(movement.type);
-                const Icon = typeInfo.icon;
-                return (
-                  <motion.tr
-                    key={movement.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="hover:bg-gray-50"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${typeInfo.class}`}>
-                        <Icon className="w-4 h-4" />
-                        <span className="text-sm font-medium">{typeInfo.text}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <p className="font-medium text-gray-900">{movement.product?.name}</p>
-                        <p className="text-xs text-gray-500">{movement.product?.reference}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-semibold text-gray-900">{movement.quantity}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {movement.previousStock}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {movement.newStock}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {movement.reference || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {formatDate(movement.createdAt)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <div className="max-w-xs truncate" title={movement.reason}>
-                        {movement.reason || '-'}
-                      </div>
-                    </td>
-                  </motion.tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div id={`panel-${activeTab}`} role="tabpanel">
+          <Table
+            columns={isStockTab ? productColumns : movementColumns}
+            data={displayedRows}
+            loading={isStockTab ? loading : movementsLoading}
+            emptyState={emptyState}
+            sortKey={isStockTab ? productSort.key : movementSort.key}
+            sortDirection={isStockTab ? productSort.direction : movementSort.direction}
+            onSort={handleSort}
+            actions={
+              isStockTab
+                ? (product) => (
+                    <>
+                      <button
+                        onClick={() => openDetails(product)}
+                        className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        title={t('stock.viewDetails')}
+                        aria-label={`${t('stock.viewDetails')} — ${product.name}`}
+                      >
+                        <Eye className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                      {/* Opérer depuis la ligne du produit concerné : `openOperation`
+                          acceptait déjà un produit, rien ne le lui passait. */}
+                      <button
+                        onClick={() => openOperation('add', product)}
+                        className="text-green-600 hover:text-green-800 dark:hover:text-green-300 p-2 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors"
+                        title={t('stock.opAdd')}
+                        aria-label={`${t('stock.opAdd')} — ${product.name}`}
+                      >
+                        <Plus className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        onClick={() => openOperation('remove', product)}
+                        className="text-red-600 hover:text-red-800 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+                        title={t('stock.opRemove')}
+                        aria-label={`${t('stock.opRemove')} — ${product.name}`}
+                      >
+                        <Minus className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        onClick={() => openOperation('adjust', product)}
+                        className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
+                        title={t('stock.opAdjust')}
+                        aria-label={`${t('stock.opAdjust')} — ${product.name}`}
+                      >
+                        <Edit2 className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </>
+                  )
+                : null
+            }
+          />
 
-          {/* Pagination */}
-          {filteredMovements.length > 0 && (
+          {!(isStockTab ? loading : movementsLoading) && totalItems > 0 && (
             <Pagination
-              currentPage={currentPage}
+              currentPage={Math.min(currentPage, totalPages)}
               totalPages={totalPages}
-              totalItems={filteredMovements.length}
+              totalItems={totalItems}
               itemsPerPage={itemsPerPage}
-              onPageChange={handlePageChange}
-              onItemsPerPageChange={handleItemsPerPageChange}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
             />
           )}
         </div>
       </div>
 
-      {/* Modal */}
-      <AnimatePresence>
-        {showModal && (
-          <Modal
-            isOpen={showModal}
-            onClose={() => setShowModal(false)}
-            title={
-              modalType === 'add' ? 'Ajouter du stock' :
-              modalType === 'remove' ? 'Retirer du stock' :
-              modalType === 'adjust' ? 'Ajuster le stock' :
-              'Déclarer un dommage'
-            }
-          >
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {selectedProduct ? (
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 font-medium">Produit sélectionné</p>
-                      <p className="text-lg font-bold text-gray-900 mt-1">{selectedProduct.name}</p>
-                      <p className="text-sm text-gray-600">Stock actuel: <span className="font-semibold text-primary-600">{selectedProduct.stockQuantity}</span> {selectedProduct.unit}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedProduct(null);
-                        setFormData({ ...formData, productId: '' });
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+      {/* ---- Modale d'opération ----
+       * Enveloppée dans un contexte d'empilement supérieur : elle peut être ouverte
+       * depuis la fiche produit, et les deux modales partagent le même `z-50`. Sans
+       * cela, la fiche — déclarée après dans le DOM — recouvrirait le formulaire. */}
+      <div className="relative z-[60]">
+      <Modal
+        isOpen={Boolean(operation)}
+        onClose={closeOperation}
+        title={operation ? t(`stock.opTitle.${operation}`) : ''}
+      >
+        {operation && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 -mt-1">
+              {t(`stock.opHint.${operation}`)}
+            </p>
+
+            {operationProduct ? (
+              <div className="flex items-start justify-between gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {t('stock.selectedProduct')}
+                  </p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100 mt-1 truncate">
+                    {operationProduct.name}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {t('stock.currentStock')}{' '}
+                    <span className="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                      {operationProduct.stockQuantity ?? 0}
+                    </span>{' '}
+                    {operationProduct.unit}
+                  </p>
                 </div>
-              ) : (
-                <FormSelect
-                  label="Produit"
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, productId: '', newQuantity: '' })}
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"
+                  aria-label={t('stock.changeProduct')}
+                  title={t('stock.changeProduct')}
+                >
+                  <X className="w-5 h-5" aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('stock.productLabel')} <span className="text-red-500">*</span>
+                </label>
+                <SearchableSelect
+                  options={products}
                   value={formData.productId}
-                  onChange={(e) => {
-                    const productId = e.target.value;
-                    const product = products.find(p => p.id === parseInt(productId));
+                  onChange={(value) => {
+                    const product = products.find((p) => String(p.id) === String(value));
                     setFormData({
                       ...formData,
-                      productId,
-                      newQuantity: product?.stockQuantity || 0
+                      productId: value,
+                      newQuantity: product?.stockQuantity ?? '',
                     });
                   }}
-                  options={[
-                    { value: '', label: 'Sélectionner un produit' },
-                    ...products.map(p => ({
-                      value: p.id,
-                      label: `${p.name} (Stock: ${p.stockQuantity})`
-                    }))
-                  ]}
+                  getOptionValue={(p) => p.id}
+                  getOptionLabel={(p) => p.name}
+                  getOptionSearch={(p) => `${p.code || ''} ${p.barcode || ''}`}
+                  placeholder={t('stock.productPlaceholder')}
+                  noResultsText={t('stock.noProductFound')}
+                  minChars={1}
                   required
-                />
-              )}
-
-              {modalType === 'adjust' ? (
-                <FormInput
-                  label="Nouvelle quantité"
-                  type="number"
-                  value={formData.newQuantity}
-                  onChange={(e) => setFormData({ ...formData, newQuantity: e.target.value })}
-                  placeholder="Nouvelle quantité en stock"
-                  required
-                />
-              ) : (
-                <FormInput
-                  label="Quantité"
-                  type="number"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                  placeholder="Quantité"
-                  required
-                />
-              )}
-
-              {modalType === 'add' && (
-                <>
-                  <FormInput
-                    label="Coût unitaire"
-                    type="number"
-                    step="0.01"
-                    value={formData.unitCost}
-                    onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
-                    placeholder="Prix d'achat unitaire"
-                  />
-                  <FormInput
-                    label="Référence"
-                    value={formData.reference}
-                    onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-                    placeholder="Bon de commande, facture, etc."
-                  />
-                </>
-              )}
-
-              {(modalType === 'remove' || modalType === 'damage') && (
-                <FormInput
-                  label="Référence"
-                  value={formData.reference}
-                  onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-                  placeholder="N° de sortie, etc."
-                />
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Raison
-                </label>
-                <textarea
-                  value={formData.reason}
-                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  rows="3"
-                  className="input w-full"
-                  placeholder="Motif de l'opération..."
+                  inputClassName="input-field pl-10 pr-9"
+                  renderOption={(p) => (
+                    <span className="flex flex-col">
+                      <span className="font-medium truncate">{p.name}</span>
+                      <span className="text-xs text-gray-500">
+                        {[
+                          p.code && `Réf. ${p.code}`,
+                          p.barcode,
+                          `${t('stock.currentStock')} ${p.stockQuantity ?? 0} ${p.unit || ''}`.trim(),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </span>
+                  )}
                 />
               </div>
+            )}
 
-              <div className="flex gap-3 pt-4">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="flex-1"
-                >
-                  Confirmer
-                </Button>
+            {isAdjust ? (
+              <FormInput
+                label={t('stock.newQuantityLabel')}
+                name="newQuantity"
+                type="number"
+                min="0"
+                value={formData.newQuantity}
+                onChange={(e) => setFormData({ ...formData, newQuantity: e.target.value })}
+                placeholder={t('stock.newQuantityPlaceholder')}
+                required
+              />
+            ) : (
+              <FormInput
+                label={t('stock.quantityLabel')}
+                name="quantity"
+                type="number"
+                min="1"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                placeholder={t('stock.quantityPlaceholder')}
+                required
+              />
+            )}
+
+            {/* Aperçu du résultat : ce que deviendra le stock si l'opération est validée. */}
+            {projection && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {t('stock.projectionLabel')}
+                </span>
+                <span className="flex items-center gap-2 tabular-nums">
+                  <span className="text-gray-500 dark:text-gray-400">{projection.current}</span>
+                  <span className="text-gray-400">→</span>
+                  <span
+                    className={`text-lg font-bold ${
+                      projection.next < 0
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                  >
+                    {projection.next}
+                  </span>
+                  <span
+                    className={
+                      projection.delta > 0
+                        ? 'badge-success'
+                        : projection.delta < 0
+                          ? 'badge-danger'
+                          : 'badge-neutral'
+                    }
+                  >
+                    {projection.delta > 0 ? '+' : ''}
+                    {projection.delta}
+                  </span>
+                </span>
               </div>
-            </form>
-          </Modal>
+            )}
+
+            {config?.withUnitCost && (
+              <FormInput
+                label={t('stock.unitCostLabel')}
+                name="unitCost"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.unitCost}
+                onChange={(e) => setFormData({ ...formData, unitCost: e.target.value })}
+                placeholder={t('stock.unitCostPlaceholder')}
+              />
+            )}
+
+            {config?.withReference && (
+              <FormInput
+                label={t('stock.referenceLabel')}
+                name="reference"
+                value={formData.reference}
+                onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                placeholder={t(`stock.referencePlaceholder.${operation}`)}
+                maxLength={100}
+              />
+            )}
+
+            <FormInput
+              label={t('stock.reasonLabel')}
+              name="reason"
+              type="textarea"
+              rows={3}
+              value={formData.reason}
+              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+              placeholder={t(`stock.reasonPlaceholder.${operation}`)}
+              maxLength={500}
+            />
+
+            {formError && (
+              <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+                {formError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="secondary" onClick={closeOperation}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" variant="primary" loading={submitting}>
+                {t('stock.confirmOperation')}
+              </Button>
+            </div>
+          </form>
         )}
-      </AnimatePresence>
-        </>
-      )}
+      </Modal>
+      </div>
 
-      {/* Product Details Tab */}
-      {activeTab === 'details' && selectedProductForDetails && (
-        <>
-          <div className="card">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center">
-                  <Package className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{selectedProductForDetails.name}</h2>
-                  <p className="text-sm text-gray-600">{selectedProductForDetails.reference || selectedProductForDetails.barcode}</p>
-                </div>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setActiveTab('stock');
-                  setSelectedProductForDetails(null);
-                }}
-              >
-                Retour au stock
+      {/* ---- Fiche produit ---- */}
+      <Modal
+        isOpen={Boolean(detailsProduct)}
+        onClose={() => setDetailsProductId(null)}
+        size="lg"
+        title={detailsProduct?.name || ''}
+      >
+        {detailsProduct && (
+          <div className="space-y-6">
+            <p className="text-sm text-gray-500 dark:text-gray-400 -mt-1">
+              {detailsProduct.code || detailsProduct.barcode || '—'}
+              {detailsProduct.category?.name ? ` · ${detailsProduct.category.name}` : ''}
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <StatCard
+                title={t('stock.columnStock')}
+                value={`${detailsProduct.stockQuantity ?? 0} ${detailsProduct.unit || ''}`.trim()}
+                subtitle={t(`stock.status.${stockStatus(detailsProduct)}`)}
+                icon={Package}
+                tone={{ out: 'danger', low: 'warning', ok: 'success' }[stockStatus(detailsProduct)]}
+              />
+              <StatCard
+                title={t('stock.columnThreshold')}
+                value={detailsProduct.minStockAlert ?? 0}
+                subtitle={t('stock.thresholdHint')}
+                icon={AlertTriangle}
+                tone="neutral"
+              />
+              <StatCard
+                title={t('stock.purchasePrice')}
+                value={formatCurrency(detailsProduct.purchasePrice ?? 0)}
+                subtitle={t('stock.perUnit', { unit: detailsProduct.unit || '' })}
+                icon={Euro}
+                tone="info"
+              />
+              <StatCard
+                title={t('stock.columnValue')}
+                value={formatCurrency(stockValueOf(detailsProduct))}
+                subtitle={t('stock.statValueHint')}
+                icon={Boxes}
+                tone="accent"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" size="sm" icon={Plus} onClick={() => openOperation('add', detailsProduct)}>
+                {t('stock.opAdd')}
+              </Button>
+              <Button variant="secondary" size="sm" icon={Minus} onClick={() => openOperation('remove', detailsProduct)}>
+                {t('stock.opRemove')}
+              </Button>
+              <Button variant="secondary" size="sm" icon={Edit2} onClick={() => openOperation('adjust', detailsProduct)}>
+                {t('stock.opAdjust')}
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-600 font-medium">Stock Actuel</p>
-                <p className="text-3xl font-bold text-blue-700 mt-2">
-                  {selectedProductForDetails.stockQuantity || 0}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">{selectedProductForDetails.unit}</p>
+            <div>
+              <h3 className="section-title mb-3">{t('stock.movementHistory')}</h3>
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <Table
+                  columns={movementColumns.filter((column) => column.key !== 'product')}
+                  data={productMovements}
+                  loading={detailsLoading}
+                  skeletonRows={3}
+                  emptyState={
+                    <div className="flex flex-col items-center gap-2">
+                      <Package className="empty-state-icon" aria-hidden="true" />
+                      <p className="font-medium text-gray-700 dark:text-gray-300">
+                        {t('stock.noMovementsTitle')}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {t('stock.noMovementsHint')}
+                      </p>
+                    </div>
+                  }
+                />
               </div>
-
-              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <p className="text-sm text-orange-600 font-medium">Seuil Minimum</p>
-                <p className="text-3xl font-bold text-orange-700 mt-2">
-                  {selectedProductForDetails.minStockAlert || 0}
-                </p>
-              </div>
-
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm text-green-600 font-medium">Prix d'achat</p>
-                <p className="text-2xl font-bold text-green-700 mt-2">
-                  {(selectedProductForDetails.purchasePrice || 0).toFixed(2)} €
-                </p>
-              </div>
-
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <p className="text-sm text-purple-600 font-medium">Valeur du stock</p>
-                <p className="text-2xl font-bold text-purple-700 mt-2">
-                  {((selectedProductForDetails.stockQuantity || 0) * (selectedProductForDetails.purchasePrice || 0)).toFixed(2)} €
-                </p>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Product Movements History */}
-          <div className="card overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Historique des mouvements</h3>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantité</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock avant</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock après</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Raison</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {productMovements.length === 0 ? (
-                    <tr>
-                      <td colSpan="7" className="px-6 py-12 text-center">
-                        <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500 font-medium">Aucun mouvement enregistré</p>
-                        <p className="text-gray-400 text-sm mt-1">Les mouvements de stock apparaîtront ici</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    productMovements.map((movement) => {
-                      const typeInfo = getMovementTypeInfo(movement.type);
-                      const Icon = typeInfo.icon;
-                      return (
-                        <motion.tr
-                          key={movement.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="hover:bg-gray-50"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${typeInfo.class}`}>
-                              <Icon className="w-4 h-4" />
-                              <span className="text-sm font-medium">{typeInfo.text}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="font-semibold text-gray-900">{movement.quantity}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {movement.previousStock}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                            {movement.newStock}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {movement.reference || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {formatDate(movement.createdAt)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            <div className="max-w-xs truncate" title={movement.reason}>
-                              {movement.reason || '-'}
-                            </div>
-                          </td>
-                        </motion.tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

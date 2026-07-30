@@ -2,10 +2,15 @@ package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.order.OrderCreateRequest;
 import com.gescom.backend.dto.order.OrderResponse;
+import com.gescom.backend.dto.order.OrderStatusUpdateRequest;
 import com.gescom.backend.dto.order.OrderUpdateRequest;
+import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
+import com.gescom.backend.exception.BusinessException;
+import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.mapper.OrderMapper;
 import com.gescom.backend.service.CsvExportService;
+import com.gescom.backend.service.InvoiceService;
 import com.gescom.backend.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -29,19 +34,26 @@ public class OrderController {
     private final OrderService orderService;
     private final CsvExportService csvExportService;
     private final OrderMapper orderMapper;
+    private final InvoiceService invoiceService;
 
     public OrderController(OrderService orderService,
                            CsvExportService csvExportService,
-                           OrderMapper orderMapper) {
+                           OrderMapper orderMapper,
+                           InvoiceService invoiceService) {
         this.orderService = orderService;
         this.csvExportService = csvExportService;
         this.orderMapper = orderMapper;
+        this.invoiceService = invoiceService;
     }
 
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAllOrders() {
-        return ResponseEntity.ok(orderService.getAllOrders().stream()
-                .map(orderMapper::toResponse).toList());
+        List<Order> orders = orderService.getAllOrders();
+        // Statut de facturation par commande (1 requête groupée) pour afficher « Payée » dans la liste.
+        Map<Long, Invoice.InvoiceStatus> invoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
+                orders.stream().map(Order::getId).toList());
+        return ResponseEntity.ok(orders.stream()
+                .map(o -> orderMapper.toResponse(o, invoiceStatuses.get(o.getId()))).toList());
     }
 
     @GetMapping("/{id}")
@@ -49,7 +61,7 @@ public class OrderController {
         return orderService.getOrderById(id)
                 .map(orderMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("order", id));
     }
 
     @GetMapping("/number/{orderNumber}")
@@ -57,7 +69,7 @@ public class OrderController {
         return orderService.getOrderByOrderNumber(orderNumber)
                 .map(orderMapper::toResponse)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(() -> new ResourceNotFoundException("order", "number", orderNumber));
     }
 
     @GetMapping("/client/{clientId}")
@@ -99,11 +111,28 @@ public class OrderController {
         return ResponseEntity.ok(orderMapper.toResponse(orderService.updateOrder(id, patch)));
     }
 
+    @PostMapping("/{id}/confirm")
+    public ResponseEntity<OrderResponse> confirmOrder(@PathVariable Long id) {
+        return ResponseEntity.ok(orderMapper.toResponse(orderService.confirmOrder(id)));
+    }
+
     @PatchMapping("/{id}/status")
     public ResponseEntity<OrderResponse> updateOrderStatus(@PathVariable Long id,
-                                                           @RequestBody Map<String, String> request) {
-        Order.OrderStatus status = Order.OrderStatus.valueOf(request.get("status"));
+                                                           @Valid @RequestBody OrderStatusUpdateRequest request) {
+        Order.OrderStatus status = parseStatus(request.status());
         return ResponseEntity.ok(orderMapper.toResponse(orderService.updateOrderStatus(id, status)));
+    }
+
+    /** Convertit la valeur reçue en statut, en renvoyant une erreur métier 400 claire si invalide. */
+    private Order.OrderStatus parseStatus(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw BusinessException.of("status.target.required", "Le statut cible est obligatoire");
+        }
+        try {
+            return Order.OrderStatus.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw BusinessException.of("status.unknown", "Statut inconnu : " + raw, raw);
+        }
     }
 
     @PatchMapping("/{id}/cancel")

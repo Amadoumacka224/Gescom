@@ -7,12 +7,12 @@ const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
         {/* Header */}
         <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 

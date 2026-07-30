@@ -26,4 +26,12 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  // Les scripts de vérification (parité et résolution des clés i18n) tournent sous Node, pas
+  // dans le navigateur : ils lisent le système de fichiers et sortent en code d'erreur.
+  {
+    files: ['scripts/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

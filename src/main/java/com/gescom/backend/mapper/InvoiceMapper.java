@@ -48,7 +48,7 @@ public class InvoiceMapper {
 
     public Invoice toEntity(InvoiceCreateRequest request) {
         Order order = orderRepository.findById(request.orderId())
-                .orElseThrow(() -> new ResourceNotFoundException("Commande", request.orderId()));
+                .orElseThrow(() -> new ResourceNotFoundException("order", request.orderId()));
 
         Invoice invoice = new Invoice();
         invoice.setOrder(order);

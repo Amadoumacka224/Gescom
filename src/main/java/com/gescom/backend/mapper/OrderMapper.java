@@ -6,6 +6,7 @@ import com.gescom.backend.dto.order.OrderItemResponse;
 import com.gescom.backend.dto.order.OrderResponse;
 import com.gescom.backend.dto.order.OrderUpdateRequest;
 import com.gescom.backend.entity.Client;
+import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.entity.OrderItem;
 import com.gescom.backend.entity.Product;
@@ -39,6 +40,10 @@ public class OrderMapper {
     }
 
     public OrderResponse toResponse(Order order) {
+        return toResponse(order, null);
+    }
+
+    public OrderResponse toResponse(Order order, Invoice.InvoiceStatus invoiceStatus) {
         if (order == null) return null;
         return new OrderResponse(
                 order.getId(),
@@ -53,6 +58,7 @@ public class OrderMapper {
                 order.getTax(),
                 order.getFinalAmount(),
                 order.getStatus(),
+                invoiceStatus,
                 order.getNotes(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()
@@ -72,11 +78,15 @@ public class OrderMapper {
     }
 
     public Order toEntity(OrderCreateRequest request) {
-        Client client = clientRepository.findById(request.clientId())
-                .orElseThrow(() -> new ResourceNotFoundException("Client", request.clientId()));
-
         Order order = new Order();
-        order.setClient(client);
+
+        // Client optionnel : null = vente de passage (aucune fiche client).
+        if (request.clientId() != null) {
+            Client client = clientRepository.findById(request.clientId())
+                    .orElseThrow(() -> new ResourceNotFoundException("client", request.clientId()));
+            order.setClient(client);
+        }
+
         order.setDiscount(request.discount() != null ? request.discount() : BigDecimal.ZERO);
         order.setTax(request.tax() != null ? request.tax() : BigDecimal.ZERO);
         order.setNotes(request.notes());
@@ -86,9 +96,6 @@ public class OrderMapper {
 
     public Order toUpdate(OrderUpdateRequest request) {
         Order patch = new Order();
-        if (request.status() != null) {
-            patch.setStatus(request.status());
-        }
         if (request.discount() != null) {
             patch.setDiscount(request.discount());
         }
@@ -102,10 +109,11 @@ public class OrderMapper {
 
     private OrderItem buildItem(OrderItemRequest req) {
         Product product = productRepository.findById(req.productId())
-                .orElseThrow(() -> new ResourceNotFoundException("Produit", req.productId()));
+                .orElseThrow(() -> new ResourceNotFoundException("product", req.productId()));
         OrderItem item = new OrderItem();
         item.setProduct(product);
         item.setQuantity(req.quantity());
+        item.setDiscount(req.discount() != null ? req.discount() : BigDecimal.ZERO);
         return item;
     }
 }

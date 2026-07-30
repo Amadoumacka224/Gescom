@@ -13,4 +13,6 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
     List<Client> findByActiveTrue();
     List<Client> findByType(Client.ClientType type);
     Boolean existsByEmail(String email);
+    // Variante pour la mise à jour : vrai si un AUTRE client (id différent) utilise déjà cet email.
+    Boolean existsByEmailAndIdNot(String email, Long id);
 }

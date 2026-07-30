@@ -1,507 +1,613 @@
-import { useState, useEffect } from 'react';
-import { User, Mail, Phone, Lock, Eye, EyeOff, Check, AlertCircle, Save } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import {
+  User,
+  Mail,
+  Phone,
+  Lock,
+  Eye,
+  EyeOff,
+  Check,
+  Save,
+  KeyRound,
+  AtSign,
+  CalendarDays,
+  Clock,
+  ShieldCheck,
+  RotateCcw,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import Button from '../components/Button';
+import FormInput from '../components/FormInput';
+import InfoRow from '../components/InfoRow';
+import { extractErrorMessage } from '../utils/apiError';
+import { badgeClass } from '../constants/statusBadges';
+import i18n from '../i18n';
+
+/**
+ * Compte de l'utilisateur connecté : ses coordonnées et son mot de passe.
+ *
+ * Disposition en deux colonnes, comme les écrans de compte des applications de gestion :
+ * une carte d'identité de gauche, purement informative et toujours visible, et à droite les
+ * deux formulaires dans des onglets. L'identité restait auparavant à l'intérieur du
+ * formulaire — l'avatar et le rôle disparaissaient donc dès qu'on passait sur l'onglet
+ * Sécurité, alors que ce sont les repères « sur quel compte suis-je en train d'agir ».
+ */
+
+const ROLE_LABEL_KEYS = { ADMIN: 'roles.ADMIN', CAISSIER: 'roles.CAISSIER' };
+
+/** Le rôle n'est pas un état : il identifie le compte, d'où deux teintes neutres distinctes. */
+const ROLE_TONES = { ADMIN: 'accent', CAISSIER: 'info' };
+
+const EMPTY_PROFILE = {
+  username: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  role: '',
+  active: true,
+  createdAt: null,
+  updatedAt: null,
+};
+
+const EMPTY_PASSWORD = { currentPassword: '', newPassword: '', confirmPassword: '' };
+
+/**
+ * Règles de robustesse, reprises telles quelles de `UserService.validatePassword` côté backend
+ * (8 caractères, une majuscule, une minuscule, un chiffre). L'écran annonçait « au moins
+ * 4 caractères » : la saisie passait la validation locale puis était rejetée par le serveur,
+ * sans que l'utilisateur sache quelle règle il venait d'enfreindre.
+ */
+const PASSWORD_RULES = [
+  { key: 'length', labelKey: 'profile.rules.length', test: (p) => p.length >= 8 },
+  { key: 'upper', labelKey: 'profile.rules.upper', test: (p) => /[A-Z]/.test(p) },
+  { key: 'lower', labelKey: 'profile.rules.lower', test: (p) => /[a-z]/.test(p) },
+  { key: 'digit', labelKey: 'profile.rules.digit', test: (p) => /\d/.test(p) },
+];
+
+const TABS = [
+  { id: 'info', labelKey: 'profile.tabs.info', icon: User },
+  { id: 'security', labelKey: 'profile.tabs.security', icon: Lock },
+];
+
+/** Champs que l'utilisateur peut modifier lui-même (cf. `UserUpdateSelfRequest`). */
+const EDITABLE_FIELDS = ['firstName', 'lastName', 'email', 'phone'];
+
+const formatDateTime = (iso) =>
+  iso
+    ? new Date(iso).toLocaleString(i18n.t('export.locale'), {
+        day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
+/** Marqueur de règle satisfaite ou non. La coche ne porte pas la seule information : le
+ *  libellé reste lisible dans les deux états, seule sa teinte change. */
+const RuleCheck = ({ label, satisfied }) => (
+  <li
+    className={`flex items-center gap-2 text-sm ${
+      satisfied ? 'text-green-700 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'
+    }`}
+  >
+    <span
+      className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${
+        satisfied
+          ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
+          : 'bg-gray-100 text-transparent dark:bg-gray-700'
+      }`}
+      aria-hidden="true"
+    >
+      <Check className="w-3 h-3" />
+    </span>
+    {label}
+    <span className="sr-only">{satisfied ? ' : règle respectée' : ' : règle non respectée'}</span>
+  </li>
+);
+
+/** Champ de mot de passe avec bascule d'affichage. `FormInput` ne gère pas d'icône à droite. */
+const PasswordField = ({ id, label, value, onChange, visible, onToggle, placeholder, autoComplete, children }) => (
+  <div className="space-y-2">
+    <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      {label} <span className="text-red-500">*</span>
+    </label>
+    <div className="relative">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <KeyRound className="h-5 w-5 text-gray-400" aria-hidden="true" />
+      </div>
+      <input
+        id={id}
+        name={id}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required
+        className="input-field pl-10 pr-11"
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={visible}
+        aria-label={visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+        className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+      >
+        {visible ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
+      </button>
+    </div>
+    {children}
+  </div>
+);
 
 const Profile = () => {
-  const { user: authUser } = useAuth();
+  const { t } = useTranslation();
+  const { user: authUser, updateUser } = useAuth();
+
   const [activeTab, setActiveTab] = useState('info');
-  const [loading, setLoading] = useState(false);
-  const [userInfo, setUserInfo] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    username: '',
-    role: ''
-  });
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false
-  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const [profile, setProfile] = useState(EMPTY_PROFILE);
+  // Dernier état enregistré : sert de point de comparaison pour « Annuler » et pour savoir
+  // si le formulaire a réellement changé.
+  const [savedProfile, setSavedProfile] = useState(EMPTY_PROFILE);
+
+  const [passwordData, setPasswordData] = useState(EMPTY_PASSWORD);
+  const [showPasswords, setShowPasswords] = useState({ current: false, next: false, confirm: false });
 
   useEffect(() => {
-    fetchUserProfile();
+    fetchProfile();
   }, []);
 
-  const fetchUserProfile = async () => {
+  const fetchProfile = async () => {
+    if (!authUser?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
-      if (!authUser || !authUser.id) return;
-
       const response = await api.get('/users/me');
-      setUserInfo(response.data);
+      const data = { ...EMPTY_PROFILE, ...response.data, phone: response.data.phone || '' };
+      setProfile(data);
+      setSavedProfile(data);
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      // Un 401 est déjà traité par l'intercepteur axios (redirection vers la connexion).
       if (error.response?.status !== 401) {
-        toast.error('❌ Erreur lors du chargement du profil');
+        toast.error(extractErrorMessage(error));
       }
-    }
-  };
-
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-
-    if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) {
-      toast.error('❌ Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await api.put('/users/me', {
-        email: userInfo.email,
-        firstName: userInfo.firstName,
-        lastName: userInfo.lastName,
-        phone: userInfo.phone || ''
-      });
-
-      // Update localStorage with new user data
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const updatedUser = {
-        ...currentUser,
-        firstName: response.data.firstName,
-        lastName: response.data.lastName,
-        email: response.data.email,
-        phone: response.data.phone
-      };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-
-      toast.success('✅ Profil mis à jour avec succès !');
-
-      // Refresh the page to update sidebar
-      window.location.reload();
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      const errorMessage = error.response?.data || 'Erreur lors de la mise à jour du profil';
-      toast.error(`❌ ${errorMessage}`, {
-        style: {
-          background: '#EF4444',
-          color: '#fff',
-        },
-      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-
-    // Validation
-    if (!passwordData.currentPassword) {
-      toast.error('❌ Veuillez saisir votre mot de passe actuel');
-      return;
-    }
-
-    if (!passwordData.newPassword) {
-      toast.error('❌ Veuillez saisir un nouveau mot de passe');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 4) {
-      toast.error('❌ Le mot de passe doit contenir au moins 4 caractères');
-      return;
-    }
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('❌ Les mots de passe ne correspondent pas');
-      return;
-    }
-
-    if (passwordData.currentPassword === passwordData.newPassword) {
-      toast.error('❌ Le nouveau mot de passe doit être différent de l\'ancien');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await api.post('/users/me/change-password', {
-        currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword
-      });
-
-      toast.success('✅ Mot de passe modifié avec succès !');
-
-      // Reset form
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-    } catch (error) {
-      console.error('Error changing password:', error);
-      const errorMessage = error.response?.data || 'Erreur lors du changement de mot de passe';
-      toast.error(`❌ ${errorMessage}`, {
-        style: {
-          background: '#EF4444',
-          color: '#fff',
-        },
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInfoChange = (e) => {
+  const handleProfileChange = (e) => {
     const { name, value } = e.target;
-    setUserInfo(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setProfile((prev) => ({ ...prev, [name]: value }));
   };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const togglePasswordVisibility = (field) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
+  const toggleVisibility = (field) => {
+    setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
   };
+
+  const isDirty = useMemo(
+    () => EDITABLE_FIELDS.some((field) => (profile[field] || '') !== (savedProfile[field] || '')),
+    [profile, savedProfile]
+  );
+
+  const handleSubmitProfile = async (e) => {
+    e.preventDefault();
+
+    if (!profile.firstName.trim() || !profile.lastName.trim() || !profile.email.trim()) {
+      toast.error(t('profile.requiredFields'));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await api.put('/users/me', {
+        firstName: profile.firstName.trim(),
+        lastName: profile.lastName.trim(),
+        email: profile.email.trim(),
+        phone: profile.phone?.trim() || '',
+      });
+
+      const data = { ...EMPTY_PROFILE, ...response.data, phone: response.data.phone || '' };
+      setProfile(data);
+      setSavedProfile(data);
+
+      // La barre latérale et l'en-tête lisent le contexte d'authentification : le mettre à jour
+      // suffit à y répercuter le nouveau nom, là où la page rechargeait toute la fenêtre.
+      updateUser({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+      });
+
+      toast.success(t('profile.updated'));
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const ruleStates = useMemo(
+    () => PASSWORD_RULES.map((rule) => ({ ...rule, satisfied: rule.test(passwordData.newPassword) })),
+    [passwordData.newPassword]
+  );
+
+  const allRulesSatisfied = ruleStates.every((rule) => rule.satisfied);
+  const passwordsMatch =
+    passwordData.confirmPassword !== '' && passwordData.newPassword === passwordData.confirmPassword;
+  const isSamePassword =
+    passwordData.newPassword !== '' && passwordData.newPassword === passwordData.currentPassword;
+
+  // Le bouton reste actif tant qu'il manque quelque chose : c'est le message d'erreur qui
+  // désigne la règle en défaut, un bouton grisé sans explication laisse l'utilisateur bloqué.
+  const handleSubmitPassword = async (e) => {
+    e.preventDefault();
+
+    if (!passwordData.currentPassword) {
+      toast.error(t('profile.currentPasswordRequired'));
+      return;
+    }
+    if (!allRulesSatisfied) {
+      toast.error(t('profile.rulesNotMet'));
+      return;
+    }
+    if (isSamePassword) {
+      toast.error(t('profile.mustDiffer'));
+      return;
+    }
+    if (!passwordsMatch) {
+      toast.error(t('profile.confirmMismatch'));
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await api.post('/users/me/change-password', {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+      setPasswordData(EMPTY_PASSWORD);
+      setShowPasswords({ current: false, next: false, confirm: false });
+      toast.success(t('profile.passwordChanged'));
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error(extractErrorMessage(error));
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+  const initials = `${profile.firstName?.charAt(0) || ''}${profile.lastName?.charAt(0) || ''}`.toUpperCase();
+  const roleLabel = ROLE_LABEL_KEYS[profile.role] ? t(ROLE_LABEL_KEYS[profile.role]) : (profile.role || '—');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-4xl mx-auto"
-      >
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl">
-              <User className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Mon Profil</h1>
-              <p className="text-gray-600 mt-1">Gérez vos informations personnelles et votre sécurité</p>
-            </div>
+    <div className="space-y-6">
+      {/* ---- En-tête ---- */}
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <User aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('nav.profile')}</h1>
+            <p className="page-subtitle">{t('profile.subtitle')}</p>
           </div>
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden mb-6">
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('info')}
-              className={`flex-1 px-6 py-4 font-medium transition-all ${
-                activeTab === 'info'
-                  ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <User className="w-5 h-5" />
-                <span>Informations personnelles</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('password')}
-              className={`flex-1 px-6 py-4 font-medium transition-all ${
-                activeTab === 'password'
-                  ? 'bg-blue-50 text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Lock className="w-5 h-5" />
-                <span>Sécurité</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        {activeTab === 'info' ? (
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
-          >
-            <div className="p-8">
-              <form onSubmit={handleUpdateProfile} className="space-y-6">
-                {/* User Avatar/Badge */}
-                <div className="flex justify-center mb-6">
-                  <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-3xl">
-                      {userInfo.firstName?.charAt(0).toUpperCase() || 'U'}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ---- Carte d'identité ----
+         * Colonne de gauche informative, collante au défilement : elle reste le repère du
+         * compte en cours quel que soit l'onglet ouvert à droite. */}
+        <motion.aside
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-1"
+        >
+          <div className="card lg:sticky lg:top-6">
+            <div className="flex flex-col items-center text-center pb-6 border-b border-gray-200 dark:border-gray-700">
+              {loading ? (
+                <>
+                  <div className="skeleton w-24 h-24 rounded-full" />
+                  <div className="skeleton h-5 w-40 mt-4" />
+                  <div className="skeleton h-4 w-24 mt-2" />
+                </>
+              ) : (
+                <>
+                  <div
+                    className="w-24 h-24 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-3xl select-none"
+                    aria-hidden="true"
+                  >
+                    {initials || '—'}
+                  </div>
+                  <h2 className="section-title mt-4">{fullName || t('profile.fallbackName')}</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    @{profile.username}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                    <span className={badgeClass(ROLE_TONES[profile.role])}>
+                      <ShieldCheck className="w-3 h-3" aria-hidden="true" />
+                      {roleLabel}
+                    </span>
+                    <span className={badgeClass(profile.active ? 'success' : 'neutral')}>
+                      {profile.active ? t('profile.accountActive') : t('profile.accountDisabled')}
                     </span>
                   </div>
-                </div>
+                </>
+              )}
+            </div>
 
-                {/* Role Badge */}
-                <div className="flex justify-center">
-                  <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                    {userInfo.role}
-                  </span>
-                </div>
+            {/* Rappel en lecture seule des coordonnées enregistrées : ce qui est affiché ici
+             * est l'état côté serveur, indépendamment de la saisie en cours à droite. */}
+            <dl className="space-y-4 pt-6">
+              <InfoRow icon={AtSign} label={t('auth.username')} value={profile.username} />
+              <InfoRow icon={Mail} label={t('common.email')} value={savedProfile.email} />
+              <InfoRow icon={Phone} label={t('common.phone')} value={savedProfile.phone} />
+              <InfoRow icon={CalendarDays} label={t('profile.createdOn')} value={formatDateTime(profile.createdAt)} />
+              <InfoRow icon={Clock} label={t('profile.lastUpdated')} value={formatDateTime(profile.updatedAt)} />
+            </dl>
+          </div>
+        </motion.aside>
 
-                {/* Username (read-only) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nom d'utilisateur
+        {/* ---- Onglets ---- */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="card p-0 overflow-hidden">
+            <div role="tablist" aria-label={t('profile.tablistLabel')} className="flex overflow-x-auto">
+              {TABS.map((tab) => {
+                const Icon = tab.icon;
+                const selected = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    id={`profile-tab-${tab.id}`}
+                    role="tab"
+                    type="button"
+                    aria-selected={selected}
+                    aria-controls={`profile-panel-${tab.id}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-1 min-w-max flex items-center justify-center gap-2 px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                      selected
+                        ? 'border-primary-600 text-primary-600 bg-primary-50 dark:bg-primary-500/10 dark:text-primary-300'
+                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" aria-hidden="true" />
+                    {t(tab.labelKey)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ---- Informations personnelles ---- */}
+          {activeTab === 'info' && (
+            <motion.section
+              id="profile-panel-info"
+              role="tabpanel"
+              aria-labelledby="profile-tab-info"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card"
+            >
+              <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="section-title">{t('profile.tabs.info')}</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {t('profile.infoHint')}
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitProfile} className="space-y-6 pt-6">
+                {/* Identifiant de connexion : affiché mais non modifiable, il sert de clé au
+                 * compte. Le désactiver sans l'expliquer se lit comme un champ en panne. */}
+                <div className="space-y-2">
+                  <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('auth.username')}
                   </label>
-                  <input
-                    type="text"
-                    value={userInfo.username}
-                    disabled
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Le nom d'utilisateur ne peut pas être modifié</p>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <AtSign className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                    </div>
+                    <input
+                      id="username"
+                      type="text"
+                      value={profile.username}
+                      disabled
+                      className="input-field pl-10"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('profile.usernameHint')}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* First Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prénom *
-                    </label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={userInfo.firstName}
-                      onChange={handleInfoChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Votre prénom"
-                      required
-                    />
-                  </div>
-
-                  {/* Last Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Nom *
-                    </label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={userInfo.lastName}
-                      onChange={handleInfoChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Votre nom"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      name="email"
-                      value={userInfo.email}
-                      onChange={handleInfoChange}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="votre.email@example.com"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Téléphone
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={userInfo.phone}
-                      onChange={handleInfoChange}
-                      className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="+213 XXX XXX XXX"
-                    />
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <div className="pt-4">
-                  <button
-                    type="submit"
+                  <FormInput
+                    label={t('clients.firstName')}
+                    name="firstName"
+                    value={profile.firstName}
+                    onChange={handleProfileChange}
+                    placeholder={t('profile.firstNamePlaceholder')}
+                    required
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-all"
+                    autoComplete="given-name"
+                  />
+                  <FormInput
+                    label={t('clients.lastName')}
+                    name="lastName"
+                    value={profile.lastName}
+                    onChange={handleProfileChange}
+                    placeholder={t('profile.lastNamePlaceholder')}
+                    required
+                    disabled={loading}
+                    autoComplete="family-name"
+                  />
+                </div>
+
+                <FormInput
+                  label={t('common.email')}
+                  name="email"
+                  type="email"
+                  value={profile.email}
+                  onChange={handleProfileChange}
+                  placeholder={t('profile.emailPlaceholder')}
+                  required
+                  disabled={loading}
+                  icon={Mail}
+                  autoComplete="email"
+                />
+
+                <div className="space-y-1">
+                  <FormInput
+                    label={t('common.phone')}
+                    name="phone"
+                    type="tel"
+                    value={profile.phone}
+                    onChange={handleProfileChange}
+                    placeholder={t('profile.phonePlaceholder')}
+                    disabled={loading}
+                    icon={Phone}
+                    autoComplete="tel"
+                  />
+                  {/* Reprend le motif accepté par le backend (`^$|^[0-9+\- ]{6,20}$`). */}
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t('profile.phoneHint')}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  {/* Repère explicite de modification non enregistrée : sans lui, on quitte la
+                   * page en croyant avoir sauvegardé. */}
+                  {isDirty && (
+                    <p className="mr-auto text-sm text-amber-700 dark:text-amber-400">
+                      {t('profile.unsavedChanges')}
+                    </p>
+                  )}
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    icon={RotateCcw}
+                    onClick={() => setProfile(savedProfile)}
+                    disabled={!isDirty || saving}
                   >
-                    <Save className="w-5 h-5" />
-                    {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
-                  </button>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    type="submit"
+                    icon={Save}
+                    loading={saving}
+                    disabled={loading || !isDirty}
+                  >
+                    {t('common.save')}
+                  </Button>
                 </div>
               </form>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden"
-          >
-            {/* Info Banner */}
-            <div className="bg-blue-50 border-b border-blue-100 p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">Conseils pour un mot de passe sécurisé :</p>
-                <ul className="list-disc list-inside space-y-1 text-blue-700">
-                  <li>Utilisez au moins 4 caractères</li>
-                  <li>Mélangez lettres, chiffres et caractères spéciaux</li>
-                  <li>Évitez les mots de passe trop simples</li>
-                </ul>
+            </motion.section>
+          )}
+
+          {/* ---- Sécurité ---- */}
+          {activeTab === 'security' && (
+            <motion.section
+              id="profile-panel-security"
+              role="tabpanel"
+              aria-labelledby="profile-tab-security"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card"
+            >
+              <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="section-title">{t('settings.changePasswordButton')}</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {t('profile.passwordHint')}
+                </p>
               </div>
-            </div>
 
-            {/* Password Form */}
-            <div className="p-8">
-              <form onSubmit={handleChangePassword} className="space-y-6">
-                {/* Current Password */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mot de passe actuel *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.current ? 'text' : 'password'}
-                      name="currentPassword"
-                      value={passwordData.currentPassword}
-                      onChange={handlePasswordChange}
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Saisissez votre mot de passe actuel"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('current')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPasswords.current ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
+              <form onSubmit={handleSubmitPassword} className="space-y-6 pt-6">
+                <PasswordField
+                  id="currentPassword"
+                  label={t('profile.currentPassword')}
+                  value={passwordData.currentPassword}
+                  onChange={handlePasswordChange}
+                  visible={showPasswords.current}
+                  onToggle={() => toggleVisibility('current')}
+                  placeholder={t('profile.currentPasswordPlaceholder')}
+                  autoComplete="current-password"
+                />
 
-                {/* New Password */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nouveau mot de passe *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.new ? 'text' : 'password'}
-                      name="newPassword"
-                      value={passwordData.newPassword}
-                      onChange={handlePasswordChange}
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Saisissez votre nouveau mot de passe"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('new')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPasswords.new ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                  {passwordData.newPassword && (
-                    <div className="mt-2">
-                      <div className={`text-sm ${passwordData.newPassword.length >= 4 ? 'text-green-600' : 'text-red-600'} flex items-center gap-1`}>
-                        {passwordData.newPassword.length >= 4 ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4" />
-                        )}
-                        <span>Au moins 4 caractères</span>
-                      </div>
-                    </div>
+                <PasswordField
+                  id="newPassword"
+                  label={t('profile.newPassword')}
+                  value={passwordData.newPassword}
+                  onChange={handlePasswordChange}
+                  visible={showPasswords.next}
+                  onToggle={() => toggleVisibility('next')}
+                  placeholder={t('profile.newPasswordPlaceholder')}
+                  autoComplete="new-password"
+                >
+                  {/* Les règles sont affichées en permanence, et pas seulement une fois la
+                   * saisie commencée : on doit pouvoir les lire avant de choisir. */}
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 pt-2">
+                    {ruleStates.map((rule) => (
+                      <RuleCheck key={rule.key} label={t(rule.labelKey)} satisfied={rule.satisfied} />
+                    ))}
+                  </ul>
+                  {isSamePassword && (
+                    <p className="text-sm text-red-600 dark:text-red-400 pt-1">
+                      {t('profile.mustDiffer')}
+                    </p>
                   )}
-                </div>
+                </PasswordField>
 
-                {/* Confirm Password */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirmer le nouveau mot de passe *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPasswords.confirm ? 'text' : 'password'}
-                      name="confirmPassword"
-                      value={passwordData.confirmPassword}
-                      onChange={handlePasswordChange}
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Confirmez votre nouveau mot de passe"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('confirm')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                <PasswordField
+                  id="confirmPassword"
+                  label={t('profile.confirmPassword')}
+                  value={passwordData.confirmPassword}
+                  onChange={handlePasswordChange}
+                  visible={showPasswords.confirm}
+                  onToggle={() => toggleVisibility('confirm')}
+                  placeholder={t('profile.confirmPasswordPlaceholder')}
+                  autoComplete="new-password"
+                >
+                  {passwordData.confirmPassword !== '' && (
+                    <p
+                      className={`text-sm pt-1 ${
+                        passwordsMatch ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}
                     >
-                      {showPasswords.confirm ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                  {passwordData.confirmPassword && (
-                    <div className="mt-2">
-                      <div className={`text-sm ${passwordData.newPassword === passwordData.confirmPassword ? 'text-green-600' : 'text-red-600'} flex items-center gap-1`}>
-                        {passwordData.newPassword === passwordData.confirmPassword ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4" />
-                        )}
-                        <span>
-                          {passwordData.newPassword === passwordData.confirmPassword
-                            ? 'Les mots de passe correspondent'
-                            : 'Les mots de passe ne correspondent pas'}
-                        </span>
-                      </div>
-                    </div>
+                      {passwordsMatch
+                        ? t('profile.passwordsMatch')
+                        : t('profile.passwordsDiffer')}
+                    </p>
                   )}
-                </div>
+                </PasswordField>
 
-                {/* Submit Button */}
-                <div className="pt-4">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2 transition-all"
-                  >
-                    <Lock className="w-5 h-5" />
-                    {loading ? 'Modification en cours...' : 'Changer le mot de passe'}
-                  </button>
+                <div className="flex items-center justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <Button variant="primary" type="submit" icon={Lock} loading={changingPassword}>
+                    {t('settings.changePasswordButton')}
+                  </Button>
                 </div>
               </form>
-            </div>
-          </motion.div>
-        )}
-      </motion.div>
+            </motion.section>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

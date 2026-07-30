@@ -1,0 +1,774 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { CheckCircle, Mail, MapPin, Phone } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import api from '../services/api';
+import clientService from '../services/clientService';
+import Modal from './Modal';
+import ConfirmModal from './ConfirmModal';
+import BarcodeScannerModal from './BarcodeScannerModal';
+import StripeTerminalModal from './StripeTerminalModal';
+import OrderWorkspaceCatalog from './OrderWorkspaceCatalog';
+import OrderWorkspaceCart from './OrderWorkspaceCart';
+import OrderWorkspaceRecap from './OrderWorkspaceRecap';
+import OrderWorkspaceSteps from './OrderWorkspaceSteps';
+import useSettings from '../hooks/useSettings';
+import { computeItemsTotal, clampDiscount } from '../utils/orderTotals';
+import { extractErrorMessage } from '../utils/apiError';
+import { formatCurrency } from '../utils/format';
+import { generateInvoicePDF } from '../utils/pdfGenerator';
+
+/**
+ * Panier de traitement d'une commande — poste de travail unique du cycle de vie.
+ *
+ * Auparavant, une commande se traitait en quatre endroits : le modal de création pour le
+ * panier, la ligne du tableau pour la confirmation, un autre modal pour la facturation, un
+ * troisième pour l'encaissement, l'écran Factures pour le PDF. Chaque étape refermait la
+ * précédente et faisait perdre le contexte de la vente.
+ *
+ * Ici, le panier reste à l'écran du premier article au règlement final, et c'est lui qui
+ * porte l'étape suivante :
+ *
+ *   Panier ─▶ Valider ─▶ Confirmer ─▶ Facturer ─▶ Encaisser ─▶ PDF ─▶ Nouvelle commande
+ *              (POST)     (stock −)    (facture)   (paiement)
+ *
+ * Aucune règle métier n'est ajoutée ni contournée : chaque bouton appelle l'endpoint qui
+ * existait déjà (`POST /orders`, `POST /orders/{id}/confirm`, `POST /invoices`,
+ * `PATCH /invoices/{id}/payment`, terminal Stripe), dans l'ordre qu'impose la machine à
+ * états du backend. Ce composant ne fait que rassembler le parcours au même endroit.
+ *
+ * Deux zones : à gauche la sélection d'articles tant que la commande est modifiable — elle
+ * cède la place au dossier dès que les lignes sont figées —, à droite le panier et ses étapes.
+ */
+const OrderWorkspace = ({
+  isOpen,
+  onClose,
+  initialOrder = null,
+  products,
+  clients,
+  categories,
+  onDataChanged,
+  onClientsChanged,
+  onOpenInvoice,
+  onDetachOrder,
+}) => {
+  const { t } = useTranslation();
+  const [order, setOrder] = useState(null);
+  const [invoice, setInvoice] = useState(null);
+  // Commande dont la facture a déjà été résolue — y compris quand la réponse est « aucune
+  // facture ». Sans ce témoin, le chargement se relancerait à chaque changement d'identité de
+  // `invoice`, donc indéfiniment.
+  const [invoiceLoadedFor, setInvoiceLoadedFor] = useState(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [busy, setBusy] = useState(null);
+
+  // Réglages de l'entreprise : taux de TVA et délai de paiement par défaut, plus les
+  // coordonnées reprises sur le PDF. Même source que les autres écrans de facturation, avec
+  // les mêmes valeurs de repli si l'appel échoue — un taux qui diffère d'un écran à l'autre
+  // est le premier motif d'appel au support.
+  const { settings, defaultTaxRate, defaultDueDate } = useSettings();
+
+  const [cart, setCart] = useState({ clientMode: 'registered', clientId: '', items: [], notes: '' });
+
+  const [showScanner, setShowScanner] = useState(false);
+  const [showCreateClient, setShowCreateClient] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [terminalAmount, setTerminalAmount] = useState(null);
+  // Boîte de confirmation générique : création, confirmation (sortie de stock) et annulation
+  // partagent le même composant, seul le texte et l'action changent.
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  const [newClientForm, setNewClientForm] = useState({
+    firstName: '', lastName: '', email: '', phone: '',
+    address: '', company: '', type: 'PARTICULIER', active: true,
+  });
+
+  // Lignes d'une commande existante ramenées au format du panier. `product` est conservé pour
+  // que l'affichage tienne même si l'article a été désactivé depuis (il sort alors de la liste
+  // des produits actifs, mais la commande, elle, le contient toujours).
+  const itemsFromOrder = (source) => (source.items || []).map((item) => ({
+    productId: String(item.product?.id ?? ''),
+    unitPrice: Number(item.unitPrice) || 0,
+    discount: Number(item.discount) || 0,
+    quantity: Number(item.quantity) || 1,
+    product: item.product,
+  }));
+
+  /** Facture connue pour la commande courante — pose aussi le témoin de résolution. */
+  const applyInvoice = (data, orderId) => {
+    setInvoice(data);
+    setInvoiceLoadedFor(orderId);
+  };
+
+  const resetDraft = useCallback(() => {
+    setOrder(null);
+    setInvoice(null);
+    setInvoiceLoadedFor(null);
+    setCart({ clientMode: 'registered', clientId: '', items: [], notes: '' });
+  }, []);
+
+  // Ouverture : soit sur une commande existante (reprise du traitement), soit sur un panier
+  // vierge. Volontairement indexé sur l'identifiant et non sur l'objet : la liste parente se
+  // rafraîchit après chaque action et renverrait sinon un nouvel objet à chaque rendu, ce qui
+  // écraserait la saisie en cours.
+  const initialOrderId = initialOrder?.id ?? null;
+  const initialOrderRef = useRef(initialOrder);
+  initialOrderRef.current = initialOrder;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const source = initialOrderRef.current;
+    if (source) {
+      setOrder(source);
+      setInvoice(null);
+      setInvoiceLoadedFor(null);
+      setCart({
+        clientMode: source.client ? 'registered' : 'guest',
+        clientId: source.client?.id ? String(source.client.id) : '',
+        items: itemsFromOrder(source),
+        notes: source.notes || '',
+      });
+    } else {
+      resetDraft();
+    }
+  }, [isOpen, initialOrderId, resetDraft]);
+
+  // Facture liée, dès que la commande est facturée : c'est elle qui porte le règlement.
+  useEffect(() => {
+    if (!order || !['INVOICED', 'DELIVERED'].includes(order.status)) return undefined;
+    if (invoiceLoadedFor === order.id) return undefined;
+    let active = true;
+    setInvoiceLoading(true);
+    api.get(`/invoices/order/${order.id}`)
+      .then(({ data }) => { if (active) applyInvoice(data, order.id); })
+      // Un 404 est un cas normal (commande livrée sans facture accessible) : on retient la
+      // réponse pour ne pas rejouer l'appel en boucle.
+      .catch(() => { if (active) applyInvoice(null, order.id); })
+      .finally(() => { if (active) setInvoiceLoading(false); });
+    return () => { active = false; };
+  }, [order, invoiceLoadedFor]);
+
+  const refreshOrder = useCallback(async (orderId) => {
+    try {
+      const { data } = await api.get(`/orders/${orderId}`);
+      setOrder(data);
+      return data;
+    } catch (error) {
+      console.error('Error refreshing order:', error);
+      return null;
+    }
+  }, []);
+
+  // ─────────────────────────── Panier : articles et remises ───────────────────────────
+
+  const editable = !order || order.status === 'PENDING';
+
+  const setItems = (updater) => {
+    setCart((prev) => ({
+      ...prev,
+      items: typeof updater === 'function' ? updater(prev.items) : updater,
+    }));
+  };
+
+  /**
+   * Ajout d'un produit : une ligne par produit, quantité cumulée, jamais au-delà du stock
+   * disponible — la même règle qu'applique `OrderService.confirmOrder` sous verrou. Renvoie
+   * false si l'ajout a été refusé, ce qui permet au scan de ne pas vider son champ.
+   */
+  const addProduct = (product, qty = 1) => {
+    if (!product) return false;
+    if (!editable) {
+      toast.error(t('orders.workspace.itemsLocked'));
+      return false;
+    }
+    const quantity = Math.max(1, parseInt(qty) || 1);
+    if (product.stockQuantity <= 0) {
+      toast.error(t('orders.workspace.productOutOfStock', { name: product.name }));
+      return false;
+    }
+    const items = cart.items;
+    const index = items.findIndex((it) => parseInt(it.productId) === product.id);
+    const current = index >= 0 ? (parseInt(items[index].quantity) || 0) : 0;
+    const target = current + quantity;
+    if (target > product.stockQuantity) {
+      toast.error(t('orders.workspace.insufficientStockNamed', {
+        name: product.name,
+        max: product.stockQuantity,
+      }));
+      return false;
+    }
+    setItems(index >= 0
+      ? items.map((it, i) => (i === index ? { ...it, quantity: target } : it))
+      : [...items, {
+          productId: String(product.id),
+          unitPrice: product.sellingPrice,
+          discount: 0,
+          quantity,
+          product,
+        }]);
+    return true;
+  };
+
+  const handleQtyStep = (index, product, delta) => {
+    const current = parseInt(cart.items[index]?.quantity) || 0;
+    const next = current + delta;
+    if (next <= 0) {
+      setItems((items) => items.filter((_, i) => i !== index));
+      return;
+    }
+    if (product && next > product.stockQuantity) {
+      toast.error(t('orders.workspace.insufficientStock', { max: product.stockQuantity }));
+      return;
+    }
+    setItems((items) => items.map((it, i) => (i === index ? { ...it, quantity: next } : it)));
+  };
+
+  const handleLineChange = (index, field, value) => {
+    const parsed = field === 'discount' ? clampDiscount(value) : value;
+    setItems((items) => items.map((it, i) => (i === index ? { ...it, [field]: parsed } : it)));
+  };
+
+  const handleRemoveLine = (index) => setItems((items) => items.filter((_, i) => i !== index));
+
+  const handleGlobalDiscount = (percent) => {
+    setItems((items) => items.map((it) => ({ ...it, discount: percent })));
+    toast.success(percent > 0
+      ? t('orders.workspace.globalDiscountApplied', { percent })
+      : t('orders.workspace.globalDiscountCleared'));
+  };
+
+  // ─────────────────────────── Scan de code-barres ───────────────────────────
+
+  const scanFeedback = (p) =>
+    t('orders.workspace.scanAdded', {
+      name: p.name,
+      code: p.code,
+      price: formatCurrency(p.sellingPrice),
+      stock: p.stockQuantity,
+    });
+
+  /**
+   * Résolution d'un code : correspondance locale parmi les produits actifs déjà chargés
+   * (instantané, cas courant), puis interrogation du backend — seule source fiable pour
+   * distinguer un produit désactivé (200 avec active=false) d'un code inconnu (404).
+   */
+  const resolveScannedProduct = async (rawCode) => {
+    const code = (rawCode || '').trim();
+    if (!code) return { status: 'error', message: t('orders.workspace.emptyBarcode') };
+    const local = products.find((p) => (p.barcode || '').trim() === code);
+    if (local) {
+      return local.active === false ? { status: 'inactive', product: local } : { status: 'ok', product: local };
+    }
+    try {
+      const { data } = await api.get(`/products/barcode/${encodeURIComponent(code)}`);
+      if (data?.active === false) return { status: 'inactive', product: data };
+      return { status: 'ok', product: data };
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return { status: 'unknown', message: t('scanner.notices.unknownCode', { code }) };
+      }
+      return { status: 'error', message: extractErrorMessage(error) };
+    }
+  };
+
+  const handleScanBarcode = async (rawCode) => {
+    const code = (rawCode || '').trim();
+    if (!code) {
+      toast.error(t('orders.workspace.scanOrTypeBarcode'));
+      return false;
+    }
+    setScanning(true);
+    try {
+      const result = await resolveScannedProduct(code);
+      if (result.status === 'inactive') {
+        toast.error(t('orders.workspace.productDisabled', { name: result.product.name }));
+        return false;
+      }
+      if (result.status !== 'ok') {
+        toast.error(result.message);
+        return false;
+      }
+      if (!addProduct(result.product)) return false;
+      toast.success(scanFeedback(result.product));
+      return true;
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleScannerConfirm = (product, qty) => {
+    const added = addProduct(product, qty);
+    if (added) toast.success(scanFeedback(product));
+    return added;
+  };
+
+  // ─────────────────────────── Valeurs dérivées ───────────────────────────
+
+  // Montant HT de référence : celui enregistré par le backend dès que la commande existe (c'est
+  // lui que `InvoiceService` reprendra comme sous-total), le total du panier tant qu'elle n'est
+  // qu'un brouillon.
+  const cartTotal = computeItemsTotal(cart.items);
+  const totalHT = order ? Number(order.totalAmount || 0) : cartTotal;
+  const unitCount = cart.items.reduce((n, it) => n + (parseInt(it.quantity) || 0), 0);
+
+  const cartQtyByProduct = useMemo(
+    () => cart.items.reduce((acc, it) => {
+      acc[String(it.productId)] = parseInt(it.quantity) || 0;
+      return acc;
+    }, {}),
+    [cart.items]
+  );
+
+  const hasStockIssue = cart.items.some((item) => {
+    const product = products.find((p) => p.id === parseInt(item.productId));
+    return product && parseInt(item.quantity) > product.stockQuantity;
+  });
+  const hasInvalidQty = cart.items.some((item) => !(parseInt(item.quantity) > 0));
+  const clientOk = cart.clientMode === 'guest' || !!cart.clientId;
+
+  // Modifications non enregistrées d'une commande déjà créée : comparaison ligne à ligne sur
+  // ce qui part réellement au backend (produit, quantité, remise) plus la note.
+  const dirty = useMemo(() => {
+    if (!order) return false;
+    const original = itemsFromOrder(order);
+    if (original.length !== cart.items.length) return true;
+    if ((order.notes || '') !== (cart.notes || '')) return true;
+    return cart.items.some((item, i) => (
+      String(item.productId) !== String(original[i].productId)
+      || (parseInt(item.quantity) || 0) !== (parseInt(original[i].quantity) || 0)
+      || Math.abs(clampDiscount(item.discount) - clampDiscount(original[i].discount)) > 0.001
+    ));
+  }, [order, cart.items, cart.notes]);
+
+  const canValidate = cart.items.length > 0
+    && cart.items.every((item) => item.productId)
+    && !hasStockIssue
+    && !hasInvalidQty
+    && (order ? true : clientOk);
+
+  const blockingHint = (() => {
+    if (cart.items.length === 0) return t('orders.workspace.hintAddItem');
+    if (hasInvalidQty) return t('orders.workspace.hintInvalidQty');
+    if (hasStockIssue) return t('orders.workspace.hintStockExceeded');
+    if (!order && !clientOk) return t('orders.workspace.hintPickClient');
+    return null;
+  })();
+
+  // ─────────────────────────── Étapes du cycle de vie ───────────────────────────
+
+  const payloadItems = () => cart.items.map((item) => ({
+    productId: parseInt(item.productId),
+    quantity: parseInt(item.quantity),
+    discount: parseFloat(item.discount) || 0,
+  }));
+
+  const runStep = async (key, action) => {
+    setBusy(key);
+    try {
+      await action();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const createOrder = () => runStep('create', async () => {
+    try {
+      const { data } = await api.post('/orders', {
+        clientId: cart.clientMode === 'guest' ? null : parseInt(cart.clientId),
+        items: payloadItems(),
+        notes: cart.notes.trim() || null,
+      });
+      setOrder(data);
+      setCart((prev) => ({ ...prev, items: itemsFromOrder(data), notes: data.notes || '' }));
+      toast.success(t('orders.workspace.orderCreated', { number: data.orderNumber }));
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error creating order:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  });
+
+  const saveItems = () => runStep('save', async () => {
+    try {
+      const { data } = await api.put(`/orders/${order.id}`, {
+        items: payloadItems(),
+        // Remise et taxe globales reconduites telles quelles : le backend réécrit ces champs
+        // à chaque mise à jour, les omettre les remettrait à zéro sans que personne l'ait
+        // demandé (cf. OrderService.updateOrder).
+        discount: Number(order.discount) || 0,
+        tax: Number(order.tax) || 0,
+        notes: cart.notes.trim() || null,
+      });
+      setOrder(data);
+      setCart((prev) => ({ ...prev, items: itemsFromOrder(data), notes: data.notes || '' }));
+      toast.success(t('orders.workspace.orderUpdated'));
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error updating order:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  });
+
+  const confirmOrder = () => runStep('confirm', async () => {
+    try {
+      const { data } = await api.post(`/orders/${order.id}/confirm`);
+      setOrder(data);
+      setCart((prev) => ({ ...prev, items: itemsFromOrder(data) }));
+      toast.success(t('orders.workspace.orderConfirmed'));
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error confirming order:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  });
+
+  const createInvoice = (form) => runStep('invoice', async () => {
+    try {
+      const { data } = await api.post('/invoices', { orderId: order.id, ...form });
+      applyInvoice(data, order.id);
+      await refreshOrder(order.id);
+      toast.success(t('orders.workspace.invoiceCreated', { number: data.invoiceNumber }));
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  });
+
+  const recordPayment = (form) => runStep('pay', async () => {
+    try {
+      const { data } = await api.patch(`/invoices/${invoice.id}/payment`, form);
+      applyInvoice(data, order.id);
+      await refreshOrder(order.id);
+      toast.success(data.status === 'PAID'
+        ? t('orders.workspace.invoiceSettled')
+        : t('orders.workspace.depositRecorded'));
+      onDataChanged?.();
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  });
+
+  const cancelOrder = () => setConfirmDialog({
+    title: t('orders.steps.cancelOrder'),
+    message: `Annuler la commande ${order.orderNumber} ? Le stock déjà consommé sera restitué.`,
+    type: 'warning',
+    onConfirm: () => runStep('cancel', async () => {
+      try {
+        await api.patch(`/orders/${order.id}/cancel`);
+        await refreshOrder(order.id);
+        toast.success(t('orders.workspace.orderCanceled'));
+        onDataChanged?.();
+      } catch (error) {
+        console.error('Error canceling order:', error);
+        toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+      }
+    }),
+  });
+
+  const downloadPdf = () => runStep('pdf', async () => {
+    try {
+      // La facture chargée porte déjà la commande, son client et ses lignes : c'est tout ce
+      // dont le générateur a besoin, aucun aller-retour supplémentaire.
+      generateInvoicePDF(invoice, settings || {});
+    } catch (error) {
+      console.error('Error generating invoice PDF:', error);
+      toast.error(t('orders.workspace.pdfError'));
+    }
+  });
+
+  const handleReset = () => {
+    resetDraft();
+    onDetachOrder?.();
+  };
+
+  // ─────────────────────────── Création d'un client à la volée ───────────────────────────
+
+  const submitNewClient = async () => {
+    if (!newClientForm.firstName || !newClientForm.lastName || !newClientForm.phone) {
+      toast.error(t('orders.requiredFields'));
+      return;
+    }
+    try {
+      const { data } = await clientService.createClient(newClientForm);
+      toast.success(t('orders.workspace.clientCreated'));
+      setShowCreateClient(false);
+      setNewClientForm({
+        firstName: '', lastName: '', email: '', phone: '',
+        address: '', company: '', type: 'PARTICULIER', active: true,
+      });
+      await onClientsChanged?.();
+      setCart((prev) => ({ ...prev, clientMode: 'registered', clientId: String(data.id) }));
+    } catch (error) {
+      console.error('Error creating client:', error);
+      toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    }
+  };
+
+  const clientFieldClass =
+    'w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200 transition-all';
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={order
+          ? t('orders.workspace.modalTitle', { number: order.orderNumber })
+          : t('orders.addOrder')}
+        size="fullscreen"
+      >
+        <div className="flex gap-4 h-[calc(90vh-8rem)] min-h-[520px]">
+          {editable ? (
+            <OrderWorkspaceCatalog
+              products={products}
+              categories={categories}
+              cartQtyByProduct={cartQtyByProduct}
+              onAddProduct={addProduct}
+              onScanBarcode={handleScanBarcode}
+              onOpenScanner={() => setShowScanner(true)}
+              scanning={scanning}
+            />
+          ) : (
+            <OrderWorkspaceRecap order={order} invoice={invoice} invoiceLoading={invoiceLoading} />
+          )}
+
+          <OrderWorkspaceCart
+            order={order}
+            invoice={invoice}
+            items={cart.items}
+            products={products}
+            clients={clients}
+            clientMode={cart.clientMode}
+            clientId={cart.clientId}
+            notes={cart.notes}
+            editable={editable}
+            taxRate={defaultTaxRate()}
+            onClientModeChange={(mode) =>
+              setCart((prev) => ({ ...prev, clientMode: mode, clientId: mode === 'guest' ? '' : prev.clientId }))}
+            onClientChange={(value) => setCart((prev) => ({ ...prev, clientId: value }))}
+            onCreateClient={() => setShowCreateClient(true)}
+            onNotesChange={(value) => setCart((prev) => ({ ...prev, notes: value }))}
+            onQtyStep={handleQtyStep}
+            onLineChange={handleLineChange}
+            onRemoveLine={handleRemoveLine}
+            onApplyGlobalDiscount={handleGlobalDiscount}
+          >
+            <OrderWorkspaceSteps
+              order={order}
+              invoice={invoice}
+              invoiceLoading={invoiceLoading}
+              busy={busy}
+              itemCount={cart.items.length}
+              unitCount={unitCount}
+              totalHT={totalHT}
+              dirty={dirty}
+              canValidate={canValidate}
+              blockingHint={blockingHint}
+              defaultTaxRate={defaultTaxRate()}
+              defaultDueDate={defaultDueDate()}
+              onValidate={() => setConfirmDialog({
+                title: t('orders.confirmCreateTitle'),
+                message: t('orders.workspace.confirmCreateMessage', {
+                  client: cart.clientMode === 'guest'
+                    ? t('orders.walkInClient')
+                    : t('orders.workspace.registeredClient'),
+                  count: cart.items.length,
+                  total: formatCurrency(cartTotal),
+                }),
+                type: 'info',
+                onConfirm: createOrder,
+              })}
+              onSaveItems={saveItems}
+              onConfirm={() => setConfirmDialog({
+                title: t('orders.steps.confirmOrder'),
+                message: t('orders.workspace.confirmOrderMessage', {
+                  number: order?.orderNumber,
+                  count: unitCount,
+                }),
+                type: 'info',
+                onConfirm: confirmOrder,
+              })}
+              onCreateInvoice={createInvoice}
+              onRecordPayment={recordPayment}
+              onOpenTerminal={(amount) => setTerminalAmount(amount)}
+              onDownloadPdf={downloadPdf}
+              onCancelOrder={cancelOrder}
+              onReset={handleReset}
+              onOpenInvoice={() => onOpenInvoice?.(invoice)}
+            />
+          </OrderWorkspaceCart>
+        </div>
+      </Modal>
+
+      {/* Scanner caméra, monté à la demande pour repartir d'un état propre à chaque ouverture. */}
+      {showScanner && (
+        <BarcodeScannerModal
+          isOpen
+          onClose={() => setShowScanner(false)}
+          resolveProduct={resolveScannedProduct}
+          onConfirm={handleScannerConfirm}
+        />
+      )}
+
+      {/* Terminal carte : même facture et même montant que l'encaissement manuel, seul le canal
+          change. C'est le serveur qui solde la facture, jamais le terminal. */}
+      {terminalAmount !== null && invoice && (
+        <StripeTerminalModal
+          isOpen
+          onClose={() => setTerminalAmount(null)}
+          invoice={invoice}
+          amount={terminalAmount}
+          onPaid={async () => {
+            await refreshOrder(order.id);
+            try {
+              const { data } = await api.get(`/invoices/order/${order.id}`);
+              applyInvoice(data, order.id);
+            } catch (error) {
+              console.warn('Facture non rechargée après paiement carte:', error);
+            }
+            onDataChanged?.();
+          }}
+        />
+      )}
+
+      {/* Création d'un client sans quitter le panier : la vente en cours n'est pas perdue. */}
+      <Modal
+        isOpen={showCreateClient}
+        onClose={() => setShowCreateClient(false)}
+        title={t('orders.workspace.newClientTitle')}
+        size="lg"
+      >
+        <div className="space-y-5">
+          <div className="bg-gray-50 dark:bg-gray-900/40 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="nc-type" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  {t('orders.filters.clientTypeLabel')} <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="nc-type"
+                  value={newClientForm.type}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, type: e.target.value })}
+                  className={clientFieldClass}
+                >
+                  <option value="PARTICULIER">{t('clients.typeIndividual')}</option>
+                  <option value="ENTREPRISE">{t('clients.typeCompany')}</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="nc-company" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  {t('clients.companyLabel')}
+                </label>
+                <input
+                  id="nc-company"
+                  type="text"
+                  value={newClientForm.company}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, company: e.target.value })}
+                  className={clientFieldClass}
+                  placeholder={t('orders.workspace.companyPlaceholder')}
+                />
+              </div>
+              <div>
+                <label htmlFor="nc-first" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  {t('clients.firstName')} <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="nc-first"
+                  type="text"
+                  value={newClientForm.firstName}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, firstName: e.target.value })}
+                  className={clientFieldClass}
+                  placeholder={t('clients.firstName')}
+                />
+              </div>
+              <div>
+                <label htmlFor="nc-last" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  {t('clients.lastName')} <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="nc-last"
+                  type="text"
+                  value={newClientForm.lastName}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, lastName: e.target.value })}
+                  className={clientFieldClass}
+                  placeholder={t('clients.lastName')}
+                />
+              </div>
+              <div>
+                <label htmlFor="nc-phone" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  <Phone className="w-4 h-4 text-primary-600 inline mr-1" aria-hidden="true" />
+                  {t('common.phone')} <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="nc-phone"
+                  type="tel"
+                  value={newClientForm.phone}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
+                  className={clientFieldClass}
+                  placeholder={t('clients.phonePlaceholder')}
+                />
+              </div>
+              <div>
+                <label htmlFor="nc-email" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  <Mail className="w-4 h-4 text-primary-600 inline mr-1" aria-hidden="true" />
+                  {t('common.email')}
+                </label>
+                <input
+                  id="nc-email"
+                  type="email"
+                  value={newClientForm.email}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
+                  className={clientFieldClass}
+                  placeholder={t('clients.emailPlaceholder')}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label htmlFor="nc-address" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  <MapPin className="w-4 h-4 text-primary-600 inline mr-1" aria-hidden="true" />
+                  {t('common.address')}
+                </label>
+                <textarea
+                  id="nc-address"
+                  rows="2"
+                  value={newClientForm.address}
+                  onChange={(e) => setNewClientForm({ ...newClientForm, address: e.target.value })}
+                  className={`${clientFieldClass} resize-none`}
+                  placeholder={t('common.addressPlaceholder')}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <button type="button" onClick={() => setShowCreateClient(false)} className="btn-secondary">
+              {t('common.cancel')}
+            </button>
+            <button type="button" onClick={submitNewClient} className="btn-primary">
+              <CheckCircle className="w-5 h-5" aria-hidden="true" />
+              {t('orders.workspace.createClient')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!confirmDialog}
+        onClose={() => setConfirmDialog(null)}
+        onConfirm={() => {
+          const action = confirmDialog?.onConfirm;
+          setConfirmDialog(null);
+          action?.();
+        }}
+        title={confirmDialog?.title || ''}
+        message={confirmDialog?.message || ''}
+        type={confirmDialog?.type || 'info'}
+      />
+    </>
+  );
+};
+
+export default OrderWorkspace;

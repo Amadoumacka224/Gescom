@@ -7,6 +7,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * Entité de la piste d'audit : une ligne par action significative effectuée dans l'application.
+ * Relie l'auteur (user), le type d'action, l'entité visée (nom + id) et une description lisible.
+ * Le champ générique entity/entityId permet de tracer n'importe quel objet sans relation directe.
+ */
 @Entity
 @Table(name = "activity_logs")
 @Data

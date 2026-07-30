@@ -1,883 +1,1090 @@
-import { useState, useRef, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
-  Save, Globe, Bell, Lock, Database, Palette, Download, Upload,
-  FileText, Package, ShoppingCart, Truck, Warehouse, Users, Settings as SettingsIcon,
-  Building2, Mail, Phone, MapPin, CreditCard, AlertCircle, Check, Info, X
+  Save,
+  Globe,
+  Bell,
+  Lock,
+  Database,
+  Download,
+  Upload,
+  FileText,
+  Package,
+  ShoppingCart,
+  Truck,
+  Warehouse,
+  Users,
+  Settings as SettingsIcon,
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  AlertTriangle,
+  Check,
+  Info,
+  RotateCcw,
+  KeyRound,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import api from '../services/api';
+import { invalidateSettingsCache } from '../hooks/useSettings';
 import Modal from '../components/Modal';
+import Button from '../components/Button';
+import { extractErrorMessage } from '../utils/apiError';
+
+/**
+ * Réglages de l'application. Les réglages sont un singleton côté serveur (une seule ligne,
+ * cf. `SettingsService`) : un unique `PUT /settings` enregistre l'ensemble des rubriques.
+ *
+ * D'où la disposition retenue, celle des écrans de configuration des applications de gestion :
+ * une navigation verticale à gauche, groupée par domaine, et une seule barre d'enregistrement
+ * qui n'apparaît qu'en cas de modification. L'ancien bouton « Enregistrer » de l'en-tête
+ * disparaissait dès qu'on descendait dans la rubrique Entreprise, longue de dix champs, et
+ * rien n'indiquait qu'une modification faite dans un onglet restait à enregistrer en passant
+ * dans un autre.
+ */
+
+/**
+ * Rubriques, groupées par domaine. « Apparence » a rejoint « Général » : elle ne contenait
+ * qu'un choix de thème, et une entrée de navigation pour un seul champ coûte plus qu'elle
+ * ne rapporte.
+ */
+const SECTIONS = [
+  { id: 'company', icon: Building2, group: 'organisation' },
+  { id: 'billing', icon: CreditCard, group: 'organisation' },
+  { id: 'general', icon: Globe, group: 'application' },
+  { id: 'notifications', icon: Bell, group: 'application' },
+  { id: 'data', icon: Database, group: 'administration' },
+  { id: 'security', icon: Lock, group: 'administration' },
+];
+
+const GROUPS = ['organisation', 'application', 'administration'];
+
+/**
+ * Champs réellement enregistrés, dans l'ordre de `SettingsRequest`. Sert à composer le corps
+ * du PUT et à détecter les modifications : l'écran envoyait jusqu'ici l'objet complet reçu du
+ * serveur, `id` et horodatages compris, que le DTO ignore.
+ */
+const EDITABLE_KEYS = [
+  'language', 'currency', 'timezone', 'dateFormat',
+  'companyName', 'companyEmail', 'companyPhone', 'companyAddress', 'companyCity',
+  'companyPostalCode', 'companyCountry', 'companyTaxId', 'companyIban', 'companyBic',
+  'taxRate', 'invoicePrefix', 'invoiceNumberStart', 'paymentTerms', 'footerText',
+  'notifications', 'emailNotifications', 'orderNotifications', 'stockAlerts', 'lowStockThreshold',
+  'theme',
+];
+
+/** Champs numériques : contrainte `@PositiveOrZero` côté backend. */
+const NUMERIC_KEYS = ['taxRate', 'invoiceNumberStart', 'paymentTerms', 'lowStockThreshold'];
+
+/**
+ * État initial neutre. L'écran partait auparavant d'un jeu de valeurs de démonstration
+ * (« GESCOM », « contact@gescom.be », un IBAN fictif) : quand le chargement échouait, ces
+ * valeurs s'affichaient comme si elles étaient enregistrées, et un simple « Enregistrer »
+ * les écrivait en base par-dessus les vraies.
+ */
+const EMPTY_SETTINGS = {
+  language: 'fr',
+  currency: 'EUR',
+  timezone: 'Europe/Brussels',
+  dateFormat: 'DD/MM/YYYY',
+  companyName: '',
+  companyEmail: '',
+  companyPhone: '',
+  companyAddress: '',
+  companyCity: '',
+  companyPostalCode: '',
+  companyCountry: '',
+  companyTaxId: '',
+  companyIban: '',
+  companyBic: '',
+  taxRate: 21,
+  invoicePrefix: 'INV',
+  invoiceNumberStart: 1000,
+  paymentTerms: 30,
+  footerText: '',
+  notifications: true,
+  emailNotifications: true,
+  orderNotifications: true,
+  stockAlerts: true,
+  lowStockThreshold: 10,
+  theme: 'light',
+};
+
+const LANGUAGES = [
+  { value: 'fr', label: 'Français' },
+  { value: 'en', label: 'English' },
+  { value: 'nl', label: 'Nederlands' },
+];
+
+const CURRENCIES = [
+  { value: 'EUR', labelKey: 'settings.currencies.EUR' },
+  { value: 'USD', labelKey: 'settings.currencies.USD' },
+  { value: 'GBP', labelKey: 'settings.currencies.GBP' },
+];
+
+/** Europe/Brussels est la valeur par défaut du backend : sans elle dans la liste, le champ
+ *  s'affichait vide sur une base fraîche et réécrivait Europe/Paris au premier enregistrement. */
+const TIMEZONES = [
+  { value: 'Europe/Brussels', labelKey: 'settings.timezones.brussels' },
+  { value: 'Europe/Paris', labelKey: 'settings.timezones.paris' },
+  { value: 'Europe/London', labelKey: 'settings.timezones.london' },
+  { value: 'America/New_York', labelKey: 'settings.timezones.newYork' },
+];
+
+const DATE_FORMATS = [
+  { value: 'DD/MM/YYYY', labelKey: 'settings.dateFormats.dmy' },
+  { value: 'MM/DD/YYYY', labelKey: 'settings.dateFormats.mdy' },
+  { value: 'YYYY-MM-DD', labelKey: 'settings.dateFormats.ymd' },
+];
+
+/**
+ * Jeux de données exportables. `importable` reflète l'API : seul `POST /products/import`
+ * existe. Les quatre autres boutons « Importer » appelaient une route inexistante et
+ * échouaient en 404 après que l'utilisateur ait choisi son fichier.
+ */
+const DATASETS = [
+  { type: 'clients', icon: Users, importable: false },
+  { type: 'products', icon: Package, importable: true },
+  { type: 'orders', icon: ShoppingCart, importable: false },
+  { type: 'deliveries', icon: Truck, importable: false },
+  { type: 'stock', icon: Warehouse, importable: false },
+];
+
+/* ------------------------------------------------------------------------------------------
+ * Champs de formulaire.
+ *
+ * Définis au niveau du module et non dans le corps de `Settings` : une fonction déclarée dans
+ * le rendu change d'identité à chaque frappe, React démontait donc l'`<input>` et le
+ * remontait à chaque caractère — le champ perdait le focus à chaque lettre saisie.
+ * ---------------------------------------------------------------------------------------- */
+
+const Field = ({ label, htmlFor, hint, required = false, children }) => (
+  <div className="space-y-2">
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {children}
+    {hint && <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
+  </div>
+);
+
+const TextField = ({ id, label, value, onChange, type = 'text', placeholder, icon: Icon, required, hint, ...props }) => (
+  <Field label={label} htmlFor={id} hint={hint} required={required}>
+    <div className="relative">
+      {Icon && (
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Icon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+        </div>
+      )}
+      <input
+        id={id}
+        name={id}
+        type={type}
+        value={value ?? ''}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`input-field ${Icon ? 'pl-10' : ''}`}
+        {...props}
+      />
+    </div>
+  </Field>
+);
+
+const SelectField = ({ id, label, value, onChange, options, required, hint }) => (
+  <Field label={label} htmlFor={id} hint={hint} required={required}>
+    <select id={id} name={id} value={value ?? ''} onChange={onChange} className="input-field">
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  </Field>
+);
+
+/**
+ * Interrupteur d'un réglage booléen. `role="switch"` + `aria-checked` sur un vrai `<button>` :
+ * l'ancienne version reposait sur une case à cocher masquée dont l'état n'était porté que par
+ * la couleur du curseur.
+ */
+const ToggleField = ({ id, label, description, checked, onChange, disabled = false }) => (
+  <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+    <div className="min-w-0">
+      <label htmlFor={id} className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
+        {label}
+      </label>
+      {description && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{description}</p>}
+    </div>
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-4 focus:ring-primary-500/25 disabled:opacity-50 disabled:cursor-not-allowed ${
+        checked ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  </div>
+);
+
+/** Bandeau d'information ou d'avertissement, aux teintes sémantiques de la charte. */
+const Callout = ({ tone = 'info', icon: Icon = Info, title, children }) => {
+  const tones = {
+    info: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-500/10 dark:border-blue-500/20 dark:text-blue-200',
+    warning: 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-200',
+  };
+  return (
+    <div className={`flex items-start gap-3 rounded-xl border p-4 ${tones[tone] || tones.info}`}>
+      <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+      <div className="min-w-0 text-sm">
+        {title && <p className="font-semibold mb-1">{title}</p>}
+        {children}
+      </div>
+    </div>
+  );
+};
+
+/** En-tête d'une rubrique : un seul niveau de titre pour les six panneaux. */
+const SectionHeader = ({ title, description }) => (
+  <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
+    <h2 className="section-title">{title}</h2>
+    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{description}</p>
+  </div>
+);
 
 const Settings = () => {
   const { t, i18n } = useTranslation();
-  const [activeTab, setActiveTab] = useState('general');
+  const navigate = useNavigate();
+
+  const [activeSection, setActiveSection] = useState('company');
   const [loading, setLoading] = useState(true);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importData, setImportData] = useState({ type: '', file: null });
-  const [settings, setSettings] = useState({
-    // Général
-    language: i18n.language,
-    currency: 'EUR',
-    timezone: 'Europe/Paris',
-    dateFormat: 'DD/MM/YYYY',
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState(EMPTY_SETTINGS);
+  // Dernier état enregistré, référence du bandeau « modifications non enregistrées ».
+  const [savedSettings, setSavedSettings] = useState(EMPTY_SETTINGS);
 
-    // Entreprise
-    companyName: 'GESCOM',
-    companyEmail: 'contact@gescom.com',
-    companyPhone: '+33 1 23 45 67 89',
-    companyAddress: '123 Rue de Commerce',
-    companyCity: 'Paris',
-    companyPostalCode: '75001',
-    companyCountry: 'France',
-    companyTaxId: 'FR12345678901',
-
-    // Facturation
-    taxRate: 20,
-    invoicePrefix: 'INV',
-    invoiceNumberStart: 1000,
-    paymentTerms: 30,
-    footerText: 'Merci pour votre confiance',
-
-    // Notifications
-    notifications: true,
-    emailNotifications: true,
-    orderNotifications: true,
-    stockAlerts: true,
-    lowStockThreshold: 10,
-
-    // Apparence
-    theme: 'light'
-  });
+  const [pendingImport, setPendingImport] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef(null);
 
   useEffect(() => {
     fetchSettings();
   }, []);
 
-  const fileInputRefs = {
-    clients: useRef(null),
-    products: useRef(null),
-    orders: useRef(null),
-    deliveries: useRef(null),
-    stock: useRef(null)
-  };
-
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/settings');
-      setSettings(response.data);
-      // Apply language setting
-      i18n.changeLanguage(response.data.language);
-      localStorage.setItem('language', response.data.language);
+      const { data } = await api.get('/settings');
+      const loaded = { ...EMPTY_SETTINGS, ...data };
+      setSettings(loaded);
+      setSavedSettings(loaded);
+      i18n.changeLanguage(loaded.language);
+      localStorage.setItem('language', loaded.language);
     } catch (error) {
       console.error('Error fetching settings:', error);
-      // Don't show error toast if it's a 401 - axios interceptor will handle it
+      // Un 401 est déjà traité par l'intercepteur axios.
       if (error.response?.status !== 401) {
-        toast.error('❌ Erreur lors du chargement des paramètres');
+        toast.error(extractErrorMessage(error));
       }
-      // Keep using default settings from state
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
-    try {
-      toast.loading('Enregistrement en cours...');
+  const setValue = (key, value) => setSettings((prev) => ({ ...prev, [key]: value }));
 
-      // Check if language changed
-      const currentLanguage = i18n.language;
-      const languageChanged = currentLanguage !== settings.language;
+  const handleText = (key) => (e) => setValue(key, e.target.value);
 
-      const response = await api.put('/settings', settings);
+  const isDirty = useMemo(
+    () => EDITABLE_KEYS.some((key) => String(settings[key] ?? '') !== String(savedSettings[key] ?? '')),
+    [settings, savedSettings]
+  );
 
-      // Apply language setting immediately
-      i18n.changeLanguage(settings.language);
-      localStorage.setItem('language', settings.language);
-
-      toast.dismiss();
-      toast.success('✅ Paramètres sauvegardés avec succès !');
-
-      // Refresh settings to get updated data
-      setSettings(response.data);
-
-      // Reload page if language changed to ensure all components update
-      if (languageChanged) {
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+  /**
+   * Contrôles repris des contraintes de `SettingsRequest`. Le premier défaut rencontré ouvre
+   * sa rubrique : sans cela, un 400 renvoyé par le serveur désignait un champ situé dans un
+   * panneau fermé, que l'utilisateur devait retrouver lui-même.
+   */
+  const validate = () => {
+    const required = [
+      ['companyName', 'company', "Le nom de l'entreprise"],
+      ['invoicePrefix', 'billing', 'Le préfixe des factures'],
+    ];
+    for (const [key, section, label] of required) {
+      if (!String(settings[key] ?? '').trim()) {
+        return { section, message: `${label} est obligatoire` };
       }
+    }
+
+    const numbers = [
+      ['taxRate', 'billing', 'Le taux de TVA'],
+      ['invoiceNumberStart', 'billing', 'Le numéro de départ des factures'],
+      ['paymentTerms', 'billing', 'Le délai de paiement'],
+      ['lowStockThreshold', 'notifications', "Le seuil d'alerte de stock"],
+    ];
+    for (const [key, section, label] of numbers) {
+      const value = Number(settings[key]);
+      if (String(settings[key] ?? '').trim() === '' || !Number.isFinite(value) || value < 0) {
+        return { section, message: `${label} doit être un nombre positif ou nul` };
+      }
+    }
+    return null;
+  };
+
+  const buildPayload = () => {
+    const payload = {};
+    EDITABLE_KEYS.forEach((key) => {
+      payload[key] = NUMERIC_KEYS.includes(key) ? Number(settings[key]) : settings[key];
+    });
+    return payload;
+  };
+
+  const handleSave = async () => {
+    const invalid = validate();
+    if (invalid) {
+      setActiveSection(invalid.section);
+      toast.error(invalid.message);
+      return;
+    }
+
+    const toastId = 'settings-save';
+    setSaving(true);
+    toast.loading(t('orders.steps.saving'), { id: toastId });
+    try {
+      const { data } = await api.put('/settings', buildPayload());
+      const saved = { ...EMPTY_SETTINGS, ...data };
+      setSettings(saved);
+      setSavedSettings(saved);
+
+      // react-i18next rerend les composants abonnés : la langue change sans recharger la
+      // fenêtre, ce que faisait l'écran après une temporisation d'une seconde.
+      i18n.changeLanguage(saved.language);
+      localStorage.setItem('language', saved.language);
+
+      // Les écrans de facturation lisent les réglages via un cache de session : sans cette
+      // invalidation, ils continueraient de proposer l'ancien taux de TVA jusqu'au rechargement.
+      invalidateSettingsCache();
+
+      toast.success(t('settings.saved'), { id: toastId });
     } catch (error) {
-      toast.dismiss();
       console.error('Error saving settings:', error);
-      const errorMessage = error.response?.data?.message || 'Erreur lors de la sauvegarde des paramètres';
-      toast.error('❌ ' + errorMessage);
+      toast.error(extractErrorMessage(error), { id: toastId });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleExport = async (type) => {
+  const handleDiscard = () => setSettings(savedSettings);
+
+  /* ---- Données ---- */
+
+  const handleExport = async (dataset) => {
+    const toastId = `export-${dataset.type}`;
+    toast.loading(t('settings.exporting', { dataset: t(`settings.datasets.${dataset.type}.label`) }), { id: toastId });
     try {
-      toast.loading(`Export des ${type} en cours...`);
-
-      const response = await api.get(`/${type}/export`, {
-        responseType: 'blob'
-      });
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const response = await api.get(`/${dataset.type}/export`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${type}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.download = `${dataset.type}_${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
-
-      toast.dismiss();
-      toast.success(`✅ ${type.charAt(0).toUpperCase() + type.slice(1)} exportés avec succès !`);
+      URL.revokeObjectURL(url);
+      toast.success(t('settings.exported', { dataset: t(`settings.datasets.${dataset.type}.label`) }), { id: toastId });
     } catch (error) {
-      toast.dismiss();
-      console.error(`Error exporting ${type}:`, error);
-      toast.error(`❌ Erreur lors de l'export des ${type}`);
+      console.error(`Error exporting ${dataset.type}:`, error);
+      toast.error(extractErrorMessage(error), { id: toastId });
     }
+  };
+
+  const handleFilePicked = (event) => {
+    const file = event.target.files?.[0];
+    if (file) setPendingImport({ type: 'products', file });
+  };
+
+  const closeImportModal = () => {
+    setPendingImport(null);
+    if (importInputRef.current) importInputRef.current.value = '';
   };
 
   const handleImport = async () => {
-    const { type, file } = importData;
-    if (!file) return;
+    if (!pendingImport) return;
+    const { type, file } = pendingImport;
+    const toastId = `import-${type}`;
+    const label = t(`settings.datasets.${type}.label`);
 
-    setShowImportModal(false);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
+    setImporting(true);
+    toast.loading(t('settings.importing', { dataset: label }), { id: toastId });
     try {
-      toast.loading(`Import des ${type} en cours...`);
-
-      // Debug: Check if token exists
-      const token = localStorage.getItem('token');
-      console.log('Token exists in localStorage:', !!token);
-      console.log('Token preview:', token ? token.substring(0, 20) + '...' : 'null');
-
-      // Let axios interceptor add the Authorization header automatically
-      const response = await api.post(`/${type}/import`, formData);
-
-      toast.dismiss();
-      const message = response.data.message || `${type.charAt(0).toUpperCase() + type.slice(1)} importés avec succès !`;
-      toast.success(`✅ ${message}`);
-
-      if (fileInputRefs[type].current) {
-        fileInputRefs[type].current.value = '';
-      }
+      const formData = new FormData();
+      formData.append('file', file);
+      // L'intercepteur axios ajoute l'en-tête d'autorisation.
+      const { data } = await api.post(`/${type}/import`, formData);
+      toast.success(data?.message || t('settings.imported', { dataset: label }), { id: toastId });
+      closeImportModal();
     } catch (error) {
-      toast.dismiss();
       console.error(`Error importing ${type}:`, error);
-      const errorMsg = error.response?.data?.message || error.message || 'Erreur inconnue';
-      toast.error(`❌ Erreur lors de l'import des ${type}: ${errorMsg}`);
+      toast.error(extractErrorMessage(error), { id: toastId });
+    } finally {
+      setImporting(false);
     }
   };
 
-  const handleFileChange = (type, event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setImportData({ type, file });
-      setShowImportModal(true);
-    }
-  };
+  /* ---- Panneaux ---- */
 
-  const handleCancelImport = () => {
-    setShowImportModal(false);
-    const type = importData.type;
-    if (fileInputRefs[type]?.current) {
-      fileInputRefs[type].current.value = '';
-    }
-    setImportData({ type: '', file: null });
-  };
-
-  const tabs = [
-    { id: 'general', label: 'Général', icon: Globe },
-    { id: 'company', label: 'Entreprise', icon: Building2 },
-    { id: 'billing', label: 'Facturation', icon: CreditCard },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'data', label: 'Données', icon: Database },
-    { id: 'security', label: 'Sécurité', icon: Lock },
-    { id: 'appearance', label: 'Apparence', icon: Palette }
-  ];
-
-  const InputField = ({ label, value, onChange, type = 'text', placeholder, icon: Icon, required = false }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <div className="relative">
-        {Icon && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Icon className="h-5 w-5 text-gray-400" />
-          </div>
-        )}
-        <input
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className={`input-field ${Icon ? 'pl-10' : ''}`}
+  const renderCompany = () => (
+    <>
+      <SectionHeader
+        title={t('settings.companyInfoTitle')}
+        description={t('settings.companyInfoHint')}
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        <TextField
+          id="companyName"
+          label={t('settings.companyNameLabel')}
+          value={settings.companyName}
+          onChange={handleText('companyName')}
+          placeholder={t('settings.companyNamePlaceholder')}
+          icon={Building2}
+          required
+          maxLength={200}
+        />
+        <TextField
+          id="companyTaxId"
+          label={t('settings.taxIdLabel')}
+          value={settings.companyTaxId}
+          onChange={handleText('companyTaxId')}
+          placeholder="BE0123456789"
+          icon={FileText}
+          maxLength={50}
+        />
+        <TextField
+          id="companyEmail"
+          label={t('settings.companyEmailLabel')}
+          type="email"
+          value={settings.companyEmail}
+          onChange={handleText('companyEmail')}
+          placeholder={t('settings.companyEmailPlaceholder')}
+          icon={Mail}
+          maxLength={100}
+        />
+        <TextField
+          id="companyPhone"
+          label={t('common.phone')}
+          type="tel"
+          value={settings.companyPhone}
+          onChange={handleText('companyPhone')}
+          placeholder={t('settings.companyPhonePlaceholder')}
+          icon={Phone}
+          maxLength={30}
+        />
+        <div className="md:col-span-2">
+          <TextField
+            id="companyAddress"
+            label={t('common.address')}
+            value={settings.companyAddress}
+            onChange={handleText('companyAddress')}
+            placeholder={t('settings.companyAddressPlaceholder')}
+            icon={MapPin}
+            maxLength={255}
+          />
+        </div>
+        <TextField
+          id="companyPostalCode"
+          label={t('settings.postalCodeLabel')}
+          value={settings.companyPostalCode}
+          onChange={handleText('companyPostalCode')}
+          placeholder="1000"
+          maxLength={20}
+        />
+        <TextField
+          id="companyCity"
+          label={t('settings.cityLabel')}
+          value={settings.companyCity}
+          onChange={handleText('companyCity')}
+          placeholder={t('clients.cityPlaceholder')}
+          maxLength={100}
+        />
+        <TextField
+          id="companyCountry"
+          label={t('settings.countryLabel')}
+          value={settings.companyCountry}
+          onChange={handleText('companyCountry')}
+          placeholder={t('clients.countryPlaceholder')}
+          maxLength={100}
         />
       </div>
-    </div>
-  );
 
-  const SelectField = ({ label, value, onChange, options, required = false }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <select value={value} onChange={onChange} className="input-field">
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-
-  const ToggleField = ({ label, description, checked, onChange }) => (
-    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-      <div className="flex-1">
-        <p className="font-medium text-gray-900">{label}</p>
-        {description && <p className="text-sm text-gray-600 mt-1">{description}</p>}
+      <div className="pt-8 space-y-4">
+        <h3 className="subsection-title">{t('settings.bankDetailsTitle')}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 -mt-2">
+          {t('settings.bankDetailsHint')}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TextField
+            id="companyIban"
+            label="IBAN"
+            value={settings.companyIban}
+            onChange={handleText('companyIban')}
+            placeholder="BE68 5390 0754 7034"
+            icon={CreditCard}
+            maxLength={50}
+          />
+          <TextField
+            id="companyBic"
+            label="BIC"
+            value={settings.companyBic}
+            onChange={handleText('companyBic')}
+            placeholder="GKCCBEBB"
+            maxLength={20}
+          />
+        </div>
       </div>
-      <label className="relative inline-flex items-center cursor-pointer">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={onChange}
-          className="sr-only peer"
+    </>
+  );
+
+  const renderBilling = () => (
+    <>
+      <SectionHeader
+        title={t('settings.billingSettingsTitle')}
+        description={t('settings.billingSettingsHint')}
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        <TextField
+          id="taxRate"
+          label={t('settings.taxRateLabel')}
+          type="number"
+          value={settings.taxRate}
+          onChange={handleText('taxRate')}
+          placeholder="21"
+          min="0"
+          step="0.01"
+          required
+          hint={t('settings.taxRateHint')}
         />
-        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-      </label>
-    </div>
-  );
-
-  const DataExportCard = ({ icon: Icon, iconColor, title, description, type }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all"
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-start gap-4">
-          <div className={`w-12 h-12 ${iconColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <Icon className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 text-lg">{title}</h3>
-            <p className="text-sm text-gray-600 mt-1">{description}</p>
-          </div>
+        <TextField
+          id="paymentTerms"
+          label={t('settings.paymentTermsLabel')}
+          type="number"
+          value={settings.paymentTerms}
+          onChange={handleText('paymentTerms')}
+          placeholder="30"
+          min="0"
+          required
+          hint={t('settings.paymentTermsHint')}
+        />
+        <TextField
+          id="invoicePrefix"
+          label={t('settings.invoicePrefixLabel')}
+          value={settings.invoicePrefix}
+          onChange={handleText('invoicePrefix')}
+          placeholder="INV"
+          maxLength={10}
+          required
+        />
+        <TextField
+          id="invoiceNumberStart"
+          label={t('settings.invoiceStartNumberLabel')}
+          type="number"
+          value={settings.invoiceNumberStart}
+          onChange={handleText('invoiceNumberStart')}
+          placeholder="1000"
+          min="0"
+          required
+        />
+        <div className="md:col-span-2">
+          <Field label={t('settings.invoiceFooterLabel')} htmlFor="footerText">
+            <textarea
+              id="footerText"
+              name="footerText"
+              rows={3}
+              value={settings.footerText ?? ''}
+              onChange={handleText('footerText')}
+              placeholder={t('settings.footerPlaceholder')}
+              className="input-field"
+            />
+          </Field>
         </div>
       </div>
-      <div className="flex flex-wrap gap-3">
-        <button
-          onClick={() => handleExport(type)}
-          className="flex-1 sm:flex-none btn-secondary flex items-center justify-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          Exporter
-        </button>
-        <button
-          onClick={() => fileInputRefs[type].current?.click()}
-          className="flex-1 sm:flex-none btn-primary flex items-center justify-center gap-2"
-        >
-          <Upload className="w-4 h-4" />
-          Importer
-        </button>
-        <input
-          ref={fileInputRefs[type]}
-          type="file"
-          accept=".csv,.xlsx"
-          onChange={(e) => handleFileChange(type, e)}
-          className="hidden"
+
+      <div className="pt-6">
+        <Callout title={t('settings.numberingPreviewTitle')}>
+          <Trans
+            i18nKey="settings.numberingPreviewText"
+            values={{
+              number: `${settings.invoicePrefix || 'INV'}-${settings.invoiceNumberStart || 0}`,
+            }}
+            components={{ b: <span className="font-semibold tabular-nums" /> }}
+          />
+        </Callout>
+      </div>
+    </>
+  );
+
+  const renderGeneral = () => (
+    <>
+      <SectionHeader
+        title={t('settings.generalSettingsTitle')}
+        description={t('settings.generalSettingsHint')}
+      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+        <SelectField
+          id="language"
+          label={t('settings.languageLabel')}
+          value={settings.language}
+          onChange={handleText('language')}
+          options={LANGUAGES}
+          required
+          hint={t('settings.languageHint')}
+        />
+        <SelectField
+          id="currency"
+          label={t('settings.currencyLabel')}
+          value={settings.currency}
+          onChange={handleText('currency')}
+          options={CURRENCIES.map((c) => ({ ...c, label: t(c.labelKey) }))}
+          required
+        />
+        <SelectField
+          id="timezone"
+          label={t('settings.timezoneLabel')}
+          value={settings.timezone}
+          onChange={handleText('timezone')}
+          options={TIMEZONES.map((z) => ({ ...z, label: t(z.labelKey) }))}
+          required
+        />
+        <SelectField
+          id="dateFormat"
+          label={t('settings.dateFormatLabel')}
+          value={settings.dateFormat}
+          onChange={handleText('dateFormat')}
+          options={DATE_FORMATS.map((f) => ({ ...f, label: t(f.labelKey) }))}
+          required
         />
       </div>
-    </motion.div>
-  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="text-gray-600 mt-4">Chargement des paramètres...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <SettingsIcon className="w-8 h-8 text-primary-600" />
-            {t('nav.settings')}
-          </h1>
-          <p className="text-gray-600 mt-2">Gérez tous les paramètres de votre application</p>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleSave}
-          className="btn-primary px-6 py-3 flex items-center gap-2"
-        >
-          <Save className="w-5 h-5" />
-          Enregistrer
-        </motion.button>
-      </div>
-
-      {/* Tabs Navigation */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex overflow-x-auto scrollbar-hide">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-primary-600 text-primary-600 bg-primary-50'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        {/* Général */}
-        {activeTab === 'general' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
+      <div className="pt-8 space-y-4">
+        <h3 className="subsection-title">{t('settings.themeLabel')}</h3>
+        <div role="radiogroup" aria-label={t('settings.themeLabel')} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={settings.theme !== 'dark'}
+            onClick={() => setValue('theme', 'light')}
+            className={`flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-colors ${
+              settings.theme !== 'dark'
+                ? 'border-primary-600 bg-primary-50 dark:bg-primary-500/10'
+                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+            }`}
           >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Paramètres généraux</h2>
-              <p className="text-gray-600">Configurez les paramètres de base de l'application</p>
-            </div>
+            <Sun className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block font-medium text-gray-900 dark:text-gray-100">{t('settings.lightThemeLabel')}</span>
+              <span className="block text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {t('settings.lightThemeHint')}
+              </span>
+            </span>
+            {settings.theme !== 'dark' && (
+              <Check className="w-5 h-5 text-primary-600 ml-auto flex-shrink-0" aria-hidden="true" />
+            )}
+          </button>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SelectField
-                label="Langue de l'interface"
-                value={settings.language}
-                onChange={(e) => setSettings({ ...settings, language: e.target.value })}
-                options={[
-                  { value: 'fr', label: '🇫🇷 Français' },
-                  { value: 'en', label: '🇬🇧 English' },
-                  { value: 'nl', label: '🇳🇱 Nederlands' }
-                ]}
-                required
-              />
-
-              <SelectField
-                label="Devise par défaut"
-                value={settings.currency}
-                onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-                options={[
-                  { value: 'EUR', label: 'Euro (€)' },
-                  { value: 'USD', label: 'Dollar ($)' },
-                  { value: 'GBP', label: 'Livre (£)' }
-                ]}
-                required
-              />
-
-              <SelectField
-                label="Fuseau horaire"
-                value={settings.timezone}
-                onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-                options={[
-                  { value: 'Europe/Paris', label: 'Europe/Paris (GMT+1)' },
-                  { value: 'Europe/London', label: 'Europe/London (GMT+0)' },
-                  { value: 'America/New_York', label: 'America/New_York (GMT-5)' }
-                ]}
-              />
-
-              <SelectField
-                label="Format de date"
-                value={settings.dateFormat}
-                onChange={(e) => setSettings({ ...settings, dateFormat: e.target.value })}
-                options={[
-                  { value: 'DD/MM/YYYY', label: 'JJ/MM/AAAA' },
-                  { value: 'MM/DD/YYYY', label: 'MM/JJ/AAAA' },
-                  { value: 'YYYY-MM-DD', label: 'AAAA-MM-JJ' }
-                ]}
-              />
-            </div>
-          </motion.div>
-        )}
-
-        {/* Entreprise */}
-        {activeTab === 'company' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Informations de l'entreprise</h2>
-              <p className="text-gray-600">Ces informations apparaîtront sur vos factures et documents</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                label="Nom de l'entreprise"
-                value={settings.companyName}
-                onChange={(e) => setSettings({ ...settings, companyName: e.target.value })}
-                placeholder="GESCOM"
-                icon={Building2}
-                required
-              />
-
-              <InputField
-                label="Email de l'entreprise"
-                type="email"
-                value={settings.companyEmail}
-                onChange={(e) => setSettings({ ...settings, companyEmail: e.target.value })}
-                placeholder="contact@gescom.com"
-                icon={Mail}
-                required
-              />
-
-              <InputField
-                label="Téléphone"
-                type="tel"
-                value={settings.companyPhone}
-                onChange={(e) => setSettings({ ...settings, companyPhone: e.target.value })}
-                placeholder="+33 1 23 45 67 89"
-                icon={Phone}
-              />
-
-              <InputField
-                label="Numéro TVA"
-                value={settings.companyTaxId}
-                onChange={(e) => setSettings({ ...settings, companyTaxId: e.target.value })}
-                placeholder="FR12345678901"
-                icon={FileText}
-              />
-
-              <div className="md:col-span-2">
-                <InputField
-                  label="Adresse"
-                  value={settings.companyAddress}
-                  onChange={(e) => setSettings({ ...settings, companyAddress: e.target.value })}
-                  placeholder="123 Rue de Commerce"
-                  icon={MapPin}
-                />
-              </div>
-
-              <InputField
-                label="Ville"
-                value={settings.companyCity}
-                onChange={(e) => setSettings({ ...settings, companyCity: e.target.value })}
-                placeholder="Paris"
-              />
-
-              <InputField
-                label="Code postal"
-                value={settings.companyPostalCode}
-                onChange={(e) => setSettings({ ...settings, companyPostalCode: e.target.value })}
-                placeholder="75001"
-              />
-
-              <InputField
-                label="Pays"
-                value={settings.companyCountry}
-                onChange={(e) => setSettings({ ...settings, companyCountry: e.target.value })}
-                placeholder="France"
-              />
-            </div>
-          </motion.div>
-        )}
-
-        {/* Facturation */}
-        {activeTab === 'billing' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Paramètres de facturation</h2>
-              <p className="text-gray-600">Configurez vos factures et conditions de paiement</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <InputField
-                label="Taux de TVA par défaut (%)"
-                type="number"
-                value={settings.taxRate}
-                onChange={(e) => setSettings({ ...settings, taxRate: e.target.value })}
-                placeholder="20"
-                required
-              />
-
-              <InputField
-                label="Préfixe des factures"
-                value={settings.invoicePrefix}
-                onChange={(e) => setSettings({ ...settings, invoicePrefix: e.target.value })}
-                placeholder="INV"
-              />
-
-              <InputField
-                label="Numéro de départ"
-                type="number"
-                value={settings.invoiceNumberStart}
-                onChange={(e) => setSettings({ ...settings, invoiceNumberStart: e.target.value })}
-                placeholder="1000"
-              />
-
-              <InputField
-                label="Délai de paiement (jours)"
-                type="number"
-                value={settings.paymentTerms}
-                onChange={(e) => setSettings({ ...settings, paymentTerms: e.target.value })}
-                placeholder="30"
-              />
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Texte de pied de page des factures
-                </label>
-                <textarea
-                  value={settings.footerText}
-                  onChange={(e) => setSettings({ ...settings, footerText: e.target.value })}
-                  placeholder="Merci pour votre confiance"
-                  rows="3"
-                  className="input-field"
-                />
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-900 mb-1">Numérotation des factures</p>
-                <p className="text-sm text-blue-800">
-                  Les factures seront numérotées comme: {settings.invoicePrefix}-{settings.invoiceNumberStart}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Notifications */}
-        {activeTab === 'notifications' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Préférences de notification</h2>
-              <p className="text-gray-600">Choisissez comment vous souhaitez être notifié</p>
-            </div>
-
-            <div className="space-y-3">
-              <ToggleField
-                label="Notifications push"
-                description="Recevoir les notifications dans l'application"
-                checked={settings.notifications}
-                onChange={(e) => setSettings({ ...settings, notifications: e.target.checked })}
-              />
-
-              <ToggleField
-                label="Notifications par email"
-                description="Recevoir les notifications importantes par email"
-                checked={settings.emailNotifications}
-                onChange={(e) => setSettings({ ...settings, emailNotifications: e.target.checked })}
-              />
-
-              <ToggleField
-                label="Notifications de commandes"
-                description="Être notifié lors de nouvelles commandes ou modifications"
-                checked={settings.orderNotifications}
-                onChange={(e) => setSettings({ ...settings, orderNotifications: e.target.checked })}
-              />
-
-              <ToggleField
-                label="Alertes de stock"
-                description="Recevoir des alertes lorsque le stock est faible"
-                checked={settings.stockAlerts}
-                onChange={(e) => setSettings({ ...settings, stockAlerts: e.target.checked })}
-              />
-            </div>
-
-            <div className="pt-4 border-t border-gray-200">
-              <InputField
-                label="Seuil d'alerte de stock bas"
-                type="number"
-                value={settings.lowStockThreshold}
-                onChange={(e) => setSettings({ ...settings, lowStockThreshold: e.target.value })}
-                placeholder="10"
-              />
-              <p className="text-sm text-gray-600 mt-2">
-                Vous serez alerté lorsqu'un produit atteint ce niveau de stock
+          {/* Le réglage est bien persisté côté serveur, mais aucun composant ne l'applique
+              encore (le hook `useTheme` n'est branché nulle part) : le proposer comme un choix
+              actif afficherait « sombre » sans que rien ne change à l'écran. */}
+          <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 opacity-70">
+            <Moon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="font-medium text-gray-700 dark:text-gray-300">{t('settings.darkThemeLabel')}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {t('settings.darkThemeHint')}
               </p>
             </div>
-          </motion.div>
-        )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
 
-        {/* Données */}
-        {activeTab === 'data' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Import / Export de données</h2>
-              <p className="text-gray-600">Gérez vos données au format CSV ou Excel</p>
-            </div>
+  const renderNotifications = () => (
+    <>
+      <SectionHeader
+        title={t('notifications.title')}
+        description={t('settings.notificationsHint')}
+      />
+      <div className="space-y-3 pt-6">
+        <ToggleField
+          id="notifications"
+          label={t('settings.pushNotificationsLabel')}
+          description={t('settings.pushNotificationsHint')}
+          checked={!!settings.notifications}
+          onChange={(v) => setValue('notifications', v)}
+        />
+        <ToggleField
+          id="emailNotifications"
+          label={t('settings.emailNotificationsLabel')}
+          description={t('settings.emailNotificationsHint')}
+          checked={!!settings.emailNotifications}
+          onChange={(v) => setValue('emailNotifications', v)}
+        />
+        <ToggleField
+          id="orderNotifications"
+          label={t('nav.orders')}
+          description={t('settings.orderNotificationsHint')}
+          checked={!!settings.orderNotifications}
+          onChange={(v) => setValue('orderNotifications', v)}
+        />
+        <ToggleField
+          id="stockAlerts"
+          label={t('settings.stockAlertsLabel')}
+          description={t('settings.stockAlertsHint')}
+          checked={!!settings.stockAlerts}
+          onChange={(v) => setValue('stockAlerts', v)}
+        />
+      </div>
 
-            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-blue-900 mb-2">Informations importantes</p>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4" />
-                    Les fichiers doivent être au format CSV ou Excel (.csv, .xlsx)
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4" />
-                    Les exports sont horodatés automatiquement
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    L'import écrase les données existantes avec le même identifiant
-                  </li>
-                </ul>
-              </div>
-            </div>
+      <div className="pt-8 border-t border-gray-200 dark:border-gray-700 mt-8">
+        <div className="max-w-xs">
+          <TextField
+            id="lowStockThreshold"
+            label={t('settings.lowStockThresholdLabel')}
+            type="number"
+            value={settings.lowStockThreshold}
+            onChange={handleText('lowStockThreshold')}
+            placeholder="10"
+            min="0"
+            required
+            hint={t('settings.lowStockThresholdHint')}
+          />
+        </div>
+      </div>
+    </>
+  );
 
-            <div className="grid grid-cols-1 gap-4">
-              <DataExportCard
-                icon={Users}
-                iconColor="bg-gradient-to-br from-blue-500 to-blue-600"
-                title="Clients"
-                description="Gérez votre base de données clients"
-                type="clients"
-              />
+  const renderData = () => (
+    <>
+      <SectionHeader
+        title={t('settings.dataTitle')}
+        description={t('settings.dataHint')}
+      />
 
-              <DataExportCard
-                icon={Package}
-                iconColor="bg-gradient-to-br from-purple-500 to-purple-600"
-                title="Produits"
-                description="Importez et exportez votre catalogue de produits"
-                type="products"
-              />
+      <div className="pt-6 space-y-4">
+        <Callout title={t('settings.beforeImportTitle')}>
+          <ul className="space-y-1">
+            <li>{t('settings.beforeImport.format')}</li>
+            <li>{t('settings.beforeImport.overwrite')}</li>
+            <li>{t('settings.beforeImport.template')}</li>
+          </ul>
+        </Callout>
 
-              <DataExportCard
-                icon={ShoppingCart}
-                iconColor="bg-gradient-to-br from-green-500 to-green-600"
-                title="Commandes"
-                description="Gérez l'historique de vos commandes"
-                type="orders"
-              />
-
-              <DataExportCard
-                icon={Truck}
-                iconColor="bg-gradient-to-br from-orange-500 to-orange-600"
-                title="Livraisons"
-                description="Exportez vos données de livraison"
-                type="deliveries"
-              />
-
-              <DataExportCard
-                icon={Warehouse}
-                iconColor="bg-gradient-to-br from-red-500 to-red-600"
-                title="Stock"
-                description="Gérez les mouvements de stock"
-                type="stock"
-              />
-            </div>
-          </motion.div>
-        )}
-
-        {/* Sécurité */}
-        {activeTab === 'security' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Sécurité du compte</h2>
-              <p className="text-gray-600">Protégez votre compte et vos données</p>
-            </div>
-
-            <div className="space-y-6">
-              <div className="border border-gray-200 rounded-xl p-6">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                    <Lock className="w-6 h-6 text-red-600" />
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {DATASETS.map((dataset) => {
+            const Icon = dataset.icon;
+            return (
+              <li
+                key={dataset.type}
+                className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white dark:bg-gray-800"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-200 flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-5 h-5" aria-hidden="true" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 text-lg">Mot de passe</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Dernière modification: il y a 30 jours
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      {t(`settings.datasets.${dataset.type}.label`)}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                      {t(`settings.datasets.${dataset.type}.description`)}
                     </p>
                   </div>
                 </div>
-                <button className="btn-secondary w-full sm:w-auto">
-                  Changer le mot de passe
-                </button>
-              </div>
-
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-900 mb-2">Recommandations de sécurité</p>
-                    <ul className="text-sm text-yellow-800 space-y-1 list-disc list-inside">
-                      <li>Changez votre mot de passe régulièrement (tous les 3 mois)</li>
-                      <li>Utilisez un mot de passe complexe avec au moins 8 caractères</li>
-                      <li>Ne partagez jamais vos identifiants</li>
-                      <li>Déconnectez-vous après chaque session sur un ordinateur partagé</li>
-                    </ul>
-                  </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button variant="secondary" size="sm" icon={Download} onClick={() => handleExport(dataset)}>
+                    {t('common.export')}
+                  </Button>
+                  {/* Seuls les produits disposent d'une route d'import côté API. */}
+                  {dataset.importable && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Upload}
+                      onClick={() => importInputRef.current?.click()}
+                    >
+                      {t('common.import')}
+                    </Button>
+                  )}
                 </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+              </li>
+            );
+          })}
+        </ul>
 
-        {/* Apparence */}
-        {activeTab === 'appearance' && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="space-y-6"
-          >
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Personnalisation de l'interface</h2>
-              <p className="text-gray-600">Adaptez l'apparence selon vos préférences</p>
-            </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {t('settings.importProductsOnly')}
+        </p>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Thème de l'application
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  onClick={() => setSettings({ ...settings, theme: 'light' })}
-                  className={`relative p-6 border-2 rounded-xl cursor-pointer bg-gradient-to-br from-white to-gray-50 ${
-                    settings.theme === 'light' ? 'border-primary-600' : 'border-gray-300'
-                  }`}
-                >
-                  {settings.theme === 'light' && (
-                    <div className="absolute top-4 right-4">
-                      <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                  )}
-                  <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl mb-4"></div>
-                  <p className="font-semibold text-gray-900 text-lg">Thème Clair</p>
-                  <p className="text-sm text-gray-600 mt-1">Interface lumineuse et moderne</p>
-                </motion.div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleFilePicked}
+          className="hidden"
+        />
+      </div>
+    </>
+  );
 
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  onClick={() => setSettings({ ...settings, theme: 'dark' })}
-                  className={`relative p-6 border-2 rounded-xl cursor-pointer bg-gradient-to-br from-gray-900 to-gray-800 ${
-                    settings.theme === 'dark' ? 'border-primary-600' : 'border-gray-300 opacity-60'
-                  }`}
-                >
-                  {settings.theme === 'dark' && (
-                    <div className="absolute top-4 right-4">
-                      <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center">
-                        <Check className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                  )}
-                  <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-600 rounded-xl mb-4"></div>
-                  <p className="font-semibold text-white text-lg">Thème Sombre</p>
-                  <p className="text-sm text-gray-300 mt-1">Bientôt disponible</p>
-                  {settings.theme !== 'dark' && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="bg-gray-700 text-white px-4 py-2 rounded-full text-sm font-medium">
-                        Prochainement
-                      </span>
-                    </div>
-                  )}
-                </motion.div>
-              </div>
+  const renderSecurity = () => (
+    <>
+      <SectionHeader
+        title={t('profile.tabs.security')}
+        description={t('settings.securityHint')}
+      />
+
+      <div className="pt-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-200 flex items-center justify-center flex-shrink-0">
+              <KeyRound className="w-5 h-5" aria-hidden="true" />
             </div>
-          </motion.div>
-        )}
+            <div className="min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100">{t('auth.password')}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {t('settings.passwordHint')}
+              </p>
+            </div>
+          </div>
+          {/* Le bouton n'avait aucune action associée : il mène désormais à l'écran qui
+              effectue réellement le changement. */}
+          <Button variant="secondary" onClick={() => navigate('/profile')}>
+            {t('settings.openProfile')}
+          </Button>
+        </div>
+
+        {/* Règles reprises de `UserService.validatePassword` : ce sont celles que le serveur
+            applique réellement à l'enregistrement. */}
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700">
+          <h3 className="subsection-title">{t('settings.passwordRulesTitle')}</h3>
+          <ul className="mt-3 space-y-2">
+            {[
+              t('profile.rules.length'),
+              t('settings.passwordRules.upper'),
+              t('settings.passwordRules.lower'),
+              t('settings.passwordRules.digit'),
+            ].map((rule) => (
+              <li key={rule} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <Check className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" aria-hidden="true" />
+                {rule}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <Callout tone="warning" icon={AlertTriangle} title={t('settings.bestPracticesTitle')}>
+          <ul className="space-y-1">
+            <li>{t('settings.bestPractices.noSharing')}</li>
+            <li>{t('settings.bestPractices.namedAccounts')}</li>
+            <li>{t('settings.bestPractices.signOut')}</li>
+          </ul>
+        </Callout>
+      </div>
+    </>
+  );
+
+  const PANELS = {
+    company: renderCompany,
+    billing: renderBilling,
+    general: renderGeneral,
+    notifications: renderNotifications,
+    data: renderData,
+    security: renderSecurity,
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ---- En-tête ---- */}
+      <div className="page-header">
+        <div className="flex items-center gap-3">
+          <div className="page-header-icon">
+            <SettingsIcon aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="page-title">{t('nav.settings')}</h1>
+            <p className="page-subtitle">{t('settings.subtitle')}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Import Confirmation Modal */}
-      <Modal isOpen={showImportModal} onClose={handleCancelImport} title="Confirmer l'import">
-        <div>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-yellow-600" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* ---- Navigation des rubriques ----
+         * Verticale et groupée sur grand écran, défilante horizontalement en dessous : sept
+         * onglets alignés débordaient de la largeur utile dès que la barre latérale était
+         * ouverte, et les derniers n'étaient atteignables qu'en faisant défiler à l'aveugle. */}
+        <nav className="lg:col-span-1" aria-label={t('settings.sectionsNavLabel')}>
+          <div className="card p-3 lg:sticky lg:top-6">
+            <div
+              role="tablist"
+              aria-orientation="vertical"
+              className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible"
+            >
+              {GROUPS.map((group) => (
+                // `presentation` : le regroupement est visuel, seuls les boutons doivent être
+                // exposés comme onglets de la liste.
+                <div key={group} role="presentation" className="contents lg:block">
+                  <p className="hidden lg:block px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    {t(`settings.groups.${group}`)}
+                  </p>
+                  {SECTIONS.filter((section) => section.group === group).map((section) => {
+                    const Icon = section.icon;
+                    const selected = activeSection === section.id;
+                    return (
+                      <button
+                        key={section.id}
+                        id={`settings-tab-${section.id}`}
+                        role="tab"
+                        type="button"
+                        aria-selected={selected}
+                        aria-controls={`settings-panel-${section.id}`}
+                        onClick={() => setActiveSection(section.id)}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                          selected
+                            ? 'bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-200'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/40 hover:text-gray-900 dark:hover:text-gray-100'
+                        }`}
+                      >
+                        <Icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 text-left">
+                          <span className="block">{t(`settings.sections.${section.id}.label`)}</span>
+                          <span className="hidden lg:block text-xs font-normal text-gray-500 dark:text-gray-400 truncate">
+                            {t(`settings.sections.${section.id}.hint`)}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div>
-                  <p className="text-gray-600">Vérifiez les informations avant de continuer</p>
-                </div>
-              </div>
+              ))}
+            </div>
+          </div>
+        </nav>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-blue-900 mb-2">Informations sur le fichier</p>
-                    <div className="space-y-1 text-sm text-blue-800">
-                      <p><strong>Type:</strong> {importData.type}</p>
-                      <p><strong>Nom du fichier:</strong> {importData.file?.name}</p>
-                      <p><strong>Taille:</strong> {(importData.file?.size / 1024).toFixed(2)} KB</p>
-                    </div>
+        {/* ---- Panneau de la rubrique ---- */}
+        <div className="lg:col-span-3">
+          {loading ? (
+            <div className="card space-y-4">
+              <div className="skeleton h-6 w-56" />
+              <div className="skeleton h-4 w-80" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="skeleton h-4 w-32" />
+                    <div className="skeleton h-11 w-full" />
                   </div>
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-900 mb-2">Avertissement</p>
-                    <ul className="text-sm text-yellow-800 space-y-1 list-disc list-inside">
-                      <li>L'import peut prendre quelques instants</li>
-                      <li>Les données existantes avec le même identifiant seront écrasées</li>
-                      <li>Assurez-vous que le format du fichier est correct</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCancelImport}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleImport}
-                  className="flex-1 px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-                >
-                  Confirmer l'import
-                </button>
+                ))}
               </div>
             </div>
+          ) : (
+            <motion.section
+              key={activeSection}
+              id={`settings-panel-${activeSection}`}
+              role="tabpanel"
+              aria-labelledby={`settings-tab-${activeSection}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card"
+            >
+              {PANELS[activeSection]()}
+            </motion.section>
+          )}
+        </div>
+      </div>
+
+      {/* ---- Barre d'enregistrement ----
+       * Un seul PUT enregistre toutes les rubriques : l'action est donc globale et non propre
+       * à un panneau. La barre colle au bas de la fenêtre et n'apparaît qu'en cas de
+       * modification, ce qui la rend atteignable au bas d'un formulaire long. */}
+      {isDirty && !loading && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="sticky bottom-0 z-20 -mx-6 px-6 py-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3"
+          role="status"
+        >
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+            {t('profile.unsavedChanges')}
+          </p>
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" icon={RotateCcw} onClick={handleDiscard} disabled={saving}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="primary" icon={Save} onClick={handleSave} loading={saving}>
+              {t('common.save')}
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ---- Confirmation d'import ---- */}
+      <Modal
+        isOpen={!!pendingImport}
+        onClose={closeImportModal}
+        title={t('settings.confirmImportTitle')}
+        size="md"
+      >
+        {pendingImport && (
+          <div className="space-y-6">
+            <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/30">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{t('settings.datasetLabel')}</dt>
+                <dd className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5">
+                  {t(`settings.datasets.${pendingImport.type}.label`)}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{t('settings.fileLabel')}</dt>
+                <dd className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5 truncate">
+                  {pendingImport.file?.name}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{t('settings.sizeLabel')}</dt>
+                <dd className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-0.5 tabular-nums">
+                  {t('settings.sizeInKb', { size: (pendingImport.file?.size / 1024).toFixed(1) })}
+                </dd>
+              </div>
+            </dl>
+
+            <Callout tone="warning" icon={AlertTriangle} title={t('settings.importWarningTitle')}>
+              <ul className="space-y-1">
+                <li>{t('settings.importWarning.overwrite')}</li>
+                <li>{t('settings.importWarning.irreversible')}</li>
+              </ul>
+            </Callout>
+
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <Button variant="secondary" onClick={closeImportModal} disabled={importing}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="primary" icon={Upload} onClick={handleImport} loading={importing}>
+                {t('settings.startImport')}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
