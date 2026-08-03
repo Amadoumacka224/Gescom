@@ -13,6 +13,8 @@ import {
   CircleSlash,
   PackageSearch,
   X,
+  Eye,
+  CalendarClock,
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -25,10 +27,14 @@ import SegmentedFilter from '../components/SegmentedFilter';
 import StatCard from '../components/StatCard';
 import FormInput from '../components/FormInput';
 import Button from '../components/Button';
+import KeyFact from '../components/KeyFact';
 import { rankSuggestions } from '../utils/searchSuggestions';
-import { formatDate, formatPercent, safeRatio } from '../utils/format';
+import { formatCurrency, formatDate, formatPercent, safeRatio } from '../utils/format';
 
 const EMPTY_FORM = { name: '', code: '', description: '', active: true };
+
+/** Produits détaillés dans la fiche ; au-delà, un simple décompte du reste. */
+const DETAIL_PRODUCTS_SHOWN = 8;
 
 const Categories = () => {
   const { t } = useTranslation();
@@ -39,10 +45,10 @@ const Categories = () => {
   const isAdmin = user?.role === 'ADMIN';
 
   const [categories, setCategories] = useState([]);
-  // Les produits ne servent qu'à compter ce qui est rattaché à chaque catégorie :
-  // CategoryResponse ne porte pas ce total, et c'est lui qui dit si une catégorie est
-  // vide (donc archivable) ou au contraire impossible à supprimer.
-  const [productCounts, setProductCounts] = useState(null);
+  // Produits groupés par catégorie. `CategoryResponse` ne porte ni le total ni la liste :
+  // c'est ce regroupement qui dit si une catégorie est vide (donc supprimable) et qui
+  // alimente les produits rattachés de la fiche, sans requête supplémentaire à l'ouverture.
+  const [productsByCategory, setProductsByCategory] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,6 +63,11 @@ const Categories = () => {
   const [formError, setFormError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
+
+  // La fiche retient un identifiant, pas l'objet : après une activation ou une modification,
+  // elle se relit depuis la liste rafraîchie au lieu d'afficher un état périmé. Et si la
+  // catégorie disparaît (suppression), la fiche se referme d'elle-même.
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -86,21 +97,51 @@ const Categories = () => {
     }
 
     if (productsResult.status === 'fulfilled') {
-      const counts = {};
+      const grouped = {};
       for (const product of productsResult.value.data || []) {
         const categoryId = product.category?.id;
-        if (categoryId) counts[categoryId] = (counts[categoryId] || 0) + 1;
+        if (!categoryId) continue;
+        (grouped[categoryId] ||= []).push(product);
       }
-      setProductCounts(counts);
+      // Tri une fois pour toutes : la fiche affiche les produits par ordre alphabétique.
+      for (const list of Object.values(grouped)) {
+        list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr', { sensitivity: 'base' }));
+      }
+      setProductsByCategory(grouped);
     } else {
       console.error('Error fetching products:', productsResult.reason);
-      setProductCounts(null);
+      setProductsByCategory(null);
     }
 
     setLoading(false);
   };
 
-  const countFor = (category) => productCounts?.[category.id] ?? 0;
+  const productsFor = (category) => productsByCategory?.[category?.id] ?? [];
+  const countFor = (category) => productsFor(category).length;
+
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.id === selectedCategoryId) || null,
+    [categories, selectedCategoryId]
+  );
+
+  /** Ce que la catégorie pèse au catalogue : c'est là-dessus qu'on décide de la compléter,
+   *  de la désactiver ou de la supprimer. */
+  const selectedStats = useMemo(() => {
+    const products = productsFor(selectedCategory);
+    return {
+      products,
+      total: products.length,
+      active: products.filter((p) => p.active).length,
+      lowStock: products.filter(
+        (p) => Number(p.stockQuantity || 0) <= Number(p.minStockAlert || 0)
+      ).length,
+      stockValue: products.reduce(
+        (sum, p) => sum + Number(p.sellingPrice || 0) * Number(p.stockQuantity || 0),
+        0
+      ),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, productsByCategory]);
 
   const stats = useMemo(() => {
     const total = categories.length;
@@ -109,9 +150,11 @@ const Categories = () => {
       total,
       active,
       inactive: total - active,
-      empty: productCounts ? categories.filter((c) => !productCounts[c.id]).length : null,
+      empty: productsByCategory
+        ? categories.filter((c) => !productsByCategory[c.id]?.length).length
+        : null,
     };
-  }, [categories, productCounts]);
+  }, [categories, productsByCategory]);
 
   const filteredCategories = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -146,7 +189,7 @@ const Categories = () => {
       return (left - right) * factor;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredCategories, sortConfig, productCounts]);
+  }, [filteredCategories, sortConfig, productsByCategory]);
 
   const totalPages = Math.max(1, Math.ceil(sortedCategories.length / itemsPerPage));
   const displayedCategories = sortedCategories.slice(
@@ -310,7 +353,7 @@ const Categories = () => {
       sortable: true,
       className: 'hidden md:table-cell',
       render: (category) => {
-        if (!productCounts) return <span className="text-gray-400 dark:text-gray-500">—</span>;
+        if (!productsByCategory) return <span className="text-gray-400 dark:text-gray-500">—</span>;
         const count = countFor(category);
         // Une catégorie vide est signalée : c'est elle qu'on peut supprimer ou compléter.
         return count === 0 ? (
@@ -498,12 +541,24 @@ const Categories = () => {
           sortKey={sortConfig.key}
           sortDirection={sortConfig.direction}
           onSort={handleSort}
+          onRowClick={(category) => setSelectedCategoryId(category.id)}
           actions={
-            isAdmin
-              ? (category) => (
+            /* La fiche est ouverte à tous les rôles : le caissier n'avait jusqu'ici aucun
+               moyen de consulter une catégorie, la colonne d'actions lui étant masquée. */
+            (category) => (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelectedCategoryId(category.id); }}
+                  className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title={t('categories.viewDetail')}
+                  aria-label={`${t('categories.viewDetail')} — ${category.name}`}
+                >
+                  <Eye className="w-4 h-4" aria-hidden="true" />
+                </button>
+                {isAdmin && (
                   <>
                     <button
-                      onClick={() => handleEdit(category)}
+                      onClick={(e) => { e.stopPropagation(); handleEdit(category); }}
                       className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
                       title={t('common.edit')}
                       aria-label={`${t('common.edit')} — ${category.name}`}
@@ -511,7 +566,7 @@ const Categories = () => {
                       <Edit className="w-4 h-4" aria-hidden="true" />
                     </button>
                     <button
-                      onClick={() => handleToggleStatus(category)}
+                      onClick={(e) => { e.stopPropagation(); handleToggleStatus(category); }}
                       className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                       title={category.active ? t('categories.deactivate') : t('categories.activate')}
                       aria-label={`${
@@ -525,7 +580,7 @@ const Categories = () => {
                       )}
                     </button>
                     <button
-                      onClick={() => requestDelete(category)}
+                      onClick={(e) => { e.stopPropagation(); requestDelete(category); }}
                       className="text-red-600 hover:text-red-900 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                       title={t('common.delete')}
                       aria-label={`${t('common.delete')} — ${category.name}`}
@@ -533,8 +588,9 @@ const Categories = () => {
                       <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </>
-                )
-              : null
+                )}
+              </>
+            )
           }
         />
 
@@ -549,6 +605,239 @@ const Categories = () => {
           />
         )}
       </div>
+
+      {/* ---- Fiche catégorie (lecture) ---- */}
+      <Modal
+        isOpen={!!selectedCategory}
+        onClose={() => setSelectedCategoryId(null)}
+        title={t('categories.detailsTitle')}
+        size="lg"
+      >
+        {selectedCategory && (
+          <div className="space-y-6">
+            {/* En-tête : ce que la catégorie est, et ce qu'elle pèse au catalogue. */}
+            <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+                <div className="flex min-w-0 items-start gap-4">
+                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-200">
+                    <Tags className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                      {selectedCategory.name}
+                    </h3>
+                    <p className="mt-0.5 font-mono text-sm text-gray-500 dark:text-gray-400">
+                      {selectedCategory.code || t('categories.noCode')}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className={selectedCategory.active ? 'badge-success' : 'badge-neutral'}>
+                        {selectedCategory.active ? t('categories.active') : t('categories.inactive')}
+                      </span>
+                      {productsByCategory && selectedStats.total === 0 && (
+                        <span className="badge-warning">{t('categories.emptyBadge')}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:flex-shrink-0 lg:text-right">
+                  <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    {t('categories.attachedProducts')}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    {productsByCategory ? selectedStats.total : '—'}
+                  </p>
+                </div>
+              </div>
+            </header>
+
+            {/* Repères : les chiffres qui décident de compléter, désactiver ou supprimer. */}
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <KeyFact
+                icon={CheckCircle2}
+                label={t('categories.statActiveProducts')}
+                value={productsByCategory
+                  ? `${selectedStats.active} / ${selectedStats.total}`
+                  : null}
+              />
+              <KeyFact
+                icon={PackageSearch}
+                label={t('categories.statLowStock')}
+                value={productsByCategory ? String(selectedStats.lowStock) : null}
+                hint={t('categories.statLowStockHint')}
+              />
+              <KeyFact
+                icon={Tags}
+                label={t('products.stockValueLabel')}
+                value={productsByCategory ? formatCurrency(selectedStats.stockValue) : null}
+                hint={t('categories.stockValueHint')}
+              />
+              <KeyFact
+                icon={CalendarClock}
+                label={t('categories.columnUpdated')}
+                value={formatDate(selectedCategory.updatedAt || selectedCategory.createdAt)}
+              />
+            </dl>
+
+            <section className="space-y-3">
+              <h4 className="subsection-title">{t('common.description')}</h4>
+              {selectedCategory.description ? (
+                <p className="rounded-xl border border-gray-200 px-4 py-3 text-sm leading-relaxed text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                  {selectedCategory.description}
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('categories.noDescription')}</p>
+                  {isAdmin && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Edit}
+                      onClick={() => { setSelectedCategoryId(null); handleEdit(selectedCategory); }}
+                    >
+                      {t('categories.completeDescription')}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Éléments associés : les produits rattachés. Ils sont déjà chargés par la page
+                (le décompte de la liste en dépend), la fiche n'appelle donc pas l'API. */}
+            <section className="space-y-3">
+              <h4 className="subsection-title flex items-center gap-2">
+                <PackageSearch className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                {t('categories.sectionProducts')}
+                {productsByCategory && selectedStats.total > 0 && (
+                  <span className="font-normal text-gray-400 dark:text-gray-500">
+                    · {selectedStats.total}
+                  </span>
+                )}
+              </h4>
+
+              {!productsByCategory ? (
+                <div className="rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {t('categories.productsUnavailable')}
+                  </p>
+                </div>
+              ) : selectedStats.total === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('categories.noProducts')}</p>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    {t('categories.noProductsHint')}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-900/40">
+                        <tr>
+                          <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('common.product')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('products.sellingPrice')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('products.stock')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('products.columnStatus')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                        {selectedStats.products.slice(0, DETAIL_PRODUCTS_SHOWN).map((product) => {
+                          const stock = Number(product.stockQuantity || 0);
+                          const lowStock = stock <= Number(product.minStockAlert || 0);
+                          return (
+                            <tr key={product.id} className="text-sm text-gray-700 dark:text-gray-300">
+                              <td className="px-4 py-3">
+                                <div className="font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                                <div className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                                  {product.code || '—'}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums">
+                                {formatCurrency(product.sellingPrice)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`tabular-nums ${lowStock ? 'font-semibold text-amber-600 dark:text-amber-400' : ''}`}>
+                                  {stock} {product.unit || ''}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={product.active ? 'badge-success' : 'badge-neutral'}>
+                                  {product.active ? t('categories.active') : t('categories.inactive')}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {selectedStats.total > DETAIL_PRODUCTS_SHOWN && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {t('categories.moreProducts', {
+                        count: selectedStats.total - DETAIL_PRODUCTS_SHOWN,
+                      })}
+                    </p>
+                  )}
+                </>
+              )}
+            </section>
+
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                {t('categories.createdAtLabel')} {formatDate(selectedCategory.createdAt)}
+              </span>
+              <span>#{selectedCategory.id}</span>
+            </p>
+
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+              {isAdmin && (
+                <>
+                  {/* Une catégorie encore rattachée à des produits ne peut pas être supprimée
+                      (la clé étrangère `product.category_id` n'a ni cascade ni mise à null) :
+                      le bouton reste visible mais inerte, avec la raison écrite à côté. */}
+                  <Button
+                    variant="danger"
+                    icon={Trash2}
+                    disabled={selectedStats.total > 0}
+                    onClick={() => requestDelete(selectedCategory)}
+                  >
+                    {t('common.delete')}
+                  </Button>
+                  {selectedStats.total > 0 && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {t('categories.deleteBlockedShort')}
+                    </span>
+                  )}
+                </>
+              )}
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+                <Button variant="secondary" onClick={() => setSelectedCategoryId(null)}>
+                  {t('common.close')}
+                </Button>
+                {isAdmin && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      icon={selectedCategory.active ? ToggleLeft : ToggleRight}
+                      onClick={() => handleToggleStatus(selectedCategory)}
+                    >
+                      {selectedCategory.active ? t('categories.deactivate') : t('categories.activate')}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      icon={Edit}
+                      onClick={() => { setSelectedCategoryId(null); handleEdit(selectedCategory); }}
+                    >
+                      {t('common.edit')}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ---- Formulaire ---- */}
       <Modal

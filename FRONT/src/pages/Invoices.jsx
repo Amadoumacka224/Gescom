@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, FileText, Euro, Download, Eye, X, CreditCard, User, MapPin, Phone, Mail, Calendar,
-  Package, RefreshCw, AlertTriangle, Hash, CheckCircle, StickyNote, ShoppingCart,
+  Package, RefreshCw, AlertTriangle, Hash, CheckCircle, StickyNote, ShoppingCart, Copy,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../services/api';
@@ -17,6 +17,8 @@ import SearchBox from '../components/SearchBox';
 import StatCard from '../components/StatCard';
 import SegmentedFilter from '../components/SegmentedFilter';
 import InfoRow from '../components/InfoRow';
+import AmountRow from '../components/AmountRow';
+import KeyFact from '../components/KeyFact';
 import AdvancedFilters from '../components/AdvancedFilters';
 import FormInput from '../components/FormInput';
 import FormSelect from '../components/FormSelect';
@@ -84,6 +86,14 @@ const clientNameOf = (invoice) =>
   invoice?.order?.client?.name
   || `${invoice?.order?.client?.firstName || ''} ${invoice?.order?.client?.lastName || ''}`.trim();
 
+/** Adresse du client sur une ligne, telle qu'elle figure sur la facture. */
+const clientAddressOf = (client) => [
+  client?.address,
+  [client?.postalCode, client?.city].filter(Boolean).join(' '),
+  client?.country,
+].filter((part) => part && part.trim()).join(', ');
+
+
 const Invoices = () => {
   const { t } = useTranslation();
   const location = useLocation();
@@ -138,6 +148,30 @@ const Invoices = () => {
     && invoice.dueDate < today
     && invoice.status !== 'PAID'
     && invoice.status !== 'CANCELED';
+
+  /**
+   * Position de la facture par rapport à son échéance, en jours.
+   * « Échue depuis 12 jours » se lit sans calcul mental, contrairement à une date d'échéance
+   * brute qu'il faut comparer à celle du jour. Rien à dire d'une facture soldée ou annulée.
+   */
+  const dueStatus = (invoice) => {
+    if (!invoice?.dueDate || invoice.status === 'PAID' || invoice.status === 'CANCELED') return null;
+    const days = Math.round((new Date(invoice.dueDate) - new Date(today)) / 86400000);
+    if (days < 0) return { overdue: true, days: -days };
+    if (days === 0) return { overdue: false, days: 0 };
+    return { overdue: false, days };
+  };
+
+  /** Copie dans le presse-papiers, l'API n'étant disponible qu'en contexte sécurisé. */
+  const copyValue = async (value, message) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(message);
+    } catch (error) {
+      console.error('Clipboard error:', error);
+      toast.error(t('invoices.copyError'));
+    }
+  };
 
   useEffect(() => {
     fetchInvoices();
@@ -891,65 +925,181 @@ const Invoices = () => {
         title={t('invoices.detailsTitle')}
         size="lg"
       >
-        {selectedInvoice && (
+        {/* Les chiffres dérivés sont calculés une fois en tête de bloc : le reste à payer sert
+            à l'en-tête, à la barre de progression et au récapitulatif, et un même montant ne
+            doit pas pouvoir diverger entre trois endroits de la même fiche. */}
+        {selectedInvoice && (() => {
+          const remaining = remainingOf(selectedInvoice);
+          const settled = remaining <= 0.001;
+          const canceledInvoice = selectedInvoice.status === 'CANCELED';
+          const ratio = safeRatio(num(selectedInvoice.paidAmount), num(selectedInvoice.totalAmount));
+          const due = dueStatus(selectedInvoice);
+          const client = selectedInvoice.order?.client;
+          const clientAddress = clientAddressOf(client);
+
+          return (
           <div className="space-y-6">
-            <div className="flex flex-wrap items-start justify-between gap-3 pb-5 border-b border-gray-200 dark:border-gray-700">
-              <div className="min-w-0">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                  {selectedInvoice.invoiceNumber}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedInvoice.order?.orderNumber} · {clientNameOf(selectedInvoice) || t('deliveries.guestClient')}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {statusBadge(selectedInvoice)}
-                {isOverdue(selectedInvoice) && (
-                  <span className="badge-danger">
-                    <AlertTriangle className="w-3 h-3" aria-hidden="true" />
-                    {t('invoices.overdue')}
-                  </span>
-                )}
-              </div>
-            </div>
+            {/* En-tête : ce qu'on vient vérifier sur une facture, c'est ce qui reste dû et si
+                l'échéance est passée. Les deux sont désormais lisibles sans faire défiler. */}
+            <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                      {selectedInvoice.invoiceNumber}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => copyValue(selectedInvoice.invoiceNumber, t('invoices.numberCopied'))}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-200/70 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                      title={t('invoices.copyNumber')}
+                      aria-label={t('invoices.copyNumber')}
+                    >
+                      <Copy className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">
+                    {clientNameOf(selectedInvoice) || t('deliveries.guestClient')}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {statusBadge(selectedInvoice)}
+                    {due?.overdue && (
+                      <span className="badge-danger">
+                        <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                        {t('invoices.overdueSince', { count: due.days })}
+                      </span>
+                    )}
+                    {due && !due.overdue && (
+                      <span className="badge-neutral">
+                        {due.days === 0 ? t('invoices.dueToday') : t('invoices.dueIn', { count: due.days })}
+                      </span>
+                    )}
+                    {selectedInvoice.order?.id && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/orders?orderId=${selectedInvoice.order.id}`)}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
+                      >
+                        <ShoppingCart className="h-3.5 w-3.5" aria-hidden="true" />
+                        {selectedInvoice.order.orderNumber}
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <section className="space-y-3">
-                <h4 className="subsection-title">{t('invoices.sectionInvoice')}</h4>
-                <dl className="space-y-3">
-                  <InfoRow icon={Calendar} label={t('invoices.invoiceDateLabel')} value={formatDate(selectedInvoice.invoiceDate)} />
-                  <InfoRow icon={Calendar} label={t('invoices.dueDateLabel')} value={formatDate(selectedInvoice.dueDate)} />
-                  <InfoRow icon={CreditCard} label={t('invoices.paymentMethodLabel')} value={paymentMethodText(selectedInvoice.paymentMethod)} />
-                  <InfoRow
-                    icon={CheckCircle}
-                    label={t('invoices.paymentDateLabel')}
-                    value={selectedInvoice.paymentDate ? formatDate(selectedInvoice.paymentDate) : null}
-                  />
-                </dl>
-              </section>
+                {/* Le montant qui décide de l'action à mener, en tête de fiche. */}
+                <div className="lg:flex-shrink-0 lg:text-right">
+                  <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    {canceledInvoice ? t('invoices.totalWithTax') : t('invoices.amountDue')}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    {formatCurrency(canceledInvoice ? selectedInvoice.totalAmount : remaining)}
+                  </p>
+                  {!canceledInvoice && (
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {t('invoices.outOfTotal', { total: formatCurrency(selectedInvoice.totalAmount) })}
+                    </p>
+                  )}
+                </div>
+              </div>
 
-              {selectedInvoice.order?.client && (
-                <section className="space-y-3">
-                  <h4 className="subsection-title">{t('invoices.clientInfoTitle')}</h4>
-                  <dl className="space-y-3">
-                    <InfoRow icon={User} label={t('invoices.nameLabel')} value={clientNameOf(selectedInvoice)} />
-                    <InfoRow
-                      icon={Mail}
-                      label={t('common.email')}
-                      value={selectedInvoice.order.client.email}
-                      href={selectedInvoice.order.client.email ? `mailto:${selectedInvoice.order.client.email}` : undefined}
+              {/* Avancement du règlement : même lecture que la colonne « Règlement » de la liste. */}
+              {!canceledInvoice && (
+                <div className="mt-5">
+                  <div className="metric-track" role="img" aria-label={`${Math.round(ratio * 100)} %`}>
+                    <div
+                      className={metricBarClass(settled ? 'success' : ratio > 0 ? 'warning' : 'neutral')}
+                      style={{ width: `${Math.max(ratio * 100, ratio > 0 ? 4 : 0)}%` }}
                     />
-                    <InfoRow
-                      icon={Phone}
-                      label={t('common.phone')}
-                      value={selectedInvoice.order.client.phone}
-                      href={selectedInvoice.order.client.phone ? `tel:${selectedInvoice.order.client.phone}` : undefined}
-                    />
-                    <InfoRow icon={MapPin} label={t('common.address')} value={selectedInvoice.order.client.address} />
-                  </dl>
-                </section>
+                  </div>
+                  <p className="mt-1.5 text-xs tabular-nums text-gray-600 dark:text-gray-400">
+                    {settled
+                      ? t('invoices.settledLabel')
+                      : t('invoices.settlementProgress', {
+                          paid: formatCurrency(selectedInvoice.paidAmount),
+                          percent: Math.round(ratio * 100),
+                        })}
+                  </p>
+                </div>
               )}
-            </div>
+            </header>
+
+            {/* Repères de facturation : quatre dates et modalités, alignées et balayables. */}
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <KeyFact
+                icon={Calendar}
+                label={t('invoices.invoiceDateLabel')}
+                value={formatDate(selectedInvoice.invoiceDate)}
+              />
+              <KeyFact
+                icon={Calendar}
+                label={t('invoices.dueDateLabel')}
+                value={formatDate(selectedInvoice.dueDate)}
+                hint={due?.overdue ? t('invoices.overdueSince', { count: due.days }) : undefined}
+              />
+              <KeyFact
+                icon={CreditCard}
+                label={t('invoices.paymentMethodLabel')}
+                value={paymentMethodText(selectedInvoice.paymentMethod)}
+              />
+              <KeyFact
+                icon={CheckCircle}
+                label={t('invoices.paymentDateLabel')}
+                value={selectedInvoice.paymentDate ? formatDate(selectedInvoice.paymentDate) : null}
+              />
+            </dl>
+
+            {client && (
+              <section className="space-y-3">
+                <h4 className="subsection-title flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  {t('invoices.clientInfoTitle')}
+                </h4>
+                {/* Bloc compact : le destinataire de la facture se lit comme sur l'enveloppe,
+                    avec de quoi le joindre sans quitter l'écran. */}
+                <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
+                  <div className="min-w-0 space-y-1">
+                    <p className="truncate font-semibold text-gray-900 dark:text-gray-100">
+                      {clientNameOf(selectedInvoice) || t('deliveries.guestClient')}
+                    </p>
+                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
+                      {client.email && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Mail className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                          {client.email}
+                        </span>
+                      )}
+                      {client.phone && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                          {client.phone}
+                        </span>
+                      )}
+                    </p>
+                    {clientAddress && (
+                      <p className="flex items-start gap-1.5 text-sm text-gray-600 dark:text-gray-400">
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-400" aria-hidden="true" />
+                        {clientAddress}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-shrink-0 flex-wrap gap-2">
+                    {client.email && (
+                      <a href={`mailto:${client.email}`} className="quick-action">
+                        <Mail className="h-4 w-4" aria-hidden="true" />
+                        {t('clients.quickEmail')}
+                      </a>
+                    )}
+                    {client.phone && (
+                      <a href={`tel:${client.phone}`} className="quick-action">
+                        <Phone className="h-4 w-4" aria-hidden="true" />
+                        {t('clients.quickCall')}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
 
             {/* Articles : le total de ligne est celui calculé par le backend (`totalPrice`), net de
                 la remise de ligne — le recalculer en prix × quantité afficherait un brut qui ne
@@ -959,6 +1109,9 @@ const Invoices = () => {
                 <h4 className="subsection-title flex items-center gap-2">
                   <Package className="w-4 h-4 text-gray-400" aria-hidden="true" />
                   {t('invoices.itemsTitle')}
+                  <span className="font-normal text-gray-400 dark:text-gray-500">
+                    · {t('invoices.itemsCount', { count: selectedInvoice.order.items.length })}
+                  </span>
                 </h4>
                 <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                   <table className="w-full">
@@ -991,47 +1144,40 @@ const Invoices = () => {
               </section>
             )}
 
-            {/* Récapitulatif : la hiérarchie va du détail (sous-total, TVA) au chiffre qui décide
-                de l'action à mener (reste à payer), mis en avant en dernier. */}
+            {/* Totaux alignés à droite sous les lignes, comme sur une facture imprimée : la
+                colonne des montants se lit d'un seul fil, du sous-total au reste à payer. */}
             <section className="space-y-3">
               <h4 className="subsection-title">{t('invoices.sectionSummary')}</h4>
-              <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/60">
-                <div className="flex justify-between px-4 py-2.5 text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">{t('invoices.subtotal')}</span>
-                  <span className="font-medium tabular-nums">{formatCurrency(selectedInvoice.subtotal)}</span>
-                </div>
+              <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 sm:ml-auto sm:max-w-sm dark:divide-gray-700/60 dark:border-gray-700">
+                <AmountRow label={t('invoices.subtotal')} value={formatCurrency(selectedInvoice.subtotal)} />
                 {num(selectedInvoice.discount) > 0 && (
-                  <div className="flex justify-between px-4 py-2.5 text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">{t('common.discount')}</span>
-                    <span className="font-medium tabular-nums text-red-600 dark:text-red-400">
-                      −{formatCurrency(selectedInvoice.discount)}
-                    </span>
-                  </div>
+                  <AmountRow
+                    label={t('common.discount')}
+                    value={`−${formatCurrency(selectedInvoice.discount)}`}
+                    tone="text-red-600 dark:text-red-400"
+                  />
                 )}
-                <div className="flex justify-between px-4 py-2.5 text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    {t('invoices.taxLabel')} ({num(selectedInvoice.taxRate)} %)
-                  </span>
-                  <span className="font-medium tabular-nums">{formatCurrency(selectedInvoice.taxAmount)}</span>
+                <AmountRow
+                  label={`${t('invoices.taxLabel')} (${num(selectedInvoice.taxRate)} %)`}
+                  value={formatCurrency(selectedInvoice.taxAmount)}
+                />
+                <div className="bg-gray-50 dark:bg-gray-900/40">
+                  <AmountRow
+                    label={t('invoices.totalWithTax')}
+                    value={formatCurrency(selectedInvoice.totalAmount)}
+                    emphasis
+                  />
                 </div>
-                <div className="flex justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900/40">
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{t('invoices.totalWithTax')}</span>
-                  <span className="font-bold tabular-nums text-gray-900 dark:text-gray-100">
-                    {formatCurrency(selectedInvoice.totalAmount)}
-                  </span>
-                </div>
-                <div className="flex justify-between px-4 py-2.5 text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">{t('invoices.paidAmount')}</span>
-                  <span className="font-medium tabular-nums text-green-600 dark:text-green-400">
-                    {formatCurrency(selectedInvoice.paidAmount)}
-                  </span>
-                </div>
-                <div className="flex justify-between px-4 py-3">
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{t('invoices.remainingAmount')}</span>
-                  <span className="font-bold tabular-nums text-gray-900 dark:text-gray-100">
-                    {formatCurrency(remainingOf(selectedInvoice))}
-                  </span>
-                </div>
+                <AmountRow
+                  label={t('invoices.paidAmount')}
+                  value={formatCurrency(selectedInvoice.paidAmount)}
+                  tone="text-green-600 dark:text-green-400"
+                />
+                <AmountRow
+                  label={t('invoices.remainingAmount')}
+                  value={formatCurrency(remaining)}
+                  emphasis
+                />
               </div>
             </section>
 
@@ -1047,9 +1193,11 @@ const Invoices = () => {
               </section>
             )}
 
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Actions collées au bas de la modale : le détail d'une facture dépasse la hauteur
+                d'écran dès qu'elle compte quelques lignes, l'encaissement doit rester à portée. */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
               <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
-                {t('common.cancel')}
+                {t('common.close')}
               </Button>
               <Button variant="secondary" icon={Download} onClick={() => handleDownloadPDF(selectedInvoice)}>
                 {t('invoices.downloadPdfButton')}
@@ -1065,7 +1213,8 @@ const Invoices = () => {
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* ---- Création ---- */}

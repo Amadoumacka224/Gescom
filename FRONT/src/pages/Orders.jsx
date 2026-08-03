@@ -12,6 +12,7 @@ import api from '../services/api';
 import clientService from '../services/clientService';
 import Modal from '../components/Modal';
 import Button from '../components/Button';
+import AmountRow from '../components/AmountRow';
 import SearchableSelect from '../components/SearchableSelect';
 import OrderWorkspace from '../components/OrderWorkspace';
 import Pagination from '../components/Pagination';
@@ -1496,156 +1497,88 @@ const Orders = () => {
 
       {/* Order Details Modal */}
       <AnimatePresence>
-        {showDetailsModal && selectedOrder && (
+        {showDetailsModal && selectedOrder && (() => {
+          /* Montants et décisions dérivés une seule fois : le même chiffre ne doit pas pouvoir
+             diverger entre l'en-tête, le récapitulatif et le pied d'actions. */
+          const client = selectedOrder.client;
+          const items = selectedOrder.items || [];
+          const grossTotal = Number(selectedOrder.totalAmount || 0);
+          const orderDiscount = Number(selectedOrder.discount || 0);
+          const netTotal = Number(selectedOrder.finalAmount ?? (grossTotal - orderDiscount));
+          const canceledOrder = selectedOrder.status === 'CANCELED';
+          const invoiceCanceled = detailInvoice?.status === 'CANCELED';
+          const liveInvoice = detailInvoice && !invoiceCanceled ? detailInvoice : null;
+          const paid = Number(liveInvoice?.paidAmount || 0);
+          const invoiceRemaining = liveInvoice ? remainingOf(liveInvoice) : 0;
+          const settled = !!liveInvoice && invoiceRemaining <= 0.001;
+          // Une fois la facture émise, le montant de référence est le total TTC : c'est lui
+          // qui est encaissé. Sans facture vivante, la commande se lit en HT.
+          const headlineAmount = liveInvoice ? liveInvoice.totalAmount : netTotal;
+          const primary = getPrimaryAction(selectedOrder, detailInvoice);
+          const showPayment = canPayOrder(selectedOrder) && !!liveInvoice && !settled;
+          const clientAddress = [
+            client?.address,
+            [client?.postalCode, client?.city].filter(Boolean).join(' '),
+            client?.country,
+          ].filter((part) => part && part.trim()).join(', ');
+
+          return (
           <Modal
             isOpen={showDetailsModal}
             onClose={() => setShowDetailsModal(false)}
             title={t('orders.detailsTitle')}
+            size="lg"
           >
             <div className="space-y-6">
-              {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-sm text-gray-600">{t('orders.page.orderNumberLabel')}</p>
-                  <p className="subsection-title">{selectedOrder.orderNumber}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">{t('orders.date')}</p>
-                  <p className="subsection-title">{formatDate(selectedOrder.createdAt)}</p>
-                </div>
-                <div>
-                  {/* Une fois la facture émise, le montant de référence est le total TTC (HT − remise
-                      + TVA) : c'est lui qui est encaissé. On l'affiche pour rester cohérent avec la
-                      mention « réglée intégralement » ci-dessous. Sans facture, on montre le HT. */}
-                  <p className="text-sm text-gray-600">
-                    {detailInvoice
-                      ? t('orders.page.totalInclTaxLabel')
-                      : t('orders.page.totalExclTaxLabel')}
-                  </p>
-                  <p className="subsection-title">
-                    {formatCurrency(detailInvoice
-                      ? detailInvoice.totalAmount
-                      : selectedOrder.totalAmount)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">{t('orders.status')}</p>
-                  {/* Statut effectif : reflète le paiement réel porté par la facture — « Payée »
-                      une fois soldée, « Acompte versé » tant qu'un reliquat subsiste. */}
-                  {getStatusBadge(resolveOrderStatusKey(selectedOrder, detailInvoice))}
-                </div>
-              </div>
-
-              {/* Client Info */}
-              {selectedOrder.client && (
-                <div>
-                  <h3 className="subsection-title mb-3 flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    {t('orders.clientInfoTitle')}
-                  </h3>
-                  {/* Fond neutre comme les autres sections du détail : le bleu est réservé
-                      à l'information de statut (« Confirmée »), pas au décor. */}
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="text-sm text-gray-600">{t('clients.name')}</p>
-                      <p className="subsection-title">
-                        {selectedOrder.client.firstName} {selectedOrder.client.lastName}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">{t('common.email')}</p>
-                      <p className="font-semibold text-gray-900 flex items-center gap-1">
-                        <Mail className="w-4 h-4" />
-                        {selectedOrder.client.email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">{t('common.phone')}</p>
-                      <p className="font-semibold text-gray-900 flex items-center gap-1">
-                        <Phone className="w-4 h-4" />
-                        {selectedOrder.client.phone}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">{t('common.address')}</p>
-                      <p className="font-semibold text-gray-900 flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        {selectedOrder.client.address}
-                      </p>
+              {/* ---- En-tête : de quelle commande parle-t-on, pour combien, et où en est-elle.
+                   L'avancement figure ici et non au fond de la fiche parmi les boutons : c'est
+                   la première question qu'on se pose en ouvrant une commande. ---- */}
+              <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                      {selectedOrder.orderNumber}
+                    </h3>
+                    <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400">
+                      {client
+                        ? `${client.firstName || ''} ${client.lastName || ''}`.trim()
+                        : t('orders.walkInClient')}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+                      {/* Statut effectif : reflète le paiement réel porté par la facture —
+                          « Payée » une fois soldée, « Acompte versé » tant qu'un reliquat subsiste. */}
+                      {getStatusBadge(resolveOrderStatusKey(selectedOrder, detailInvoice))}
+                      <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+                        {formatDate(selectedOrder.createdAt)}
+                      </span>
+                      {items.length > 0 && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          {t('orders.page.lineCount', { count: items.length })}
+                        </span>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Client non enregistré (aucune fiche client rattachée) */}
-              {!selectedOrder.client && (
-                <div>
-                  <h3 className="subsection-title mb-3 flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    {t('orders.client')}
-                  </h3>
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-                    <span className="badge-neutral">
-                      {t('orders.walkInClient')}
-                    </span>
-                    <span className="text-sm text-gray-500">{t('orders.page.noClientInfo')}</span>
+                  <div className="lg:flex-shrink-0 lg:text-right">
+                    <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      {liveInvoice ? t('orders.totalInclTax') : t('orders.totalExclTax')}
+                    </p>
+                    <p className="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                      {formatCurrency(headlineAmount)}
+                    </p>
+                    {showPayment && (
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        {t('orders.remainingDue')} · {formatCurrency(invoiceRemaining)}
+                      </p>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {/* Order Items */}
-              {selectedOrder.items && selectedOrder.items.length > 0 && (
-                <div>
-                  <h3 className="subsection-title mb-3 flex items-center gap-2">
-                    <Package className="w-5 h-5" />
-                    {t('orders.orderItemsTitle')}
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">{t('common.product')}</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('products.sellingPrice')}</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('common.discount')}</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('common.quantity')}</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">{t('common.total')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {selectedOrder.items.map((item, index) => {
-                          const lineTotal = item.totalPrice ?? (item.unitPrice * item.quantity);
-                          return (
-                          <tr key={index}>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {item.product?.name || item.productName || t('common.product')}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right text-gray-900">
-                              {formatCurrency(item.unitPrice)}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right text-gray-900">
-                              {item.discount > 0 ? `${parseFloat(item.discount).toFixed(2)} %` : '—'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right text-gray-900">
-                              {item.quantity}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
-                              {formatCurrency(lineTotal)}
-                            </td>
-                          </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Pilotage du processus : progression des statuts + bouton principal qui
-                  fait avancer la commande vers l'étape suivante du cycle. */}
-              <div className="border-t border-gray-200 pt-5 space-y-4">
-                {selectedOrder.status === 'CANCELED' ? (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm font-medium">
-                    <XCircle className="w-5 h-5" />
+                <div className="mt-6">
+                {canceledOrder ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                    <XCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
                     {t('orders.steps.canceledNotice')}
                   </div>
                 ) : (
@@ -1656,7 +1589,7 @@ const Orders = () => {
                     const partiallyPaid =
                       (detailInvoice?.status ?? selectedOrder.invoiceStatus) === 'PARTIALLY_PAID';
                     return (
-                      <div className="flex items-center">
+                      <ol className="flex items-center">
                         {LIFECYCLE_STEPS.map((step, idx) => {
                           const done = idx < currentIndex;
                           const current = idx === currentIndex;
@@ -1664,188 +1597,323 @@ const Orders = () => {
                             ? t('status.order.PARTIALLY_PAID')
                             : t(step.labelKey);
                           return (
-                            <div key={step.key} className={`flex items-center ${idx < LIFECYCLE_STEPS.length - 1 ? 'flex-1' : ''}`}>
+                            <li key={step.key} className={`flex items-center ${idx < LIFECYCLE_STEPS.length - 1 ? 'flex-1' : ''}`}>
                               <div className="flex flex-col items-center">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                  done ? 'bg-green-600 text-white'
-                                  : current ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                                  : 'bg-gray-200 text-gray-500'}`}>
-                                  {done ? <CheckCircle className="w-4 h-4" /> : idx + 1}
-                                </div>
-                                <span className={`mt-1 text-xs whitespace-nowrap ${current ? 'font-semibold text-blue-700' : 'text-gray-500'}`}>
+                                <span
+                                  aria-hidden="true"
+                                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                                    done ? 'bg-green-600 text-white'
+                                    : current ? 'bg-blue-600 text-white ring-4 ring-blue-100 dark:ring-blue-500/25'
+                                    : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                                >
+                                  {done ? <CheckCircle className="h-4 w-4" /> : idx + 1}
+                                </span>
+                                <span className={`mt-1.5 whitespace-nowrap text-xs ${
+                                  current
+                                    ? 'font-semibold text-blue-700 dark:text-blue-300'
+                                    : 'text-gray-500 dark:text-gray-400'}`}
+                                >
                                   {label}
                                 </span>
                               </div>
                               {idx < LIFECYCLE_STEPS.length - 1 && (
-                                <div className={`flex-1 h-0.5 mx-2 ${idx < currentIndex ? 'bg-green-600' : 'bg-gray-200'}`} />
+                                <div className={`mx-2 h-0.5 flex-1 ${
+                                  idx < currentIndex ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                                />
                               )}
-                            </div>
+                            </li>
                           );
                         })}
-                      </div>
+                      </ol>
                     );
                   })()
                 )}
+                </div>
+              </header>
 
-                {/* Passage au panier de traitement : le détail répond à « où en est cette
-                    commande ? », le panier à « qu'est-ce que j'en fais maintenant ? ». La
-                    question ne se pose plus sur un dossier clos — le panier n'est donc proposé
-                    que s'il reste effectivement une étape à traiter. */}
-                {hasNextStep(selectedOrder, detailInvoice) && (
-                  <button
-                    onClick={() => { setShowDetailsModal(false); openWorkspace(selectedOrder); }}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-200 dark:border-primary-500/30 text-primary-700 dark:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/10 font-semibold rounded-xl transition-colors"
-                  >
-                    <ClipboardList className="w-5 h-5" />
-                    {t('orders.page.continueInWorkspace')}
-                  </button>
-                )}
-
-                {(() => {
-                  const primary = getPrimaryAction(selectedOrder, detailInvoice);
-                  // Le paiement est traité par la section dédiée ci-dessous (statut réglée / reliquat),
-                  // on n'affiche donc pas ici le bouton principal « Paiement » pour éviter le doublon.
-                  if (!primary || primary.key === 'PAY') {
-                    return selectedOrder.status === 'DELIVERED' ? (
-                      <p className="flex items-center justify-center gap-2 text-sm font-medium text-green-700">
-                        <CheckCircle className="w-5 h-5" /> {t('orders.page.deliveredDone')}
+              {/* ---- Client ---- */}
+              <section className="space-y-3">
+                <h4 className="subsection-title flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  {t('orders.clientInfoTitle')}
+                </h4>
+                {client ? (
+                  /* Bloc compact, identique à celui du détail de facture : le client se lit
+                     comme sur l'enveloppe, avec de quoi le joindre sans quitter l'écran. */
+                  <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
+                    <div className="min-w-0 space-y-1">
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-semibold text-gray-900 dark:text-gray-100">
+                          {`${client.firstName || ''} ${client.lastName || ''}`.trim()}
+                        </span>
+                        {client.company && <span className="badge-accent">{client.company}</span>}
                       </p>
-                    ) : null;
-                  }
-                  const Icon = primary.icon;
-                  return (
-                    <button
-                      onClick={() => { setShowDetailsModal(false); primary.onClick(); }}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-white font-semibold rounded-xl shadow-sm hover:shadow-md transition-all ${primary.className}`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      {primary.label}
-                    </button>
-                  );
-                })()}
-
-                {/* Section paiement : on n'affiche le bouton « Enregistrer un paiement » que s'il
-                    reste un montant dû. Une facture déjà réglée (ou annulée) montre un statut clair
-                    sans action redondante. */}
-                {canPayOrder(selectedOrder) && (() => {
-                  if (detailInvoiceLoading) {
-                    return (
-                      <p className="text-center text-sm text-gray-500 py-2">
-                        {t('orders.page.loadingPaymentStatus')}
-                      </p>
-                    );
-                  }
-                  if (!detailInvoice) return null;
-
-                  if (detailInvoice.status === 'CANCELED') {
-                    return (
-                      <div className="flex items-center gap-2 p-3 bg-gray-50 text-gray-600 rounded-lg text-sm font-medium">
-                        <XCircle className="w-5 h-5" />
-                        {t('orders.steps.invoiceCanceledNotice')}
-                      </div>
-                    );
-                  }
-
-                  const remaining = remainingOf(detailInvoice);
-                  const paid = Number(detailInvoice.paidAmount || 0);
-                  const invoiceTotal = Number(detailInvoice.totalAmount || 0);
-
-                  if (detailInvoice.status === 'PAID' || remaining <= 0.001) {
-                    // Le règlement confirmé est le moment où la facture définitive a de la valeur :
-                    // le téléchargement est proposé dans la foulée du message de confirmation,
-                    // plutôt que relégué à l'écran Factures.
-                    return (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg text-sm font-medium">
-                          <CheckCircle className="w-5 h-5" />
-                          {t('orders.page.invoiceFullySettled', {
-                            paid: formatCurrency(paid),
-                            total: formatCurrency(invoiceTotal),
-                          })}
-                        </div>
-                        {canDownloadInvoice(selectedOrder, detailInvoice) && (
-                          <button
-                            onClick={() => handleDownloadInvoice(selectedOrder, detailInvoice)}
-                            disabled={downloadingOrderId === selectedOrder.id}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 text-gray-700 hover:bg-gray-50 font-semibold rounded-xl transition-colors disabled:opacity-60 disabled:cursor-wait"
-                          >
-                            <Download className="w-5 h-5" />
-                            {downloadingOrderId === selectedOrder.id
-                              ? t('orders.steps.generatingPdf')
-                              : t('orders.steps.downloadInvoicePdf')}
-                          </button>
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
+                        {client.email && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Mail className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                            {client.email}
+                          </span>
                         )}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-2">
-                      {paid > 0 && (
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">{t('invoices.alreadyPaid')}</span>
-                          <span className="subsection-title">{formatCurrency(paid)}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-500">{t('orders.remainingDue')}</span>
-                        <span className="font-semibold text-amber-600">{formatCurrency(remaining)}</span>
-                      </div>
-                      <button
-                        onClick={() => { setShowDetailsModal(false); handleOpenPayment(selectedOrder); }}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-green-200 text-green-700 hover:bg-green-50 font-semibold rounded-xl transition-colors"
-                      >
-                        <CreditCard className="w-5 h-5" />
-                        {paid > 0
-                          ? t('orders.page.recordAdditionalPayment')
-                          : t('orders.page.recordPayment')}
-                      </button>
-                      {/* Acompte versé : le PDF sert de justificatif au client. Il reste en retrait
-                          du bouton d'encaissement, qui demeure l'action attendue à ce stade. */}
-                      {canDownloadInvoice(selectedOrder, detailInvoice) && (
-                        <button
-                          onClick={() => handleDownloadInvoice(selectedOrder, detailInvoice)}
-                          disabled={downloadingOrderId === selectedOrder.id}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-wait"
-                        >
-                          <Download className="w-4 h-4" />
-                          {downloadingOrderId === selectedOrder.id
-                            ? t('orders.steps.generatingPdf')
-                            : t('orders.steps.downloadInvoicePdf')}
-                        </button>
+                        {client.phone && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Phone className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                            {client.phone}
+                          </span>
+                        )}
+                      </p>
+                      {clientAddress && (
+                        <p className="flex items-start gap-1.5 text-sm text-gray-600 dark:text-gray-400">
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-gray-400" aria-hidden="true" />
+                          {clientAddress}
+                        </p>
                       )}
                     </div>
-                  );
-                })()}
+                    <div className="flex flex-shrink-0 flex-wrap gap-2">
+                      {client.email && (
+                        <a href={`mailto:${client.email}`} className="quick-action">
+                          <Mail className="h-4 w-4" aria-hidden="true" />
+                          {t('clients.quickEmail')}
+                        </a>
+                      )}
+                      {client.phone && (
+                        <a href={`tel:${client.phone}`} className="quick-action">
+                          <Phone className="h-4 w-4" aria-hidden="true" />
+                          {t('clients.quickCall')}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+                    <span className="badge-neutral">{t('orders.walkInClient')}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{t('orders.page.noClientInfo')}</span>
+                  </div>
+                )}
+              </section>
 
-                {/* Renvoi vers la facture liée. Il sert aussi de sortie au cul-de-sac de
-                    l'annulation : « Annuler » est masqué tant que la facture est vivante
-                    (cf. canCancelOrder), et la seule marche à suivre est de l'annuler d'abord
-                    depuis l'écran Factures — la note ne s'affiche donc que dans ce cas.
-                    L'écran Factures ouvre directement le détail via `state.invoiceId`. */}
-                {detailInvoice && (
-                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
-                    <button
+              {/* ---- Articles ---- */}
+              {items.length > 0 && (
+                <section className="space-y-3">
+                  <h4 className="subsection-title flex items-center gap-2">
+                    <Package className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                    {t('orders.orderItemsTitle')}
+                    <span className="font-normal text-gray-400 dark:text-gray-500">
+                      · {t('orders.page.lineCount', { count: items.length })}
+                    </span>
+                  </h4>
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-900/40">
+                        <tr>
+                          <th scope="col" className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('common.product')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('products.sellingPrice')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('common.discount')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('common.quantity')}</th>
+                          <th scope="col" className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('common.total')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                        {items.map((item, index) => (
+                          <tr key={index} className="text-sm text-gray-700 dark:text-gray-300">
+                            <td className="px-4 py-3">
+                              {item.product?.name || item.productName || t('common.product')}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              {item.discount > 0 ? `${parseFloat(item.discount).toFixed(2)} %` : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums">{item.quantity}</td>
+                            <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                              {formatCurrency(item.totalPrice ?? computeLineTotal(item))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {/* ---- Récapitulatif : aligné à droite sous les lignes, comme sur un document
+                   commercial. Le règlement y figure aussi — c'est un montant, sa place est dans
+                   la colonne des montants, pas au milieu des boutons. ---- */}
+              <section className="space-y-3">
+                <h4 className="subsection-title">{t('invoices.sectionSummary')}</h4>
+                <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 sm:ml-auto sm:max-w-sm dark:divide-gray-700/60 dark:border-gray-700">
+                  <AmountRow label={t('orders.subtotalExclTax')} value={formatCurrency(grossTotal)} />
+                  {orderDiscount > 0 && (
+                    <AmountRow
+                      label={t('common.discount')}
+                      value={`−${formatCurrency(orderDiscount)}`}
+                      tone="text-red-600 dark:text-red-400"
+                    />
+                  )}
+                  <AmountRow
+                    label={t('orders.totalExclTax')}
+                    value={formatCurrency(netTotal)}
+                    emphasis={!liveInvoice}
+                  />
+                  {liveInvoice && (
+                    <>
+                      <AmountRow
+                        label={t('orders.taxWithRate', { rate: Number(liveInvoice.taxRate || 0) })}
+                        value={formatCurrency(liveInvoice.taxAmount)}
+                      />
+                      <div className="bg-gray-50 dark:bg-gray-900/40">
+                        <AmountRow
+                          label={t('orders.totalInclTax')}
+                          value={formatCurrency(liveInvoice.totalAmount)}
+                          emphasis
+                        />
+                      </div>
+                      {paid > 0 && (
+                        <AmountRow
+                          label={t('invoices.alreadyPaid')}
+                          value={formatCurrency(paid)}
+                          tone="text-green-600 dark:text-green-400"
+                        />
+                      )}
+                      <AmountRow
+                        label={t('orders.remainingDue')}
+                        value={formatCurrency(invoiceRemaining)}
+                        emphasis
+                      />
+                    </>
+                  )}
+                </div>
+                {!liveInvoice && !canceledOrder && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
+                    {t('orders.page.exclTaxNotice')}
+                  </p>
+                )}
+              </section>
+
+              {/* ---- Situation : les constats du dossier. Les boutons, eux, sont regroupés au
+                   pied de la fiche — ils étaient jusqu'ici mêlés à ces messages, en une pile de
+                   six boutons pleine largeur aux styles tous différents. ---- */}
+              {(detailInvoiceLoading || settled || invoiceCanceled
+                || (selectedOrder.status === 'DELIVERED' && (!primary || primary.key === 'PAY'))) && (
+                <div className="space-y-2">
+                  {detailInvoiceLoading && canPayOrder(selectedOrder) && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {t('orders.page.loadingPaymentStatus')}
+                    </p>
+                  )}
+
+                  {invoiceCanceled && (
+                    <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+                      <XCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                      {t('orders.steps.invoiceCanceledNotice')}
+                    </div>
+                  )}
+
+                  {settled && (
+                    <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700 dark:bg-green-500/10 dark:text-green-300">
+                      <CheckCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                      {t('orders.page.invoiceFullySettled', {
+                        paid: formatCurrency(paid),
+                        total: formatCurrency(Number(liveInvoice.totalAmount || 0)),
+                      })}
+                    </div>
+                  )}
+
+                  {selectedOrder.status === 'DELIVERED' && (!primary || primary.key === 'PAY') && (
+                    <p className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-300">
+                      <CheckCircle className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                      {t('orders.page.deliveredDone')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Sortie du cul-de-sac de l'annulation : « Annuler » est masqué tant que la facture
+                  est vivante (cf. canCancelOrder), et la seule marche à suivre est de l'annuler
+                  d'abord depuis l'écran Factures. La note ne s'affiche donc que dans ce cas. */}
+              {selectedOrder.status === 'INVOICED' && !canCancelOrder(selectedOrder, detailInvoice) && (
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  {t('orders.steps.cancelInvoiceFirst')}
+                </p>
+              )}
+
+              {/* ---- Actions, collées au bas de la modale : le détail dépasse la hauteur d'écran
+                   dès quelques lignes d'articles, et l'étape suivante doit rester sous la main.
+                   Ordre de lecture : sortie, puis pièces jointes, puis ce qui fait avancer. ---- */}
+              <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+                <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
+                  {t('common.close')}
+                </Button>
+
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+                  {/* L'écran Factures ouvre directement le détail via `state.invoiceId`. */}
+                  {detailInvoice && (
+                    <Button
+                      variant="secondary"
+                      icon={FileText}
                       onClick={() => {
                         setShowDetailsModal(false);
                         navigate('/invoices', { state: { invoiceId: detailInvoice.id } });
                       }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
                     >
-                      <FileText className="w-4 h-4" />
                       {t('orders.steps.viewInvoice', { number: detailInvoice.invoiceNumber })}
-                    </button>
-                    {selectedOrder.status === 'INVOICED' && !canCancelOrder(selectedOrder, detailInvoice) && (
-                      <p className="text-xs text-center text-gray-400">
-                        {t('orders.steps.cancelInvoiceFirst')}
-                      </p>
-                    )}
-                  </div>
-                )}
+                    </Button>
+                  )}
+
+                  {/* Le PDF sert de justificatif au client : proposé dès qu'il y a une facture
+                      exploitable, mais en retrait de l'action attendue à ce stade. */}
+                  {canDownloadInvoice(selectedOrder, detailInvoice) && (
+                    <Button
+                      variant="secondary"
+                      icon={Download}
+                      disabled={downloadingOrderId === selectedOrder.id}
+                      onClick={() => handleDownloadInvoice(selectedOrder, detailInvoice)}
+                    >
+                      {downloadingOrderId === selectedOrder.id
+                        ? t('orders.steps.generatingPdf')
+                        : t('orders.steps.downloadInvoicePdf')}
+                    </Button>
+                  )}
+
+                  {/* Le panier répond à « qu'est-ce que j'en fais maintenant ? », là où le détail
+                      répond à « où en est cette commande ? ». La question ne se pose plus sur un
+                      dossier clos : le panier n'est proposé que s'il reste une étape à traiter. */}
+                  {hasNextStep(selectedOrder, detailInvoice) && (
+                    <Button
+                      variant="outline"
+                      icon={ClipboardList}
+                      onClick={() => { setShowDetailsModal(false); openWorkspace(selectedOrder); }}
+                    >
+                      {t('orders.page.continueInWorkspace')}
+                    </Button>
+                  )}
+
+                  {/* Une seule action principale : encaisser dès qu'un montant reste dû, sinon
+                      l'étape suivante du cycle (confirmer, facturer). */}
+                  {showPayment ? (
+                    <Button
+                      variant="success"
+                      icon={CreditCard}
+                      onClick={() => { setShowDetailsModal(false); handleOpenPayment(selectedOrder); }}
+                    >
+                      {paid > 0
+                        ? t('orders.page.recordAdditionalPayment')
+                        : t('orders.page.recordPayment')}
+                    </Button>
+                  ) : primary && primary.key !== 'PAY' && (
+                    <Button
+                      variant="primary"
+                      icon={primary.icon}
+                      onClick={() => { setShowDetailsModal(false); primary.onClick(); }}
+                    >
+                      {primary.label}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </Modal>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* Edit Order Modal */}
