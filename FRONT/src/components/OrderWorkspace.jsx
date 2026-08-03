@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { CheckCircle, Mail, MapPin, Phone } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import clientService from '../services/clientService';
 import Modal from './Modal';
+import Button from './Button';
+import ClientFormFields from './ClientFormFields';
 import ConfirmModal from './ConfirmModal';
 import BarcodeScannerModal from './BarcodeScannerModal';
 import StripeTerminalModal from './StripeTerminalModal';
@@ -14,6 +16,12 @@ import OrderWorkspaceRecap from './OrderWorkspaceRecap';
 import OrderWorkspaceSteps from './OrderWorkspaceSteps';
 import useSettings from '../hooks/useSettings';
 import { computeItemsTotal, clampDiscount } from '../utils/orderTotals';
+import {
+  CLIENT_FIELD_ORDER,
+  EMPTY_CLIENT_FORM,
+  buildClientPayload,
+  validateClient,
+} from '../utils/clientForm';
 import { extractErrorMessage } from '../utils/apiError';
 import { formatCurrency } from '../utils/format';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
@@ -78,10 +86,14 @@ const OrderWorkspace = ({
   // partagent le même composant, seul le texte et l'action changent.
   const [confirmDialog, setConfirmDialog] = useState(null);
 
-  const [newClientForm, setNewClientForm] = useState({
-    firstName: '', lastName: '', email: '', phone: '',
-    address: '', company: '', type: 'PARTICULIER', active: true,
-  });
+  // Création d'un client à la volée : mêmes champs et mêmes règles que l'écran Clients.
+  // Le formulaire tenait ici sa propre version — trois champs vérifiés d'un bloc, aucun
+  // contrôle de format, ni ville ni code postal ni pays.
+  const [newClientForm, setNewClientForm] = useState(EMPTY_CLIENT_FORM);
+  const [newClientTouched, setNewClientTouched] = useState({});
+  const [newClientSubmitted, setNewClientSubmitted] = useState(false);
+  const [newClientServerErrors, setNewClientServerErrors] = useState({});
+  const [creatingClient, setCreatingClient] = useState(false);
 
   // Lignes d'une commande existante ramenées au format du panier. `product` est conservé pour
   // que l'affichage tienne même si l'article a été désactivé depuis (il sort alors de la liste
@@ -483,29 +495,72 @@ const OrderWorkspace = ({
 
   // ─────────────────────────── Création d'un client à la volée ───────────────────────────
 
+  /**
+   * Mêmes règles que l'écran Clients (cf. `utils/clientForm`) : les deux enregistrent le même
+   * `ClientRequest`, ils doivent refuser les mêmes saisies sous les mêmes messages.
+   */
+  const newClientErrors = useMemo(() => validateClient(newClientForm, t), [newClientForm, t]);
+
+  const visibleNewClientErrors = useMemo(() => {
+    const shown = {};
+    Object.entries(newClientErrors).forEach(([field, message]) => {
+      if (newClientSubmitted || newClientTouched[field]) shown[field] = message;
+    });
+    return { ...shown, ...newClientServerErrors };
+  }, [newClientErrors, newClientServerErrors, newClientSubmitted, newClientTouched]);
+
+  const handleNewClientChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setNewClientForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    setNewClientServerErrors((prev) => (prev[name] === undefined ? prev : { ...prev, [name]: undefined }));
+  };
+
+  const handleNewClientBlur = (e) => {
+    const { name } = e.target;
+    setNewClientTouched((prev) => (prev[name] ? prev : { ...prev, [name]: true }));
+  };
+
+  const closeCreateClient = () => {
+    setShowCreateClient(false);
+    setNewClientForm(EMPTY_CLIENT_FORM);
+    setNewClientTouched({});
+    setNewClientSubmitted(false);
+    setNewClientServerErrors({});
+  };
+
   const submitNewClient = async () => {
-    if (!newClientForm.firstName || !newClientForm.lastName || !newClientForm.phone) {
-      toast.error(t('orders.requiredFields'));
+    setNewClientSubmitted(true);
+    const invalid = CLIENT_FIELD_ORDER.filter((field) => newClientErrors[field]);
+    if (invalid.length > 0) {
+      document.getElementById(invalid[0])?.focus();
       return;
     }
+
+    setCreatingClient(true);
     try {
-      const { data } = await clientService.createClient(newClientForm);
+      const { data } = await clientService.createClient(buildClientPayload(newClientForm));
       toast.success(t('orders.workspace.clientCreated'));
-      setShowCreateClient(false);
-      setNewClientForm({
-        firstName: '', lastName: '', email: '', phone: '',
-        address: '', company: '', type: 'PARTICULIER', active: true,
-      });
+      closeCreateClient();
       await onClientsChanged?.();
+      // Le client tout juste créé devient celui de la vente en cours : c'est la raison
+      // pour laquelle on le crée sans quitter le panier.
       setCart((prev) => ({ ...prev, clientMode: 'registered', clientId: String(data.id) }));
     } catch (error) {
       console.error('Error creating client:', error);
+      // Le refus du serveur est ramené sur le champ concerné plutôt que sur un simple toast.
+      const raw = error.response?.data;
+      const fieldErrors = typeof raw === 'object' && raw?.fieldErrors ? { ...raw.fieldErrors } : {};
+      if (error.response?.status === 409) fieldErrors.email = t('clients.errorEmailTaken');
+      const flagged = CLIENT_FIELD_ORDER.filter((field) => fieldErrors[field]);
+      if (flagged.length > 0) {
+        setNewClientServerErrors(fieldErrors);
+        setTimeout(() => document.getElementById(flagged[0])?.focus(), 0);
+      }
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
+    } finally {
+      setCreatingClient(false);
     }
   };
-
-  const clientFieldClass =
-    'w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200 transition-all';
 
   if (!isOpen) return null;
 
@@ -636,121 +691,39 @@ const OrderWorkspace = ({
       {/* Création d'un client sans quitter le panier : la vente en cours n'est pas perdue. */}
       <Modal
         isOpen={showCreateClient}
-        onClose={() => setShowCreateClient(false)}
+        onClose={closeCreateClient}
         title={t('orders.workspace.newClientTitle')}
         size="lg"
       >
-        <div className="space-y-5">
-          <div className="bg-gray-50 dark:bg-gray-900/40 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="nc-type" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  {t('orders.filters.clientTypeLabel')} <span className="text-red-600">*</span>
-                </label>
-                <select
-                  id="nc-type"
-                  value={newClientForm.type}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, type: e.target.value })}
-                  className={clientFieldClass}
-                >
-                  <option value="PARTICULIER">{t('clients.typeIndividual')}</option>
-                  <option value="ENTREPRISE">{t('clients.typeCompany')}</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="nc-company" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  {t('clients.companyLabel')}
-                </label>
-                <input
-                  id="nc-company"
-                  type="text"
-                  value={newClientForm.company}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, company: e.target.value })}
-                  className={clientFieldClass}
-                  placeholder={t('orders.workspace.companyPlaceholder')}
-                />
-              </div>
-              <div>
-                <label htmlFor="nc-first" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  {t('clients.firstName')} <span className="text-red-600">*</span>
-                </label>
-                <input
-                  id="nc-first"
-                  type="text"
-                  value={newClientForm.firstName}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, firstName: e.target.value })}
-                  className={clientFieldClass}
-                  placeholder={t('clients.firstName')}
-                />
-              </div>
-              <div>
-                <label htmlFor="nc-last" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  {t('clients.lastName')} <span className="text-red-600">*</span>
-                </label>
-                <input
-                  id="nc-last"
-                  type="text"
-                  value={newClientForm.lastName}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, lastName: e.target.value })}
-                  className={clientFieldClass}
-                  placeholder={t('clients.lastName')}
-                />
-              </div>
-              <div>
-                <label htmlFor="nc-phone" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  <Phone className="w-4 h-4 text-primary-600 inline mr-1" aria-hidden="true" />
-                  {t('common.phone')} <span className="text-red-600">*</span>
-                </label>
-                <input
-                  id="nc-phone"
-                  type="tel"
-                  value={newClientForm.phone}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
-                  className={clientFieldClass}
-                  placeholder={t('clients.phonePlaceholder')}
-                />
-              </div>
-              <div>
-                <label htmlFor="nc-email" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  <Mail className="w-4 h-4 text-primary-600 inline mr-1" aria-hidden="true" />
-                  {t('common.email')}
-                </label>
-                <input
-                  id="nc-email"
-                  type="email"
-                  value={newClientForm.email}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
-                  className={clientFieldClass}
-                  placeholder={t('clients.emailPlaceholder')}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label htmlFor="nc-address" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  <MapPin className="w-4 h-4 text-primary-600 inline mr-1" aria-hidden="true" />
-                  {t('common.address')}
-                </label>
-                <textarea
-                  id="nc-address"
-                  rows="2"
-                  value={newClientForm.address}
-                  onChange={(e) => setNewClientForm({ ...newClientForm, address: e.target.value })}
-                  className={`${clientFieldClass} resize-none`}
-                  placeholder={t('common.addressPlaceholder')}
-                />
-              </div>
+        {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont
+            les bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
+        <form
+          noValidate
+          onSubmit={(e) => { e.preventDefault(); submitNewClient(); }}
+        >
+          {/* Le statut n'est pas proposé : un client créé pendant une vente est actif par
+              construction, et l'interrupteur n'apporterait qu'une question de plus au comptoir. */}
+          <ClientFormFields
+            values={newClientForm}
+            errors={visibleNewClientErrors}
+            onChange={handleNewClientChange}
+            onBlur={handleNewClientBlur}
+            showErrorSummary={newClientSubmitted}
+            showStatus={false}
+          />
+
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('clients.requiredHint')}</p>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="secondary" type="button" onClick={closeCreateClient}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="primary" type="submit" icon={CheckCircle} loading={creatingClient}>
+                {t('orders.workspace.createClient')}
+              </Button>
             </div>
           </div>
-
-          <div className="flex gap-3 justify-end">
-            <button type="button" onClick={() => setShowCreateClient(false)} className="btn-secondary">
-              {t('common.cancel')}
-            </button>
-            <button type="button" onClick={submitNewClient} className="btn-primary">
-              <CheckCircle className="w-5 h-5" aria-hidden="true" />
-              {t('orders.workspace.createClient')}
-            </button>
-          </div>
-        </div>
+        </form>
       </Modal>
 
       <ConfirmModal

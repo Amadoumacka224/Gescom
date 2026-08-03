@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit, Trash2, Mail, Phone, MapPin, Building2, User, Users, UserCheck,
-  Eye, RefreshCw, Download, Hash, CalendarClock, Globe, X, AlertCircle, ToggleRight, Copy,
-  ShoppingCart,
+  Eye, RefreshCw, Download, Hash, CalendarClock, X, Copy, ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -22,24 +21,16 @@ import SegmentedFilter from '../components/SegmentedFilter';
 import InfoRow from '../components/InfoRow';
 import AdvancedFilters from '../components/AdvancedFilters';
 import OrderStatusBadge from '../components/OrderStatusBadge';
+import ClientFormFields from '../components/ClientFormFields';
 import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatDate, formatPercent, safeRatio } from '../utils/format';
-
-const EMPTY_FORM = {
-  firstName: '',
-  lastName: '',
-  email: '',
-  phone: '',
-  address: '',
-  city: '',
-  postalCode: '',
-  country: '',
-  company: '',
-  type: 'PARTICULIER',
-  active: true,
-};
-
-const FIELD_KEYS = Object.keys(EMPTY_FORM);
+import {
+  CLIENT_FIELD_ORDER,
+  EMPTY_CLIENT_FORM,
+  buildClientPayload,
+  isClientFormDirty,
+  validateClient,
+} from '../utils/clientForm';
 
 /** Mémorise le mode d'affichage entre deux visites, comme la page Produits. */
 const VIEW_MODE_KEY = 'clientsViewMode';
@@ -66,113 +57,6 @@ const EMPTY_ADVANCED = {
   createdFrom: '',
   createdTo: '',
 };
-
-/**
- * Longueurs maximales reprises telles quelles des contraintes `@Size` de `ClientRequest`.
- * Elles servent à la fois d'attribut `maxLength` (l'utilisateur ne peut pas dépasser) et de
- * garde-fou à la validation (une valeur collée ou héritée peut, elle, être trop longue).
- */
-const MAX_LENGTHS = {
-  firstName: 100,
-  lastName: 100,
-  email: 100,
-  address: 255,
-  city: 100,
-  postalCode: 20,
-  country: 100,
-  company: 50,
-};
-
-/** Même expression que le `@Pattern` du backend : refuser ici ce qu'il refusera de toute façon. */
-const PHONE_PATTERN = /^[0-9+\- ]{6,20}$/;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** Champs facultatifs : vides, ils partent à `null` plutôt qu'en chaîne vide (cf. `buildPayload`). */
-const OPTIONAL_TEXT_FIELDS = ['email', 'address', 'city', 'postalCode', 'country', 'company'];
-
-/** Ordre visuel des champs : sert à choisir lequel recevoir le focus quand plusieurs sont en erreur. */
-const FIELD_ORDER = [
-  'firstName', 'lastName', 'company', 'email', 'phone', 'address', 'postalCode', 'city', 'country',
-];
-
-const TYPE_OPTIONS = [
-  { value: 'PARTICULIER', icon: User, labelKey: 'clients.typeIndividual', hintKey: 'clients.typeIndividualHint' },
-  { value: 'ENTREPRISE', icon: Building2, labelKey: 'clients.typeBusiness', hintKey: 'clients.typeBusinessHint' },
-];
-
-/**
- * Valide le formulaire en une passe et renvoie les messages par champ.
- * La fonction est pure : le composant la rejoue à chaque frappe et décide seulement *quand*
- * afficher chaque message (champ visité ou tentative d'enregistrement), ce qui évite de
- * signaler une erreur sur un champ que l'utilisateur n'a pas encore atteint.
- */
-const validateClient = (data, t) => {
-  const errors = {};
-  const trimmed = (field) => (data[field] || '').trim();
-
-  if (!trimmed('firstName')) errors.firstName = t('clients.errorFirstNameRequired');
-  if (!trimmed('lastName')) errors.lastName = t('clients.errorLastNameRequired');
-
-  if (!trimmed('phone')) errors.phone = t('clients.errorPhoneRequired');
-  else if (!PHONE_PATTERN.test(trimmed('phone'))) errors.phone = t('clients.errorPhoneFormat');
-
-  if (trimmed('email') && !EMAIL_PATTERN.test(trimmed('email'))) {
-    errors.email = t('clients.errorEmailFormat');
-  }
-
-  // La raison sociale identifie l'entreprise sur ses documents : on l'exige pour ce type
-  // uniquement, un particulier n'ayant pas de société à renseigner.
-  if (data.type === 'ENTREPRISE' && !trimmed('company')) {
-    errors.company = t('clients.errorCompanyRequired');
-  }
-
-  Object.entries(MAX_LENGTHS).forEach(([field, max]) => {
-    if (!errors[field] && trimmed(field).length > max) {
-      errors[field] = t('clients.errorMaxLength', { max });
-    }
-  });
-
-  return errors;
-};
-
-/**
- * Prépare le corps de la requête : valeurs élaguées, et facultatifs vides remis à `null`.
- * Envoyer une chaîne vide pour l'email le ferait enregistrer tel quel, et le contrôle d'unicité
- * du backend refuserait alors le client suivant sans email.
- */
-const buildPayload = (data) => {
-  const payload = { type: data.type, active: data.active };
-  ['firstName', 'lastName', 'phone'].forEach((field) => {
-    payload[field] = (data[field] || '').trim();
-  });
-  OPTIONAL_TEXT_FIELDS.forEach((field) => {
-    payload[field] = (data[field] || '').trim() || null;
-  });
-  payload.email = payload.email ? payload.email.toLowerCase() : null;
-  return payload;
-};
-
-/**
- * Bloc de formulaire : intitulé et intention à gauche, champs à droite sur grand écran.
- * Cette mise en page donne au lecteur un point d'entrée par section plutôt qu'une suite
- * indifférenciée de champs, et laisse la place d'expliquer à quoi sert chaque groupe.
- */
-const FormSection = ({ icon: Icon, title, description, children }) => (
-  <section className="grid gap-4 py-6 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] lg:gap-8">
-    <div className="flex items-start gap-3">
-      {Icon && (
-        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-500/15 dark:text-primary-300">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-      )}
-      <div className="min-w-0">
-        <h3 className="subsection-title">{title}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{description}</p>
-      </div>
-    </div>
-    <div className="space-y-5">{children}</div>
-  </section>
-);
 
 const fullName = (client) => `${client?.firstName || ''} ${client?.lastName || ''}`.trim();
 
@@ -281,10 +165,10 @@ const Clients = () => {
   // s'obtient par la bascule d'affichage, ou dès qu'une recherche / un filtre est actif.
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
 
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formData, setFormData] = useState(EMPTY_CLIENT_FORM);
   // Valeurs à l'ouverture : comparées à la saisie pour savoir si le formulaire a bougé
   // (bouton d'enregistrement inutile à vide, garde-fou à la fermeture).
-  const [initialForm, setInitialForm] = useState(EMPTY_FORM);
+  const [initialForm, setInitialForm] = useState(EMPTY_CLIENT_FORM);
   const [touched, setTouched] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler, email déjà pris…) :
@@ -347,24 +231,7 @@ const Clients = () => {
     return shown;
   }, [formErrors, serverErrors, submitAttempted, touched]);
 
-  const isCompany = formData.type === 'ENTREPRISE';
-
-  // Libellés tels qu'affichés à l'écran : le récapitulatif d'erreurs doit nommer les champs
-  // comme l'utilisateur les voit, pas comme le DTO les nomme.
-  const fieldLabels = useMemo(() => ({
-    firstName: t('clients.firstName'),
-    lastName: t('clients.lastName'),
-    company: isCompany ? t('clients.legalNameLabel') : t('clients.companyLabel'),
-    email: t('clients.email'),
-    phone: t('clients.phone'),
-    address: t('clients.streetLabel'),
-    postalCode: t('clients.postalCode'),
-    city: t('clients.city'),
-    country: t('clients.country'),
-  }), [t, isCompany]);
-
-  const invalidFields = FIELD_ORDER.filter((field) => visibleErrors[field]);
-  const isDirty = FIELD_KEYS.some((key) => formData[key] !== initialForm[key]);
+  const isDirty = isClientFormDirty(formData, initialForm);
   // En modification, un enregistrement à l'identique n'apporte rien : le bouton reste inactif
   // tant que rien n'a bougé, et la mention à côté explique pourquoi.
   const canSubmit = !saving && (!editingClient || isDirty);
@@ -377,7 +244,7 @@ const Clients = () => {
     e.preventDefault();
     setSubmitAttempted(true);
 
-    const remaining = FIELD_ORDER.filter((field) => formErrors[field]);
+    const remaining = CLIENT_FIELD_ORDER.filter((field) => formErrors[field]);
     if (remaining.length > 0) {
       focusField(remaining[0]);
       return;
@@ -391,7 +258,7 @@ const Clients = () => {
     toast.loading(editingClient ? t('clients.savingEdit') : t('clients.savingCreate'), { id: toastId });
 
     try {
-      const payload = buildPayload(formData);
+      const payload = buildClientPayload(formData);
       if (editingClient) {
         await clientService.updateClient(editingClient.id, payload);
         toast.success(t('clients.updatedSuccess'), { id: toastId });
@@ -413,7 +280,7 @@ const Clients = () => {
       if (error.response?.status === 409) {
         fieldErrors.email = t('clients.errorEmailTaken');
       }
-      const flagged = FIELD_ORDER.filter((field) => fieldErrors[field]);
+      const flagged = CLIENT_FIELD_ORDER.filter((field) => fieldErrors[field]);
       if (flagged.length > 0) {
         setServerErrors(fieldErrors);
         setSubmitAttempted(true);
@@ -444,7 +311,7 @@ const Clients = () => {
           type: client.type || 'PARTICULIER',
           active: client.active !== false,
         }
-      : EMPTY_FORM;
+      : EMPTY_CLIENT_FORM;
 
     setEditingClient(client || null);
     setFormData(values);
@@ -666,8 +533,8 @@ const Clients = () => {
     setShowModal(false);
     setShowDiscardConfirm(false);
     setEditingClient(null);
-    setFormData(EMPTY_FORM);
-    setInitialForm(EMPTY_FORM);
+    setFormData(EMPTY_CLIENT_FORM);
+    setInitialForm(EMPTY_CLIENT_FORM);
     setTouched({});
     setSubmitAttempted(false);
     setServerErrors({});
@@ -1368,264 +1235,14 @@ const Clients = () => {
         {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont les
             bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
         <form onSubmit={handleSubmit} noValidate>
-          {/* Récapitulatif des champs à corriger. Sur un formulaire de cette hauteur, le champ
-              fautif peut se trouver hors écran au moment où l'on clique sur « Enregistrer » :
-              chaque entrée y ramène directement le focus. */}
-          {submitAttempted && invalidFields.length > 0 && (
-            <div
-              role="alert"
-              className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10"
-            >
-              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
-              <div className="min-w-0 text-sm">
-                <p className="font-semibold text-red-800 dark:text-red-300">
-                  {t('clients.formErrorTitle', { count: invalidFields.length })}
-                </p>
-                <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-red-700 dark:text-red-300/90">
-                  {invalidFields.map((field) => (
-                    <li key={field}>
-                      <button
-                        type="button"
-                        onClick={() => focusField(field)}
-                        className="underline underline-offset-2 hover:no-underline"
-                      >
-                        {fieldLabels[field]}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Le formulaire suit l'ordre de lecture de la fiche : de quel type de client s'agit-il,
-              qui est-ce, comment le joindre, où le facturer, et sous quel statut l'enregistrer. */}
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            <FormSection
-              icon={UserCheck}
-              title={t('clients.typeLabel')}
-              description={t('clients.sectionTypeHint')}
-            >
-              {/* Deux choix seulement, et ils commandent le reste du formulaire (raison sociale
-                  exigée pour une entreprise) : des cartes lisibles d'un coup d'œil valent mieux
-                  qu'une liste déroulante qu'il faut ouvrir pour connaître les options. */}
-              <div role="radiogroup" aria-label={t('clients.typeLabel')} className="grid gap-3 sm:grid-cols-2">
-                {TYPE_OPTIONS.map((option) => {
-                  const OptionIcon = option.icon;
-                  const selected = formData.type === option.value;
-                  return (
-                    <label
-                      key={option.value}
-                      className={`relative flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
-                        selected
-                          ? 'border-primary-500 bg-primary-50/60 dark:border-primary-400 dark:bg-primary-500/10'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-gray-600 dark:hover:bg-gray-700/40'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="type"
-                        value={option.value}
-                        checked={selected}
-                        onChange={handleInputChange}
-                        className="peer sr-only"
-                      />
-                      {/* L'anneau de focus est porté par ce calque : l'input est masqué (`sr-only`)
-                          et ne peut donc pas montrer lui-même qu'il a le focus clavier. */}
-                      <span className="pointer-events-none absolute inset-0 rounded-xl peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-gray-800" />
-                      <OptionIcon
-                        className={`h-5 w-5 flex-shrink-0 ${selected ? 'text-primary-600 dark:text-primary-300' : 'text-gray-400'}`}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {t(option.labelKey)}
-                        </span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                          {t(option.hintKey)}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </FormSection>
-
-            <FormSection
-              icon={User}
-              title={t('clients.sectionIdentity')}
-              description={t('clients.sectionIdentityHint')}
-            >
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <FormInput
-                  label={t('clients.firstName')}
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder={t('clients.firstNamePlaceholder')}
-                  error={visibleErrors.firstName}
-                  maxLength={MAX_LENGTHS.firstName}
-                  autoComplete="given-name"
-                  required
-                  icon={User}
-                />
-                <FormInput
-                  label={t('clients.lastName')}
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder={t('clients.lastNamePlaceholder')}
-                  error={visibleErrors.lastName}
-                  maxLength={MAX_LENGTHS.lastName}
-                  autoComplete="family-name"
-                  required
-                  icon={User}
-                />
-              </div>
-              <FormInput
-                label={isCompany ? t('clients.legalNameLabel') : t('clients.companyLabel')}
-                name="company"
-                value={formData.company}
-                onChange={handleInputChange}
-                onBlur={handleBlur}
-                placeholder={t('clients.companyPlaceholder')}
-                error={visibleErrors.company}
-                hint={isCompany ? t('clients.legalNameHint') : t('clients.companyOptionalHint')}
-                maxLength={MAX_LENGTHS.company}
-                autoComplete="organization"
-                required={isCompany}
-                icon={Building2}
-              />
-            </FormSection>
-
-            <FormSection
-              icon={Mail}
-              title={t('clients.sectionContact')}
-              description={t('clients.sectionContactHint')}
-            >
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <FormInput
-                  label={t('clients.phone')}
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder={t('clients.phonePlaceholder')}
-                  error={visibleErrors.phone}
-                  hint={t('clients.phoneHint')}
-                  autoComplete="tel"
-                  required
-                  icon={Phone}
-                />
-                <FormInput
-                  label={t('clients.email')}
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder={t('clients.emailPlaceholder')}
-                  error={visibleErrors.email}
-                  hint={t('clients.emailHint')}
-                  maxLength={MAX_LENGTHS.email}
-                  autoComplete="email"
-                  icon={Mail}
-                />
-              </div>
-            </FormSection>
-
-            <FormSection
-              icon={MapPin}
-              title={t('clients.sectionAddress')}
-              description={t('clients.sectionAddressHint')}
-            >
-              <FormInput
-                label={t('clients.streetLabel')}
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                onBlur={handleBlur}
-                placeholder={t('clients.addressPlaceholder')}
-                error={visibleErrors.address}
-                maxLength={MAX_LENGTHS.address}
-                autoComplete="street-address"
-                icon={MapPin}
-              />
-              {/* Code postal et ville se lisent comme sur une enveloppe : le premier, court,
-                  ne mérite pas la même largeur que la seconde. */}
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                <FormInput
-                  label={t('clients.postalCode')}
-                  name="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder={t('clients.postalCodePlaceholder')}
-                  error={visibleErrors.postalCode}
-                  maxLength={MAX_LENGTHS.postalCode}
-                  autoComplete="postal-code"
-                />
-                <div className="sm:col-span-2">
-                  <FormInput
-                    label={t('clients.city')}
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    placeholder={t('clients.cityPlaceholder')}
-                    error={visibleErrors.city}
-                    maxLength={MAX_LENGTHS.city}
-                    autoComplete="address-level2"
-                  />
-                </div>
-              </div>
-              <FormInput
-                label={t('clients.country')}
-                name="country"
-                value={formData.country}
-                onChange={handleInputChange}
-                onBlur={handleBlur}
-                placeholder={t('clients.countryPlaceholder')}
-                error={visibleErrors.country}
-                maxLength={MAX_LENGTHS.country}
-                autoComplete="country-name"
-                icon={Globe}
-              />
-            </FormSection>
-
-            <FormSection
-              icon={ToggleRight}
-              title={t('clients.sectionStatus')}
-              description={t('clients.sectionStatusHint')}
-            >
-              {/* Interrupteur plutôt qu'une case à cocher : l'effet du réglage est écrit à côté,
-                  un client inactif restant invisible dans les sélecteurs de commande. */}
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                <div className="min-w-0">
-                  <label htmlFor="active" className="cursor-pointer font-medium text-gray-900 dark:text-gray-100">
-                    {t('clients.activeLabel')}
-                  </label>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                    {formData.active ? t('clients.activeStateHint') : t('clients.inactiveStateHint')}
-                  </p>
-                </div>
-                <label className="relative inline-flex flex-shrink-0 cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    id="active"
-                    name="active"
-                    checked={formData.active}
-                    onChange={handleInputChange}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                </label>
-              </div>
-            </FormSection>
-          </div>
+          <ClientFormFields
+            values={formData}
+            errors={visibleErrors}
+            onChange={handleInputChange}
+            onBlur={handleBlur}
+            onFocusField={focusField}
+            showErrorSummary={submitAttempted}
+          />
 
           {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
               défile mais l'enregistrement reste sous la main, sans avoir à chercher le bas. */}
