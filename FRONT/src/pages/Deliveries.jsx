@@ -19,6 +19,7 @@ import SearchBox from '../components/SearchBox';
 import StatCard from '../components/StatCard';
 import SegmentedFilter from '../components/SegmentedFilter';
 import InfoRow from '../components/InfoRow';
+import FormSection from '../components/FormSection';
 import AdvancedFilters from '../components/AdvancedFilters';
 import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatPercent, safeRatio } from '../utils/format';
@@ -61,6 +62,70 @@ const EMPTY_FORM = {
   contactPhone: '',
   notes: '',
   status: 'PENDING',
+};
+
+const FORM_KEYS = Object.keys(EMPTY_FORM);
+
+/**
+ * Longueurs maximales reprises des contraintes `@Size` de `DeliveryCreateRequest` /
+ * `DeliveryUpdateRequest`. Servent d'attribut `maxLength` et de garde-fou à la validation.
+ */
+const MAX_LENGTHS = {
+  deliveryAddress: 255,
+  deliveryCity: 100,
+  deliveryPostalCode: 20,
+  deliveryCountry: 100,
+  contactName: 100,
+  contactPhone: 20,
+  notes: 500,
+};
+
+/** Même expression que les autres formulaires de l'application. */
+const PHONE_PATTERN = /^[0-9+\- ]{6,20}$/;
+
+/** Ordre visuel des champs : décide lequel reçoit le focus quand plusieurs sont en erreur. */
+const FIELD_ORDER = [
+  'orderId', 'deliveryAddress', 'deliveryPostalCode', 'deliveryCity', 'deliveryCountry',
+  'scheduledDate', 'contactName', 'contactPhone', 'notes',
+];
+
+/**
+ * Valide le formulaire en une passe et renvoie les messages par champ.
+ *
+ * Ville, code postal et pays sont facultatifs côté API mais exigés ici : une adresse sans
+ * localité n'est pas livrable, et l'écran les réclamait déjà — la contrainte est simplement
+ * devenue explicite au lieu de passer par la validation native du navigateur.
+ */
+const validateDelivery = (data, t, { isEdit, today }) => {
+  const errors = {};
+  const trimmed = (field) => (data[field] || '').trim();
+
+  if (!isEdit && !data.orderId) errors.orderId = t('deliveries.errorOrderRequired');
+  if (!trimmed('deliveryAddress')) errors.deliveryAddress = t('deliveries.errorAddressRequired');
+  if (!trimmed('deliveryCity')) errors.deliveryCity = t('deliveries.errorCityRequired');
+  if (!trimmed('deliveryPostalCode')) errors.deliveryPostalCode = t('deliveries.errorPostalCodeRequired');
+  if (!trimmed('deliveryCountry')) errors.deliveryCountry = t('deliveries.errorCountryRequired');
+  if (!trimmed('contactName')) errors.contactName = t('deliveries.errorContactNameRequired');
+
+  if (!trimmed('contactPhone')) errors.contactPhone = t('deliveries.errorContactPhoneRequired');
+  else if (!PHONE_PATTERN.test(trimmed('contactPhone'))) {
+    errors.contactPhone = t('deliveries.errorContactPhoneFormat');
+  }
+
+  if (!data.scheduledDate) errors.scheduledDate = t('deliveries.errorScheduledDateRequired');
+  // Planifier dans le passé n'a de sens que sur une livraison déjà enregistrée, dont la date
+  // peut légitimement être antérieure à aujourd'hui.
+  else if (!isEdit && data.scheduledDate < today) {
+    errors.scheduledDate = t('deliveries.errorScheduledDatePast');
+  }
+
+  Object.entries(MAX_LENGTHS).forEach(([field, max]) => {
+    if (!errors[field] && trimmed(field).length > max) {
+      errors[field] = t('deliveries.errorMaxLength', { max });
+    }
+  });
+
+  return errors;
 };
 
 // Le backend (LocalDateTime) renvoie "2025-12-01T10:00:00" ; l'input HTML type="date"
@@ -130,9 +195,19 @@ const Deliveries = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
   const [formData, setFormData] = useState(EMPTY_FORM);
+  // Valeurs à l'ouverture : comparées à la saisie pour savoir si le formulaire a bougé
+  // (bouton d'enregistrement inutile à vide, garde-fou à la fermeture).
+  const [initialForm, setInitialForm] = useState(EMPTY_FORM);
+  const [touched, setTouched] = useState({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler) : conservées à part
+  // des erreurs locales, elles sont levées champ par champ dès que la valeur change.
+  const [serverErrors, setServerErrors] = useState({});
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Jour courant, recalculé à chaque rendu de la page : sert de référence aux retards.
   const today = new Date().toISOString().slice(0, 10);
+  const todayISO = today;
 
   useEffect(() => {
     refresh();
@@ -198,9 +273,12 @@ const Deliveries = () => {
       const id = location.state.createForOrderId;
       const selectedOrder = orders.find(o => o.id === parseInt(id));
       if (selectedOrder) {
+        // Le formulaire s'ouvre vierge puis reçoit la commande et les coordonnées du client :
+        // `initialForm` reste EMPTY_FORM, donc le pré-remplissage compte comme une saisie et
+        // la fermeture demandera confirmation, ce qui est le comportement voulu.
         const defaults = buildClientDefaults(selectedOrder.client);
+        openForm(null);
         setFormData(prev => ({ ...prev, orderId: String(id), ...defaults }));
-        setShowModal(true);
       }
       navigate(location.pathname, { replace: true, state: {} });
     }
@@ -208,6 +286,8 @@ const Deliveries = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // Le verdict du serveur portait sur l'ancienne valeur : il n'a plus de sens dès qu'elle change.
+    setServerErrors((prev) => (prev[name] === undefined ? prev : { ...prev, [name]: undefined }));
 
     if (name === 'orderId') {
       // Pré-remplit les coordonnées de livraison à partir du client de la commande,
@@ -244,18 +324,60 @@ const Deliveries = () => {
     setFormData(prev => ({ ...prev, ...buildClientDefaults(client) }));
   };
 
+  // Une erreur ne s'affiche qu'une fois le champ quitté, ou dès la première tentative
+  // d'enregistrement : la signaler à la première lettre tapée serait juste mais pénible.
+  const handleBlur = (e) => {
+    const { name } = e.target;
+    setTouched((prev) => (prev[name] ? prev : { ...prev, [name]: true }));
+  };
+
+  const formErrors = useMemo(
+    () => validateDelivery(formData, t, { isEdit: !!editingDelivery, today: todayISO }),
+    [formData, t, editingDelivery, todayISO]
+  );
+
+  const visibleErrors = useMemo(() => {
+    const shown = {};
+    Object.entries(formErrors).forEach(([field, message]) => {
+      if (submitAttempted || touched[field]) shown[field] = message;
+    });
+    Object.entries(serverErrors).forEach(([field, message]) => {
+      if (message) shown[field] = message;
+    });
+    return shown;
+  }, [formErrors, serverErrors, submitAttempted, touched]);
+
+  // Libellés tels qu'affichés à l'écran : le récapitulatif d'erreurs doit nommer les champs
+  // comme l'utilisateur les voit, pas comme le DTO les nomme.
+  const fieldLabels = useMemo(() => ({
+    orderId: t('deliveries.orderLabel'),
+    deliveryAddress: t('deliveries.addressLabel'),
+    deliveryPostalCode: t('deliveries.postalCodeLabel'),
+    deliveryCity: t('deliveries.cityLabel'),
+    deliveryCountry: t('deliveries.countryLabel'),
+    scheduledDate: t('deliveries.scheduledDateLabel'),
+    contactName: t('deliveries.contactNameLabel'),
+    contactPhone: t('deliveries.contactPhoneLabel'),
+    notes: t('deliveries.notesLabel'),
+  }), [t]);
+
+  const invalidFields = FIELD_ORDER.filter((field) => visibleErrors[field]);
+  const isDirty = FORM_KEYS.some((key) => formData[key] !== initialForm[key]);
+  const canSubmit = !saving && (!editingDelivery || isDirty);
+
+  const focusField = (field) => {
+    document.getElementById(field)?.focus();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
-    if (!formData.orderId) {
-      toast.error(t('deliveries.selectOrder'));
+    const remaining = FIELD_ORDER.filter((field) => formErrors[field]);
+    if (remaining.length > 0) {
+      focusField(remaining[0]);
       return;
     }
-    if (!formData.deliveryAddress || !formData.contactName || !formData.contactPhone || !formData.scheduledDate) {
-      toast.error(t('deliveries.fillRequiredFields'));
-      return;
-    }
-
     setShowConfirmModal(true);
   };
 
@@ -265,17 +387,21 @@ const Deliveries = () => {
     toast.loading(t('deliveries.saving'), { id: toastId });
 
     try {
+      const trim = (field) => (formData[field] || '').trim();
       const deliveryData = {
         orderId: parseInt(formData.orderId),
-        deliveryAddress: formData.deliveryAddress,
-        deliveryCity: formData.deliveryCity,
-        deliveryPostalCode: formData.deliveryPostalCode,
-        deliveryCountry: formData.deliveryCountry,
-        contactName: formData.contactName,
-        contactPhone: formData.contactPhone,
+        deliveryAddress: trim('deliveryAddress'),
+        deliveryCity: trim('deliveryCity'),
+        deliveryPostalCode: trim('deliveryPostalCode'),
+        deliveryCountry: trim('deliveryCountry'),
+        contactName: trim('contactName'),
+        contactPhone: trim('contactPhone'),
         scheduledDate: toLocalDateTime(formData.scheduledDate),
-        status: formData.status,
-        notes: formData.notes,
+        // Le statut n'est envoyé qu'en modification : à la création, `DeliveryService` le force
+        // à PENDING et ignore ce qu'on lui transmet (le passage à DELIVERED est le fait de
+        // `markDeliveryAsDelivered`).
+        ...(editingDelivery ? { status: formData.status } : {}),
+        notes: trim('notes') || null,
       };
 
       if (editingDelivery) {
@@ -286,35 +412,57 @@ const Deliveries = () => {
         toast.success(t('deliveries.createdSuccess'), { id: toastId });
       }
 
-      handleCloseModal();
+      closeForm();
       refresh();
     } catch (error) {
       console.error('Error saving delivery:', error);
       const raw = error.response?.data;
       const message = typeof raw === 'string' ? raw : (raw?.message || raw?.error || t('deliveries.saveError'));
+
+      // Le refus du serveur est ramené sur le champ concerné plutôt que sur un simple toast :
+      // l'utilisateur voit quoi corriger sans relire tout le formulaire.
+      const fieldErrors = typeof raw === 'object' && raw?.fieldErrors ? { ...raw.fieldErrors } : {};
+      const flagged = FIELD_ORDER.filter((field) => fieldErrors[field]);
+      if (flagged.length > 0) {
+        setServerErrors(fieldErrors);
+        setSubmitAttempted(true);
+        setTimeout(() => focusField(flagged[0]), 0);
+      }
+
       toast.error(`${t('common.errorPrefix')}${message}`, { id: toastId, duration: 6000 });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEdit = (delivery) => {
-    setEditingDelivery(delivery);
-    setFormData({
-      orderId: delivery.order.id.toString(),
-      deliveryAddress: delivery.deliveryAddress || '',
-      deliveryCity: delivery.deliveryCity || '',
-      deliveryPostalCode: delivery.deliveryPostalCode || '',
-      deliveryCountry: delivery.deliveryCountry || 'Belgique',
-      scheduledDate: toDateInputValue(delivery.scheduledDate),
-      contactName: delivery.contactName || '',
-      contactPhone: delivery.contactPhone || '',
-      notes: delivery.notes || '',
-      status: delivery.status,
-    });
+  /** Ouvre le formulaire sur des valeurs données, en repartant d'un état de validation vierge. */
+  const openForm = (delivery) => {
+    const values = delivery
+      ? {
+          orderId: delivery.order.id.toString(),
+          deliveryAddress: delivery.deliveryAddress || '',
+          deliveryCity: delivery.deliveryCity || '',
+          deliveryPostalCode: delivery.deliveryPostalCode || '',
+          deliveryCountry: delivery.deliveryCountry || 'Belgique',
+          scheduledDate: toDateInputValue(delivery.scheduledDate),
+          contactName: delivery.contactName || '',
+          contactPhone: delivery.contactPhone || '',
+          notes: delivery.notes || '',
+          status: delivery.status,
+        }
+      : EMPTY_FORM;
+
+    setEditingDelivery(delivery || null);
+    setFormData(values);
+    setInitialForm(values);
+    setTouched({});
+    setSubmitAttempted(false);
+    setServerErrors({});
     setSelectedDelivery(null);
     setShowModal(true);
   };
+
+  const handleEdit = (delivery) => openForm(delivery);
 
   const confirmDelete = async () => {
     if (!deliveryToDelete) return;
@@ -355,10 +503,28 @@ const Deliveries = () => {
     }
   };
 
-  const handleCloseModal = () => {
+  const closeForm = () => {
     setShowModal(false);
+    setShowDiscardConfirm(false);
     setEditingDelivery(null);
     setFormData(EMPTY_FORM);
+    setInitialForm(EMPTY_FORM);
+    setTouched({});
+    setSubmitAttempted(false);
+    setServerErrors({});
+  };
+
+  /**
+   * Fermeture demandée par l'utilisateur (bouton Annuler, croix, clic sur le fond).
+   * Le fond de la modale se ferme au moindre clic à côté : perdre une adresse de livraison
+   * saisie à cette occasion est un incident réel.
+   */
+  const requestCloseForm = () => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    closeForm();
   };
 
   const statusBadge = (delivery) => {
@@ -699,7 +865,7 @@ const Deliveries = () => {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('deliveries.emptyHint')}</p>
       </div>
       {orders.length > 0 && (
-        <Button variant="primary" size="sm" icon={Plus} onClick={() => setShowModal(true)}>
+        <Button variant="primary" size="sm" icon={Plus} onClick={() => openForm(null)}>
           {t('deliveries.addDelivery')}
         </Button>
       )}
@@ -723,7 +889,7 @@ const Deliveries = () => {
           <Button variant="outline" icon={RefreshCw} onClick={refresh} loading={loading}>
             {t('common.refresh')}
           </Button>
-          <Button variant="primary" icon={Plus} onClick={() => setShowModal(true)}>
+          <Button variant="primary" icon={Plus} onClick={() => openForm(null)}>
             {t('deliveries.addDelivery')}
           </Button>
         </div>
@@ -988,162 +1154,280 @@ const Deliveries = () => {
       {/* ---- Formulaire ---- */}
       <Modal
         isOpen={showModal}
-        onClose={handleCloseModal}
+        onClose={requestCloseForm}
         title={editingDelivery ? t('deliveries.editTitle') : t('deliveries.createTitle')}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <ShoppingCart className="w-5 h-5 text-primary-600" aria-hidden="true" />
-              <h3 className="subsection-title">{t('deliveries.sectionOrder')}</h3>
-            </div>
-            <FormSelect
-              label={t('deliveries.orderLabel')}
-              name="orderId"
-              value={formData.orderId}
-              onChange={handleInputChange}
-              required
-              options={orders.map(order => ({
-                value: order.id.toString(),
-                label: `${order.orderNumber} — ${order.client ? `${order.client.firstName} ${order.client.lastName}` : t('deliveries.guestClient')} (${order.totalAmount.toFixed(2)} €)`,
-              }))}
-              placeholder={t('deliveries.orderPlaceholder')}
-            />
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <MapPin className="w-5 h-5 text-primary-600" aria-hidden="true" />
-              <h3 className="subsection-title">{t('deliveries.addressSectionTitle')}</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <FormInput
-                  label={t('deliveries.addressLabel')}
-                  name="deliveryAddress"
-                  value={formData.deliveryAddress}
-                  onChange={handleInputChange}
-                  placeholder={t('deliveries.addressPlaceholder')}
-                  required
-                  icon={MapPin}
-                />
+        {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont
+            les bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
+        <form onSubmit={handleSubmit} noValidate>
+          {/* Récapitulatif des champs à corriger : sur un formulaire de cette hauteur, le champ
+              fautif peut se trouver hors écran au moment de l'enregistrement. */}
+          {submitAttempted && invalidFields.length > 0 && (
+            <div
+              role="alert"
+              className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10"
+            >
+              <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold text-red-800 dark:text-red-300">
+                  {t('deliveries.formErrorTitle', { count: invalidFields.length })}
+                </p>
+                <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-red-700 dark:text-red-300/90">
+                  {invalidFields.map((field) => (
+                    <li key={field}>
+                      <button
+                        type="button"
+                        onClick={() => focusField(field)}
+                        className="underline underline-offset-2 hover:no-underline"
+                      >
+                        {fieldLabels[field]}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            </div>
+          )}
+
+          {/* Ordre de lecture : quelle commande, où livrer, qui contacter, puis le suivi. */}
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <FormSection
+              icon={ShoppingCart}
+              title={t('deliveries.sectionOrder')}
+              description={t('deliveries.sectionOrderHint')}
+            >
+              {editingDelivery ? (
+                /* La commande d'une livraison ne se change pas : `DeliveryUpdateRequest` ne la
+                   porte pas, et une livraison appartient à la commande qui l'a fait naître. */
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+                  <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                    {t('deliveries.orderLabel')}
+                  </p>
+                  <p className="mt-1 font-semibold text-gray-900 dark:text-gray-100">
+                    {editingDelivery.order?.orderNumber}
+                  </p>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    {editingDelivery.order?.client
+                      ? `${editingDelivery.order.client.firstName || ''} ${editingDelivery.order.client.lastName || ''}`.trim()
+                      : t('deliveries.guestClient')}
+                  </p>
+                </div>
+              ) : (
+                <FormSelect
+                  label={t('deliveries.orderLabel')}
+                  name="orderId"
+                  value={formData.orderId}
+                  onChange={handleInputChange}
+                  error={visibleErrors.orderId}
+                  required
+                  options={orders.map(order => ({
+                    value: order.id.toString(),
+                    label: `${order.orderNumber} — ${order.client ? `${order.client.firstName} ${order.client.lastName}` : t('deliveries.guestClient')} (${order.totalAmount.toFixed(2)} €)`,
+                  }))}
+                  placeholder={t('deliveries.orderPlaceholder')}
+                />
+              )}
+            </FormSection>
+
+            <FormSection
+              icon={MapPin}
+              title={t('deliveries.addressSectionTitle')}
+              description={t('deliveries.sectionAddressHint')}
+            >
               <FormInput
-                label={t('deliveries.cityLabel')}
-                name="deliveryCity"
-                value={formData.deliveryCity}
+                label={t('deliveries.addressLabel')}
+                name="deliveryAddress"
+                value={formData.deliveryAddress}
                 onChange={handleInputChange}
-                placeholder={t('deliveries.cityPlaceholder')}
+                onBlur={handleBlur}
+                placeholder={t('deliveries.addressPlaceholder')}
+                error={visibleErrors.deliveryAddress}
+                maxLength={MAX_LENGTHS.deliveryAddress}
+                autoComplete="street-address"
                 required
                 icon={MapPin}
               />
-              <FormInput
-                label={t('deliveries.postalCodeLabel')}
-                name="deliveryPostalCode"
-                value={formData.deliveryPostalCode}
-                onChange={handleInputChange}
-                placeholder={t('deliveries.postalCodePlaceholder')}
-                required
-              />
+              {/* Code postal et ville se lisent comme sur une enveloppe. */}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <FormInput
+                  label={t('deliveries.postalCodeLabel')}
+                  name="deliveryPostalCode"
+                  value={formData.deliveryPostalCode}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('deliveries.postalCodePlaceholder')}
+                  error={visibleErrors.deliveryPostalCode}
+                  maxLength={MAX_LENGTHS.deliveryPostalCode}
+                  autoComplete="postal-code"
+                  required
+                />
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label={t('deliveries.cityLabel')}
+                    name="deliveryCity"
+                    value={formData.deliveryCity}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    placeholder={t('deliveries.cityPlaceholder')}
+                    error={visibleErrors.deliveryCity}
+                    maxLength={MAX_LENGTHS.deliveryCity}
+                    autoComplete="address-level2"
+                    required
+                  />
+                </div>
+              </div>
               <FormInput
                 label={t('deliveries.countryLabel')}
                 name="deliveryCountry"
                 value={formData.deliveryCountry}
                 onChange={handleInputChange}
+                onBlur={handleBlur}
                 placeholder={t('deliveries.countryPlaceholder')}
+                error={visibleErrors.deliveryCountry}
+                maxLength={MAX_LENGTHS.deliveryCountry}
+                autoComplete="country-name"
                 required
                 icon={Globe}
               />
+            </FormSection>
+
+            <FormSection
+              icon={Calendar}
+              title={t('deliveries.sectionSchedule')}
+              description={t('deliveries.sectionScheduleHint')}
+            >
               <FormInput
                 label={t('deliveries.scheduledDateLabel')}
                 name="scheduledDate"
                 type="date"
                 value={formData.scheduledDate}
                 onChange={handleInputChange}
+                onBlur={handleBlur}
+                error={visibleErrors.scheduledDate}
+                // Une nouvelle livraison ne se planifie pas dans le passé ; une livraison déjà
+                // enregistrée peut légitimement porter une date antérieure.
+                min={editingDelivery ? undefined : today}
                 required
                 icon={Calendar}
               />
-            </div>
-          </section>
+              {/* Le statut n'est proposé qu'en modification : à la création, le backend le force
+                  à « En attente » quoi qu'on envoie. Le choix n'était qu'apparent. */}
+              {editingDelivery && (
+                <FormSelect
+                  label={t('deliveries.statusLabel')}
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  required
+                  options={statusOptions}
+                />
+              )}
+            </FormSection>
 
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <User className="w-5 h-5 text-primary-600" aria-hidden="true" />
-                <h3 className="subsection-title">{t('deliveries.contactSectionTitle')}</h3>
+            <FormSection
+              icon={User}
+              title={t('deliveries.contactSectionTitle')}
+              description={t('deliveries.contactHint')}
+            >
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleCopyFromClient}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors dark:text-primary-300 dark:bg-primary-500/10 dark:border-primary-500/30 dark:hover:bg-primary-500/20"
+                  title={t('deliveries.copyFromClientTooltip')}
+                >
+                  <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                  {t('deliveries.copyFromClient')}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleCopyFromClient}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg transition-colors dark:text-primary-300 dark:bg-primary-500/10 dark:border-primary-500/30 dark:hover:bg-primary-500/20"
-                title={t('deliveries.copyFromClientTooltip')}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <FormInput
+                  label={t('deliveries.contactNameLabel')}
+                  name="contactName"
+                  value={formData.contactName}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('deliveries.contactNamePlaceholder')}
+                  error={visibleErrors.contactName}
+                  maxLength={MAX_LENGTHS.contactName}
+                  autoComplete="name"
+                  required
+                  icon={User}
+                />
+                <FormInput
+                  label={t('deliveries.contactPhoneLabel')}
+                  name="contactPhone"
+                  type="tel"
+                  value={formData.contactPhone}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('deliveries.contactPhonePlaceholder')}
+                  error={visibleErrors.contactPhone}
+                  hint={t('deliveries.contactPhoneHint')}
+                  autoComplete="tel"
+                  required
+                  icon={Phone}
+                />
+              </div>
+            </FormSection>
+
+            <FormSection
+              icon={StickyNote}
+              title={t('deliveries.notesLabel')}
+              description={t('deliveries.sectionNotesHint')}
+            >
+              <FormInput
+                label={t('deliveries.notesLabel')}
+                name="notes"
+                type="textarea"
+                rows={3}
+                value={formData.notes}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                placeholder={t('deliveries.notesPlaceholder')}
+                error={visibleErrors.notes}
+                maxLength={MAX_LENGTHS.notes}
+              />
+            </FormSection>
+          </div>
+
+          {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
+              défile mais l'enregistrement reste sous la main. */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {editingDelivery && !isDirty ? t('deliveries.noChanges') : t('clients.requiredHint')}
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="secondary" onClick={requestCloseForm} type="button">
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                loading={saving}
+                disabled={!canSubmit}
+                icon={editingDelivery ? Edit : Plus}
               >
-                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                {t('deliveries.copyFromClient')}
-              </button>
+                {editingDelivery ? t('common.saveChanges') : t('common.create')}
+              </Button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('deliveries.contactHint')}</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormInput
-                label={t('deliveries.contactNameLabel')}
-                name="contactName"
-                value={formData.contactName}
-                onChange={handleInputChange}
-                placeholder={t('deliveries.contactNamePlaceholder')}
-                required
-                icon={User}
-              />
-              <FormInput
-                label={t('deliveries.contactPhoneLabel')}
-                name="contactPhone"
-                type="tel"
-                value={formData.contactPhone}
-                onChange={handleInputChange}
-                placeholder={t('deliveries.contactPhonePlaceholder')}
-                required
-                icon={Phone}
-              />
-            </div>
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <StickyNote className="w-5 h-5 text-primary-600" aria-hidden="true" />
-              <h3 className="subsection-title">{t('deliveries.sectionTracking')}</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormSelect
-                label={t('deliveries.statusLabel')}
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-                required
-                options={statusOptions}
-              />
-            </div>
-            <FormInput
-              label={t('deliveries.notesLabel')}
-              name="notes"
-              type="textarea"
-              value={formData.notes}
-              onChange={handleInputChange}
-              placeholder={t('deliveries.notesPlaceholder')}
-            />
-          </section>
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="secondary" onClick={handleCloseModal} type="button">
-              {t('common.cancel')}
-            </Button>
-            <Button variant="primary" type="submit" loading={saving} icon={editingDelivery ? Edit : Plus}>
-              {editingDelivery ? t('common.saveChanges') : t('common.create')}
-            </Button>
           </div>
         </form>
       </Modal>
 
       {/* ---- Confirmations ---- */}
+      <ConfirmModal
+        isOpen={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={closeForm}
+        title={t('clients.discardTitle')}
+        message={t('clients.discardMessage')}
+        type="warning"
+        confirmLabel={t('clients.discardConfirm')}
+        cancelLabel={t('clients.discardCancel')}
+      />
+
       <ConfirmModal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
