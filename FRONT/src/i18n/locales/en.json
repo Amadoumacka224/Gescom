@@ -235,7 +235,19 @@
     "copied": "Copied to the clipboard",
     "copyError": "Copy failed: the clipboard is not available.",
     "completeProfile": "Complete",
-    "postalAddressLabel": "Postal address"
+    "postalAddressLabel": "Postal address",
+    "sectionActivity": "Sales activity",
+    "activityOrders": "Orders",
+    "activityRevenue": "Revenue",
+    "activityAverage": "Average order",
+    "activityCanceled_one": "including 1 canceled, excluded from figures",
+    "activityCanceled_other": "including {{count}} canceled, excluded from figures",
+    "activityMore_one": "1 older order not shown",
+    "activityMore_other": "{{count}} older orders not shown",
+    "activityEmpty": "No order recorded for this client.",
+    "activityError": "Sales activity could not be loaded.",
+    "activityRetry": "Try again",
+    "openOrder": "Open order"
   },
   "products": {
     "title": "Product management",

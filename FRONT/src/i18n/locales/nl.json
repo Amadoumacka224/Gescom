@@ -235,7 +235,19 @@
     "copied": "Naar het klembord gekopieerd",
     "copyError": "Kopiëren mislukt: het klembord is niet beschikbaar.",
     "completeProfile": "Aanvullen",
-    "postalAddressLabel": "Postadres"
+    "postalAddressLabel": "Postadres",
+    "sectionActivity": "Commerciële activiteit",
+    "activityOrders": "Bestellingen",
+    "activityRevenue": "Omzet",
+    "activityAverage": "Gemiddelde bestelling",
+    "activityCanceled_one": "waarvan 1 geannuleerd, buiten de cijfers",
+    "activityCanceled_other": "waarvan {{count}} geannuleerd, buiten de cijfers",
+    "activityMore_one": "1 oudere bestelling niet getoond",
+    "activityMore_other": "{{count}} oudere bestellingen niet getoond",
+    "activityEmpty": "Geen bestelling geregistreerd voor deze klant.",
+    "activityError": "De commerciële activiteit kon niet worden geladen.",
+    "activityRetry": "Opnieuw proberen",
+    "openOrder": "Bestelling openen"
   },
   "products": {
     "title": "Productbeheer",
