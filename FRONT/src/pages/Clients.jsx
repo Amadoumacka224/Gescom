@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Plus, Edit, Trash2, Mail, Phone, MapPin, Building2, User, Users, UserCheck,
-  Eye, RefreshCw, Download, Hash, CalendarClock, Globe, X,
+  Eye, RefreshCw, Download, Hash, CalendarClock, Globe, X, AlertCircle, ToggleRight, Copy,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -11,7 +11,6 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import FormInput from '../components/FormInput';
-import FormSelect from '../components/FormSelect';
 import Button from '../components/Button';
 import Table from '../components/Table';
 import SearchBox from '../components/SearchBox';
@@ -36,6 +35,8 @@ const EMPTY_FORM = {
   active: true,
 };
 
+const FIELD_KEYS = Object.keys(EMPTY_FORM);
+
 /** Mémorise le mode d'affichage entre deux visites, comme la page Produits. */
 const VIEW_MODE_KEY = 'clientsViewMode';
 
@@ -59,7 +60,150 @@ const EMPTY_ADVANCED = {
   createdTo: '',
 };
 
+/**
+ * Longueurs maximales reprises telles quelles des contraintes `@Size` de `ClientRequest`.
+ * Elles servent à la fois d'attribut `maxLength` (l'utilisateur ne peut pas dépasser) et de
+ * garde-fou à la validation (une valeur collée ou héritée peut, elle, être trop longue).
+ */
+const MAX_LENGTHS = {
+  firstName: 100,
+  lastName: 100,
+  email: 100,
+  address: 255,
+  city: 100,
+  postalCode: 20,
+  country: 100,
+  company: 50,
+};
+
+/** Même expression que le `@Pattern` du backend : refuser ici ce qu'il refusera de toute façon. */
+const PHONE_PATTERN = /^[0-9+\- ]{6,20}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Champs facultatifs : vides, ils partent à `null` plutôt qu'en chaîne vide (cf. `buildPayload`). */
+const OPTIONAL_TEXT_FIELDS = ['email', 'address', 'city', 'postalCode', 'country', 'company'];
+
+/** Ordre visuel des champs : sert à choisir lequel recevoir le focus quand plusieurs sont en erreur. */
+const FIELD_ORDER = [
+  'firstName', 'lastName', 'company', 'email', 'phone', 'address', 'postalCode', 'city', 'country',
+];
+
+const TYPE_OPTIONS = [
+  { value: 'PARTICULIER', icon: User, labelKey: 'clients.typeIndividual', hintKey: 'clients.typeIndividualHint' },
+  { value: 'ENTREPRISE', icon: Building2, labelKey: 'clients.typeBusiness', hintKey: 'clients.typeBusinessHint' },
+];
+
+/**
+ * Valide le formulaire en une passe et renvoie les messages par champ.
+ * La fonction est pure : le composant la rejoue à chaque frappe et décide seulement *quand*
+ * afficher chaque message (champ visité ou tentative d'enregistrement), ce qui évite de
+ * signaler une erreur sur un champ que l'utilisateur n'a pas encore atteint.
+ */
+const validateClient = (data, t) => {
+  const errors = {};
+  const trimmed = (field) => (data[field] || '').trim();
+
+  if (!trimmed('firstName')) errors.firstName = t('clients.errorFirstNameRequired');
+  if (!trimmed('lastName')) errors.lastName = t('clients.errorLastNameRequired');
+
+  if (!trimmed('phone')) errors.phone = t('clients.errorPhoneRequired');
+  else if (!PHONE_PATTERN.test(trimmed('phone'))) errors.phone = t('clients.errorPhoneFormat');
+
+  if (trimmed('email') && !EMAIL_PATTERN.test(trimmed('email'))) {
+    errors.email = t('clients.errorEmailFormat');
+  }
+
+  // La raison sociale identifie l'entreprise sur ses documents : on l'exige pour ce type
+  // uniquement, un particulier n'ayant pas de société à renseigner.
+  if (data.type === 'ENTREPRISE' && !trimmed('company')) {
+    errors.company = t('clients.errorCompanyRequired');
+  }
+
+  Object.entries(MAX_LENGTHS).forEach(([field, max]) => {
+    if (!errors[field] && trimmed(field).length > max) {
+      errors[field] = t('clients.errorMaxLength', { max });
+    }
+  });
+
+  return errors;
+};
+
+/**
+ * Prépare le corps de la requête : valeurs élaguées, et facultatifs vides remis à `null`.
+ * Envoyer une chaîne vide pour l'email le ferait enregistrer tel quel, et le contrôle d'unicité
+ * du backend refuserait alors le client suivant sans email.
+ */
+const buildPayload = (data) => {
+  const payload = { type: data.type, active: data.active };
+  ['firstName', 'lastName', 'phone'].forEach((field) => {
+    payload[field] = (data[field] || '').trim();
+  });
+  OPTIONAL_TEXT_FIELDS.forEach((field) => {
+    payload[field] = (data[field] || '').trim() || null;
+  });
+  payload.email = payload.email ? payload.email.toLowerCase() : null;
+  return payload;
+};
+
+/**
+ * Bloc de formulaire : intitulé et intention à gauche, champs à droite sur grand écran.
+ * Cette mise en page donne au lecteur un point d'entrée par section plutôt qu'une suite
+ * indifférenciée de champs, et laisse la place d'expliquer à quoi sert chaque groupe.
+ */
+const FormSection = ({ icon: Icon, title, description, children }) => (
+  <section className="grid gap-4 py-6 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] lg:gap-8">
+    <div className="flex items-start gap-3">
+      {Icon && (
+        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-500/15 dark:text-primary-300">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      )}
+      <div className="min-w-0">
+        <h3 className="subsection-title">{title}</h3>
+        <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{description}</p>
+      </div>
+    </div>
+    <div className="space-y-5">{children}</div>
+  </section>
+);
+
 const fullName = (client) => `${client?.firstName || ''} ${client?.lastName || ''}`.trim();
+
+/** Adresse postale mise en lignes, dans l'ordre où on l'écrit sur une enveloppe. */
+const addressLines = (client) => [
+  client?.address,
+  [client?.postalCode, client?.city].filter(Boolean).join(' '),
+  client?.country,
+].filter((line) => line && line.trim());
+
+/** Bouton de contact de l'en-tête de fiche (écrire, appeler, copier). */
+const QUICK_ACTION_CLASS =
+  'inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-soft transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600';
+
+/** Copie d'une valeur isolée (e-mail, téléphone, adresse), au bout de sa propre ligne. */
+const CopyButton = ({ value, label, onCopy }) => (
+  <button
+    type="button"
+    onClick={() => onCopy(value)}
+    className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+    title={label}
+    aria-label={label}
+  >
+    <Copy className="h-4 w-4" aria-hidden="true" />
+  </button>
+);
+
+/** Raccourci vers le formulaire, proposé là où une information essentielle manque. */
+const CompleteButton = ({ label, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-500/10"
+  >
+    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+    {label}
+  </button>
+);
 
 const initials = (client) =>
   `${(client?.firstName || '?').charAt(0)}${(client?.lastName || '').charAt(0)}`.toUpperCase();
@@ -124,7 +268,18 @@ const Clients = () => {
   // Vue par défaut : seul le dernier client ajouté est mis en avant ; la liste complète
   // s'obtient par la bascule d'affichage, ou dès qu'une recherche / un filtre est actif.
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
+
   const [formData, setFormData] = useState(EMPTY_FORM);
+  // Valeurs à l'ouverture : comparées à la saisie pour savoir si le formulaire a bougé
+  // (bouton d'enregistrement inutile à vide, garde-fou à la fermeture).
+  const [initialForm, setInitialForm] = useState(EMPTY_FORM);
+  const [touched, setTouched] = useState({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler, email déjà pris…) :
+  // conservées à part des erreurs locales, elles ne se recalculent pas à la frappe et sont
+  // levées champ par champ dès que l'utilisateur corrige la valeur incriminée.
+  const [serverErrors, setServerErrors] = useState({});
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -143,16 +298,73 @@ const Clients = () => {
     }
   };
 
+  // ---- Formulaire : saisie, validation, enregistrement ----
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    // Le verdict du serveur portait sur l'ancienne valeur : il n'a plus de sens dès qu'elle change.
+    setServerErrors((prev) => (prev[name] === undefined ? prev : { ...prev, [name]: undefined }));
+  };
+
+  // Une erreur ne s'affiche qu'une fois le champ quitté : signaler « le prénom est obligatoire »
+  // à la première lettre tapée serait juste mais insupportable.
+  const handleBlur = (e) => {
+    const { name } = e.target;
+    setTouched((prev) => (prev[name] ? prev : { ...prev, [name]: true }));
+  };
+
+  const formErrors = useMemo(() => validateClient(formData, t), [formData, t]);
+
+  const visibleErrors = useMemo(() => {
+    const shown = {};
+    Object.entries(formErrors).forEach(([field, message]) => {
+      if (submitAttempted || touched[field]) shown[field] = message;
+    });
+    Object.entries(serverErrors).forEach(([field, message]) => {
+      if (message) shown[field] = message;
+    });
+    return shown;
+  }, [formErrors, serverErrors, submitAttempted, touched]);
+
+  const isCompany = formData.type === 'ENTREPRISE';
+
+  // Libellés tels qu'affichés à l'écran : le récapitulatif d'erreurs doit nommer les champs
+  // comme l'utilisateur les voit, pas comme le DTO les nomme.
+  const fieldLabels = useMemo(() => ({
+    firstName: t('clients.firstName'),
+    lastName: t('clients.lastName'),
+    company: isCompany ? t('clients.legalNameLabel') : t('clients.companyLabel'),
+    email: t('clients.email'),
+    phone: t('clients.phone'),
+    address: t('clients.streetLabel'),
+    postalCode: t('clients.postalCode'),
+    city: t('clients.city'),
+    country: t('clients.country'),
+  }), [t, isCompany]);
+
+  const invalidFields = FIELD_ORDER.filter((field) => visibleErrors[field]);
+  const isDirty = FIELD_KEYS.some((key) => formData[key] !== initialForm[key]);
+  // En modification, un enregistrement à l'identique n'apporte rien : le bouton reste inactif
+  // tant que rien n'a bougé, et la mention à côté explique pourquoi.
+  const canSubmit = !saving && (!editingClient || isDirty);
+
+  const focusField = (field) => {
+    document.getElementById(field)?.focus();
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setSubmitAttempted(true);
+
+    const remaining = FIELD_ORDER.filter((field) => formErrors[field]);
+    if (remaining.length > 0) {
+      focusField(remaining[0]);
+      return;
+    }
     setShowConfirmModal(true);
   };
 
@@ -162,46 +374,103 @@ const Clients = () => {
     toast.loading(editingClient ? t('clients.savingEdit') : t('clients.savingCreate'), { id: toastId });
 
     try {
+      const payload = buildPayload(formData);
       if (editingClient) {
-        await clientService.updateClient(editingClient.id, formData);
+        await clientService.updateClient(editingClient.id, payload);
         toast.success(t('clients.updatedSuccess'), { id: toastId });
       } else {
-        await clientService.createClient(formData);
+        await clientService.createClient(payload);
         toast.success(t('clients.createdSuccess'), { id: toastId });
       }
 
       await fetchClients();
-      handleCloseModal();
+      closeForm();
     } catch (error) {
       console.error('Error saving client:', error);
       const raw = error.response?.data;
       const message = typeof raw === 'string' ? raw : (raw?.message || raw?.error || t('clients.saveError'));
+
+      // Le refus du serveur est ramené sur le champ concerné plutôt que sur un simple toast :
+      // l'utilisateur voit quoi corriger sans relire tout le formulaire.
+      const fieldErrors = typeof raw === 'object' && raw?.fieldErrors ? { ...raw.fieldErrors } : {};
+      if (error.response?.status === 409) {
+        fieldErrors.email = t('clients.errorEmailTaken');
+      }
+      const flagged = FIELD_ORDER.filter((field) => fieldErrors[field]);
+      if (flagged.length > 0) {
+        setServerErrors(fieldErrors);
+        setSubmitAttempted(true);
+        setTimeout(() => focusField(flagged[0]), 0);
+      }
+
       toast.error(`${t('common.errorPrefix')}${message}`, { id: toastId, duration: 6000 });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEdit = (client) => {
-    setEditingClient(client);
+  /** Ouvre le formulaire sur des valeurs données, en repartant d'un état de validation vierge. */
+  const openForm = (client) => {
     // On ne reprend que les champs du formulaire : l'objet reçu de l'API porte aussi `id`,
     // `name`, `createdAt`… que le DTO de requête n'attend pas.
-    setFormData({
-      firstName: client.firstName || '',
-      lastName: client.lastName || '',
-      email: client.email || '',
-      phone: client.phone || '',
-      address: client.address || '',
-      city: client.city || '',
-      postalCode: client.postalCode || '',
-      country: client.country || '',
-      company: client.company || '',
-      type: client.type || 'PARTICULIER',
-      active: client.active !== false,
-    });
+    const values = client
+      ? {
+          firstName: client.firstName || '',
+          lastName: client.lastName || '',
+          email: client.email || '',
+          phone: client.phone || '',
+          address: client.address || '',
+          city: client.city || '',
+          postalCode: client.postalCode || '',
+          country: client.country || '',
+          company: client.company || '',
+          type: client.type || 'PARTICULIER',
+          active: client.active !== false,
+        }
+      : EMPTY_FORM;
+
+    setEditingClient(client || null);
+    setFormData(values);
+    setInitialForm(values);
+    setTouched({});
+    setSubmitAttempted(false);
+    setServerErrors({});
     setSelectedClient(null);
     setShowModal(true);
   };
+
+  const handleEdit = (client) => openForm(client);
+
+  // Le premier champ prend le focus à l'ouverture : la saisie démarre au clavier sans détour
+  // par la souris. Le délai laisse l'animation d'ouverture de la modale se poser.
+  useEffect(() => {
+    if (!showModal) return undefined;
+    const timer = setTimeout(() => focusField('firstName'), 150);
+    return () => clearTimeout(timer);
+  }, [showModal]);
+
+  /**
+   * Copie une valeur de la fiche dans le presse-papiers.
+   * L'API n'est disponible qu'en contexte sécurisé (https / localhost) : l'échec est signalé
+   * plutôt que silencieux, sans quoi l'utilisateur croirait avoir copié.
+   */
+  const copyValue = async (value, message) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(message || t('clients.copied'));
+    } catch (error) {
+      console.error('Clipboard error:', error);
+      toast.error(t('clients.copyError'));
+    }
+  };
+
+  /** Coordonnées complètes en un bloc, prêtes à coller dans un e-mail ou un carnet d'adresses. */
+  const copyContactCard = (client) => {
+    const lines = [fullName(client), client.company, client.email, client.phone, ...addressLines(client)];
+    copyValue(lines.filter(Boolean).join('\n'), t('clients.contactCopied'));
+  };
+
+  const selectedAddress = selectedClient ? addressLines(selectedClient) : [];
 
   const confirmDelete = async () => {
     if (!clientToDelete) return;
@@ -211,6 +480,9 @@ const Clients = () => {
     try {
       await clientService.deleteClient(clientToDelete.id);
       toast.success(t('clients.deleteSuccess'), { id: toastId });
+      // La suppression peut être lancée depuis la fiche elle-même : la laisser ouverte
+      // afficherait un client qui n'existe plus.
+      if (selectedClient?.id === clientToDelete.id) setSelectedClient(null);
       await fetchClients();
     } catch (error) {
       console.error('Error deleting client:', error);
@@ -242,10 +514,28 @@ const Clients = () => {
     }
   };
 
-  const handleCloseModal = () => {
+  const closeForm = () => {
     setShowModal(false);
+    setShowDiscardConfirm(false);
     setEditingClient(null);
     setFormData(EMPTY_FORM);
+    setInitialForm(EMPTY_FORM);
+    setTouched({});
+    setSubmitAttempted(false);
+    setServerErrors({});
+  };
+
+  /**
+   * Fermeture demandée par l'utilisateur (bouton Annuler, croix, clic sur le fond).
+   * Une saisie en cours n'est jamais jetée sans confirmation : le fond de la modale se ferme
+   * au moindre clic à côté, et perdre un formulaire rempli à cette occasion est un incident réel.
+   */
+  const requestCloseForm = () => {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    closeForm();
   };
 
   const stats = useMemo(() => ({
@@ -559,7 +849,7 @@ const Clients = () => {
         <p className="font-medium text-gray-700 dark:text-gray-300">{t('clients.emptyTitle')}</p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('clients.emptyHint')}</p>
       </div>
-      <Button variant="primary" size="sm" icon={Plus} onClick={() => setShowModal(true)}>
+      <Button variant="primary" size="sm" icon={Plus} onClick={() => openForm(null)}>
         {t('clients.addClient')}
       </Button>
     </div>
@@ -587,7 +877,7 @@ const Clients = () => {
               {t('common.export')}
             </Button>
           )}
-          <Button variant="primary" icon={Plus} onClick={() => setShowModal(true)}>
+          <Button variant="primary" icon={Plus} onClick={() => openForm(null)}>
             {t('clients.addClient')}
           </Button>
         </div>
@@ -743,88 +1033,161 @@ const Clients = () => {
         )}
       </div>
 
-      {/* ---- Fiche client (lecture seule) ---- */}
+      {/* ---- Fiche client (lecture seule) ----
+       * Même largeur que le formulaire : passer de l'un à l'autre ne fait plus sauter la fenêtre,
+       * et les coordonnées tiennent à côté de l'adresse au lieu de se suivre en un seul fil. */}
       <Modal
         isOpen={!!selectedClient}
         onClose={() => setSelectedClient(null)}
         title={t('clients.clientDetails')}
-        size="md"
+        size="lg"
       >
         {selectedClient && (
           <div className="space-y-6">
-            <div className="flex items-start gap-4 pb-5 border-b border-gray-200 dark:border-gray-700">
-              <ClientAvatar client={selectedClient} size="lg" />
-              <div className="min-w-0">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
-                  {fullName(selectedClient)}
-                </h3>
-                {selectedClient.company && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{selectedClient.company}</p>
-                )}
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  {typeBadge(selectedClient)}
-                  {statusBadge(selectedClient)}
+            {/* En-tête pleine largeur : identité, qualification et actions de contact au même
+                endroit. Ce sont les seules choses que l'on vient chercher en ouvrant une fiche —
+                elles ne doivent pas se disputer la place avec le reste. */}
+            <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
+              {/* Sur large écran, identité à gauche et actions de contact à droite : la largeur
+                  gagnée sert à mettre les deux à hauteur de regard plutôt qu'à les empiler. */}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+                <div className="flex min-w-0 items-start gap-4">
+                  <ClientAvatar client={selectedClient} size="lg" />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                      {fullName(selectedClient)}
+                    </h3>
+                    {selectedClient.company && (
+                      <p className="truncate text-sm text-gray-500 dark:text-gray-400">{selectedClient.company}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {typeBadge(selectedClient)}
+                      {statusBadge(selectedClient)}
+                      <span className="inline-flex items-center gap-1 text-xs tabular-nums text-gray-400 dark:text-gray-500">
+                        <Hash className="h-3 w-3" aria-hidden="true" />
+                        {selectedClient.id}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions de contact : joindre le client est le geste le plus fréquent après
+                    la consultation, il ne doit pas demander de recopier une adresse à la main. */}
+                <div className="flex flex-wrap gap-2 lg:flex-shrink-0 lg:justify-end">
+                  {selectedClient.email && (
+                    <a href={`mailto:${selectedClient.email}`} className={QUICK_ACTION_CLASS}>
+                      <Mail className="h-4 w-4" aria-hidden="true" />
+                      {t('clients.quickEmail')}
+                    </a>
+                  )}
+                  {selectedClient.phone && (
+                    <a href={`tel:${selectedClient.phone}`} className={QUICK_ACTION_CLASS}>
+                      <Phone className="h-4 w-4" aria-hidden="true" />
+                      {t('clients.quickCall')}
+                    </a>
+                  )}
+                  <button type="button" onClick={() => copyContactCard(selectedClient)} className={QUICK_ACTION_CLASS}>
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    {t('clients.copyContact')}
+                  </button>
                 </div>
               </div>
-            </div>
+            </header>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* `items-start` : les deux blocs n'ont pas la même hauteur et n'ont aucune raison
+                de s'étirer l'un sur l'autre. */}
+            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
               <section className="space-y-3">
-                <h4 className="subsection-title">{t('clients.sectionContact')}</h4>
-                <dl className="space-y-3">
+                <h4 className="subsection-title flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  {t('clients.sectionContact')}
+                </h4>
+                <dl className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-700/60 dark:border-gray-700">
                   <InfoRow
                     icon={Mail}
                     label={t('clients.email')}
                     value={selectedClient.email}
                     href={selectedClient.email ? `mailto:${selectedClient.email}` : undefined}
+                    className="px-4 py-3"
+                    action={selectedClient.email
+                      ? <CopyButton value={selectedClient.email} label={t('clients.copyEmail')} onCopy={copyValue} />
+                      : <CompleteButton label={t('clients.completeProfile')} onClick={() => handleEdit(selectedClient)} />}
                   />
                   <InfoRow
                     icon={Phone}
                     label={t('clients.phone')}
                     value={selectedClient.phone}
                     href={selectedClient.phone ? `tel:${selectedClient.phone}` : undefined}
+                    className="px-4 py-3"
+                    action={selectedClient.phone
+                      ? <CopyButton value={selectedClient.phone} label={t('clients.copyPhone')} onCopy={copyValue} />
+                      : null}
                   />
                 </dl>
               </section>
 
               <section className="space-y-3">
-                <h4 className="subsection-title">{t('clients.sectionAddress')}</h4>
-                <dl className="space-y-3">
-                  <InfoRow icon={MapPin} label={t('clients.address')} value={selectedClient.address} />
-                  <InfoRow
-                    icon={MapPin}
-                    label={t('clients.city')}
-                    value={[selectedClient.postalCode, selectedClient.city].filter(Boolean).join(' ')}
-                  />
-                  <InfoRow icon={Globe} label={t('clients.country')} value={selectedClient.country} />
-                </dl>
+                <h4 className="subsection-title flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  {t('clients.sectionAddress')}
+                </h4>
+                {/* Une adresse postale se lit en bloc, pas champ par champ : trois lignes
+                    étiquetées séparément obligeaient à la recomposer mentalement pour l'utiliser. */}
+                {selectedAddress.length > 0 ? (
+                  <dl className="rounded-xl border border-gray-200 dark:border-gray-700">
+                    <InfoRow
+                      icon={MapPin}
+                      label={t('clients.postalAddressLabel')}
+                      value={(
+                        <span className="block leading-relaxed">
+                          {selectedAddress.map((line, index) => (
+                            <span key={`${index}-${line}`} className="block">{line}</span>
+                          ))}
+                        </span>
+                      )}
+                      className="px-4 py-3"
+                      action={(
+                        <CopyButton
+                          value={selectedAddress.join('\n')}
+                          label={t('clients.copyAddress')}
+                          onCopy={copyValue}
+                        />
+                      )}
+                    />
+                  </dl>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('clients.noAddress')}</p>
+                    <CompleteButton label={t('clients.completeProfile')} onClick={() => handleEdit(selectedClient)} />
+                  </div>
+                )}
               </section>
             </div>
 
-            <section className="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
-              <h4 className="subsection-title pt-3">{t('clients.sectionTracking')}</h4>
-              <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <InfoRow icon={Hash} label={t('clients.reference')} value={`#${selectedClient.id}`} />
-                <InfoRow
-                  icon={CalendarClock}
-                  label={t('clients.createdAtLabel')}
-                  value={formatDateTime(selectedClient.createdAt)}
-                />
-                <InfoRow
-                  icon={CalendarClock}
-                  label={t('clients.updatedAtLabel')}
-                  value={formatDateTime(selectedClient.updatedAt)}
-                />
-              </dl>
-            </section>
+            {/* Traçabilité : utile pour arbitrer un doute, jamais pour travailler. Réduite à une
+                ligne de bas de fiche plutôt qu'à une section de même rang que les coordonnées. */}
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                {t('clients.createdAtLabel')} {formatDateTime(selectedClient.createdAt)}
+              </span>
+              <span>{t('clients.updatedAtLabel')} {formatDateTime(selectedClient.updatedAt)}</span>
+            </p>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Button variant="secondary" onClick={() => setSelectedClient(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button variant="primary" icon={Edit} onClick={() => handleEdit(selectedClient)}>
-                {t('common.edit')}
-              </Button>
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+              {isAdmin && (
+                <Button variant="danger" icon={Trash2} onClick={() => setClientToDelete(selectedClient)}>
+                  {t('common.delete')}
+                </Button>
+              )}
+              <div className="ml-auto flex items-center gap-3">
+                <Button variant="secondary" onClick={() => setSelectedClient(null)}>
+                  {t('common.close')}
+                </Button>
+                <Button variant="primary" icon={Edit} onClick={() => handleEdit(selectedClient)}>
+                  {t('common.edit')}
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -833,162 +1196,302 @@ const Clients = () => {
       {/* ---- Formulaire ---- */}
       <Modal
         isOpen={showModal}
-        onClose={handleCloseModal}
+        onClose={requestCloseForm}
         title={editingClient ? t('clients.editClient') : t('clients.newClient')}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Le formulaire suit l'ordre de lecture de la fiche : qui, comment le joindre, où. */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <User className="w-5 h-5 text-primary-600" aria-hidden="true" />
-              <h3 className="subsection-title">{t('clients.columnName')}</h3>
+        {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont les
+            bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
+        <form onSubmit={handleSubmit} noValidate>
+          {/* Récapitulatif des champs à corriger. Sur un formulaire de cette hauteur, le champ
+              fautif peut se trouver hors écran au moment où l'on clique sur « Enregistrer » :
+              chaque entrée y ramène directement le focus. */}
+          {submitAttempted && invalidFields.length > 0 && (
+            <div
+              role="alert"
+              className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10"
+            >
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold text-red-800 dark:text-red-300">
+                  {t('clients.formErrorTitle', { count: invalidFields.length })}
+                </p>
+                <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-red-700 dark:text-red-300/90">
+                  {invalidFields.map((field) => (
+                    <li key={field}>
+                      <button
+                        type="button"
+                        onClick={() => focusField(field)}
+                        className="underline underline-offset-2 hover:no-underline"
+                      >
+                        {fieldLabels[field]}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          )}
+
+          {/* Le formulaire suit l'ordre de lecture de la fiche : de quel type de client s'agit-il,
+              qui est-ce, comment le joindre, où le facturer, et sous quel statut l'enregistrer. */}
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            <FormSection
+              icon={UserCheck}
+              title={t('clients.typeLabel')}
+              description={t('clients.sectionTypeHint')}
+            >
+              {/* Deux choix seulement, et ils commandent le reste du formulaire (raison sociale
+                  exigée pour une entreprise) : des cartes lisibles d'un coup d'œil valent mieux
+                  qu'une liste déroulante qu'il faut ouvrir pour connaître les options. */}
+              <div role="radiogroup" aria-label={t('clients.typeLabel')} className="grid gap-3 sm:grid-cols-2">
+                {TYPE_OPTIONS.map((option) => {
+                  const OptionIcon = option.icon;
+                  const selected = formData.type === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`relative flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
+                        selected
+                          ? 'border-primary-500 bg-primary-50/60 dark:border-primary-400 dark:bg-primary-500/10'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-gray-600 dark:hover:bg-gray-700/40'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="type"
+                        value={option.value}
+                        checked={selected}
+                        onChange={handleInputChange}
+                        className="peer sr-only"
+                      />
+                      {/* L'anneau de focus est porté par ce calque : l'input est masqué (`sr-only`)
+                          et ne peut donc pas montrer lui-même qu'il a le focus clavier. */}
+                      <span className="pointer-events-none absolute inset-0 rounded-xl peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-gray-800" />
+                      <OptionIcon
+                        className={`h-5 w-5 flex-shrink-0 ${selected ? 'text-primary-600 dark:text-primary-300' : 'text-gray-400'}`}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          {t(option.labelKey)}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                          {t(option.hintKey)}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </FormSection>
+
+            <FormSection
+              icon={User}
+              title={t('clients.sectionIdentity')}
+              description={t('clients.sectionIdentityHint')}
+            >
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <FormInput
+                  label={t('clients.firstName')}
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('clients.firstNamePlaceholder')}
+                  error={visibleErrors.firstName}
+                  maxLength={MAX_LENGTHS.firstName}
+                  autoComplete="given-name"
+                  required
+                  icon={User}
+                />
+                <FormInput
+                  label={t('clients.lastName')}
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('clients.lastNamePlaceholder')}
+                  error={visibleErrors.lastName}
+                  maxLength={MAX_LENGTHS.lastName}
+                  autoComplete="family-name"
+                  required
+                  icon={User}
+                />
+              </div>
               <FormInput
-                label={t('clients.firstName')}
-                name="firstName"
-                value={formData.firstName}
-                onChange={handleInputChange}
-                placeholder={t('clients.firstNamePlaceholder')}
-                required
-                icon={User}
-              />
-              <FormInput
-                label={t('clients.lastName')}
-                name="lastName"
-                value={formData.lastName}
-                onChange={handleInputChange}
-                placeholder={t('clients.lastNamePlaceholder')}
-                required
-                icon={User}
-              />
-              <FormSelect
-                label={t('clients.typeLabel')}
-                name="type"
-                value={formData.type}
-                onChange={handleInputChange}
-                required
-                options={[
-                  { value: 'PARTICULIER', label: t('clients.typeIndividual') },
-                  { value: 'ENTREPRISE', label: t('clients.typeBusiness') },
-                ]}
-              />
-              <FormInput
-                label={t('clients.companyLabel')}
+                label={isCompany ? t('clients.legalNameLabel') : t('clients.companyLabel')}
                 name="company"
                 value={formData.company}
                 onChange={handleInputChange}
+                onBlur={handleBlur}
                 placeholder={t('clients.companyPlaceholder')}
+                error={visibleErrors.company}
+                hint={isCompany ? t('clients.legalNameHint') : t('clients.companyOptionalHint')}
+                maxLength={MAX_LENGTHS.company}
+                autoComplete="organization"
+                required={isCompany}
                 icon={Building2}
               />
-            </div>
-          </section>
+            </FormSection>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <Mail className="w-5 h-5 text-primary-600" aria-hidden="true" />
-              <h3 className="subsection-title">{t('clients.sectionContact')}</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormInput
-                label={t('clients.email')}
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder={t('clients.emailPlaceholder')}
-                icon={Mail}
-              />
-              <FormInput
-                label={t('clients.phone')}
-                name="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={handleInputChange}
-                placeholder={t('clients.phonePlaceholder')}
-                required
-                icon={Phone}
-              />
-            </div>
-          </section>
+            <FormSection
+              icon={Mail}
+              title={t('clients.sectionContact')}
+              description={t('clients.sectionContactHint')}
+            >
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <FormInput
+                  label={t('clients.phone')}
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('clients.phonePlaceholder')}
+                  error={visibleErrors.phone}
+                  hint={t('clients.phoneHint')}
+                  autoComplete="tel"
+                  required
+                  icon={Phone}
+                />
+                <FormInput
+                  label={t('clients.email')}
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('clients.emailPlaceholder')}
+                  error={visibleErrors.email}
+                  hint={t('clients.emailHint')}
+                  maxLength={MAX_LENGTHS.email}
+                  autoComplete="email"
+                  icon={Mail}
+                />
+              </div>
+            </FormSection>
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-              <MapPin className="w-5 h-5 text-primary-600" aria-hidden="true" />
-              <h3 className="subsection-title">{t('clients.sectionAddress')}</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormSection
+              icon={MapPin}
+              title={t('clients.sectionAddress')}
+              description={t('clients.sectionAddressHint')}
+            >
               <FormInput
-                label={t('clients.address')}
+                label={t('clients.streetLabel')}
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
+                onBlur={handleBlur}
                 placeholder={t('clients.addressPlaceholder')}
+                error={visibleErrors.address}
+                maxLength={MAX_LENGTHS.address}
+                autoComplete="street-address"
                 icon={MapPin}
               />
-              <FormInput
-                label={t('clients.city')}
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                placeholder={t('clients.cityPlaceholder')}
-                icon={MapPin}
-              />
-              <FormInput
-                label={t('clients.postalCode')}
-                name="postalCode"
-                value={formData.postalCode}
-                onChange={handleInputChange}
-                placeholder={t('clients.postalCodePlaceholder')}
-              />
+              {/* Code postal et ville se lisent comme sur une enveloppe : le premier, court,
+                  ne mérite pas la même largeur que la seconde. */}
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <FormInput
+                  label={t('clients.postalCode')}
+                  name="postalCode"
+                  value={formData.postalCode}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  placeholder={t('clients.postalCodePlaceholder')}
+                  error={visibleErrors.postalCode}
+                  maxLength={MAX_LENGTHS.postalCode}
+                  autoComplete="postal-code"
+                />
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label={t('clients.city')}
+                    name="city"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    onBlur={handleBlur}
+                    placeholder={t('clients.cityPlaceholder')}
+                    error={visibleErrors.city}
+                    maxLength={MAX_LENGTHS.city}
+                    autoComplete="address-level2"
+                  />
+                </div>
+              </div>
               <FormInput
                 label={t('clients.country')}
                 name="country"
                 value={formData.country}
                 onChange={handleInputChange}
+                onBlur={handleBlur}
                 placeholder={t('clients.countryPlaceholder')}
+                error={visibleErrors.country}
+                maxLength={MAX_LENGTHS.country}
+                autoComplete="country-name"
                 icon={Globe}
               />
-            </div>
-          </section>
+            </FormSection>
 
-          {/* Interrupteur plutôt qu'une case à cocher : l'effet du réglage est écrit à côté,
-              un client inactif restant invisible dans les sélecteurs de commande. */}
-          <div className="flex items-center justify-between gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
-            <div>
-              <label htmlFor="active" className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
-                {t('clients.activeLabel')}
-              </label>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {formData.active ? t('clients.active') : t('clients.inactive')}
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                id="active"
-                name="active"
-                checked={formData.active}
-                onChange={handleInputChange}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-            </label>
+            <FormSection
+              icon={ToggleRight}
+              title={t('clients.sectionStatus')}
+              description={t('clients.sectionStatusHint')}
+            >
+              {/* Interrupteur plutôt qu'une case à cocher : l'effet du réglage est écrit à côté,
+                  un client inactif restant invisible dans les sélecteurs de commande. */}
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                <div className="min-w-0">
+                  <label htmlFor="active" className="cursor-pointer font-medium text-gray-900 dark:text-gray-100">
+                    {t('clients.activeLabel')}
+                  </label>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    {formData.active ? t('clients.activeStateHint') : t('clients.inactiveStateHint')}
+                  </p>
+                </div>
+                <label className="relative inline-flex flex-shrink-0 cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    id="active"
+                    name="active"
+                    checked={formData.active}
+                    onChange={handleInputChange}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 dark:bg-gray-600 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                </label>
+              </div>
+            </FormSection>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="secondary" onClick={handleCloseModal} type="button">
-              {t('common.cancel')}
-            </Button>
-            <Button variant="primary" type="submit" loading={saving}>
-              {editingClient ? t('common.saveChanges') : t('common.create')}
-            </Button>
+          {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
+              défile mais l'enregistrement reste sous la main, sans avoir à chercher le bas. */}
+          <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {editingClient && !isDirty ? t('clients.noChanges') : t('clients.requiredHint')}
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="secondary" onClick={requestCloseForm} type="button">
+                {t('common.cancel')}
+              </Button>
+              <Button variant="primary" type="submit" loading={saving} disabled={!canSubmit}>
+                {editingClient ? t('common.saveChanges') : t('clients.createButton')}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>
 
       {/* ---- Confirmations ---- */}
+      <ConfirmModal
+        isOpen={showDiscardConfirm}
+        onClose={() => setShowDiscardConfirm(false)}
+        onConfirm={closeForm}
+        title={t('clients.discardTitle')}
+        message={t('clients.discardMessage')}
+        type="warning"
+        confirmLabel={t('clients.discardConfirm')}
+        cancelLabel={t('clients.discardCancel')}
+      />
+
       <ConfirmModal
         isOpen={showConfirmModal}
         onClose={() => setShowConfirmModal(false)}
