@@ -1,34 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Building2, Globe, Mail, MapPin, Phone, ToggleRight, User, UserCheck } from 'lucide-react';
 import FormInput from './FormInput';
+import FormSection from './FormSection';
 import { CLIENT_FIELD_ORDER, CLIENT_MAX_LENGTHS, clientFieldLabels } from '../utils/clientForm';
 
 const TYPE_OPTIONS = [
   { value: 'PARTICULIER', icon: User, labelKey: 'clients.typeIndividual', hintKey: 'clients.typeIndividualHint' },
   { value: 'ENTREPRISE', icon: Building2, labelKey: 'clients.typeBusiness', hintKey: 'clients.typeBusinessHint' },
 ];
-
-/**
- * Bloc de formulaire : intitulé et intention à gauche, champs à droite sur grand écran.
- * Cette mise en page donne au lecteur un point d'entrée par section plutôt qu'une suite
- * indifférenciée de champs, et laisse la place d'expliquer à quoi sert chaque groupe.
- */
-const FormSection = ({ icon: Icon, title, description, children }) => (
-  <section className="grid gap-4 py-6 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] lg:gap-8">
-    <div className="flex items-start gap-3">
-      {Icon && (
-        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-500/15 dark:text-primary-300">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-      )}
-      <div className="min-w-0">
-        <h3 className="subsection-title">{title}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{description}</p>
-      </div>
-    </div>
-    <div className="space-y-5">{children}</div>
-  </section>
-);
 
 /**
  * Champs d'un client, partagés par l'écran Clients et la création à la volée du panier.
