@@ -1,12 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit, Trash2, Mail, Phone, MapPin, Building2, User, Users, UserCheck,
   Eye, RefreshCw, Download, Hash, CalendarClock, Globe, X, AlertCircle, ToggleRight, Copy,
+  ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import clientService from '../services/clientService';
+import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
@@ -18,8 +21,9 @@ import StatCard from '../components/StatCard';
 import SegmentedFilter from '../components/SegmentedFilter';
 import InfoRow from '../components/InfoRow';
 import AdvancedFilters from '../components/AdvancedFilters';
+import OrderStatusBadge from '../components/OrderStatusBadge';
 import { rankSuggestions } from '../utils/searchSuggestions';
-import { formatDate, formatPercent, safeRatio } from '../utils/format';
+import { formatCurrency, formatDate, formatPercent, safeRatio } from '../utils/format';
 
 const EMPTY_FORM = {
   firstName: '',
@@ -42,6 +46,9 @@ const VIEW_MODE_KEY = 'clientsViewMode';
 
 /** Nombre de clients mis en avant dans la vue d'aperçu (les derniers ajoutés). */
 const RECENT_COUNT = 6;
+
+/** Commandes détaillées dans l'activité commerciale de la fiche ; au-delà, un simple décompte. */
+const ACTIVITY_ORDERS_SHOWN = 3;
 
 /**
  * Critères de filtrage, à l'état neutre. Sert de valeur initiale, de cible du bouton
@@ -193,6 +200,14 @@ const CopyButton = ({ value, label, onCopy }) => (
   </button>
 );
 
+/** Indicateur chiffré de l'activité commerciale (commandes, chiffre d'affaires, panier moyen). */
+const ActivityTile = ({ label, value }) => (
+  <div className="rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
+    <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{label}</dt>
+    <dd className="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{value}</dd>
+  </div>
+);
+
 /** Raccourci vers le formulaire, proposé là où une information essentielle manque. */
 const CompleteButton = ({ label, onClick }) => (
   <button
@@ -243,6 +258,7 @@ const ClientAvatar = ({ client, size = 'md' }) => {
 const Clients = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
   // Le backend réserve la suppression, la désactivation et l'export à l'ADMIN
   // (cf. ClientController) : on masque ces actions au caissier plutôt que de le laisser
   // déclencher un 403. La création et la modification lui restent ouvertes.
@@ -280,6 +296,11 @@ const Clients = () => {
   // levées champ par champ dès que l'utilisateur corrige la valeur incriminée.
   const [serverErrors, setServerErrors] = useState({});
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Activité commerciale de la fiche : chargée à l'ouverture d'un client, jamais avec la liste.
+  // Le répertoire n'a pas besoin des commandes, et les charger toutes pour n'en montrer que
+  // celles d'un client coûterait une requête énorme à chaque affichage de la page.
+  const [activity, setActivity] = useState({ loading: false, error: false, orders: [] });
 
   useEffect(() => {
     fetchClients();
@@ -471,6 +492,137 @@ const Clients = () => {
   };
 
   const selectedAddress = selectedClient ? addressLines(selectedClient) : [];
+
+  // ---- Activité commerciale ----
+
+  const loadActivity = useCallback(async (clientId) => {
+    setActivity({ loading: true, error: false, orders: [] });
+    try {
+      const { data } = await api.get(`/orders/client/${clientId}`);
+      return { loading: false, error: false, orders: data };
+    } catch (error) {
+      console.error('Error fetching client orders:', error);
+      return { loading: false, error: true, orders: [] };
+    }
+  }, []);
+
+  useEffect(() => {
+    const clientId = selectedClient?.id;
+    if (!clientId) return undefined;
+
+    // Passer d'une fiche à l'autre plus vite que le réseau ne répond ferait afficher
+    // l'activité du client précédent sous le nom du nouveau.
+    let abandoned = false;
+    loadActivity(clientId).then((result) => {
+      if (!abandoned) setActivity(result);
+    });
+    return () => { abandoned = true; };
+  }, [selectedClient?.id, loadActivity]);
+
+  const activityStats = useMemo(() => {
+    // Une commande annulée n'a rien facturé : la compter fausserait le chiffre d'affaires
+    // et le panier moyen. Elle reste dans le décompte total, signalée à part.
+    const billable = activity.orders.filter((order) => order.status !== 'CANCELED');
+    const revenue = billable.reduce(
+      (sum, order) => sum + (Number(order.finalAmount ?? order.totalAmount) || 0),
+      0,
+    );
+    const byRecency = [...activity.orders]
+      .sort((a, b) => (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)) || (b.id - a.id));
+
+    return {
+      count: activity.orders.length,
+      canceled: activity.orders.length - billable.length,
+      revenue,
+      average: billable.length > 0 ? revenue / billable.length : 0,
+      recent: byRecency.slice(0, ACTIVITY_ORDERS_SHOWN),
+    };
+  }, [activity.orders]);
+
+  // La page Commandes sait ouvrir une commande précise via `?orderId=` : la fiche s'appuie
+  // dessus plutôt que de dupliquer un écran de détail de commande.
+  const openOrder = (orderId) => navigate(`/orders?orderId=${orderId}`);
+
+  /** Corps de la section d'activité : chargement, échec, aucune commande, ou les chiffres. */
+  const renderActivity = () => {
+    if (activity.loading) {
+      return (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-busy="true">
+          {[0, 1, 2].map((slot) => (
+            <div key={slot} className="h-[4.75rem] animate-pulse rounded-xl bg-gray-100 dark:bg-gray-700/50" />
+          ))}
+        </div>
+      );
+    }
+
+    if (activity.error) {
+      return (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('clients.activityError')}</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={RefreshCw}
+            onClick={async () => setActivity(await loadActivity(selectedClient.id))}
+          >
+            {t('clients.activityRetry')}
+          </Button>
+        </div>
+      );
+    }
+
+    if (activityStats.count === 0) {
+      return (
+        <div className="rounded-xl border border-dashed border-gray-300 px-4 py-3 dark:border-gray-600">
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('clients.activityEmpty')}</p>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <ActivityTile label={t('clients.activityOrders')} value={activityStats.count} />
+          <ActivityTile label={t('clients.activityRevenue')} value={formatCurrency(activityStats.revenue)} />
+          <ActivityTile label={t('clients.activityAverage')} value={formatCurrency(activityStats.average)} />
+        </dl>
+
+        <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-700/60 dark:border-gray-700">
+          {activityStats.recent.map((order) => (
+            <li key={order.id}>
+              <button
+                type="button"
+                onClick={() => openOrder(order.id)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                aria-label={`${t('clients.openOrder')} — ${order.orderNumber}`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {order.orderNumber}
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                    {formatDate(order.createdAt)}
+                  </span>
+                </span>
+                <span className="flex flex-shrink-0 items-center gap-3">
+                  <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                    {formatCurrency(order.finalAmount ?? order.totalAmount)}
+                  </span>
+                  <OrderStatusBadge order={order} />
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {activityStats.count > activityStats.recent.length && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t('clients.activityMore', { count: activityStats.count - activityStats.recent.length })}
+          </p>
+        )}
+      </>
+    );
+  };
 
   const confirmDelete = async () => {
     if (!clientToDelete) return;
@@ -1163,6 +1315,23 @@ const Clients = () => {
                 )}
               </section>
             </div>
+
+            {/* Activité commerciale : ce que le client pèse. Placée après les coordonnées, qui
+                restent le motif d'ouverture le plus fréquent, mais avant la traçabilité. */}
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="subsection-title flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  {t('clients.sectionActivity')}
+                </h4>
+                {activityStats.canceled > 0 && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {t('clients.activityCanceled', { count: activityStats.canceled })}
+                  </span>
+                )}
+              </div>
+              {renderActivity()}
+            </section>
 
             {/* Traçabilité : utile pour arbitrer un doute, jamais pour travailler. Réduite à une
                 ligne de bas de fiche plutôt qu'à une section de même rang que les coordonnées. */}

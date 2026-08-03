@@ -74,8 +74,13 @@ public class OrderController {
 
     @GetMapping("/client/{clientId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByClient(@PathVariable Long clientId) {
-        return ResponseEntity.ok(orderService.getOrdersByClient(clientId).stream()
-                .map(orderMapper::toResponse).toList());
+        List<Order> orders = orderService.getOrdersByClient(clientId);
+        // Même résolution que la liste générale : sans le statut de facture, une commande réglée
+        // s'afficherait « Facturée » sur la fiche client et « Payée » dans la liste des commandes.
+        Map<Long, Invoice.InvoiceStatus> invoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
+                orders.stream().map(Order::getId).toList());
+        return ResponseEntity.ok(orders.stream()
+                .map(o -> orderMapper.toResponse(o, invoiceStatuses.get(o.getId()))).toList());
     }
 
     @GetMapping("/user/{userId}")

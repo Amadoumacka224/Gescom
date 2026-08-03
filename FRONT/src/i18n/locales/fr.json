@@ -235,7 +235,19 @@
     "copied": "Copié dans le presse-papiers",
     "copyError": "Copie impossible : le presse-papiers n'est pas accessible.",
     "completeProfile": "Compléter",
-    "postalAddressLabel": "Adresse postale"
+    "postalAddressLabel": "Adresse postale",
+    "sectionActivity": "Activité commerciale",
+    "activityOrders": "Commandes",
+    "activityRevenue": "Chiffre d'affaires",
+    "activityAverage": "Panier moyen",
+    "activityCanceled_one": "dont 1 annulée, hors chiffres",
+    "activityCanceled_other": "dont {{count}} annulées, hors chiffres",
+    "activityMore_one": "1 commande plus ancienne non affichée",
+    "activityMore_other": "{{count}} commandes plus anciennes non affichées",
+    "activityEmpty": "Aucune commande enregistrée pour ce client.",
+    "activityError": "Impossible de charger l'activité commerciale.",
+    "activityRetry": "Réessayer",
+    "openOrder": "Ouvrir la commande"
   },
   "products": {
     "title": "Gestion des produits",
