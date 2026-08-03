@@ -183,10 +183,6 @@ const addressLines = (client) => [
   client?.country,
 ].filter((line) => line && line.trim());
 
-/** Bouton de contact de l'en-tête de fiche (écrire, appeler, copier). */
-const QUICK_ACTION_CLASS =
-  'inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-soft transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600';
-
 /** Copie d'une valeur isolée (e-mail, téléphone, adresse), au bout de sa propre ligne. */
 const CopyButton = ({ value, label, onCopy }) => (
   <button
@@ -1227,18 +1223,18 @@ const Clients = () => {
                     la consultation, il ne doit pas demander de recopier une adresse à la main. */}
                 <div className="flex flex-wrap gap-2 lg:flex-shrink-0 lg:justify-end">
                   {selectedClient.email && (
-                    <a href={`mailto:${selectedClient.email}`} className={QUICK_ACTION_CLASS}>
+                    <a href={`mailto:${selectedClient.email}`} className="quick-action">
                       <Mail className="h-4 w-4" aria-hidden="true" />
                       {t('clients.quickEmail')}
                     </a>
                   )}
                   {selectedClient.phone && (
-                    <a href={`tel:${selectedClient.phone}`} className={QUICK_ACTION_CLASS}>
+                    <a href={`tel:${selectedClient.phone}`} className="quick-action">
                       <Phone className="h-4 w-4" aria-hidden="true" />
                       {t('clients.quickCall')}
                     </a>
                   )}
-                  <button type="button" onClick={() => copyContactCard(selectedClient)} className={QUICK_ACTION_CLASS}>
+                  <button type="button" onClick={() => copyContactCard(selectedClient)} className="quick-action">
                     <Copy className="h-4 w-4" aria-hidden="true" />
                     {t('clients.copyContact')}
                   </button>
