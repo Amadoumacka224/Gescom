@@ -232,9 +232,9 @@ const OrderWorkspaceCart = ({
       </div>
 
       {/* ───────── Lignes ───────── */}
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-2 min-h-[120px]">
+      <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[120px]">
         {items.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-10">
+          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-8">
             <ShoppingCart className="w-9 h-9 mb-2 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('orders.cart.empty')}</p>
             <p className="text-xs mt-0.5">{t('orders.cart.emptyHint')}</p>
@@ -247,9 +247,9 @@ const OrderWorkspaceCart = ({
             return (
               <div
                 key={item.productId ?? index}
-                className="flex gap-2.5 p-2.5 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700"
+                className="flex gap-2.5 p-2 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700"
               >
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shrink-0 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shrink-0 flex items-center justify-center">
                   {product?.imageUrl ? (
                     <img src={product.imageUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
@@ -282,7 +282,7 @@ const OrderWorkspaceCart = ({
                     {editable && product && t('orders.cart.stockSuffix', { qty: product.stockQuantity })}
                   </p>
 
-                  <div className="mt-1.5 flex items-center gap-2">
+                  <div className="mt-1 flex items-center gap-2">
                     {editable ? (
                       <>
                         <div className="inline-flex items-center bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
@@ -333,7 +333,7 @@ const OrderWorkspaceCart = ({
                     )}
                   </div>
 
-                  <div className="mt-1.5 flex items-end justify-between gap-2">
+                  <div className="mt-1 flex items-end justify-between gap-2">
                     {exceedsStock ? (
                       <span className="text-[11px] font-medium text-red-600 dark:text-red-400">
                         {t('orders.cart.maxStock', { qty: product.stockQuantity })}

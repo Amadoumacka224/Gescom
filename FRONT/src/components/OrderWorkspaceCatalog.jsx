@@ -53,20 +53,20 @@ const OrderWorkspaceCatalog = ({
   };
 
   return (
-    <div className="flex gap-4 flex-1 min-w-0">
+    <div className="flex gap-3 flex-1 min-w-0">
       {/* ───────── Catégories ───────── */}
-      <aside className="hidden md:flex w-44 shrink-0 flex-col bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+      <aside className="hidden md:flex w-40 shrink-0 flex-col bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
           <LayoutGrid className="w-4 h-4 text-primary-600 dark:text-primary-400" aria-hidden="true" />
           <span className="text-xs font-bold uppercase tracking-wide text-gray-600 dark:text-gray-300">
             {t('nav.categories')}
           </span>
         </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
           <button
             type="button"
             onClick={() => setCategory('ALL')}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`w-full text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               category === 'ALL'
                 ? 'bg-primary-600 text-white shadow-sm'
                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200/70 dark:hover:bg-gray-700/60'
@@ -79,7 +79,7 @@ const OrderWorkspaceCatalog = ({
               key={cat.id}
               type="button"
               onClick={() => setCategory(cat.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium truncate transition-colors ${
+              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm font-medium truncate transition-colors ${
                 category === cat.id
                   ? 'bg-primary-600 text-white shadow-sm'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200/70 dark:hover:bg-gray-700/60'
@@ -95,7 +95,7 @@ const OrderWorkspaceCatalog = ({
       </aside>
 
       {/* ───────── Recherche, scan et grille ───────── */}
-      <main className="flex-1 min-w-0 flex flex-col gap-3">
+      <main className="flex-1 min-w-0 flex flex-col gap-2.5">
         {/* La douchette saisit le code puis émet un « Entrée », capté par le onSubmit ; le bouton
             couvre la saisie manuelle. Le produit résolu part directement au panier. */}
         <form onSubmit={submitBarcode} className="flex items-center gap-2">
@@ -109,13 +109,13 @@ const OrderWorkspaceCatalog = ({
               autoFocus
               autoComplete="off"
               aria-label={t('products.barcode')}
-              className="w-full pl-10 pr-4 py-2.5 bg-primary-50/40 dark:bg-gray-700 border border-primary-200 dark:border-gray-600 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200 transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-primary-50/40 dark:bg-gray-700 border border-primary-200 dark:border-gray-600 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200 transition-all"
             />
           </div>
           <button
             type="submit"
             disabled={scanning || !barcode.trim()}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             {t('common.add')}
@@ -132,7 +132,7 @@ const OrderWorkspaceCatalog = ({
             onBlur={() => setSearchFocused(false)}
             placeholder={t('orders.catalog.searchPlaceholder')}
             aria-label={t('orders.catalog.searchLabel')}
-            className="w-full pl-10 pr-12 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200 transition-all"
+            className="w-full pl-10 pr-12 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200 transition-all"
           />
           {/* onMouseDown empêche le blur : le clic ouvre le scanner même barre active. */}
           <button
@@ -153,12 +153,14 @@ const OrderWorkspaceCatalog = ({
 
         <div className="flex-1 overflow-y-auto -mx-1 px-1">
           {filteredProducts.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-12">
+            <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-8">
               <Package className="w-10 h-10 mb-2 text-gray-300 dark:text-gray-600" aria-hidden="true" />
               <p className="text-sm">{t('orders.catalog.noMatch')}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            /* Un cran de colonnes en plus dès `md` et au-delà de `xl` : à 100 %, la grille
+               s'arrêtait à cinq colonnes sur des écrans qui en portent six confortablement. */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
               {filteredProducts.map((product) => {
                 const inCart = cartQtyByProduct[String(product.id)] || 0;
                 const outOfStock = product.stockQuantity <= 0;
@@ -178,7 +180,11 @@ const OrderWorkspaceCatalog = ({
                         : 'border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:shadow-md active:scale-[0.98]'
                     } ${inCart > 0 ? 'ring-2 ring-primary-500 border-transparent' : ''}`}
                   >
-                    <div className="aspect-square bg-gray-100 dark:bg-gray-700 relative flex items-center justify-center overflow-hidden">
+                    {/* 4/3 plutôt que carré. À 200 px de large, la vignette passe de 200 à
+                        150 px de haut : c'est elle qui pesait le plus dans la tuile, et elle
+                        identifie tout aussi bien l'article. Le gain de hauteur est obtenu ici,
+                        pas sur les libellés — un catalogue de caisse se lit de loin. */}
+                    <div className="aspect-[4/3] bg-gray-100 dark:bg-gray-700 relative flex items-center justify-center overflow-hidden">
                       {product.imageUrl ? (
                         <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                       ) : (
@@ -199,7 +205,7 @@ const OrderWorkspaceCatalog = ({
                         </span>
                       ) : null}
                     </div>
-                    <div className="p-2.5 flex flex-col flex-1 gap-0.5">
+                    <div className="p-2 flex flex-col flex-1 gap-0.5">
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight line-clamp-2">
                         {product.name}
                       </p>
