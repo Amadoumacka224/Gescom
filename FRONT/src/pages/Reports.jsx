@@ -6,7 +6,6 @@ import {
   Euro,
   ShoppingCart,
   Package,
-  Filter,
   FileText,
   FileSpreadsheet,
   RefreshCw,
@@ -21,7 +20,6 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  X,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -35,6 +33,7 @@ import {
   Tooltip,
 } from 'recharts';
 import api from '../services/api';
+import AdvancedFilters from '../components/AdvancedFilters';
 import SearchableSelect from '../components/SearchableSelect';
 import SearchBox from '../components/SearchBox';
 import SegmentedFilter from '../components/SegmentedFilter';
@@ -42,6 +41,7 @@ import StatCard from '../components/StatCard';
 import Pagination from '../components/Pagination';
 import OrderStatusBadge from '../components/OrderStatusBadge';
 import { exportToCsv, exportToPdf } from '../utils/exportData';
+import { rankSuggestions } from '../utils/searchSuggestions';
 import {
   formatCurrency,
   formatAmount,
@@ -106,6 +106,10 @@ const clientNameOf = (order, fallback) => {
     || client.company
     || fallback;
 };
+
+/** Libellé court d'un client — partagé par le sélecteur, sa pastille et l'analyse client. */
+const clientLabelOf = (client) =>
+  client?.name || `${client?.firstName || ''} ${client?.lastName || ''}`.trim() || `#${client?.id}`;
 
 const cashierNameOf = (order, fallback) => {
   const author = order.createdBy || order.user;
@@ -214,6 +218,7 @@ const Reports = () => {
   const [clients, setClients] = useState([]);
   const [orders, setOrders] = useState([]);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [granularity, setGranularity] = useState('day');
   const [sort, setSort] = useState({ key: 'date', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -243,12 +248,9 @@ const Reports = () => {
     fetchAll();
   }, [fetchAll]);
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
-  };
-
   const setFilter = (name, value) => setFilters((prev) => ({ ...prev, [name]: value }));
+
+  const resetFilters = () => setFilters(EMPTY_FILTERS);
 
   // Toute modification de filtre ramène à la première page : rester page 7 d'un résultat qui
   // n'en compte plus que 2 affichait un tableau vide sans expliquer pourquoi.
@@ -256,25 +258,48 @@ const Reports = () => {
     setCurrentPage(1);
   }, [filters, itemsPerPage]);
 
-  /** Raccourcis de période — la sélection manuelle de deux dates est l'usage le plus fréquent. */
-  const applyPreset = (preset) => {
+  /**
+   * Périodes usuelles. Chacune porte ses deux bornes : le bandeau peut donc à la fois les
+   * appliquer et déduire laquelle est en vigueur, sans stocker un troisième état qui aurait
+   * affiché « Ce mois » alors que les dates ont été retouchées à la main depuis.
+   */
+  const periodPresets = useMemo(() => {
     const now = new Date();
-    const iso = (d) => {
-      const offset = d.getTimezoneOffset() * 60 * 1000;
-      return new Date(d.getTime() - offset).toISOString().split('T')[0];
-    };
+    const today = todayISO();
+    return [
+      { value: 'all', label: t('reports.allPeriods'), startDate: '', endDate: '' },
+      { value: 'today', label: t('reports.presetToday'), startDate: today, endDate: today },
+      {
+        value: 'week',
+        label: t('reports.presetWeek'),
+        startDate: localDayKey(startOfIsoWeek(now)),
+        endDate: today,
+      },
+      {
+        value: 'month',
+        label: t('reports.presetMonth'),
+        startDate: localDayKey(new Date(now.getFullYear(), now.getMonth(), 1)),
+        endDate: today,
+      },
+      {
+        value: 'year',
+        label: t('reports.presetYear'),
+        startDate: localDayKey(new Date(now.getFullYear(), 0, 1)),
+        endDate: today,
+      },
+    ];
+  }, [t]);
 
-    if (preset === 'today') {
-      setFilters((prev) => ({ ...prev, startDate: todayISO(), endDate: todayISO() }));
-    } else if (preset === 'week') {
-      setFilters((prev) => ({ ...prev, startDate: iso(startOfIsoWeek(now)), endDate: todayISO() }));
-    } else if (preset === 'month') {
-      const first = new Date(now.getFullYear(), now.getMonth(), 1);
-      setFilters((prev) => ({ ...prev, startDate: iso(first), endDate: todayISO() }));
-    } else if (preset === 'year') {
-      const first = new Date(now.getFullYear(), 0, 1);
-      setFilters((prev) => ({ ...prev, startDate: iso(first), endDate: todayISO() }));
-    }
+  const activePreset = periodPresets.find(
+    (preset) => preset.startDate === filters.startDate && preset.endDate === filters.endDate
+  )?.value ?? 'custom';
+
+  const applyPreset = (value) => {
+    const preset = periodPresets.find((p) => p.value === value);
+    // « Personnalisé » n'est qu'un état affiché, jamais une action : les bornes viennent alors
+    // des deux champs de date du panneau.
+    if (!preset) return;
+    setFilters((prev) => ({ ...prev, startDate: preset.startDate, endDate: preset.endDate }));
   };
 
   const filteredOrders = useMemo(() => {
@@ -466,6 +491,102 @@ const Reports = () => {
     ? `${filters.startDate ? formatDate(filters.startDate) : '…'} → ${filters.endDate ? formatDate(filters.endDate) : '…'}`
     : t('reports.allPeriods');
 
+  /** Suggestions de la recherche plein texte, sur les mêmes champs que le filtrage. */
+  const orderSuggestions = useMemo(
+    () => rankSuggestions(
+      orders,
+      filters.search,
+      (order) => [order.orderNumber, clientNameOf(order, ''), cashierNameOf(order, '')],
+      8
+    ),
+    [orders, filters.search]
+  );
+
+  /**
+   * Critères du panneau replié, décrits en données plutôt qu'en JSX : le composant partagé en
+   * tire d'un coup les champs, le compteur du bouton et les pastilles de rappel, qui ne peuvent
+   * donc plus diverger de ce qui filtre réellement le rapport.
+   */
+  const filterFields = useMemo(() => [
+    {
+      key: 'userId',
+      label: t('reports.cashier'),
+      type: 'select',
+      options: [
+        { value: '', label: t('reports.allCashiers') },
+        ...users.map((user) => ({
+          value: String(user.id),
+          label: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+        })),
+      ],
+    },
+    {
+      key: 'clientId',
+      label: t('reports.client'),
+      type: 'custom',
+      chipValue: (value) => {
+        const client = clients.find((c) => String(c.id) === String(value));
+        return client ? clientLabelOf(client) : value;
+      },
+      // Combobox et non `<select>` : le fichier clients se compte en centaines de lignes, une
+      // liste déroulante native s'y parcourt à l'aveugle.
+      render: ({ value, onChange }) => (
+        <SearchableSelect
+          options={clients}
+          value={value}
+          onChange={onChange}
+          getOptionValue={(client) => client.id}
+          getOptionLabel={(client) =>
+            `${clientLabelOf(client)}${client.company ? ` • ${client.company}` : ''}`}
+          getOptionSearch={(client) => `${client.company || ''} ${client.email || ''}`}
+          placeholder={t('reports.clientPlaceholder')}
+          noResultsText={t('reports.noClientFound')}
+          minChars={0}
+          inputClassName="w-full pl-9 pr-8 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/15 outline-none transition-all"
+          renderOption={(client) => (
+            <span className="flex flex-col">
+              <span className="font-medium">
+                {clientLabelOf(client)}
+                {client.company && <span className="ml-2 text-xs text-primary-600">{client.company}</span>}
+              </span>
+              <span className="text-xs text-gray-500">
+                {[client.email, client.phone].filter(Boolean).join(' · ') || t('reports.noContact')}
+              </span>
+            </span>
+          )}
+        />
+      ),
+    },
+    {
+      key: 'status',
+      label: t('reports.status'),
+      type: 'select',
+      options: [
+        { value: '', label: t('reports.allStatuses') },
+        ...['PENDING', 'CONFIRMED', 'INVOICED', 'DELIVERED', 'CANCELED'].map((status) => ({
+          value: status,
+          label: t(`status.order.${status}`),
+        })),
+      ],
+    },
+    // Bornes croisées : une période inversée ne renvoie aucun résultat, autant l'empêcher à la
+    // saisie plutôt que d'afficher un tableau vide inexplicable.
+    {
+      key: 'startDate',
+      label: t('reports.startDate'),
+      type: 'date',
+      max: filters.endDate || undefined,
+      chipValue: formatDate,
+    },
+    {
+      key: 'endDate',
+      label: t('reports.endDate'),
+      type: 'date',
+      min: filters.startDate || undefined,
+      chipValue: formatDate,
+    },
+  ], [t, users, clients, filters.startDate, filters.endDate]);
+
   /** Colonnes communes au tableau et aux deux exports : ils ne peuvent pas diverger. */
   const exportColumns = useMemo(() => [
     { header: t('reports.columns.date'), value: (o) => formatDate(orderDateOf(o)) },
@@ -550,173 +671,68 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Filtres */}
+      {/* Recherche et filtres — même dispositif que Commandes, Factures et Historique : la
+          recherche et la période toujours accessibles, les critères précis repliés derrière un
+          bouton qui annonce combien sont actifs, et des pastilles rappelant ce qui filtre le
+          rapport. Sans ces pastilles, un critère oublié dans un panneau fermé fait passer un
+          rapport tronqué pour le rapport complet — et ici il est exporté tel quel. */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        aria-labelledby="reports-filters-heading"
+        aria-label={t('reports.filters')}
         className="card"
       >
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
-            <h2 id="reports-filters-heading" className="section-title">{t('reports.filters')}</h2>
-            {activeFilterCount > 0 && (
-              <span className="badge-info">{t('reports.activeFilters', { count: activeFilterCount })}</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Raccourcis de période : des actions, pas un état. Ils remplissent les deux
-                champs de date, qui restent modifiables à la main — d'où de simples boutons
-                plutôt qu'un groupe exclusif, qui aurait affiché « ce mois » sélectionné
-                alors que les dates ont pu être ajustées depuis. */}
-            <div role="group" aria-label={t('reports.period')} className="inline-flex items-center gap-1 p-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40">
-              {[
-                { value: 'today', label: t('reports.presetToday') },
-                { value: 'week', label: t('reports.presetWeek') },
-                { value: 'month', label: t('reports.presetMonth') },
-                { value: 'year', label: t('reports.presetYear') },
-              ].map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  onClick={() => applyPreset(preset.value)}
-                  className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 transition-colors"
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-            {activeFilterCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setFilters(EMPTY_FILTERS)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-                {t('reports.resetFilters')}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* Recherche libre : n° de commande, client ou caissier. */}
-          <div className="xl:col-span-3">
-            <label htmlFor="reports-search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('common.search')}
-            </label>
+        <AdvancedFilters
+          id="reports"
+          fields={filterFields}
+          values={filters}
+          defaults={EMPTY_FILTERS}
+          onChange={setFilter}
+          onReset={resetFilters}
+          resettable={activeFilterCount > 0}
+          expanded={filtersExpanded}
+          onToggleExpanded={() => setFiltersExpanded((v) => !v)}
+          search={(
             <SearchBox
               id="reports-search"
               value={filters.search}
               onChange={(value) => setFilter('search', value)}
               placeholder={t('reports.searchPlaceholder')}
-              inputClassName="input-field pl-10 pr-9 w-full"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="reports-cashier" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('reports.cashier')}
-            </label>
-            <select
-              id="reports-cashier"
-              name="userId"
-              value={filters.userId}
-              onChange={handleFilterChange}
-              className="input-field"
-            >
-              <option value="">{t('reports.allCashiers')}</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.firstName} {user.lastName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('reports.client')}
-            </label>
-            <SearchableSelect
-              options={clients}
-              value={filters.clientId}
-              onChange={(value) => setFilter('clientId', value)}
-              getOptionValue={(client) => client.id}
-              getOptionLabel={(client) =>
-                `${client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim() || `#${client.id}`}${client.company ? ` • ${client.company}` : ''}`
-              }
-              getOptionSearch={(client) => client.company || ''}
-              placeholder={t('reports.clientPlaceholder')}
-              noResultsText={t('reports.noClientFound')}
-              minChars={1}
-              inputClassName="input-field pl-10 pr-9 w-full"
-              renderOption={(client) => (
-                <span className="flex flex-col">
-                  <span className="font-medium">
-                    {client.name || `${client.firstName || ''} ${client.lastName || ''}`.trim() || `#${client.id}`}
-                    {client.company && <span className="ml-2 text-xs text-primary-600">{client.company}</span>}
+              suggestions={orderSuggestions}
+              getKey={(order) => order.id}
+              onSelectSuggestion={(order) => setFilter('search', order.orderNumber)}
+              renderSuggestion={(order) => (
+                <span className="flex items-center justify-between gap-2">
+                  <span className="flex flex-col min-w-0">
+                    <span className="font-medium truncate">{order.orderNumber}</span>
+                    <span className="text-xs text-gray-400 truncate">
+                      {clientNameOf(order, t('reports.anonymousClient'))} · {formatDate(orderDateOf(order))}
+                    </span>
                   </span>
-                  <span className="text-xs text-gray-500">
-                    {[client.email, client.phone].filter(Boolean).join(' · ') || t('reports.noContact')}
+                  <span className="text-xs text-gray-500 shrink-0 tabular-nums">
+                    {formatCurrency(orderAmountOf(order))}
                   </span>
                 </span>
               )}
             />
-          </div>
-
-          <div>
-            <label htmlFor="reports-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('reports.status')}
-            </label>
-            <select
-              id="reports-status"
-              name="status"
-              value={filters.status}
-              onChange={handleFilterChange}
-              className="input-field"
-            >
-              <option value="">{t('reports.allStatuses')}</option>
-              {['PENDING', 'CONFIRMED', 'INVOICED', 'DELIVERED', 'CANCELED'].map((status) => (
-                <option key={status} value={status}>{t(`caisse.status.${status}`)}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="reports-start" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('reports.startDate')}
-            </label>
-            <input
-              id="reports-start"
-              type="date"
-              name="startDate"
-              value={filters.startDate}
-              max={filters.endDate || undefined}
-              onChange={handleFilterChange}
-              className="input-field"
+          )}
+          quickFilters={(
+            /* La période pilote tout le rapport : elle reste hors du panneau, en accès direct.
+               Le segment sélectionné est DÉDUIT des deux bornes — deux dates saisies à la main
+               affichent « Personnalisé » au lieu de laisser « Ce mois » allumé à tort. */
+            <SegmentedFilter
+              label={t('reports.period')}
+              value={activePreset}
+              onChange={applyPreset}
+              options={[
+                ...periodPresets.map(({ value, label }) => ({ value, label })),
+                ...(activePreset === 'custom'
+                  ? [{ value: 'custom', label: t('reports.presetCustom') }]
+                  : []),
+              ]}
             />
-          </div>
-
-          <div>
-            <label htmlFor="reports-end" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('reports.endDate')}
-            </label>
-            {/* `min` lié à la date de début : une période inversée ne renvoie aucun résultat,
-                autant empêcher la saisie plutôt que d'afficher un tableau vide inexplicable. */}
-            <input
-              id="reports-end"
-              type="date"
-              name="endDate"
-              value={filters.endDate}
-              min={filters.startDate || undefined}
-              onChange={handleFilterChange}
-              className="input-field"
-            />
-          </div>
-        </div>
+          )}
+        />
       </motion.section>
 
       {/* Indicateurs de la sélection */}
@@ -991,7 +1007,7 @@ const Reports = () => {
                     {activeFilterCount > 0 && (
                       <button
                         type="button"
-                        onClick={() => setFilters(EMPTY_FILTERS)}
+                        onClick={resetFilters}
                         className="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
                       >
                         {t('reports.resetFilters')}

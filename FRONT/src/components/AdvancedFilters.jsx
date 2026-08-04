@@ -22,8 +22,15 @@ import { useTranslation } from 'react-i18next';
  * (avec ses suggestions) et ses bandeaux segmentés.
  *
  * Description d'un champ :
- *   { key, label, type: 'select' | 'text' | 'number' | 'date' | 'checkbox',
- *     options?: [{ value, label }], placeholder?, min?, step? }
+ *   { key, label, type: 'select' | 'text' | 'number' | 'date' | 'checkbox' | 'custom',
+ *     options?: [{ value, label }], placeholder?, min?, max?, step?,
+ *     render?: ({ id, value, onChange }) => node,   // requis pour `custom`
+ *     chipValue?: (value) => string }               // libellé lisible dans la pastille
+ *
+ * Le type `custom` existe pour les critères qu'un `<select>` ne rend pas correctement — une
+ * liste de clients de plusieurs centaines d'entrées, par exemple, où il faut une combobox
+ * filtrable. Le champ reste décrit comme les autres : il compte donc dans le badge du bouton
+ * et dispose de sa pastille, ce qu'un contrôle posé hors du panneau perdrait.
  */
 
 const FIELD_CLASS =
@@ -110,6 +117,9 @@ const AdvancedFilters = ({
   const chipLabel = (field) => {
     const value = values[field.key];
     if (field.type === 'checkbox') return field.label;
+    // `chipValue` traduit la valeur brute en libellé lisible : un identifiant de client ou une
+    // date ISO ne disent rien dans une pastille.
+    if (field.chipValue) return `${field.label} : ${field.chipValue(value)}`;
     if (field.type === 'select') {
       const option = field.options?.find((o) => String(o.value) === String(value));
       return `${field.label} : ${option?.label ?? value}`;
@@ -146,6 +156,16 @@ const AdvancedFilters = ({
       );
     }
 
+    // Contrôle fourni par la page. Pas de `htmlFor` : le rendu n'est pas nécessairement un
+    // champ natif (combobox composite), auquel cas l'étiquette pointerait dans le vide.
+    if (field.type === 'custom') {
+      return (
+        <Field key={field.key} label={field.label}>
+          {field.render({ id: inputId, value, onChange: (next) => onChange(field.key, next) })}
+        </Field>
+      );
+    }
+
     return (
       <Field key={field.key} label={field.label} htmlFor={inputId}>
         {field.type === 'select' ? (
@@ -165,6 +185,7 @@ const AdvancedFilters = ({
             type={field.type}
             value={value}
             min={field.min}
+            max={field.max}
             step={field.step}
             inputMode={field.type === 'number' ? 'decimal' : undefined}
             placeholder={field.placeholder}

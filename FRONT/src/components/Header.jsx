@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Menu, Bell, Globe, Search, ShoppingCart, AlertTriangle, PackageX } from 'lucide-react';
+import { Menu, Bell, Globe, ShoppingCart, AlertTriangle, PackageX } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 
 const Header = ({ onMenuClick }) => {
@@ -88,16 +88,6 @@ const Header = ({ onMenuClick }) => {
           >
             <Menu className="w-6 h-6" />
           </button>
-
-          {/* Search Bar */}
-          <div className="hidden md:flex items-center gap-2 bg-gray-100 dark:bg-gray-700/60 rounded-lg px-3.5 py-2 w-96 ring-1 ring-transparent focus-within:ring-primary-500/40 focus-within:bg-white dark:focus-within:bg-gray-700 transition-all">
-            <Search className="w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('common.search') + '...'}
-              className="bg-transparent outline-none text-sm flex-1 text-gray-700 dark:text-gray-200 placeholder:text-gray-400"
-            />
-          </div>
         </div>
 
         {/* Right Section */}
