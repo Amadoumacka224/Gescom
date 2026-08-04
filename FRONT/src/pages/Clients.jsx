@@ -36,7 +36,7 @@ import {
 const VIEW_MODE_KEY = 'clientsViewMode';
 
 /** Nombre de clients mis en avant dans la vue d'aperçu (les derniers ajoutés). */
-const RECENT_COUNT = 6;
+const RECENT_COUNT = 5;
 
 /** Commandes détaillées dans l'activité commerciale de la fiche ; au-delà, un simple décompte. */
 const ACTIVITY_ORDERS_SHOWN = 3;

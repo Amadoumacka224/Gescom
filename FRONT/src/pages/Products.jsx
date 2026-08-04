@@ -16,7 +16,7 @@ import SearchBox from '../components/SearchBox';
 import FormSection from '../components/FormSection';
 import StatCard from '../components/StatCard';
 import { rankSuggestions } from '../utils/searchSuggestions';
-import { formatCurrency, formatPercent } from '../utils/format';
+import { formatCurrency, formatPercent, productShortName } from '../utils/format';
 import i18n from '../i18n';
 
 const EMPTY_FORM = {
@@ -495,39 +495,38 @@ const Products = () => {
   const lowStockCount = products.filter(p => p.stockQuantity > 0 && p.stockQuantity < p.minStockAlert).length;
   const stockValue = products.reduce((sum, p) => sum + (p.stockQuantity * p.purchasePrice), 0);
 
-  /* Colonnes du catalogue, ordonnées de l'identification à l'état commercial.
+  /* Colonnes du catalogue, réduites à ce qui se lit en balayant la liste : le produit, sa
+   * famille, son prix, son stock, son état. Le reste est dans la fiche détaillée.
    *
-   * Hauteur de ligne : la vignette de 32 px fixe le gabarit. Le nom tient sur une ligne et la
-   * description sur deux interlignes serrés (2 × 15 px = 30 px), donc sous la vignette : une
-   * rangée fait la même hauteur qu'elle porte ou non une description, quelle que soit la
-   * longueur des textes. C'est ce qui rend les colonnes chiffrées lisibles en balayage vertical.
+   * Ce qui n'y figure plus :
+   *   - la description, texte libre de longueur imprévisible, qui occupait le tiers de la
+   *     largeur et imposait deux interlignes de hauteur à chaque rangée ;
+   *   - le code produit, qui est une clé de recherche et non un critère de lecture. Il reste
+   *     interrogeable par la recherche, affiché dans ses suggestions, dans la fiche détaillée
+   *     et à l'export CSV.
    *
-   * Troncature par `line-clamp` et non par `truncate` : `truncate` impose `nowrap`, dont la
-   * largeur minimale est celle du texte entier — un nom à rallonge élargissait alors le tableau
-   * au lieu d'être coupé. Le texte complet reste accessible en infobulle et dans la fiche.
+   * Le nom tient sur une ligne, coupé par `truncate`, sous un plafond de largeur (`max-w`) :
+   * `truncate` impose `nowrap`, dont la largeur intrinsèque est celle du texte entier — sans ce
+   * plafond, un nom à rallonge élargissait le tableau au lieu d'être coupé. Le plafond borne
+   * cette largeur intrinsèque, donc la colonne se règle sur les noms courants et les rares noms
+   * interminables sont tronqués. Le nom complet reste en infobulle et dans la fiche.
    *
-   * Largeurs : les proportions ne sont posées qu'à partir de `xl`, là où la description est
-   * affichée et se dispute la place avec le nom. En dessous, la répartition automatique du
-   * tableau donne la largeur au nom, qui est la colonne la plus dense en texte.
+   * Le plafond est serré (10 → 15 rem selon la largeur d'écran, soit ~30 à ~45 caractères) :
+   * il est dimensionné pour les noms d'usage, pas pour le plus long du catalogue — un nom peut
+   * aller jusqu'à 200 caractères (`MAX_LENGTHS.name`), et le laisser s'étaler repoussait le
+   * prix et le stock hors de vue. Au-delà, les premiers mots suffisent à reconnaître l'article,
+   * l'infobulle donne le reste.
+   *
+   * En amont de la troncature, `productShortName` retire les parenthèses du libellé : ce qu'elles
+   * contiennent tient de la fiche technique. Attention si des variantes ne se distinguent que
+   * par là (« ... (33 cl) » / « ... (50 cl) ») : elles s'affichent alors à l'identique, seules
+   * l'infobulle et la fiche les départagent.
    */
   const columns = [
-    {
-      key: 'code',
-      label: t('products.code'),
-      sortable: true,
-      // Sous 640 px, le code quitte sa colonne pour se replier sous le nom (voir ci-dessous) :
-      // à cette largeur, cinq colonnes ne tiennent qu'au prix d'un nom réduit à trois mots.
-      className: 'hidden sm:table-cell w-px',
-      render: (product) => (
-        <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{product.code}</span>
-      )
-    },
     {
       key: 'name',
       label: t('common.product'),
       sortable: true,
-      nowrap: false,
-      className: 'xl:w-[26%]',
       render: (product) => (
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 shrink-0 overflow-hidden rounded-md bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
@@ -537,43 +536,21 @@ const Products = () => {
               <Package className="w-4 h-4 text-gray-400" aria-hidden="true" />
             )}
           </div>
-          <div className="min-w-0">
-            <span
-              className="line-clamp-1 font-medium text-gray-900 dark:text-gray-100"
-              title={product.name}
-            >
-              {product.name}
-            </span>
-            <span className="block font-mono text-[11px] leading-tight text-gray-400 sm:hidden">
-              {product.code}
-            </span>
-          </div>
+          <span
+            className="block min-w-0 max-w-[10rem] truncate font-medium text-gray-900 sm:max-w-[12rem] lg:max-w-[14rem] xl:max-w-[15rem] dark:text-gray-100"
+            title={product.name}
+          >
+            {productShortName(product.name)}
+          </span>
         </div>
       )
     },
     {
-      key: 'description',
-      label: t('common.description'),
-      nowrap: false,
-      className: 'hidden xl:table-cell xl:w-[28%]',
-      render: (product) => (
-        product.description ? (
-          <span
-            className="line-clamp-2 text-xs leading-tight text-gray-500 dark:text-gray-400"
-            title={product.description}
-          >
-            {product.description}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
-        )
-      )
-    },
-    {
+      // La catégorie remonte à `md` : la colonne code libérée, elle tient sur tablette.
       key: 'category',
       label: t('products.category'),
       sortable: true,
-      className: 'hidden lg:table-cell',
+      className: 'hidden md:table-cell',
       render: (product) => (
         product.category?.name
           ? <span className="text-gray-600 dark:text-gray-400">{product.category.name}</span>
@@ -887,28 +864,23 @@ const Products = () => {
 
                 {/* Product Info */}
                 <div className="space-y-1.5">
-                  <div className="min-w-0">
-                    <h3 className="line-clamp-1 text-sm font-semibold text-gray-900 dark:text-gray-100" title={product.name}>
-                      {product.name}
-                    </h3>
-                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
+                  {/* Nom sur une ligne, tronqué : la carte a une largeur fixe, c'est elle qui
+                      donne la mesure. Nom complet en infobulle et dans la fiche. */}
+                  <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100" title={product.name}>
+                    {productShortName(product.name)}
+                  </h3>
+
+                  {/* Ni description ni code produit ici non plus. La ligne de catégorie est en
+                      revanche toujours réservée : sans elle, les cartes sans catégorie
+                      remontaient leur prix et leur stock d'un cran, et rien ne s'alignait plus
+                      d'une carte à l'autre. */}
+                  <div className="min-h-[1.375rem]">
+                    {product.category && (
+                      <span className="badge badge-info">
+                        {product.category.name}
+                      </span>
+                    )}
                   </div>
-
-                  {/* Bloc toujours rendu, à hauteur de deux lignes : sans lui, les cartes sans
-                      description remontaient leur prix et leur stock d'un cran, et rien ne
-                      s'alignait plus d'une carte à l'autre. Texte complet en infobulle. */}
-                  <p
-                    className="line-clamp-2 min-h-[1.875rem] text-xs leading-tight text-gray-500 dark:text-gray-400"
-                    title={product.description || undefined}
-                  >
-                    {product.description || ''}
-                  </p>
-
-                  {product.category && (
-                    <span className="badge badge-info">
-                      {product.category.name}
-                    </span>
-                  )}
 
                   <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between mb-1">

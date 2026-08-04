@@ -205,7 +205,7 @@ const ORDERS_PER_PAGE = 20;
 const VIEW_MODE_KEY = 'ordersViewMode';
 
 /** Nombre de commandes mises en avant dans la vue d'aperçu (les dernières créées). */
-const RECENT_COUNT = 8;
+const RECENT_COUNT = 5;
 
 /**
  * En-tête de colonne triable.

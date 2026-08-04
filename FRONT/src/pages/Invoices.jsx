@@ -32,7 +32,7 @@ import { INVOICE_STATUS_TONE, badgeClass, metricBarClass } from '../constants/st
 const VIEW_MODE_KEY = 'invoicesViewMode';
 
 /** Nombre de factures mises en avant dans la vue d'aperçu (les dernières émises). */
-const RECENT_COUNT = 6;
+const RECENT_COUNT = 5;
 
 const PAYMENT_METHOD_KEYS = {
   CASH: 'invoices.cash',
