@@ -357,10 +357,11 @@ const OrderWorkspaceCatalog = ({
               )}
             </div>
           ) : (
-            /* Cinq articles par ligne, plafond assumé : au-delà les vignettes deviennent trop
-               petites pour être identifiées de loin. La grille se réduit sur les écrans étroits
-               mais ne dépasse jamais cinq colonnes. */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+            /* Six articles par ligne, plafond assumé : au-delà les vignettes deviennent trop
+               petites pour être identifiées de loin. La sixième colonne n'arrive qu'à partir de
+               `xl` — en dessous, l'atelier réserve déjà la moitié de la largeur au panier et au
+               panneau de filtres, et six vignettes y descendraient sous les 90 px. */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
               {filteredProducts.map((product) => {
                 const inCart = cartQtyByProduct[String(product.id)] || 0;
                 const outOfStock = isOutOfStock(product);
