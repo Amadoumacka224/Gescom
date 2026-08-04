@@ -84,6 +84,7 @@ src/main/resources/application-local.properties
 *.dump
 *.bak
 !db/schema.sql
+!db/gescom_dump.sql
 !src/main/resources/db/migration/**/*.sql
 !src/main/resources/db/changelog/**/*.sql
 
