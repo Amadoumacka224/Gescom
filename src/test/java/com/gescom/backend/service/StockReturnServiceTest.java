@@ -222,6 +222,45 @@ class StockReturnServiceTest {
         assertThat(result.getRefundAmount()).isEqualByComparingTo("19.20");
     }
 
+    /**
+     * Ligne indivisible : 10,00 € pour 3 unités, soit 3,33 € l'unité une fois arrondi. Le
+     * remboursement se calcule sur le total, pas sur ce prix unitaire — sans quoi un retour
+     * intégral rendrait 9,99 € et le client perdrait un centime au passage.
+     */
+    @Test
+    void fullReturn_refundsExactlyWhatWasPaid_evenWhenTheLineDoesNotDivideEvenly() {
+        Order order = invoicedOrderOf5();
+        OrderItem item = order.getItems().get(0);
+        item.setQuantity(3);
+        item.setTotalPrice(new BigDecimal("10.00"));
+        order.setTotalAmount(new BigDecimal("10.00"));
+        order.setFinalAmount(new BigDecimal("10.00"));
+
+        assertThat(service.lookup("CMD-TEST").items().get(0).unitPrice()).isEqualByComparingTo("3.33");
+
+        StockReturn result = service.createReturn(requestOf(3, StockReturnItem.ReturnTreatment.REFUND, null));
+        assertThat(result.getRefundAmount()).isEqualByComparingTo("10.00");
+    }
+
+    /** Et deux retours partiels qui épuisent la ligne se recomposent en son total. */
+    @Test
+    void partialReturns_ofAnIndivisibleLine_addUpToTheLineTotal() {
+        Order order = invoicedOrderOf5();
+        OrderItem item = order.getItems().get(0);
+        item.setQuantity(3);
+        item.setTotalPrice(new BigDecimal("10.00"));
+        order.setTotalAmount(new BigDecimal("10.00"));
+
+        BigDecimal first = service.createReturn(
+                requestOf(2, StockReturnItem.ReturnTreatment.REFUND, null)).getRefundAmount();
+        BigDecimal second = service.createReturn(
+                requestOf(1, StockReturnItem.ReturnTreatment.REFUND, null)).getRefundAmount();
+
+        assertThat(first).isEqualByComparingTo("6.67");
+        assertThat(second).isEqualByComparingTo("3.33");
+        assertThat(first.add(second)).isEqualByComparingTo("10.00");
+    }
+
     @Test
     void refund_putsGoodsBackInStock_andTracesAmountPaid() {
         invoicedOrderOf5();
