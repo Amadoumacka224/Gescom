@@ -23,6 +23,10 @@ public record OrderResponse(
         // Statut de la facture liée (null si aucune) — permet d'afficher « Payée » sur une commande
         // facturée puis réglée, son statut de commande restant INVOICED jusqu'à la livraison.
         Invoice.InvoiceStatus invoiceStatus,
+        // Total TTC de cette facture (null si aucune). Les montants de la commande sont hors taxes :
+        // sans ce champ, une liste de commandes ne peut afficher que du HT, là où le client, lui,
+        // paie le TTC — et les deux écrans annoncent alors deux chiffres différents.
+        BigDecimal invoiceTotalAmount,
         String notes,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

@@ -23,7 +23,7 @@ import { EMPTY_ORDER_FILTERS } from '../constants/orderFilters';
 import { ORDER_STATUS_TONE, badgeClass, resolveOrderStatusKey } from '../constants/statusBadges';
 import { PAYMENT_METHODS } from '../constants/paymentMethods';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
-import { computeItemsTotal, computeLineTotal } from '../utils/orderTotals';
+import { computeItemsTotal, computeLineTotal, orderNetAmount, orderPayableAmount } from '../utils/orderTotals';
 import { extractErrorMessage } from '../utils/apiError';
 import { formatCurrency } from '../utils/format';
 import { toast } from 'react-hot-toast';
@@ -314,6 +314,9 @@ const Orders = () => {
   // Taux de TVA et échéance viennent des réglages de l'entreprise, comme dans l'atelier de
   // commande : deux écrans qui facturent la même commande doivent proposer le même taux.
   const { settings, defaultTaxRate, defaultDueDate } = useSettings();
+  // Taux retenu pour estimer le TTC des commandes pas encore facturées, dans la liste comme
+  // dans les filtres et le tri : un seul et même chiffre pour les trois.
+  const listTaxRate = defaultTaxRate();
   const blankInvoiceForm = () => ({
     invoiceDate: new Date().toISOString().split('T')[0],
     dueDate: defaultDueDate(),
@@ -1023,16 +1026,37 @@ const Orders = () => {
           </div>
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
-          <div className="flex flex-col">
-            <span className="subsection-title tabular-nums">
-              {formatCurrency(order.totalAmount)}
-            </span>
-            {(parseFloat(order.discount) || 0) > 0 && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                {t('orders.page.discountAmount', { amount: formatCurrency(order.discount) })}
-              </span>
-            )}
-          </div>
+          {/* Total TTC, le montant réellement réclamé — celui de la facture dès qu'elle existe,
+              donc le même chiffre que sur l'écran Factures. C'est le sous-total HT *avant*
+              remise globale qui figurait ici : il ne correspondait ni à la facture, ni même à
+              ce que la commande valait une fois remisée. */}
+          {(() => {
+            const { amount, estimated } = orderPayableAmount(order, listTaxRate);
+            // Sous-ligne : la nature du chiffre puis la remise, seulement si elles existent.
+            const notes = [
+              estimated ? t('orders.page.amountEstimated') : null,
+              (parseFloat(order.discount) || 0) > 0
+                ? t('orders.page.discountAmount', { amount: formatCurrency(order.discount) })
+                : null,
+            ].filter(Boolean);
+            return (
+              <div className="flex flex-col">
+                <span
+                  className="subsection-title tabular-nums"
+                  title={estimated
+                    ? t('orders.page.amountEstimatedHint', { rate: Number(listTaxRate || 0).toFixed(2) })
+                    : undefined}
+                >
+                  {formatCurrency(amount)}
+                </span>
+                {notes.length > 0 && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                    {notes.join(' · ')}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </td>
         <td className="px-6 py-4 whitespace-nowrap">
           {/* La liste /orders porte le statut de la facture liée : une commande facturée puis
@@ -1204,7 +1228,9 @@ const Orders = () => {
         if (filters.dateTo && day > filters.dateTo) return false;
       }
 
-      const amount = parseFloat(order.totalAmount) || 0;
+      // Le filtre porte sur le montant affiché (TTC) : une fourchette qui exclut une ligne dont
+      // le chiffre est pourtant dans l'intervalle se lit comme une panne.
+      const amount = orderPayableAmount(order, listTaxRate).amount;
       if (min !== null && !Number.isNaN(min) && amount < min) return false;
       if (max !== null && !Number.isNaN(max) && amount > max) return false;
 
@@ -1213,7 +1239,7 @@ const Orders = () => {
 
       return true;
     });
-  }, [orders, filters]);
+  }, [orders, filters, listTaxRate]);
 
   const sortedOrders = useMemo(() => {
     const value = (order) => {
@@ -1221,7 +1247,9 @@ const Orders = () => {
         case 'orderNumber': return norm(order.orderNumber);
         case 'client': return norm(order.client ? `${order.client.lastName} ${order.client.firstName}` : '');
         case 'items': return (order.items || []).reduce((n, i) => n + (parseInt(i.quantity) || 0), 0);
-        case 'totalAmount': return parseFloat(order.totalAmount) || 0;
+        // Même montant que celui affiché dans la colonne, sinon l'ordre obtenu contredit les
+        // chiffres qu'on a sous les yeux dès qu'une remise ou la TVA entre en jeu.
+        case 'totalAmount': return orderPayableAmount(order, listTaxRate).amount;
         case 'status': return norm(order.status);
         // Tri par avancement réel dans le cycle, et non par ordre alphabétique du statut :
         // c'est ce qui remonte en tête les commandes les plus en retard. Les annulées
@@ -1239,7 +1267,7 @@ const Orders = () => {
       if (va > vb) return 1 * dir;
       return 0;
     });
-  }, [filteredOrders, sort]);
+  }, [filteredOrders, sort, listTaxRate]);
 
   const totalPages = Math.max(1, Math.ceil(sortedOrders.length / perPage));
   // La page demandée est bornée au nombre réel de pages : un filtre qui réduit la liste
@@ -1506,7 +1534,7 @@ const Orders = () => {
           const items = selectedOrder.items || [];
           const grossTotal = Number(selectedOrder.totalAmount || 0);
           const orderDiscount = Number(selectedOrder.discount || 0);
-          const netTotal = Number(selectedOrder.finalAmount ?? (grossTotal - orderDiscount));
+          const netTotal = orderNetAmount(selectedOrder);
           const canceledOrder = selectedOrder.status === 'CANCELED';
           const invoiceCanceled = detailInvoice?.status === 'CANCELED';
           const liveInvoice = detailInvoice && !invoiceCanceled ? detailInvoice : null;

@@ -143,18 +143,27 @@ public class InvoiceService {
     }
 
     /**
-     * Statut de la facture (s'il y en a une) pour chaque commande passée — permet d'afficher
-     * « Payée » sur une commande facturée dont la facture est soldée, le statut de la commande
-     * elle-même restant INVOICED jusqu'à la livraison.
+     * Facture (s'il y en a une) de chaque commande passée, en une seule requête.
+     *
+     * Elle porte deux informations que la commande seule ne peut pas donner : son statut — d'où
+     * le « Payée » d'une commande facturée puis soldée, dont le statut reste INVOICED jusqu'à la
+     * livraison — et son total TTC, le seul montant réellement réclamé au client.
      */
     @Transactional(readOnly = true)
-    public Map<Long, Invoice.InvoiceStatus> getInvoiceStatusesByOrderIds(Collection<Long> orderIds) {
+    public Map<Long, Invoice> getInvoicesByOrderIds(Collection<Long> orderIds) {
         if (orderIds.isEmpty()) {
             return Collections.emptyMap();
         }
         return invoiceRepository.findByOrderIdIn(orderIds).stream()
                 .filter(inv -> inv.getOrder() != null)
-                .collect(Collectors.toMap(inv -> inv.getOrder().getId(), Invoice::getStatus, (a, b) -> a));
+                .collect(Collectors.toMap(inv -> inv.getOrder().getId(), inv -> inv, (a, b) -> a));
+    }
+
+    /** Statuts seuls, pour les appelants qui n'ont pas besoin des montants. */
+    @Transactional(readOnly = true)
+    public Map<Long, Invoice.InvoiceStatus> getInvoiceStatusesByOrderIds(Collection<Long> orderIds) {
+        return getInvoicesByOrderIds(orderIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus()));
     }
 
     public Invoice createInvoice(Invoice invoice) {
