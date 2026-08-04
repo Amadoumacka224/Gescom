@@ -1,7 +1,9 @@
 package com.gescom.backend.repository;
 
 import com.gescom.backend.entity.Order;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -33,6 +35,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findAllWithDetails();
 
     Optional<Order> findByOrderNumber(String orderNumber);
+
+    /**
+     * Recherche d'une vente par son numéro, insensible à la casse et lignes déjà chargées.
+     * Sert la saisie d'un retour : l'utilisateur tape un numéro relevé sur un ticket, pas une
+     * clé exacte, et le module a besoin des lignes pour calculer les quantités retournables.
+     */
+    @Query(WITH_DETAILS + "WHERE UPPER(o.orderNumber) = UPPER(:orderNumber)")
+    Optional<Order> findByOrderNumberWithDetails(@Param("orderNumber") String orderNumber);
 
     // Les quatre listes filtrées reprennent le même plan de chargement : en requête dérivée,
     // chaque commande rechargeait ses lignes puis ses produits, soit ~2 requêtes par commande.
@@ -77,4 +87,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "ORDER BY o.createdAt DESC")
     List<Order> findDayOrders(@Param("start") LocalDateTime start,
                               @Param("end") LocalDateTime end);
+
+    /**
+     * Lecture de la commande avec verrou pessimiste, pendant de
+     * {@code ProductRepository.findByIdForUpdate} au niveau de la vente.
+     *
+     * Sert les opérations dont le contrôle porte sur le cumul des lignes rattachées à la
+     * commande — le retour client, dont la quantité retournable est « vendu − déjà rendu ».
+     * Verrouiller les produits n'y suffit pas : deux retours simultanés liraient le même
+     * « déjà rendu » avant de verrouiller quoi que ce soit, et passeraient tous deux.
+     * Doit être appelé dans un contexte transactionnel.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") Long id);
 }

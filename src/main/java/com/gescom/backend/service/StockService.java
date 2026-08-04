@@ -244,42 +244,8 @@ public class StockService {
         return savedMovement;
     }
 
-    /**
-     * Retour client : la marchandise revient dans notre stock (le client rend un produit).
-     * Trace un mouvement RETURN et augmente la quantité — même logique qu'une entrée, avec
-     * un type dédié pour la traçabilité.
-     */
-    public StockMovement returnStock(Long productId, Integer quantity, String reason, String reference, Long userId) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("product", productId));
-
-        if (quantity <= 0) {
-            throw BusinessException.of("stock.quantity.positive", "La quantité doit être positive");
-        }
-
-        Integer previousStock = product.getStockQuantity();
-        Integer newStock = previousStock + quantity;
-
-        StockMovement movement = new StockMovement();
-        movement.setProduct(product);
-        movement.setType(StockMovement.MovementType.RETURN);
-        movement.setQuantity(quantity);
-        movement.setPreviousStock(previousStock);
-        movement.setNewStock(newStock);
-        movement.setReason(reason);
-        movement.setReference(reference);
-
-        if (userId != null) {
-            userRepository.findById(userId).ifPresent(movement::setUser);
-        }
-
-        StockMovement savedMovement = stockMovementRepository.save(movement);
-
-        product.setStockQuantity(newStock);
-        productRepository.save(product);
-
-        return savedMovement;
-    }
+    // Les retours clients (mouvements RETURN) sont produits par StockReturnService, à partir de
+    // la vente d'origine : ils ne se saisissent pas comme une entrée de stock isolée.
 
     public StockMovement recordDamage(Long productId, Integer quantity, String reason, Long userId) {
         Product product = productRepository.findById(productId)

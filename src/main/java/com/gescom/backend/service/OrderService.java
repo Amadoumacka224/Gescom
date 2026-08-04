@@ -14,6 +14,7 @@ import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.ProductRepository;
 import com.gescom.backend.repository.StockMovementRepository;
+import com.gescom.backend.repository.StockReturnRepository;
 import com.gescom.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,16 +46,19 @@ public class OrderService {
     private final UserRepository userRepository;
     private final StockMovementRepository stockMovementRepository;
     private final InvoiceRepository invoiceRepository;
+    private final StockReturnRepository stockReturnRepository;
     private final ActivityLogService activityLogService;
 
     public OrderService(OrderRepository orderRepository, ProductRepository productRepository,
                         UserRepository userRepository, StockMovementRepository stockMovementRepository,
-                        InvoiceRepository invoiceRepository, ActivityLogService activityLogService) {
+                        InvoiceRepository invoiceRepository, StockReturnRepository stockReturnRepository,
+                        ActivityLogService activityLogService) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.stockMovementRepository = stockMovementRepository;
         this.invoiceRepository = invoiceRepository;
+        this.stockReturnRepository = stockReturnRepository;
         this.activityLogService = activityLogService;
     }
 
@@ -404,6 +408,11 @@ public class OrderService {
                             inv.getInvoiceNumber());
                 });
 
+        requireNoReturns(order, "order.cancel.returnAttached",
+                "Un retour client a déjà été enregistré sur la commande " + order.getOrderNumber()
+                        + " : l'annuler restituerait au stock des articles déjà rendus. "
+                        + "Corrigez le stock par un ajustement.");
+
         // Restaurer le stock uniquement s'il avait été consommé (à la confirmation). Une commande
         // restée PENDING n'a jamais sorti de stock : rien à restaurer. Le retour est tracé (STOCK_IN).
         if (stockWasConsumed(order.getStatus())) {
@@ -421,6 +430,10 @@ public class OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order", id));
 
+        requireNoReturns(order, "order.delete.returnAttached",
+                "Un retour client est rattaché à la commande " + order.getOrderNumber()
+                        + " : la supprimer effacerait la vente qui justifie ce retour.");
+
         // Restaurer le stock seulement s'il avait été consommé et que la commande n'est pas
         // déjà annulée (auquel cas le stock a déjà été restitué lors de l'annulation).
         if (order.getStatus() != Order.OrderStatus.CANCELED && stockWasConsumed(order.getStatus())) {
@@ -432,6 +445,24 @@ public class OrderService {
 
         logActivity(ActivityLog.ActionType.DELETE, "Order", id,
             "Suppression de la commande " + orderNumber);
+    }
+
+    /**
+     * Refuse une annulation ou une suppression dès qu'un retour client porte sur la vente.
+     *
+     * {@link #restoreStock} restitue la quantité vendue entière : sur une commande dont une
+     * partie a déjà été rendue, le stock serait crédité deux fois des mêmes articles. Le cas
+     * n'est pas rattrapable en déduisant les quantités rendues — un échange à l'identique
+     * réintègre puis ressort la marchandise, et ne doit donc rien retrancher. Un dossier qui a
+     * connu un retour se solde par un ajustement de stock, tracé lui aussi dans le grand livre.
+     *
+     * Même garde-fou à la suppression : la ligne de retour référence la commande, la supprimer
+     * ferait tomber la contrainte d'intégrité et laisserait un retour sans vente d'origine.
+     */
+    private void requireNoReturns(Order order, String messageKey, String message) {
+        if (stockReturnRepository.countByOrderId(order.getId()) > 0) {
+            throw BusinessException.of(messageKey, message, order.getOrderNumber());
+        }
     }
 
     /** Vrai si le statut implique que le stock a déjà été décrémenté (depuis la confirmation). */
