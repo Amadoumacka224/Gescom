@@ -150,6 +150,18 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
     [products]
   );
 
+  /**
+   * Montant remboursé pour une quantité rendue, calculé comme le serveur le fera : la part du
+   * total payé qui revient aux unités rendues. Multiplier le prix unitaire — arrondi au centime
+   * pour l'affichage — perdrait un centime sur les lignes qui ne se divisent pas en parts
+   * entières, et l'aperçu annoncerait alors autre chose que le retour enregistré.
+   */
+  const refundFor = (item, quantity) => {
+    const sold = item.quantitySold || 0;
+    if (sold <= 0) return 0;
+    return Math.round(((item.lineTotal ?? 0) * quantity * 100) / sold) / 100;
+  };
+
   const totals = useMemo(() => {
     let quantity = 0;
     let refund = 0;
@@ -157,7 +169,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
       const line = lines[item.productId];
       const amount = Number(line.quantity) || 0;
       quantity += amount;
-      if (line.treatment === 'REFUND') refund += amount * (item.unitPrice ?? 0);
+      if (line.treatment === 'REFUND') refund += refundFor(item, amount);
     });
     return { lines: selectedItems.length, quantity, refund };
   }, [selectedItems, lines]);
@@ -622,7 +634,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                           <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 dark:text-gray-100">
                             <Banknote className="w-3.5 h-3.5 text-gray-400" aria-hidden="true" />
                             {t('stock.returns.refundLine', {
-                              amount: formatCurrency((Number(line.quantity) || 0) * (item.unitPrice ?? 0)),
+                              amount: formatCurrency(refundFor(item, Number(line.quantity) || 0)),
                             })}
                           </span>
                         )}

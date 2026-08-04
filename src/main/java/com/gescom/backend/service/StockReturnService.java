@@ -240,10 +240,30 @@ public class StockReturnService {
      * Prix unitaire réellement payé : le total payé de la ligne (toutes remises déduites)
      * rapporté à la quantité. C'est ce montant, et non le tarif courant du produit, qui sert
      * de base à un remboursement.
+     *
+     * Valeur d'affichage : elle est arrondie au centime, donc indicative dès que le total ne
+     * se divise pas en parts entières. Le montant remboursé, lui, vient de
+     * {@link #refundShare(BigDecimal, int, int)}.
      */
     private BigDecimal netUnitPrice(BigDecimal lineTotal, int quantity) {
         if (quantity <= 0 || lineTotal == null) return BigDecimal.ZERO;
         return lineTotal.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Part du total payé qui revient aux unités rendues : {@code total × rendues / vendues},
+     * arrondie une seule fois, à la fin.
+     *
+     * Multiplier le prix unitaire déjà arrondi par la quantité perdrait un centime dès que le
+     * total ne se divise pas en parts entières : une ligne de 10,00 € pour 3 unités donne
+     * 3,33 € l'unité, et son retour intégral rembourserait 9,99 € — le client ne récupérerait
+     * pas ce qu'il a versé. En partant du total, un retour intégral rend exactement le total,
+     * et deux retours partiels qui épuisent la ligne se recomposent (6,67 + 3,33).
+     */
+    private BigDecimal refundShare(BigDecimal paidLineTotal, int soldQuantity, int returnedQuantity) {
+        if (paidLineTotal == null || soldQuantity <= 0) return BigDecimal.ZERO;
+        return paidLineTotal.multiply(BigDecimal.valueOf(returnedQuantity))
+                .divide(BigDecimal.valueOf(soldQuantity), 2, RoundingMode.HALF_UP);
     }
 
     private Map<Long, Integer> returnedQuantitiesByProduct(Long orderId) {
@@ -324,10 +344,11 @@ public class StockReturnService {
         int totalQuantity = 0;
         BigDecimal refundTotal = BigDecimal.ZERO;
         for (StockReturnItemRequest line : request.items()) {
-            BigDecimal unitPrice = netUnitPrice(
-                    paidLineTotal(soldTotals.get(line.productId()), paidRatio),
-                    soldQuantities.get(line.productId()));
-            StockReturnItem item = applyLine(saved, order, line, unitPrice);
+            BigDecimal paidLineTotal = paidLineTotal(soldTotals.get(line.productId()), paidRatio);
+            int soldQuantity = soldQuantities.get(line.productId());
+            StockReturnItem item = applyLine(saved, order, line,
+                    netUnitPrice(paidLineTotal, soldQuantity),
+                    refundShare(paidLineTotal, soldQuantity, line.quantity()));
             saved.getItems().add(item);
             totalQuantity += item.getQuantity();
             refundTotal = refundTotal.add(item.getRefundAmount());
@@ -347,7 +368,8 @@ public class StockReturnService {
      * chaque valeur.
      */
     private StockReturnItem applyLine(StockReturn stockReturn, Order order,
-                                      StockReturnItemRequest line, BigDecimal unitPrice) {
+                                      StockReturnItemRequest line, BigDecimal unitPrice,
+                                      BigDecimal refundAmount) {
         Product product = productRepository.findByIdForUpdate(line.productId())
                 .orElseThrow(() -> new ResourceNotFoundException("product", line.productId()));
 
@@ -365,7 +387,7 @@ public class StockReturnService {
         item.setTreatment(line.treatment());
 
         if (line.treatment() == StockReturnItem.ReturnTreatment.REFUND) {
-            item.setRefundAmount(unitPrice.multiply(BigDecimal.valueOf(line.quantity())));
+            item.setRefundAmount(refundAmount);
         }
 
         if (line.treatment() == StockReturnItem.ReturnTreatment.EXCHANGE) {
