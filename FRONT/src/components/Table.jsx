@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,6 +12,22 @@ import { useTranslation } from 'react-i18next';
  *     L'en-tête porte `aria-sort`, seul moyen pour un lecteur d'écran de connaître l'état du tri.
  *   - `loading` : lignes squelettes plutôt qu'un tableau vide, qui se lit à tort « aucun résultat ».
  *   - `emptyState` : contenu du vide (message + action). À défaut, texte générique.
+ *   - `density` : `compact` resserre les cellules pour les catalogues, où l'on compare des
+ *     dizaines de lignes d'un coup et où chaque rangée gagnée compte. La valeur par défaut
+ *     `comfortable` garde l'espacement des tableaux existants.
+ *   - `maxHeight` : hauteur maximale de la zone de défilement, `null` pour la lever.
+ *
+ * En-tête collant — pourquoi cette hauteur maximale existe :
+ * `position: sticky` se règle sur le plus proche ancêtre défilant, et l'en-tête en portait déjà
+ * la classe sans jamais coller. Le tableau est en effet enveloppé dans trois boîtes qui, toutes,
+ * capturent le collage sans jamais défiler elles-mêmes : `overflow-x-auto` ici, `card
+ * overflow-hidden` sur les pages, et `main` (`overflow-auto` dans `MainLayout`) qui grandit avec
+ * son contenu — c'est le document qui défile. Rendre le collage dépendant de la fenêtre
+ * demanderait de démonter ces trois niveaux, jusqu'à la coquille de l'application.
+ *
+ * La zone de défilement est donc celle du tableau lui-même : au-delà de `maxHeight`, les lignes
+ * défilent sous leurs intitulés, qui restent lus. En dessous — le cas de la plupart des tableaux
+ * de l'application — la hauteur reste dictée par le contenu et rien ne change.
  */
 const Table = ({
   columns,
@@ -25,9 +40,17 @@ const Table = ({
   sortDirection = 'asc',
   onSort,
   skeletonRows = 5,
+  density = 'comfortable',
+  maxHeight = 'max-h-[70vh]',
 }) => {
   const { t } = useTranslation();
   const colSpan = columns.length + (actions ? 1 : 0);
+  // Utilitaires posés sur `.table-th` / la cellule : la couche `utilities` de Tailwind passe
+  // après `components`, l'espacement compact l'emporte donc sur celui de la classe partagée.
+  const cellPadding = density === 'compact' ? 'px-4 py-2' : 'px-6 py-4';
+  // `whitespace-nowrap` sur les en-têtes du mode compact : un intitulé replié sur deux lignes
+  // (« Prix de vente ») creusait la bande d'en-tête et désalignait les libellés entre eux.
+  const headPadding = density === 'compact' ? 'px-4 py-2.5 whitespace-nowrap' : '';
 
   const ariaSort = (column) => {
     if (!column.sortable || sortKey !== column.key) return 'none';
@@ -44,16 +67,19 @@ const Table = ({
   };
 
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-auto ${maxHeight || ''}`}>
       <table className="w-full">
-        <thead className="bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+        {/* Fond opaque et trait porté par une ombre incrustée : en sombre, `bg-gray-900/40`
+            laissait voir les lignes défiler à travers l'en-tête une fois celui-ci collé, et une
+            bordure sur un `thead` collant disparaît sous `border-collapse` (défaut de Tailwind). */}
+        <thead className="bg-gray-50 dark:bg-gray-900 shadow-[inset_0_-1px_0_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_0_rgb(55_65_81)] sticky top-0 z-10">
           <tr>
             {columns.map((column) => (
               <th
                 key={column.key}
                 scope="col"
                 aria-sort={ariaSort(column)}
-                className={`table-th ${column.className || ''}`}
+                className={`table-th ${headPadding} ${column.className || ''}`}
               >
                 {column.sortable && onSort ? (
                   <button
@@ -70,7 +96,7 @@ const Table = ({
               </th>
             ))}
             {actions && (
-              <th scope="col" className="table-th-right">
+              <th scope="col" className={`table-th-right ${headPadding}`}>
                 {t('common.actions')}
               </th>
             )}
@@ -81,7 +107,7 @@ const Table = ({
             Array.from({ length: skeletonRows }).map((_, rowIndex) => (
               <tr key={`skeleton-${rowIndex}`}>
                 {Array.from({ length: colSpan }).map((__, cellIndex) => (
-                  <td key={cellIndex} className="px-6 py-4">
+                  <td key={cellIndex} className={cellPadding}>
                     <div className="skeleton h-4 w-full max-w-[10rem]" />
                   </td>
                 ))}
@@ -96,30 +122,35 @@ const Table = ({
               </td>
             </tr>
           ) : (
+            /* Les lignes n'ont plus d'animation d'entrée.
+             *
+             * Elle apparaissait en cascade (30 ms par rang) : sur une page de cent produits, la
+             * dernière ligne arrivait trois secondes après la première. Et depuis que le tableau
+             * défile dans sa propre zone, Chrome n'exécute pas ces animations pour les lignes
+             * hors de la partie visible du conteneur — elles restaient bloquées à `opacity: 0`,
+             * c'est-à-dire des lignes vides. Le squelette de chargement couvre déjà le moment où
+             * les données arrivent ; cent animations simultanées n'apportaient rien de plus. */
             data.map((row, index) => (
-              <motion.tr
+              <tr
                 key={row.id || index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03 }}
                 onClick={() => onRowClick && onRowClick(row)}
                 className={`text-sm text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40 ${
                   onRowClick ? 'cursor-pointer' : ''
                 }`}
               >
                 {columns.map((column) => (
-                  <td key={column.key} className={`px-6 py-4 ${column.nowrap === false ? '' : 'whitespace-nowrap'} ${column.className || ''}`}>
+                  <td key={column.key} className={`${cellPadding} align-middle ${column.nowrap === false ? '' : 'whitespace-nowrap'} ${column.className || ''}`}>
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
                 ))}
                 {actions && (
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className={`${cellPadding} whitespace-nowrap align-middle`}>
                     <div className="flex items-center justify-end gap-1">
                       {actions(row)}
                     </div>
                   </td>
                 )}
-              </motion.tr>
+              </tr>
             ))
           )}
         </tbody>
