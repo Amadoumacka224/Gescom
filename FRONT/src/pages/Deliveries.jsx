@@ -33,7 +33,7 @@ const TERMINAL_STATUSES = ['DELIVERED'];
 const VIEW_MODE_KEY = 'deliveriesViewMode';
 
 /** Nombre de livraisons mises en avant dans la vue d'aperçu (les dernières créées). */
-const RECENT_COUNT = 6;
+const RECENT_COUNT = 5;
 
 /**
  * Critères de filtrage, à l'état neutre. Sert de valeur initiale, de cible du bouton

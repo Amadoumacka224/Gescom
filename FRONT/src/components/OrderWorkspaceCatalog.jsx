@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LayoutGrid, Package, Plus, ScanLine, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, productShortName } from '../utils/format';
 
 /**
  * Sélecteur d'articles du panier de traitement : catégories, recherche, scan et grille produits.
@@ -158,9 +158,10 @@ const OrderWorkspaceCatalog = ({
               <p className="text-sm">{t('orders.catalog.noMatch')}</p>
             </div>
           ) : (
-            /* Un cran de colonnes en plus dès `md` et au-delà de `xl` : à 100 %, la grille
-               s'arrêtait à cinq colonnes sur des écrans qui en portent six confortablement. */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
+            /* Cinq articles par ligne, plafond assumé : au-delà les vignettes deviennent trop
+               petites pour être identifiées de loin. La grille se réduit sur les écrans étroits
+               mais ne dépasse jamais cinq colonnes. */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
               {filteredProducts.map((product) => {
                 const inCart = cartQtyByProduct[String(product.id)] || 0;
                 const outOfStock = product.stockQuantity <= 0;
@@ -205,11 +206,23 @@ const OrderWorkspaceCatalog = ({
                         </span>
                       ) : null}
                     </div>
+                    {/* Pas de code produit sur la tuile : il sert à retrouver un article dans la
+                        barre de recherche, qui l'interroge toujours, pas à le reconnaître d'un
+                        coup d'œil — on le fait sur la photo et le nom. La ligne gagnée profite
+                        au nom. Le nom complet reste dans l'infobulle de la tuile.
+
+                        Le libellé passe par `productShortName`, comme dans le catalogue produits :
+                        les parenthèses n'y sont pas affichées. Si deux variantes ne se
+                        distinguaient que par là, elles apparaîtraient ici à l'identique — c'est
+                        l'infobulle qui les départage.
+
+                        Une seule ligne, coupée par `truncate` : la tuile fait la largeur d'une
+                        colonne de la grille, c'est elle qui donne la mesure. Le nom entier est
+                        dans l'infobulle de la tuile (`addTooltip` / `outOfStockTooltip`). */}
                     <div className="p-2 flex flex-col flex-1 gap-0.5">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight line-clamp-2">
-                        {product.name}
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate">
+                        {productShortName(product.name)}
                       </p>
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{product.code}</p>
                       <div className="mt-auto pt-1.5 flex items-end justify-between gap-1">
                         <span className="text-sm font-bold text-primary-600 dark:text-primary-400 tabular-nums">
                           {formatCurrency(product.sellingPrice)}

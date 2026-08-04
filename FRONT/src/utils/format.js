@@ -82,5 +82,28 @@ export const todayISO = () => {
   return new Date(now.getTime() - offsetMs).toISOString().split('T')[0];
 };
 
+/**
+ * Nom d'affichage d'un produit : ce qui est entre parenthèses est retiré.
+ *
+ * Les parenthèses portent des précisions de fiche technique — « Armoire 2 portes (chêne massif,
+ * 90 × 45 cm) » — qui allongent le libellé sans aider à reconnaître l'article dans une liste.
+ * Le nom entier reste affiché en infobulle et dans la fiche détaillée, et la recherche continue
+ * de porter sur lui : on retrouve un article en tapant ce qui n'est plus affiché.
+ *
+ * La boucle traite les parenthèses imbriquées, que la seule expression `[^()]*` laisserait à
+ * demi retirées. Le repli sur le nom d'origine couvre le nom entièrement parenthésé : il ne
+ * resterait rien à lire, ce qui est pire que long.
+ */
+export const productShortName = (name) => {
+  const full = String(name ?? '');
+  let short = full;
+  let previous;
+  do {
+    previous = short;
+    short = short.replace(/\s*\([^()]*\)/g, ' ');
+  } while (short !== previous);
+  return short.replace(/\s{2,}/g, ' ').trim() || full;
+};
+
 /** Les formateurs figent leur locale : un changement de langue doit les invalider. */
 i18n.on('languageChanged', () => formatterCache.clear());
