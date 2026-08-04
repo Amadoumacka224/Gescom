@@ -43,7 +43,8 @@ public class OrderMapper {
         return toResponse(order, null);
     }
 
-    public OrderResponse toResponse(Order order, Invoice.InvoiceStatus invoiceStatus) {
+    /** `invoice` peut être null : la commande n'est alors pas encore facturée. */
+    public OrderResponse toResponse(Order order, Invoice invoice) {
         if (order == null) return null;
         return new OrderResponse(
                 order.getId(),
@@ -57,7 +58,8 @@ public class OrderMapper {
                 order.getDiscount(),
                 order.getFinalAmount(),
                 order.getStatus(),
-                invoiceStatus,
+                invoice != null ? invoice.getStatus() : null,
+                invoice != null ? invoice.getTotalAmount() : null,
                 order.getNotes(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()

@@ -49,11 +49,12 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAllOrders() {
         List<Order> orders = orderService.getAllOrders();
-        // Statut de facturation par commande (1 requête groupée) pour afficher « Payée » dans la liste.
-        Map<Long, Invoice.InvoiceStatus> invoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
+        // Facture liée à chaque commande (1 requête groupée) : son statut pour afficher « Payée »
+        // dans la liste, son total pour y afficher le montant TTC réellement réclamé.
+        Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 orders.stream().map(Order::getId).toList());
         return ResponseEntity.ok(orders.stream()
-                .map(o -> orderMapper.toResponse(o, invoiceStatuses.get(o.getId()))).toList());
+                .map(o -> orderMapper.toResponse(o, invoices.get(o.getId()))).toList());
     }
 
     @GetMapping("/{id}")
@@ -75,12 +76,12 @@ public class OrderController {
     @GetMapping("/client/{clientId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByClient(@PathVariable Long clientId) {
         List<Order> orders = orderService.getOrdersByClient(clientId);
-        // Même résolution que la liste générale : sans le statut de facture, une commande réglée
-        // s'afficherait « Facturée » sur la fiche client et « Payée » dans la liste des commandes.
-        Map<Long, Invoice.InvoiceStatus> invoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
+        // Même résolution que la liste générale : sans la facture, une commande réglée s'afficherait
+        // « Facturée » sur la fiche client et « Payée » dans la liste des commandes.
+        Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 orders.stream().map(Order::getId).toList());
         return ResponseEntity.ok(orders.stream()
-                .map(o -> orderMapper.toResponse(o, invoiceStatuses.get(o.getId()))).toList());
+                .map(o -> orderMapper.toResponse(o, invoices.get(o.getId()))).toList());
     }
 
     @GetMapping("/user/{userId}")
