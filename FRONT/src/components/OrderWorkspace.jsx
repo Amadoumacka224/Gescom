@@ -352,17 +352,18 @@ const OrderWorkspace = ({
     ));
   }, [order, cart.items, cart.notes]);
 
+  // Panier recevable : ce qui relève des lignes elles-mêmes. Le client n'en fait plus partie —
+  // il se vérifie à la validation (voir `onValidate`), afin que son absence n'ait pas à occuper
+  // un bandeau en permanence pour expliquer un bouton grisé.
   const canValidate = cart.items.length > 0
     && cart.items.every((item) => item.productId)
     && !hasStockIssue
-    && !hasInvalidQty
-    && (order ? true : clientOk);
+    && !hasInvalidQty;
 
   const blockingHint = (() => {
     if (cart.items.length === 0) return t('orders.workspace.hintAddItem');
     if (hasInvalidQty) return t('orders.workspace.hintInvalidQty');
     if (hasStockIssue) return t('orders.workspace.hintStockExceeded');
-    if (!order && !clientOk) return t('orders.workspace.hintPickClient');
     return null;
   })();
 
@@ -573,8 +574,12 @@ const OrderWorkspace = ({
           ? t('orders.workspace.modalTitle', { number: order.orderNumber })
           : t('orders.addOrder')}
         size="fullscreen"
+        fill
       >
-        <div className="flex gap-4 h-[calc(90vh-8rem)] min-h-[520px]">
+        {/* La hauteur vient du modal (`fill`) plutôt que d'un calcul en vh recopiant ses
+            marges : les deux colonnes descendent jusqu'en bas de l'écran quel que soit
+            l'affichage, et le panier récupère tout ce que le catalogue ne prend pas. */}
+        <div className="flex gap-3 h-full min-h-0">
           {editable ? (
             <OrderWorkspaceCatalog
               products={products}
@@ -623,18 +628,27 @@ const OrderWorkspace = ({
               blockingHint={blockingHint}
               defaultTaxRate={defaultTaxRate()}
               defaultDueDate={defaultDueDate()}
-              onValidate={() => setConfirmDialog({
-                title: t('orders.confirmCreateTitle'),
-                message: t('orders.workspace.confirmCreateMessage', {
-                  client: cart.clientMode === 'guest'
-                    ? t('orders.walkInClient')
-                    : t('orders.workspace.registeredClient'),
-                  count: cart.items.length,
-                  total: formatCurrency(cartTotal),
-                }),
-                type: 'info',
-                onConfirm: createOrder,
-              })}
+              onValidate={() => {
+                // Rappel au moment où il sert, et là seulement : le choix du client se fait en
+                // haut du panier, sous un champ déjà marqué obligatoire. Un bandeau permanent
+                // pour le redire coûtait une ligne à chaque vente.
+                if (!clientOk) {
+                  toast.error(t('orders.workspace.hintPickClient'));
+                  return;
+                }
+                setConfirmDialog({
+                  title: t('orders.confirmCreateTitle'),
+                  message: t('orders.workspace.confirmCreateMessage', {
+                    client: cart.clientMode === 'guest'
+                      ? t('orders.walkInClient')
+                      : t('orders.workspace.registeredClient'),
+                    count: cart.items.length,
+                    total: formatCurrency(cartTotal),
+                  }),
+                  type: 'info',
+                  onConfirm: createOrder,
+                });
+              }}
               onSaveItems={saveItems}
               onConfirm={() => setConfirmDialog({
                 title: t('orders.steps.confirmOrder'),

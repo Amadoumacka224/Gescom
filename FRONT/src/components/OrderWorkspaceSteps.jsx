@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import {
-  AlertCircle, Check, CheckCircle, CreditCard, Download, Euro, FileText, Loader2,
+  AlertCircle, CheckCircle, CreditCard, Download, Euro, FileText, Loader2,
   Plus, RotateCcw, Save, ShoppingCart, XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PAYMENT_METHODS } from '../constants/paymentMethods';
 import { formatCurrency, todayISO } from '../utils/format';
-import { WORKSPACE_STEPS as STEPS, remainingOf, workspaceStepIndex } from '../utils/orderLifecycle';
+import { remainingOf } from '../utils/orderLifecycle';
 
 /**
  * Étapes du traitement d'une commande, pilotées depuis le pied du panier.
@@ -22,59 +22,15 @@ import { WORKSPACE_STEPS as STEPS, remainingOf, workspaceStepIndex } from '../ut
  * Aucune règle n'est réimplémentée ici : les conditions affichées ne font que refléter celles
  * que le serveur applique de toute façon (modification réservée au brouillon, facturation
  * réservée à une commande confirmée, encaissement porté par la facture).
+ *
+ * Le parcours n'est plus doublé d'un ruban de progression en tête de panneau : il occupait une
+ * quarantaine de pixels sur toute la largeur pour redire ce que le bouton d'action annonce déjà
+ * (« Confirmer la commande », « Créer la facture », « Encaisser »), et cette hauteur revient
+ * aux lignes d'articles.
  */
 
-/** Ruban de progression : quatre pastilles reliées, l'étape courante mise en avant. */
-const StepRibbon = ({ index }) => {
-  const { t } = useTranslation();
-  const canceled = index < 0;
-  return (
-    <ol className="flex items-center" aria-label={t('orders.steps.progressLabel')}>
-      {STEPS.map((step, i) => {
-        const done = !canceled && i < index;
-        const current = !canceled && i === index;
-        return (
-          <li key={step.key} className={`flex items-center ${i < STEPS.length - 1 ? 'flex-1' : ''}`}>
-            <div className="flex flex-col items-center gap-1">
-              <span
-                aria-current={current ? 'step' : undefined}
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                  done
-                    ? 'bg-green-600 text-white'
-                    : current
-                      ? 'bg-primary-600 text-white ring-4 ring-primary-100 dark:ring-primary-500/20'
-                      : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300'
-                }`}
-              >
-                {done ? <Check className="w-3 h-3" aria-hidden="true" /> : i + 1}
-              </span>
-              <span
-                className={`text-[10px] whitespace-nowrap ${
-                  current
-                    ? 'font-semibold text-primary-700 dark:text-primary-300'
-                    : 'text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                {t(step.labelKey)}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && (
-              <span
-                aria-hidden="true"
-                className={`flex-1 h-0.5 mx-1.5 -mt-4 ${
-                  done ? 'bg-green-600' : 'bg-gray-200 dark:bg-gray-600'
-                }`}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-};
-
 /** Bouton d'action principale de l'étape : pleine largeur, avec état d'attente explicite. */
-const StepButton = ({ icon: Icon, label, loadingLabel, loading, disabled, onClick, tone = 'primary' }) => {
+const StepButton = ({ icon: Icon, label, loadingLabel, loading, disabled, onClick, title, tone = 'primary' }) => {
   const tones = {
     primary: 'bg-primary-600 hover:bg-primary-700 text-white',
     info: 'bg-blue-600 hover:bg-blue-700 text-white',
@@ -86,6 +42,7 @@ const StepButton = ({ icon: Icon, label, loadingLabel, loading, disabled, onClic
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
+      title={title}
       className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed ${tones[tone]}`}
     >
       {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Icon className="w-4 h-4" aria-hidden="true" />}
@@ -123,7 +80,6 @@ const OrderWorkspaceSteps = ({
   onOpenInvoice,
 }) => {
   const { t } = useTranslation();
-  const stepIndex = workspaceStepIndex(order, invoice);
   const remaining = remainingOf(invoice);
   const settled = !!invoice && (invoice.status === 'PAID' || remaining <= 0.001);
 
@@ -168,13 +124,16 @@ const OrderWorkspaceSteps = ({
   if (!order) {
     return (
       <div className="space-y-3">
-        <StepRibbon index={stepIndex} />
         {blockingHint && (
           <p className="flex items-start gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-2">
             <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />
             {blockingHint}
           </p>
         )}
+        {/* Ce que fait la validation — enregistrement en attente, stock intact jusqu'à la
+            confirmation — est porté par l'infobulle du bouton plutôt que par une ligne de
+            texte permanente : l'explication ne se lit qu'une fois, la place, elle, était
+            perdue à chaque vente. */}
         <StepButton
           icon={CheckCircle}
           label={t('orders.steps.validateOrder')}
@@ -182,10 +141,8 @@ const OrderWorkspaceSteps = ({
           loading={busy === 'create'}
           disabled={!canValidate}
           onClick={onValidate}
+          title={t('orders.steps.validateHint')}
         />
-        <p className="text-[11px] text-center text-gray-400 dark:text-gray-500">
-          {t('orders.steps.validateHint')}
-        </p>
       </div>
     );
   }
@@ -194,7 +151,6 @@ const OrderWorkspaceSteps = ({
   if (order.status === 'CANCELED') {
     return (
       <div className="space-y-3">
-        <StepRibbon index={stepIndex} />
         <p className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 rounded-lg text-xs font-medium">
           <XCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
           {t('orders.steps.canceledNotice')}
@@ -209,8 +165,6 @@ const OrderWorkspaceSteps = ({
 
   return (
     <div className="space-y-3">
-      <StepRibbon index={stepIndex} />
-
       {/* ── Étape 2 : commande en attente, à confirmer (sortie de stock) ─────────────── */}
       {order.status === 'PENDING' && (
         <>
