@@ -11,6 +11,7 @@ import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.ProductRepository;
 import com.gescom.backend.repository.StockMovementRepository;
+import com.gescom.backend.repository.StockReturnRepository;
 import com.gescom.backend.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,7 @@ class DiscountCalculationTest {
     @Mock private UserRepository userRepository;
     @Mock private StockMovementRepository stockMovementRepository;
     @Mock private InvoiceRepository invoiceRepository;
+    @Mock private StockReturnRepository stockReturnRepository;
     @Mock private ActivityLogService activityLogService;
 
     private OrderService orderService;
@@ -54,7 +56,7 @@ class DiscountCalculationTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productRepository, userRepository,
-                stockMovementRepository, invoiceRepository, activityLogService);
+                stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService);
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService);
 
         User caissier = new User();

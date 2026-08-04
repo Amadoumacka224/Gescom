@@ -3,35 +3,38 @@ import autoTable from 'jspdf-autotable';
 
 import i18n from '../i18n';
 import { paymentMethodLabelKey } from '../constants/paymentMethods';
+import { formatDate } from './format';
 
 // La facture est un document destiné au client : elle est éditée dans la langue de
 // l'interface, celle dans laquelle l'utilisateur travaille au moment de l'émission.
 const t = (key, values) => i18n.t(key, values);
 import { DEFAULT_TAX_RATE } from '../constants/billing';
 
-export const generateInvoicePDF = (invoice, settings = {}) => {
-  const doc = new jsPDF();
+// Configuration des couleurs — reprise de la charte (cf. `tailwind.config.js`)
+const primaryColor = [31, 119, 180]; // #1F77B4 — bleu acier (primary-600)
+const secondaryColor = [100, 118, 151]; // #647697 — gris bleuté (gray-500)
+const darkColor = [26, 39, 64]; // #1A2740 — bleu nuit (gray-900)
 
-  // Configuration des couleurs — reprise de la charte (cf. `tailwind.config.js`)
-  const primaryColor = [31, 119, 180]; // #1F77B4 — bleu acier (primary-600)
-  const secondaryColor = [100, 118, 151]; // #647697 — gris bleuté (gray-500)
-  const darkColor = [26, 39, 64]; // #1A2740 — bleu nuit (gray-900)
+/** Informations de l'entreprise issues des Réglages (avec valeurs par défaut belges). */
+const companyFrom = (settings) => ({
+  name: settings.companyName || 'GESCOM',
+  address: settings.companyAddress || '',
+  postal: settings.companyPostalCode || '',
+  city: settings.companyCity || '',
+  country: settings.companyCountry || t('pdf.defaultCountry'),
+  phone: settings.companyPhone || '',
+  email: settings.companyEmail || '',
+  vat: settings.companyTaxId || '',   // N° TVA = n° d'entreprise (BCE) en Belgique
+  iban: settings.companyIban || '',
+  bic: settings.companyBic || '',
+});
 
-  // Informations de l'entreprise issues des Réglages (avec valeurs par défaut belges).
-  const company = {
-    name: settings.companyName || 'GESCOM',
-    address: settings.companyAddress || '',
-    postal: settings.companyPostalCode || '',
-    city: settings.companyCity || '',
-    country: settings.companyCountry || t('pdf.defaultCountry'),
-    phone: settings.companyPhone || '',
-    email: settings.companyEmail || '',
-    vat: settings.companyTaxId || '',   // N° TVA = n° d'entreprise (BCE) en Belgique
-    iban: settings.companyIban || '',
-    bic: settings.companyBic || '',
-  };
-
-  // En-tête avec logo et informations de l'entreprise
+/**
+ * En-tête commun aux documents client : bandeau de couleur, raison sociale et coordonnées
+ * légales. Facture et note de crédit sortent de la même entreprise, elles s'annoncent de la
+ * même façon — c'est ce qui les fait reconnaître comme deux pièces d'un même dossier.
+ */
+const drawHeader = (doc, company) => {
   const headerHeight = 46;
   doc.setFillColor(...primaryColor);
   doc.rect(0, 0, 210, headerHeight, 'F');
@@ -62,6 +65,45 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
     doc.text(line, 195, yPos, { align: 'right' });
     yPos += 5;
   });
+};
+
+/** Mention légale belge (raison sociale + n° TVA/BCE) et bandeau de bas de page. */
+const drawFooter = (doc, company, settings) => {
+  const pageHeight = doc.internal.pageSize.height;
+  doc.setFontSize(8);
+  doc.setTextColor(...secondaryColor);
+  doc.setFont('helvetica', 'italic');
+
+  const legalParts = [company.name];
+  if (company.vat) legalParts.push(t('pdf.vatLine', { vat: company.vat }));
+  const footerText = `${legalParts.join(' — ')} | ${settings.footerText || t('settings.footerText')}`;
+  doc.text(footerText, 105, pageHeight - 15, { align: 'center' });
+
+  doc.setFillColor(...primaryColor);
+  doc.rect(0, pageHeight - 10, 210, 10, 'F');
+};
+
+/** Bloc « coordonnées bancaires » : mention de paiement, sous le récapitulatif. */
+const drawBankDetails = (doc, company, y) => {
+  const bankParts = [];
+  if (company.iban) bankParts.push(`IBAN : ${company.iban}`);
+  if (company.bic) bankParts.push(`BIC : ${company.bic}`);
+  if (bankParts.length === 0) return;
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkColor);
+  doc.text(t('settings.bankDetailsTitle'), 15, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...secondaryColor);
+  doc.text(bankParts.join('   •   '), 15, y + 6);
+};
+
+export const generateInvoicePDF = (invoice, settings = {}) => {
+  const doc = new jsPDF();
+  const company = companyFrom(settings);
+
+  drawHeader(doc, company);
 
   // Titre FACTURE
   doc.setFontSize(20);
@@ -80,7 +122,7 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
     { label: t('pdf.dueDateLabel'), value: String(invoice.dueDate || '-') },
   ];
 
-  yPos = 55;
+  let yPos = 55;
   invoiceDetails.forEach(detail => {
     doc.setFont('helvetica', 'bold');
     doc.text(detail.label, 140, yPos);
@@ -318,35 +360,206 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
   }
 
   // Coordonnées bancaires (mention légale belge pour le paiement)
-  const bankParts = [];
-  if (company.iban) bankParts.push(`IBAN : ${company.iban}`);
-  if (company.bic) bankParts.push(`BIC : ${company.bic}`);
-  if (bankParts.length > 0) {
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...darkColor);
-    doc.text(t('settings.bankDetailsTitle'), 15, summaryY + 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...secondaryColor);
-    doc.text(bankParts.join('   •   '), 15, summaryY + 18);
-  }
+  drawBankDetails(doc, company, summaryY + 12);
 
-  // Pied de page
-  const pageHeight = doc.internal.pageSize.height;
-  doc.setFontSize(8);
-  doc.setTextColor(...secondaryColor);
-  doc.setFont('helvetica', 'italic');
-
-  // Ligne légale belge : raison sociale + n° TVA/BCE
-  const legalParts = [company.name];
-  if (company.vat) legalParts.push(t('pdf.vatLine', { vat: company.vat }));
-  const footerText = `${legalParts.join(' — ')} | ${settings.footerText || t('settings.footerText')}`;
-  doc.text(footerText, 105, pageHeight - 15, { align: 'center' });
-
-  doc.setFillColor(...primaryColor);
-  doc.rect(0, pageHeight - 10, 210, 10, 'F');
+  drawFooter(doc, company, settings);
 
   // Générer le PDF
   const fileName = `${t('pdf.fileNamePrefix')}_${invoice.invoiceNumber}_${new Date().getTime()}.pdf`;
+  doc.save(fileName);
+};
+
+/**
+ * Note de crédit (avoir) d'un retour client.
+ *
+ * C'est la contrepartie documentaire de la facture : la vente a produit une pièce, le retour
+ * en produit une autre, qui la référence. Le document reprend les articles rendus avec leur
+ * motif et leur traitement — la note de crédit doit dire *pourquoi* on rembourse — et ne
+ * chiffre que les lignes effectivement remboursées : une remise en stock ou un échange rend
+ * de la marchandise sans rendre d'argent, et figure donc au tableau sans montant.
+ *
+ * Les montants viennent tels quels du retour enregistré (`refundAmount`, calculé au prix
+ * réellement payé) : le document ne recalcule rien, sans quoi il pourrait annoncer un montant
+ * différent de celui inscrit au registre. La TVA est celle de la facture d'origine, à défaut
+ * celle des Réglages — les lignes de vente sont stockées hors taxe.
+ */
+export const generateCreditNotePDF = (stockReturn, settings = {}) => {
+  const doc = new jsPDF();
+  const company = companyFrom(settings);
+
+  drawHeader(doc, company);
+
+  // Titre NOTE DE CRÉDIT
+  doc.setFontSize(20);
+  doc.setTextColor(...darkColor);
+  doc.setFont('helvetica', 'bold');
+  doc.text(t('pdf.creditNote.heading'), 15, 55);
+
+  // Références : le numéro de l'avoir, sa date, et les pièces de la vente qu'il corrige.
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...secondaryColor);
+
+  const details = [
+    { label: t('pdf.creditNote.numberLabel'), value: stockReturn.returnNumber || '-' },
+    { label: t('pdf.dateLabel'), value: formatDate(stockReturn.createdAt) },
+    { label: t('pdf.creditNote.invoiceLabel'), value: stockReturn.invoiceNumber || '—' },
+    { label: t('pdf.creditNote.orderLabel'), value: stockReturn.orderNumber || '—' },
+  ];
+
+  let yPos = 55;
+  details.forEach(detail => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(detail.label, 133, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(detail.value, 165, yPos);
+    yPos += 6;
+  });
+
+  // Informations du client
+  doc.setFillColor(243, 244, 246); // bg-gray-100
+  doc.rect(15, 75, 90, 35, 'F');
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...darkColor);
+  doc.text(t('pdf.creditNote.creditedTo'), 20, 82);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...secondaryColor);
+
+  const client = stockReturn.client;
+  const clientInfo = client
+    ? [
+        client.name || client.company || stockReturn.clientName,
+        client.email,
+        client.phone,
+        client.address,
+        [client.postalCode, client.city].filter(Boolean).join(' '),
+      ].filter(Boolean)
+    // Vente de passage : la commande n'a pas de client, l'avoir le dit plutôt que de laisser
+    // un cadre vide qu'on prendrait pour un oubli.
+    : [t('pdf.creditNote.walkInClient')];
+
+  yPos = 90;
+  clientInfo.forEach(line => {
+    doc.text(line, 20, yPos);
+    yPos += 5;
+  });
+
+  // Tableau des articles rendus
+  const tableStartY = 120;
+  const items = stockReturn.items || [];
+  const amountOf = (item) => Number(item.refundAmount) || 0;
+
+  if (items.length > 0) {
+    autoTable(doc, {
+      startY: tableStartY,
+      head: [[
+        t('common.product'),
+        t('pdf.creditNote.reasonColumn'),
+        t('pdf.creditNote.treatmentColumn'),
+        t('orders.recap.qtyShort'),
+        t('common.total'),
+      ]],
+      body: items.map((item) => [
+        item.product?.name || t('common.product'),
+        t(`stock.returns.reasons.${item.reason}`, { defaultValue: item.reason || '—' }),
+        t(`stock.returns.treatments.${item.treatment}`, { defaultValue: item.treatment || '—' }),
+        String(item.quantity ?? 0),
+        // Sans remboursement, la ligne n'a pas de montant : un « 0,00 € » se lirait comme un
+        // article rendu gratuitement, un tiret dit qu'il n'y a rien à rembourser.
+        amountOf(item) > 0 ? `${amountOf(item).toFixed(2)} €` : '—',
+      ]),
+      theme: 'striped',
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10,
+      },
+      styles: {
+        fontSize: 9,
+        cellPadding: 4,
+      },
+      // Le tableau est calé sur la laisse du document (15 → 195 mm), celle du titre et du
+      // récapitulatif : à la marge par défaut d'autoTable, les six colonnes ne tiendraient pas
+      // et leurs libellés seraient coupés.
+      margin: { left: 15, right: 15 },
+      columnStyles: {
+        0: { cellWidth: 56 },
+        1: { cellWidth: 38 },
+        2: { cellWidth: 38 },
+        3: { cellWidth: 16, halign: 'center' },
+        4: { cellWidth: 32, halign: 'right' },
+      },
+    });
+  }
+
+  // Récapitulatif : sous-total HT rendu, TVA de la vente, total à rembourser.
+  const summaryX = 120;
+  let summaryY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : tableStartY + 10;
+
+  const subtotal = Number(stockReturn.refundAmount) || 0;
+  const taxRate = Number(stockReturn.taxRate ?? settings.taxRate ?? DEFAULT_TAX_RATE) || 0;
+  const taxAmount = subtotal * taxRate / 100;
+
+  const summary = [
+    { label: t('pdf.subtotalLabel'), value: `${subtotal.toFixed(2)} €` },
+    { label: `TVA (${taxRate}%):`, value: `+${taxAmount.toFixed(2)} €`, color: [59, 130, 246] },
+    { label: t('pdf.creditNote.refundTotalLabel'), value: `${(subtotal + taxAmount).toFixed(2)} €`, bold: true, size: 12 },
+  ];
+
+  summary.forEach(item => {
+    doc.setFontSize(item.size || 10);
+    doc.setFont('helvetica', item.bold ? 'bold' : 'normal');
+    doc.setTextColor(...(item.color || secondaryColor));
+
+    doc.text(item.label, summaryX, summaryY);
+    doc.text(item.value, 195, summaryY, { align: 'right' });
+
+    summaryY += item.bold ? 8 : 6;
+
+    if (item.bold && item !== summary[summary.length - 1]) {
+      doc.setDrawColor(...secondaryColor);
+      doc.line(summaryX, summaryY - 2, 195, summaryY - 2);
+      summaryY += 2;
+    }
+  });
+
+  // Quantité rendue, en regard du montant : un avoir sans montant (remise en stock, échange)
+  // reste un document qui atteste d'articles repris.
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...secondaryColor);
+  doc.text(
+    t('pdf.creditNote.quantityLine', { count: stockReturn.totalQuantity ?? 0 }),
+    15,
+    doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : tableStartY + 10
+  );
+
+  // Notes du retour
+  if (stockReturn.notes) {
+    summaryY += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...darkColor);
+    doc.text(t('pdf.notesLabel'), 15, summaryY);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...secondaryColor);
+    doc.text(doc.splitTextToSize(stockReturn.notes, 180), 15, summaryY + 6);
+  }
+
+  // Coordonnées bancaires : c'est par là que le remboursement partira.
+  if (subtotal > 0) {
+    drawBankDetails(doc, company, summaryY + 12);
+  }
+
+  drawFooter(doc, company, settings);
+
+  const fileName = `${t('pdf.creditNote.fileNamePrefix')}_${stockReturn.returnNumber}_${new Date().getTime()}.pdf`;
   doc.save(fileName);
 };

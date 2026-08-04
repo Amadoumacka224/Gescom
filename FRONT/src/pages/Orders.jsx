@@ -922,7 +922,9 @@ const Orders = () => {
         fetchOrders();
       } catch (error) {
         console.error('Error deleting order:', error);
-        toast.error(t('orders.deleteError'));
+        // Le refus est motivé côté serveur (retour client rattaché, par exemple) : afficher le
+        // message reçu plutôt qu'un « échec » qui n'apprend rien, comme pour l'annulation.
+        toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
       }
     }
   };

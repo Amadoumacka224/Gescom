@@ -31,6 +31,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import SegmentedFilter from '../components/SegmentedFilter';
 import StatCard from '../components/StatCard';
 import Button from '../components/Button';
+import ReturnWizard from '../components/ReturnWizard';
+import ReturnDetails from '../components/ReturnDetails';
 import { normalizeText, rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatDate, formatTime } from '../utils/format';
 import { STOCK_MOVEMENT_TONE, badgeClass } from '../constants/statusBadges';
@@ -57,8 +59,21 @@ const MOVEMENT_SORT_FIELDS = {
   quantity: 'quantity',
 };
 
-/* Les cinq opérations de stock, avec leur endpoint et le champ de quantité attendu.
- * `sign` sert au calcul du stock projeté affiché avant validation. */
+/* Colonnes triables du registre des retours et champ trié en base. */
+const RETURN_SORT_FIELDS = {
+  createdAt: 'createdAt',
+  returnNumber: 'returnNumber',
+  order: 'order.orderNumber',
+  totalQuantity: 'totalQuantity',
+  refundAmount: 'refundAmount',
+};
+
+/* Les opérations de stock saisies à la main, avec leur endpoint et le champ de quantité
+ * attendu. `sign` sert au calcul du stock projeté affiché avant validation.
+ *
+ * Le retour client n'en fait plus partie : il ne se saisit pas produit par produit mais part
+ * de la vente d'origine (cf. ReturnWizard), seul moyen de contrôler les quantités rendues et
+ * de rattacher le mouvement à son document. */
 const OPERATIONS = {
   add: { endpoint: '/stock/add', icon: Plus, sign: 1, withUnitCost: true, withReference: true },
   remove: { endpoint: '/stock/remove', icon: Minus, sign: -1, withReference: true },
@@ -67,7 +82,6 @@ const OPERATIONS = {
   // `recordDamage` ne le prend pas. Le formulaire l'affichait pourtant, et la valeur
   // saisie était silencieusement perdue — le n° de constat va dans « Raison ».
   damage: { endpoint: '/stock/damage', icon: AlertTriangle, sign: -1 },
-  return: { endpoint: '/stock/return', icon: RotateCcw, sign: 1, withReference: true },
 };
 
 const EMPTY_FORM = {
@@ -105,6 +119,10 @@ const Stock = () => {
   const [movements, setMovements] = useState([]);
   const [movementsMeta, setMovementsMeta] = useState({ totalElements: 0, totalPages: 1 });
   const [movementsLoading, setMovementsLoading] = useState(true);
+  // Même principe pour le registre des retours : append-only, paginé côté serveur.
+  const [returns, setReturns] = useState([]);
+  const [returnsMeta, setReturnsMeta] = useState({ totalElements: 0, totalPages: 1 });
+  const [returnsLoading, setReturnsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,8 +131,14 @@ const Stock = () => {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [productSort, setProductSort] = useState({ key: 'name', direction: 'asc' });
   const [movementSort, setMovementSort] = useState({ key: 'createdAt', direction: 'desc' });
+  const [returnSort, setReturnSort] = useState({ key: 'createdAt', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Saisie d'un retour client et consultation d'un retour enregistré.
+  const [returnWizardOpen, setReturnWizardOpen] = useState(false);
+  const [selectedReturn, setSelectedReturn] = useState(null);
+  const [returnDetailsLoading, setReturnDetailsLoading] = useState(false);
 
   const [operation, setOperation] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
@@ -152,12 +176,19 @@ const Stock = () => {
   }, [typeFilter, debouncedSearch]);
 
   const movementSortParam = `${MOVEMENT_SORT_FIELDS[movementSort.key] ?? 'createdAt'},${movementSort.direction}`;
+  const returnSortParam = `${RETURN_SORT_FIELDS[returnSort.key] ?? 'createdAt'},${returnSort.direction}`;
 
   useEffect(() => {
     if (!isAdmin) return;
     fetchMovements();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, movementParams, movementSortParam, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchReturns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, debouncedSearch, returnSortParam, currentPage, itemsPerPage]);
 
   const fetchProducts = async () => {
     try {
@@ -193,6 +224,30 @@ const Stock = () => {
       toast.error(t('stock.loadError'));
     } finally {
       setMovementsLoading(false);
+    }
+  };
+
+  const fetchReturns = async () => {
+    try {
+      setReturnsLoading(true);
+      const { data } = await api.get('/stock/returns', {
+        params: {
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          page: currentPage - 1,
+          size: itemsPerPage,
+          sort: returnSortParam,
+        },
+      });
+      setReturns(data.content || []);
+      setReturnsMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
+    } catch (error) {
+      console.error('Error fetching stock returns:', error);
+      toast.error(t('stock.loadError'));
+    } finally {
+      setReturnsLoading(false);
     }
   };
 
@@ -258,17 +313,36 @@ const Stock = () => {
   }, [filteredProducts, productSort]);
 
   const isStockTab = activeTab === 'stock';
+  const isMovementsTab = activeTab === 'movements';
+  const isReturnsTab = activeTab === 'returns';
 
-  /* Les deux onglets ne se paginent pas de la même façon : le catalogue est borné et découpé
-   * côté client, le grand livre arrive déjà paginé du serveur (filtré, cherché et trié par
-   * lui). D'où deux sources pour le total et pour les lignes affichées. */
-  const totalItems = isStockTab ? sortedProducts.length : movementsMeta.totalElements;
-  const totalPages = isStockTab
-    ? Math.max(1, Math.ceil(sortedProducts.length / itemsPerPage))
-    : movementsMeta.totalPages;
-  const displayedRows = isStockTab
-    ? sortedProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-    : movements;
+  /* Les onglets ne se paginent pas de la même façon : le catalogue est borné et découpé côté
+   * client, tandis que le grand livre et le registre des retours arrivent déjà paginés du
+   * serveur (filtrés, cherchés et triés par lui). D'où trois sources pour le total et pour
+   * les lignes affichées. */
+  const panel = isStockTab
+    ? {
+        loading,
+        rows: sortedProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage),
+        totalItems: sortedProducts.length,
+        totalPages: Math.max(1, Math.ceil(sortedProducts.length / itemsPerPage)),
+        sort: productSort,
+      }
+    : isMovementsTab
+      ? {
+          loading: movementsLoading,
+          rows: movements,
+          totalItems: movementsMeta.totalElements,
+          totalPages: movementsMeta.totalPages,
+          sort: movementSort,
+        }
+      : {
+          loading: returnsLoading,
+          rows: returns,
+          totalItems: returnsMeta.totalElements,
+          totalPages: returnsMeta.totalPages,
+          sort: returnSort,
+        };
 
   const productSuggestions = useMemo(
     () => rankSuggestions(products, searchTerm, (p) => [p.name, p.code, p.barcode], 6),
@@ -276,7 +350,9 @@ const Stock = () => {
   );
 
   const hasActiveFilters =
-    searchTerm.trim() !== '' || (isStockTab ? stockFilter !== 'ALL' : typeFilter !== 'ALL');
+    searchTerm.trim() !== '' ||
+    (isStockTab && stockFilter !== 'ALL') ||
+    (isMovementsTab && typeFilter !== 'ALL');
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -285,11 +361,40 @@ const Stock = () => {
   };
 
   const handleSort = (key) => {
-    const setter = isStockTab ? setProductSort : setMovementSort;
+    const setter = isStockTab ? setProductSort : isMovementsTab ? setMovementSort : setReturnSort;
     setter((prev) => ({
       key,
       direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
     }));
+  };
+
+  /* ---- Retours clients ---- */
+
+  // Le retour vient de modifier des stocks et d'écrire au grand livre : les trois onglets
+  // doivent repartir du serveur, pas seulement celui qu'on regarde.
+  const handleReturnCreated = async (created) => {
+    setReturnWizardOpen(false);
+    toast.success(t('stock.returns.created', { number: created.returnNumber }));
+    setActiveTab('returns');
+    await Promise.all([fetchProducts(), fetchMovements(), fetchReturns()]);
+    if (detailsProductId) await fetchProductMovements(detailsProductId);
+  };
+
+  // La liste ne transporte que les entêtes : le détail des articles rendus est chargé
+  // à l'ouverture de la fiche.
+  const openReturnDetails = async (stockReturn) => {
+    setSelectedReturn(stockReturn);
+    setReturnDetailsLoading(true);
+    try {
+      const { data } = await api.get(`/stock/returns/${stockReturn.id}`);
+      setSelectedReturn(data);
+    } catch (error) {
+      console.error('Error fetching stock return:', error);
+      toast.error(t('stock.returns.detailsError'));
+      setSelectedReturn(null);
+    } finally {
+      setReturnDetailsLoading(false);
+    }
   };
 
   /* ---- Opérations de stock ---- */
@@ -603,6 +708,87 @@ const Stock = () => {
     },
   ];
 
+  const returnColumns = [
+    {
+      key: 'createdAt',
+      label: t('stock.columnDate'),
+      sortable: true,
+      render: (item) => (
+        <div className="tabular-nums">
+          <div className="text-gray-900 dark:text-gray-100">{formatDate(item.createdAt)}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{formatTime(item.createdAt)}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'returnNumber',
+      label: t('stock.returns.columnNumber'),
+      sortable: true,
+      render: (item) => (
+        <span className="font-medium text-gray-900 dark:text-gray-100">{item.returnNumber}</span>
+      ),
+    },
+    {
+      key: 'order',
+      label: t('stock.returns.columnOrder'),
+      sortable: true,
+      render: (item) => (
+        <div className="min-w-0">
+          <div className="text-gray-900 dark:text-gray-100 truncate">{item.orderNumber || '—'}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            {item.invoiceNumber || '—'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'client',
+      label: t('stock.returns.columnClient'),
+      className: 'hidden lg:table-cell',
+      render: (item) => (
+        <span className="text-gray-600 dark:text-gray-400">
+          {item.clientName || t('stock.returns.walkInClient')}
+        </span>
+      ),
+    },
+    {
+      key: 'totalQuantity',
+      label: t('stock.returns.columnQuantity'),
+      sortable: true,
+      render: (item) => (
+        <span className="font-semibold tabular-nums text-green-600 dark:text-green-400">
+          +{item.totalQuantity ?? 0}
+        </span>
+      ),
+    },
+    {
+      key: 'refundAmount',
+      label: t('stock.returns.columnRefund'),
+      sortable: true,
+      render: (item) =>
+        Number(item.refundAmount) > 0 ? (
+          <span className="tabular-nums font-semibold text-gray-900 dark:text-gray-100">
+            {formatCurrency(item.refundAmount)}
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
+    },
+    {
+      key: 'user',
+      label: t('stock.columnBy'),
+      className: 'hidden xl:table-cell',
+      render: (item) => (
+        <span className="text-gray-600 dark:text-gray-400">
+          {item.createdBy
+            ? `${item.createdBy.firstName || ''} ${item.createdBy.lastName || ''}`.trim() ||
+              item.createdBy.username
+            : '—'}
+        </span>
+      ),
+    },
+  ];
+
   const emptyState = hasActiveFilters ? (
     <div className="flex flex-col items-center gap-3">
       <Boxes className="empty-state-icon" aria-hidden="true" />
@@ -618,7 +804,11 @@ const Stock = () => {
     <div className="flex flex-col items-center gap-3">
       <Boxes className="empty-state-icon" aria-hidden="true" />
       <p className="font-medium text-gray-700 dark:text-gray-300">
-        {isStockTab ? t('stock.emptyProducts') : t('stock.emptyMovements')}
+        {isStockTab
+          ? t('stock.emptyProducts')
+          : isMovementsTab
+            ? t('stock.emptyMovements')
+            : t('stock.returns.empty')}
       </p>
     </div>
   );
@@ -637,8 +827,9 @@ const Stock = () => {
 
   const tabs = [
     { value: 'stock', label: t('stock.tabStock'), icon: Boxes, count: products.length },
-    // Total du grand livre, pas le nombre de lignes de la page affichée.
+    // Totaux des registres, pas le nombre de lignes de la page affichée.
     { value: 'movements', label: t('stock.tabMovements'), icon: ArrowRightLeft, count: movementsMeta.totalElements },
+    { value: 'returns', label: t('stock.tabReturns'), icon: RotateCcw, count: returnsMeta.totalElements },
   ];
 
   return (
@@ -724,7 +915,9 @@ const Stock = () => {
           >
             {t('stock.opDamage')}
           </Button>
-          <Button variant="secondary" size="sm" icon={RotateCcw} onClick={() => openOperation('return')}>
+          {/* Le retour client ouvre son propre parcours : il commence par retrouver la vente,
+              pas par choisir un produit. */}
+          <Button variant="outline" size="sm" icon={RotateCcw} onClick={() => setReturnWizardOpen(true)}>
             {t('stock.opReturn')}
           </Button>
         </div>
@@ -816,8 +1009,14 @@ const Stock = () => {
             className="flex-1"
             value={searchTerm}
             onChange={setSearchTerm}
-            placeholder={isStockTab ? t('stock.searchProducts') : t('stock.searchMovements')}
-            suggestions={productSuggestions}
+            placeholder={
+              isStockTab
+                ? t('stock.searchProducts')
+                : isMovementsTab
+                  ? t('stock.searchMovements')
+                  : t('stock.returns.search')
+            }
+            suggestions={isReturnsTab ? [] : productSuggestions}
             getKey={(p) => p.id}
             onSelectSuggestion={(p) => setSearchTerm(p.name)}
             renderSuggestion={(p) => (
@@ -846,7 +1045,7 @@ const Stock = () => {
                   { value: 'out', label: t('stock.status.out'), count: stats.out },
                 ]}
               />
-            ) : (
+            ) : isMovementsTab ? (
               <div className="flex items-center gap-2">
                 <label htmlFor="movement-type" className="text-sm text-gray-500 dark:text-gray-400">
                   {t('stock.columnType')}
@@ -865,7 +1064,11 @@ const Stock = () => {
                   ))}
                 </select>
               </div>
-            )}
+            ) : null
+            /* Rien pour le registre des retours : pas de facette à filtrer — la recherche porte
+               déjà sur le n° de retour, la vente, la facture et le client — et l'ouverture de
+               l'assistant est le bouton « Retour client » de la barre d'opérations, qui reste
+               à l'écran quel que soit l'onglet. */}
             {hasActiveFilters && (
               <Button variant="secondary" size="sm" icon={X} onClick={resetFilters}>
                 {t('stock.resetFilters')}
@@ -876,15 +1079,26 @@ const Stock = () => {
 
         <div id={`panel-${activeTab}`} role="tabpanel">
           <Table
-            columns={isStockTab ? productColumns : movementColumns}
-            data={displayedRows}
-            loading={isStockTab ? loading : movementsLoading}
+            columns={isStockTab ? productColumns : isMovementsTab ? movementColumns : returnColumns}
+            data={panel.rows}
+            loading={panel.loading}
             emptyState={emptyState}
-            sortKey={isStockTab ? productSort.key : movementSort.key}
-            sortDirection={isStockTab ? productSort.direction : movementSort.direction}
+            sortKey={panel.sort.key}
+            sortDirection={panel.sort.direction}
             onSort={handleSort}
             actions={
-              isStockTab
+              isReturnsTab
+                ? (item) => (
+                    <button
+                      onClick={() => openReturnDetails(item)}
+                      className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      title={t('stock.returns.viewDetails')}
+                      aria-label={`${t('stock.returns.viewDetails')} — ${item.returnNumber}`}
+                    >
+                      <Eye className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )
+                : isStockTab
                 ? (product) => (
                     <>
                       <button
@@ -927,11 +1141,11 @@ const Stock = () => {
             }
           />
 
-          {!(isStockTab ? loading : movementsLoading) && totalItems > 0 && (
+          {!panel.loading && panel.totalItems > 0 && (
             <Pagination
-              currentPage={Math.min(currentPage, totalPages)}
-              totalPages={totalPages}
-              totalItems={totalItems}
+              currentPage={Math.min(currentPage, panel.totalPages)}
+              totalPages={panel.totalPages}
+              totalItems={panel.totalItems}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
               onItemsPerPageChange={setItemsPerPage}
@@ -1218,6 +1432,35 @@ const Stock = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ---- Retour client ----
+       * Au-dessus de la fiche produit pour la même raison que la modale d'opération : les deux
+       * partagent `z-50` et c'est l'ordre du DOM qui trancherait autrement. */}
+      <div className="relative z-[60]">
+        <Modal
+          isOpen={returnWizardOpen}
+          onClose={() => setReturnWizardOpen(false)}
+          size="xl"
+          title={t('stock.returns.wizardTitle')}
+        >
+          <ReturnWizard
+            isOpen={returnWizardOpen}
+            products={products}
+            onSuccess={handleReturnCreated}
+            onClose={() => setReturnWizardOpen(false)}
+          />
+        </Modal>
+      </div>
+
+      {/* ---- Fiche d'un retour enregistré ---- */}
+      <Modal
+        isOpen={Boolean(selectedReturn)}
+        onClose={() => setSelectedReturn(null)}
+        size="lg"
+        title={selectedReturn?.returnNumber || ''}
+      >
+        <ReturnDetails stockReturn={selectedReturn} loading={returnDetailsLoading} />
       </Modal>
     </div>
   );

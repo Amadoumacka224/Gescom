@@ -7,7 +7,6 @@ import com.gescom.backend.dto.stock.StockAdjustRequest;
 import com.gescom.backend.dto.stock.StockDamageRequest;
 import com.gescom.backend.dto.stock.StockMovementResponse;
 import com.gescom.backend.dto.stock.StockRemoveRequest;
-import com.gescom.backend.dto.stock.StockReturnRequest;
 import com.gescom.backend.entity.StockMovement;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.ResourceNotFoundException;
@@ -145,14 +144,8 @@ public class StockController {
         return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
     }
 
-    @PostMapping("/return")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<StockMovementResponse> returnStock(@Valid @RequestBody StockReturnRequest request) {
-        StockMovement movement = stockService.returnStock(
-                request.productId(), request.quantity(),
-                request.reason(), request.reference(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
-    }
+    // Les retours clients ne sont plus une simple entrée de stock à saisir à la main : ils
+    // partent de la vente d'origine et vivent dans StockReturnController (/api/stock/returns).
 
     @GetMapping("/low-stock")
     public ResponseEntity<List<ProductResponse>> getLowStockProducts() {

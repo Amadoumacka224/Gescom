@@ -30,6 +30,21 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findAllWithDetails();
 
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+
+    /**
+     * Recherche d'une facture par son numéro, insensible à la casse et commande complète chargée.
+     * Pendant de {@code OrderRepository.findByOrderNumberWithDetails} pour la saisie d'un retour :
+     * le client donne indifféremment son numéro de commande ou celui de sa facture.
+     */
+    @Query("SELECT DISTINCT i FROM Invoice i " +
+           "LEFT JOIN FETCH i.order o " +
+           "LEFT JOIN FETCH o.client " +
+           "LEFT JOIN FETCH o.createdBy " +
+           "LEFT JOIN FETCH o.items it " +
+           "LEFT JOIN FETCH it.product p " +
+           "LEFT JOIN FETCH p.category " +
+           "WHERE UPPER(i.invoiceNumber) = UPPER(:invoiceNumber)")
+    Optional<Invoice> findByInvoiceNumberWithDetails(@Param("invoiceNumber") String invoiceNumber);
     Optional<Invoice> findByOrderId(Long orderId);
     List<Invoice> findByOrderIdIn(Collection<Long> orderIds);
     List<Invoice> findByStatus(Invoice.InvoiceStatus status);
