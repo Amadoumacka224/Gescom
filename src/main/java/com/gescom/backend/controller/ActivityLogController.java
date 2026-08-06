@@ -20,7 +20,9 @@ import java.time.LocalDateTime;
 /**
  * Consultation (lecture seule) du journal d'activité. Les entrées sont produites
  * automatiquement côté serveur par les services métier ; il n'existe volontairement
- * PAS d'endpoint de création exposé, pour préserver l'intégrité de l'audit.
+ * PAS d'endpoint de création ni de suppression exposé, pour préserver l'intégrité de
+ * l'audit : une piste que l'administrateur peut élaguer ne prouve plus rien, et c'est
+ * précisément lui que le journal doit tracer. Une entrée est donc définitive.
  *
  * Les listes sont paginées ({@link PageResponse}) : c'est le seul registre qui croît sans
  * borne, et le renvoyer d'un bloc chargeait déjà près d'un mégaoctet par appel. Le filtrage
@@ -114,12 +116,5 @@ public class ActivityLogController {
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
                 activityLogService.getCaissierActivities(pageable), activityLogMapper::toResponse));
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteActivity(@PathVariable Long id) {
-        activityLogService.deleteActivity(id);
-        return ResponseEntity.noContent().build();
     }
 }

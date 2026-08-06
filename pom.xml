@@ -23,6 +23,7 @@
         <jjwt.version>0.12.3</jjwt.version>
         <springdoc.version>2.3.0</springdoc.version>
         <stripe.version>24.22.0</stripe.version>
+        <jacoco.version>0.8.11</jacoco.version>
     </properties>
 
     <dependencies>
@@ -130,6 +131,31 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+
+            <!-- Couverture de tests. L'agent s'attache à la JVM de surefire, et le rapport est
+                 produit à la fin de la phase test : `mvn test` suffit, le résultat est lisible
+                 dans target/site/jacoco/index.html. Aucun seuil bloquant n'est configuré —
+                 la couverture est mesurée et publiée, pas imposée. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

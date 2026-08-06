@@ -79,6 +79,23 @@ public class ClientService {
         return clientRepository.findByType(type);
     }
 
+    /**
+     * Charge un client en vue d'une demande d'accès RGPD (art. 15).
+     * L'export est lui-même journalisé : communiquer des données personnelles est une opération
+     * qui doit laisser une trace, au même titre qu'une modification — c'est elle qui atteste
+     * ensuite du respect du délai légal d'un mois.
+     */
+    public Client getClientForExport(Long id) {
+        Client client = clientRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("client", id));
+
+        String clientName = client.getFirstName() + " " + client.getLastName();
+        logActivity(ActivityLog.ActionType.EXPORT, "Client", id,
+            "Export RGPD des données du client " + clientName);
+
+        return client;
+    }
+
     public Client createClient(Client client) {
         if (client.getEmail() != null && clientRepository.existsByEmail(client.getEmail())) {
             throw new DuplicateResourceException("client", "email", client.getEmail());

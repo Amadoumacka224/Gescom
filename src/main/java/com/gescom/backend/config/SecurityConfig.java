@@ -92,10 +92,16 @@ public class SecurityConfig {
     /**
      * Bean pour l'encodage des mots de passe.
      * BCrypt est utilisé ici — algorithme sécurisé recommandé pour les mots de passe.
+     *
+     * Le coût est porté à 12 (le constructeur sans argument applique 10), soit quatre fois plus
+     * de travail par empreinte : quelques centaines de millisecondes à la connexion, mais autant
+     * de fois plus cher pour qui tenterait une attaque par force brute sur les empreintes volées.
+     * Le coût étant inscrit dans l'empreinte elle-même, les mots de passe déjà enregistrés en
+     * {@code $2a$10$} continuent de se vérifier ; ils passeront à 12 à leur prochaine modification.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
 
     /**

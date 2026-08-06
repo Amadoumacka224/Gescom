@@ -40,8 +40,6 @@ const activityService = {
 
   getCaissierActivities: (params = {}) => axios.get('/activities/caissiers', { params }),
 
-  deleteActivity: (id) => axios.delete(`/activities/${id}`),
-
   /**
    * Toutes les lignes correspondant aux critères, page après page.
    * Réservé à l'export : l'écran, lui, ne charge jamais qu'une page. Sans cela un export

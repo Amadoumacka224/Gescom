@@ -1,9 +1,14 @@
 package com.gescom.backend.mapper;
 
+import com.gescom.backend.dto.client.ClientDataExport;
 import com.gescom.backend.dto.client.ClientRequest;
 import com.gescom.backend.dto.client.ClientResponse;
 import com.gescom.backend.entity.Client;
+import com.gescom.backend.entity.Order;
 import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Component
 public class ClientMapper {
@@ -26,6 +31,21 @@ public class ClientMapper {
                 client.getActive(),
                 client.getCreatedAt(),
                 client.getUpdatedAt()
+        );
+    }
+
+    /** Assemble la réponse à une demande d'accès RGPD : le client et son historique de commandes. */
+    public ClientDataExport toDataExport(Client client, List<Order> orders) {
+        return new ClientDataExport(
+                LocalDateTime.now(),
+                toResponse(client),
+                orders.stream()
+                        .map(order -> new ClientDataExport.OrderHistoryEntry(
+                                order.getOrderNumber(),
+                                order.getCreatedAt(),
+                                order.getStatus(),
+                                order.getFinalAmount()))
+                        .toList()
         );
     }
 

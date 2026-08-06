@@ -191,9 +191,5 @@ public class ActivityLogService {
         return activityLogRepository.save(log);
     }
 
-    public void deleteActivity(Long id) {
-        ActivityLog log = activityLogRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("activity", id));
-        activityLogRepository.delete(log);
-    }
+    // Pas de suppression : le journal est en ajout seul. Voir ActivityLogController.
 }
