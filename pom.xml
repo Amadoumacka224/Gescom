@@ -24,6 +24,10 @@
         <springdoc.version>2.3.0</springdoc.version>
         <stripe.version>24.22.0</stripe.version>
         <jacoco.version>0.8.11</jacoco.version>
+        <!-- Surcharge la version pilotee par Spring Boot 3.2 (9.22.3), qui ne connait
+             PostgreSQL que jusqu'a la 15 et le signale a chaque demarrage. La 10.20.1
+             gere PostgreSQL 17, celui de la machine de dev. -->
+        <flyway.version>10.20.1</flyway.version>
     </properties>
 
     <dependencies>
@@ -53,6 +57,22 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Flyway : le schema n'est plus derive des entites au demarrage, il est decrit par
+             les scripts de src/main/resources/db/migration.
+             Depuis Flyway 10, le support de chaque SGBD est sorti de flyway-core : sans le
+             module flyway-database-postgresql, le demarrage echoue sur "Unsupported Database".
+             Sa version n'est pas geree par Spring Boot 3.2 (le module n'existait pas en 9.x),
+             d'ou le ${flyway.version} explicite. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <version>${flyway.version}</version>
         </dependency>
 
         <!-- JWT -->
