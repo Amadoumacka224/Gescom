@@ -29,11 +29,18 @@ Créer la base de données PostgreSQL (le nom par défaut attendu est `GESCOM_2`
 CREATE DATABASE "GESCOM_2";
 ```
 
-Le schéma est créé au démarrage (`spring.jpa.hibernate.ddl-auto=update`) : aucun script à jouer.
+Le schéma est construit par Flyway au démarrage, à partir des migrations de `src/main/resources/db/migration` : il suffit que la base existe et soit vide, l'application joue les scripts elle-même. Hibernate ne fait plus que vérifier la correspondance avec les entités (`spring.jpa.hibernate.ddl-auto=validate`) — une entité modifiée sans migration correspondante fait échouer le démarrage.
 
-Sur une base vide, `config/DataInitializer` crée un compte super administrateur au premier démarrage (`admin` / `Admin@2024`) et l'affiche dans les logs.
+Les migrations chargent aussi un jeu de données de départ (110 clients, 180 produits, 12 catégories) et deux comptes :
 
-> ⚠️ Ce compte n'existe que pour amorcer une base neuve. **Changez son mot de passe dès la première connexion**, et créez les comptes suivants via l'API.
+| Compte | Mot de passe | Rôle |
+|---|---|---|
+| `admin` | `admin123` | `ADMIN` |
+| `caissier1` | `caissier123` | `CAISSIER` |
+
+> ⚠️ Ces comptes ne servent qu'à amorcer une base de développement. **Changez leurs mots de passe dès la première connexion**, et créez les comptes suivants via l'API.
+
+Toute évolution du schéma passe par un nouveau fichier `V15__....sql` : Flyway vérifie la somme de contrôle des scripts déjà joués, en modifier un fait échouer le démarrage suivant.
 
 ### 2. Variables d'environnement
 
