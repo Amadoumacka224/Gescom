@@ -12,7 +12,6 @@
 # configuration CORS de SecurityConfig ne s'applique plus à l'usage normal, et
 # le JWT ne franchit aucune frontière d'origine.
 # ==============================================================================
-
 {
 	# Adresse à laquelle Let's Encrypt signale l'expiration d'un certificat.
 	# À remplacer par une boîte réellement relevée.
