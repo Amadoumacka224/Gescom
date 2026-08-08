@@ -33,7 +33,9 @@ Créer la base de données PostgreSQL (le nom par défaut attendu est `GESCOM_2`
 CREATE DATABASE "GESCOM_2";
 ```
 
-Le schéma est construit par Flyway au démarrage, à partir des migrations de `src/main/resources/db/migration` : il suffit que la base existe et soit vide, l'application joue les scripts elle-même. Hibernate ne fait plus que vérifier la correspondance avec les entités (`spring.jpa.hibernate.ddl-auto=validate`) — une entité modifiée sans migration correspondante fait échouer le démarrage.
+Le schéma est construit par Flyway au démarrage, à partir des migrations de `src/main/resources/db/migration` : il suffit que la base existe, l'application joue les scripts elle-même. Hibernate ne fait plus que vérifier la correspondance avec les entités (`spring.jpa.hibernate.ddl-auto=validate`) — une entité modifiée sans migration correspondante fait échouer le démarrage.
+
+Une base qui porte déjà le schéma — celles en service avant le passage à Flyway — n'a pas à être vidée : `baseline-on-migrate` la marque au niveau `baseline-version=14.2`, c'est-à-dire « à jour », et aucun script n'est rejoué. **Ne recréez jamais une base d'exploitation pour faire démarrer l'application** : les migrations n'amorcent que les données de référence (clients, produits, catégories, comptes), pas les commandes, factures, livraisons ni paiements, qui seraient perdus.
 
 Les migrations chargent aussi un jeu de données de départ (110 clients, 180 produits, 12 catégories) et deux comptes :
 
@@ -114,8 +116,12 @@ Caddy obtient et renouvelle seul le certificat Let's Encrypt : aucune clé TLS �
 ### Mise en service
 
 Remplacer `gescom.example.com` par le domaine réel dans `Caddyfile` (bloc de site) et dans
-`docker-compose.yml` (variable `CORS_ORIGINS`), puis renseigner l'adresse `email` du bloc global
-du `Caddyfile` — c'est là que Let's Encrypt signale les expirations.
+`docker-compose.yml` (variable `CORS_ORIGINS`).
+
+L'adresse `email` du bloc global du `Caddyfile` doit être réelle et relevée : c'est là que
+Let's Encrypt signale les expirations, et une adresse en `example.com` fait carrément rejeter
+la création du compte (`invalidContact — contact email has forbidden domain`), après quoi Caddy
+bascule sans le dire sur l'émetteur de repli.
 
 ```bash
 cp .env.example .env

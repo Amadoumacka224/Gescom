@@ -14,8 +14,13 @@
 # ==============================================================================
 {
 	# Adresse à laquelle Let's Encrypt signale l'expiration d'un certificat.
-	# À remplacer par une boîte réellement relevée.
-	email admin@example.com
+	#
+	# Elle doit être réelle et relevée : ce n'est pas un champ de courtoisie.
+	# Une adresse en example.com fait rejeter la création du compte par
+	# Let's Encrypt — « HTTP 400 urn:ietf:params:acme:error:invalidContact -
+	# contact email has forbidden domain "example.com" » — et Caddy bascule
+	# alors silencieusement sur l'émetteur de repli (ZeroSSL).
+	email mackaldine22@gmail.com
 }
 
 gescom.example.com {
