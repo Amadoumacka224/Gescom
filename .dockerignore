@@ -1,0 +1,33 @@
+# ==============================================================================
+# Fichiers exclus du contexte de build Docker.
+#
+# Sans ces règles, `docker compose build` téléverse au démon l'intégralité du
+# répertoire — dont FRONT/node_modules et target/, soit plusieurs centaines de
+# mégaoctets recopiés à chaque construction pour être aussitôt écrasés par les
+# étapes `npm ci` et `mvn package`.
+# ==============================================================================
+
+# Artefacts de build : reconstruits dans l'image
+target/
+FRONT/node_modules/
+FRONT/dist/
+
+# Environnement et secrets : ne doivent jamais entrer dans une image
+.env
+.env.*
+!.env.example
+
+# Dumps de base à la racine (gescom_dump.sql et consorts).
+# Un motif .dockerignore ne traverse pas les '/' : les migrations de
+# src/main/resources/db/migration/ ne sont pas concernées et restent bien
+# copiées dans l'image — c'est Flyway qui construit le schéma au démarrage.
+*.sql
+*.dump
+*.bak
+
+# Documentation et journaux
+*.md
+!README.md
+*.log
+logs/
+

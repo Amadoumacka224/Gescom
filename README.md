@@ -15,9 +15,13 @@ Application de gestion commerciale développée avec Spring Boot.
 
 ## Prérequis
 
+Pour le développement :
+
 - Java 17 ou supérieur
 - PostgreSQL 12 ou supérieur
 - Maven 3.6 ou supérieur
+
+Pour un déploiement, Docker suffit — voir [Déploiement](#déploiement).
 
 ## Configuration
 
@@ -77,6 +81,94 @@ mvn spring-boot:run
 ```
 
 L'API sera accessible sur `http://localhost:8085/`.
+
+## Déploiement
+
+Le dépôt porte de quoi déployer les deux applications sur une machine unique : un `Dockerfile`
+multi-étapes, un `docker-compose.yml` et un `Caddyfile`. Seuls Docker et un nom de domaine
+pointant sur la machine sont requis — ni Java, ni Node, ni PostgreSQL à installer sur l'hôte.
+
+### Principe
+
+Trois conteneurs sur un réseau interne, un seul point d'entrée :
+
+```
+Internet ──443──> web (Caddy)  ──/api/*──> api (Spring Boot :8085) ──> db (PostgreSQL :5432)
+                    │
+                    └─ tout le reste : le SPA React compilé
+```
+
+`web` est le seul service à publier des ports. **L'API et la base ne sont joignables depuis
+aucune interface de la machine**, uniquement par le réseau Docker interne. Deux conséquences
+utiles : PostgreSQL n'est pas exposé, et `/swagger-ui/**` non plus puisque Caddy ne relaie que
+`/api/*`.
+
+Le SPA et l'API sortent sous **le même domaine**. Le navigateur n'émet donc aucune requête
+inter-origines : pas de préflight CORS, et le JWT ne franchit jamais de frontière d'origine.
+C'est ce qui rend la configuration CORS sans objet à l'usage normal, plutôt que d'avoir à la
+durcir. Le client tombe sur `/api` en relatif (`FRONT/src/services/axios.js`), il n'y a pas de
+variable de build à définir côté front.
+
+Caddy obtient et renouvelle seul le certificat Let's Encrypt : aucune clé TLS à gérer.
+
+### Mise en service
+
+Remplacer `gescom.example.com` par le domaine réel dans `Caddyfile` (bloc de site) et dans
+`docker-compose.yml` (variable `CORS_ORIGINS`), puis renseigner l'adresse `email` du bloc global
+du `Caddyfile` — c'est là que Let's Encrypt signale les expirations.
+
+```bash
+cp .env.example .env
+chmod 600 .env          # le fichier porte les secrets de production
+$EDITOR .env            # renseigner DB_PASSWORD et JWT_SECRET
+
+docker compose up -d --build
+docker compose logs -f api
+```
+
+Le premier démarrage crée la base, Flyway y joue les migrations et l'application est en ligne
+en HTTPS. Les commandes courantes ensuite :
+
+```bash
+docker compose ps                  # état des services
+docker compose logs -f api         # journaux de l'API
+docker compose exec db psql -U gescom gescom
+docker compose up -d --build       # redéployer après un git pull
+```
+
+### Secrets
+
+Les variables du tableau de la section [Variables d'environnement](#2-variables-denvironnement)
+sont fournies par le fichier `.env`, décrit dans `.env.example`. Deux rappels :
+
+- `JWT_SECRET` signe l'ensemble des sessions — qui le connaît peut forger un jeton
+  d'administrateur sans mot de passe. Le générer (`openssl rand -hex 64`), jamais l'inventer.
+  Le changer révoque toutes les sessions en cours, ce qui en fait le geste d'urgence en cas de
+  doute.
+- Les valeurs par défaut d'`application.properties` **ne font pas échouer le démarrage** si une
+  variable manque : l'application démarre avec la valeur de développement. L'absence d'erreur au
+  boot ne prouve donc pas que la configuration est complète.
+
+### À faire une fois en ligne
+
+Le déploiement ne couvre pas ces deux points, qui relèvent de l'exploitation :
+
+1. **Changer les mots de passe des comptes amorcés.** Sur une base vierge, les migrations créent
+   `admin/admin123` et `caissier1/caissier123` (voir la section Base de données). Tant que ce
+   n'est pas fait, l'application est ouverte à qui a lu ce fichier.
+2. **Mettre en place les sauvegardes.** Aucune n'est automatique. Par exemple, en tâche cron :
+
+   ```bash
+   docker compose exec -T db pg_dump -U gescom gescom | gzip > gescom-$(date +%F).sql.gz
+   ```
+
+   Prévoir une rotation et une copie hors de la machine — une sauvegarde qui ne vit que sur le
+   serveur sauvegardé ne protège de rien.
+
+### Hôte
+
+N'ouvrir au pare-feu que 22 (SSH), 80 et 443. Le port 80 sert au renouvellement des certificats
+et à la redirection vers HTTPS, que Caddy met en place de lui-même.
 
 ## Endpoints API
 
@@ -261,5 +353,9 @@ BACK/
 │   └── i18n/          # Messages serveur (fr / en / nl)
 ├── src/test/java/     # Tests JUnit
 ├── FRONT/             # Client React + Vite + Tailwind (voir FRONT/README.md)
+├── Dockerfile         # Build des deux applications, cibles `api` et `web`
+├── docker-compose.yml # Déploiement : web (Caddy) + api + db
+├── Caddyfile          # TLS, service du SPA, relais /api
+├── .env.example       # Modèle de configuration ; le .env réel n'est pas versionné
 └── pom.xml
 ```

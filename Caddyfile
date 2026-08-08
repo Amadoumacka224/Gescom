@@ -1,0 +1,86 @@
+# ==============================================================================
+# GESCOM — configuration du frontal web
+#
+# Caddy remplit trois rôles :
+#   1. terminaison TLS, avec obtention et renouvellement automatiques du
+#      certificat Let's Encrypt — il n'y a aucune clé à gérer à la main ;
+#   2. service des fichiers statiques du SPA compilé ;
+#   3. relais des appels /api vers l'API Spring Boot.
+#
+# Le point important est le troisième : le SPA et l'API sortent sous le même
+# domaine. Le navigateur n'émet donc jamais de requête inter-origines, la
+# configuration CORS de SecurityConfig ne s'applique plus à l'usage normal, et
+# le JWT ne franchit aucune frontière d'origine.
+# ==============================================================================
+
+{
+	# Adresse à laquelle Let's Encrypt signale l'expiration d'un certificat.
+	# À remplacer par une boîte réellement relevée.
+	email admin@example.com
+}
+
+gescom.example.com {
+	encode zstd gzip
+
+	# --------------------------------------------------------------------------
+	# API
+	#
+	# Le préfixe /api n'est pas retiré : les contrôleurs Spring sont mappés sur
+	# /api/... et le context-path de l'application est resté '/'.
+	#
+	# Seul /api/* est relayé. Tout le reste de l'API — dont /swagger-ui/** et
+	# /v3/api-docs — est par construction injoignable depuis l'extérieur, en plus
+	# d'être déjà couvert par le `anyRequest().authenticated()` de SecurityConfig.
+	# --------------------------------------------------------------------------
+	handle /api/* {
+		reverse_proxy api:8085
+	}
+
+	# --------------------------------------------------------------------------
+	# SPA
+	#
+	# try_files renvoie index.html pour toute route inconnue : les URL de
+	# react-router (/commandes, /produits/12…) n'existent pas sur le disque et
+	# doivent être résolues côté client, pas rendues en 404.
+	# --------------------------------------------------------------------------
+	handle {
+		root * /srv
+
+		# Les fichiers de dist/assets portent une empreinte dans leur nom : un
+		# changement de contenu change l'URL, ils peuvent donc être mis en cache
+		# indéfiniment. index.html, lui, ne doit jamais l'être, sinon un
+		# déploiement reste invisible pour les navigateurs déjà venus.
+		@fingerprinted path /assets/*
+		header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+
+		try_files {path} /index.html
+		file_server
+	}
+
+	# --------------------------------------------------------------------------
+	# En-têtes de sécurité, appliqués à toutes les réponses
+	# --------------------------------------------------------------------------
+	header {
+		# Impose HTTPS pour les visites suivantes, y compris si l'utilisateur
+		# tape l'adresse sans schéma.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Interdit au navigateur de deviner un type MIME différent de celui
+		# annoncé — parade classique au contenu téléversé rejoué en script.
+		X-Content-Type-Options "nosniff"
+		# L'application n'a pas vocation à être embarquée dans une iframe.
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Aucune fonctionnalité sensible n'est utilisée par le SPA.
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		# Ne pas annoncer le serveur ni sa version.
+		-Server
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+	}
+}

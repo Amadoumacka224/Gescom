@@ -1,0 +1,113 @@
+# ==============================================================================
+# GESCOM — déploiement
+#
+#     cp .env.example .env    puis renseigner les secrets
+#     chmod 600 .env
+#     docker compose up -d --build
+#
+# Trois services sur un réseau interne. Seul `web` publie des ports : ni l'API
+# ni PostgreSQL ne sont joignables depuis l'extérieur de la machine, les deux ne
+# répondent qu'à travers le frontal.
+#
+# Sur la machine hôte, n'ouvrir que 22, 80 et 443 au pare-feu.
+# ==============================================================================
+
+services:
+
+  # ----------------------------------------------------------------------------
+  # Base de données
+  #
+  # Aucune section `ports:` — c'est volontaire. Publier 5432 exposerait la base
+  # à tout l'Internet ; les autres conteneurs l'atteignent par le réseau interne
+  # sous le nom d'hôte `db`. Pour une session psql : `docker compose exec db psql`.
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - interne
+
+  # ----------------------------------------------------------------------------
+  # API Spring Boot
+  #
+  # depends_on avec `service_healthy` et non le simple ordre de démarrage :
+  # Flyway attaque la base dès le boot et `ddl-auto=validate` fait échouer le
+  # démarrage si le schéma n'est pas là. Attendre que PostgreSQL accepte
+  # réellement les connexions évite un premier lancement en échec.
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # L'hôte est le nom du service, pas localhost : chaque conteneur a sa
+      # propre pile réseau.
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      # Une seule origine, celle du frontal. Le SPA étant servi sous ce même
+      # domaine, cette valeur ne sert qu'aux éventuels appels hors navigateur.
+      CORS_ORIGINS: https://gescom.example.com
+      STRIPE_MODE: ${STRIPE_MODE:-simulated}
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-sk_test_fictive_key_for_simulation}
+      STRIPE_CURRENCY: ${STRIPE_CURRENCY:-eur}
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - interne
+
+  # ----------------------------------------------------------------------------
+  # Frontal web (Caddy + SPA compilé)
+  #
+  # Le volume `caddy-data` est indispensable : il conserve les certificats et la
+  # clé de compte ACME. Sans lui, chaque redémarrage redemande un certificat à
+  # Let's Encrypt et finit par heurter les quotas d'émission.
+  # ----------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    networks:
+      - interne
+
+networks:
+  interne:
+    driver: bridge
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
+  caddy-logs:
