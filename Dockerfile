@@ -67,8 +67,13 @@ ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
 # `npm ci` et non `npm install` : l'installation suit strictement le
 # package-lock.json, aucune dépendance n'est promue à une version plus récente
 # au moment du déploiement.
+#
+# Node 24 et non 22 : @zxing/library, tiré par le scanner de codes-barres
+# (@zxing/browser), déclare `engines.node >= 24`. Sur Node 22 npm n'émet qu'un
+# avertissement EBADENGINE et le build aboutit, mais rien ne garantit que la
+# bibliothèque se comporte comme prévu sur un moteur qu'elle exclut.
 # ------------------------------------------------------------------------------
-FROM node:22-alpine AS front-build
+FROM node:24-alpine AS front-build
 WORKDIR /build
 
 COPY FRONT/package.json FRONT/package-lock.json ./
