@@ -6,7 +6,7 @@ import com.gescom.backend.dto.stock.StockReturnRequest;
 import com.gescom.backend.dto.stock.StockReturnResponse;
 import com.gescom.backend.entity.StockReturn;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.StockReturnMapper;
+import com.gescom.backend.mapper.StockMapper;
 import com.gescom.backend.service.StockReturnService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
@@ -37,11 +37,11 @@ import java.time.LocalDateTime;
 public class StockReturnController {
 
     private final StockReturnService stockReturnService;
-    private final StockReturnMapper stockReturnMapper;
+    private final StockMapper stockMapper;
 
-    public StockReturnController(StockReturnService stockReturnService, StockReturnMapper stockReturnMapper) {
+    public StockReturnController(StockReturnService stockReturnService, StockMapper stockMapper) {
         this.stockReturnService = stockReturnService;
-        this.stockReturnMapper = stockReturnMapper;
+        this.stockMapper = stockMapper;
     }
 
     /**
@@ -63,13 +63,13 @@ public class StockReturnController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
                 stockReturnService.searchReturns(orderId, start, end, search, pageable),
-                stockReturnMapper::toSummary));
+                stockMapper::toReturnSummary));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<StockReturnResponse> getReturnById(@PathVariable Long id) {
         return stockReturnService.getReturnById(id)
-                .map(stockReturnMapper::toResponse)
+                .map(stockMapper::toReturnResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("stockReturn", id));
     }
@@ -79,6 +79,6 @@ public class StockReturnController {
     public ResponseEntity<StockReturnResponse> createReturn(@Valid @RequestBody StockReturnRequest request) {
         StockReturn stockReturn = stockReturnService.createReturn(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(stockReturnMapper.toResponse(stockReturn));
+                .body(stockMapper.toReturnResponse(stockReturn));
     }
 }

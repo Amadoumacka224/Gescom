@@ -3,7 +3,7 @@ package com.gescom.backend.controller;
 import com.gescom.backend.dto.payment.PaymentConfirmRequest;
 import com.gescom.backend.dto.payment.PaymentIntentCreateRequest;
 import com.gescom.backend.dto.payment.PaymentResponse;
-import com.gescom.backend.mapper.PaymentMapper;
+import com.gescom.backend.mapper.SalesMapper;
 import com.gescom.backend.service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -26,17 +26,17 @@ import java.util.List;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final PaymentMapper paymentMapper;
+    private final SalesMapper salesMapper;
 
-    public PaymentController(PaymentService paymentService, PaymentMapper paymentMapper) {
+    public PaymentController(PaymentService paymentService, SalesMapper salesMapper) {
         this.paymentService = paymentService;
-        this.paymentMapper = paymentMapper;
+        this.salesMapper = salesMapper;
     }
 
     /** 1. Ouvre l'intention de paiement et renvoie de quoi la confirmer. */
     @PostMapping("/stripe/intents")
     public ResponseEntity<PaymentResponse> createIntent(@Valid @RequestBody PaymentIntentCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(paymentMapper.toResponse(
+        return ResponseEntity.status(HttpStatus.CREATED).body(salesMapper.toResponse(
                 paymentService.createIntent(request.invoiceId(), request.amount())));
     }
 
@@ -44,25 +44,25 @@ public class PaymentController {
     @PostMapping("/stripe/intents/{id}/confirm")
     public ResponseEntity<PaymentResponse> confirmIntent(@PathVariable Long id,
                                                          @Valid @RequestBody PaymentConfirmRequest request) {
-        return ResponseEntity.ok(paymentMapper.toResponse(
+        return ResponseEntity.ok(salesMapper.toResponse(
                 paymentService.confirmIntent(id, request.paymentMethodId())));
     }
 
     /** Abandon de la session avant confirmation. */
     @PostMapping("/stripe/intents/{id}/cancel")
     public ResponseEntity<PaymentResponse> cancelIntent(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentMapper.toResponse(paymentService.cancelIntent(id)));
+        return ResponseEntity.ok(salesMapper.toResponse(paymentService.cancelIntent(id)));
     }
 
     @GetMapping("/stripe/intents/{id}")
     public ResponseEntity<PaymentResponse> getPayment(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentMapper.toResponse(paymentService.getPayment(id)));
+        return ResponseEntity.ok(salesMapper.toResponse(paymentService.getPayment(id)));
     }
 
     /** Historique des tentatives d'une facture — les refus y figurent aussi. */
     @GetMapping("/invoice/{invoiceId}")
     public ResponseEntity<List<PaymentResponse>> getPaymentsByInvoice(@PathVariable Long invoiceId) {
         return ResponseEntity.ok(paymentService.getPaymentsByInvoice(invoiceId).stream()
-                .map(paymentMapper::toResponse).toList());
+                .map(salesMapper::toResponse).toList());
     }
 }

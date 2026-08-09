@@ -5,7 +5,7 @@ import com.gescom.backend.dto.product.ProductResponse;
 import com.gescom.backend.dto.product.StockUpdateRequest;
 import com.gescom.backend.entity.Product;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.ProductMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.CsvImportService;
 import com.gescom.backend.service.ProductService;
@@ -30,34 +30,34 @@ public class ProductController {
     private final ProductService productService;
     private final CsvExportService csvExportService;
     private final CsvImportService csvImportService;
-    private final ProductMapper productMapper;
+    private final ReferenceMapper referenceMapper;
 
     public ProductController(ProductService productService,
                              CsvExportService csvExportService,
                              CsvImportService csvImportService,
-                             ProductMapper productMapper) {
+                             ReferenceMapper referenceMapper) {
         this.productService = productService;
         this.csvExportService = csvExportService;
         this.csvImportService = csvImportService;
-        this.productMapper = productMapper;
+        this.referenceMapper = referenceMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getAllProducts() {
         return ResponseEntity.ok(productService.getAllProducts().stream()
-                .map(productMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/active")
     public ResponseEntity<List<ProductResponse>> getActiveProducts() {
         return ResponseEntity.ok(productService.getActiveProducts().stream()
-                .map(productMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> getProductById(@PathVariable Long id) {
         return productService.getProductById(id)
-                .map(productMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("product", id));
     }
@@ -65,7 +65,7 @@ public class ProductController {
     @GetMapping("/code/{code}")
     public ResponseEntity<ProductResponse> getProductByCode(@PathVariable String code) {
         return productService.getProductByCode(code)
-                .map(productMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("product", "code", code));
     }
@@ -78,7 +78,7 @@ public class ProductController {
     @GetMapping("/barcode/{barcode}")
     public ResponseEntity<ProductResponse> getProductByBarcode(@PathVariable String barcode) {
         return productService.getProductByBarcode(barcode)
-                .map(productMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("product", "barcode", barcode));
     }
@@ -86,20 +86,20 @@ public class ProductController {
     @GetMapping("/category/{categoryId}")
     public ResponseEntity<List<ProductResponse>> getProductsByCategory(@PathVariable Long categoryId) {
         return ResponseEntity.ok(productService.getProductsByCategory(categoryId).stream()
-                .map(productMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/low-stock")
     public ResponseEntity<List<ProductResponse>> getLowStockProducts() {
         return ResponseEntity.ok(productService.getLowStockProducts().stream()
-                .map(productMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody ProductRequest request) {
-        Product created = productService.createProduct(productMapper.toEntity(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(productMapper.toResponse(created));
+        Product created = productService.createProduct(referenceMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(referenceMapper.toResponse(created));
     }
 
     /**
@@ -112,8 +112,8 @@ public class ProductController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductResponse> updateProduct(@PathVariable Long id,
                                                           @Valid @RequestBody ProductRequest request) {
-        Product details = productMapper.toEntity(request);
-        return ResponseEntity.ok(productMapper.toResponse(productService.updateProduct(id, details)));
+        Product details = referenceMapper.toEntity(request);
+        return ResponseEntity.ok(referenceMapper.toResponse(productService.updateProduct(id, details)));
     }
 
     @PatchMapping("/{id}/stock")

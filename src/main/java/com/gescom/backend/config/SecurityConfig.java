@@ -1,8 +1,7 @@
 package com.gescom.backend.config;
 
 import com.gescom.backend.security.CustomUserDetailsService;
-import com.gescom.backend.security.JwtAccessDeniedHandler;
-import com.gescom.backend.security.JwtAuthenticationEntryPoint;
+import com.gescom.backend.security.JwtSecurityErrorHandler;
 import com.gescom.backend.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,13 +40,10 @@ public class SecurityConfig {
     @Autowired
     private CustomUserDetailsService userDetailsService;
 
-    // Point d'entrée pour gérer les erreurs d'authentification (ex: token invalide).
+    // Réponses JSON des refus de la chaîne de filtres : 401 (token absent ou invalide)
+    // et 403 (utilisateur authentifié mais rôle insuffisant).
     @Autowired
-    private JwtAuthenticationEntryPoint unauthorizedHandler;
-
-    // Handler pour les accès refusés (utilisateur authentifié mais rôle insuffisant).
-    @Autowired
-    private JwtAccessDeniedHandler accessDeniedHandler;
+    private JwtSecurityErrorHandler securityErrorHandler;
 
     // Origines autorisées pour les requêtes CORS, définies dans application.properties.
     @Value("${cors.allowed-origins}")
@@ -117,8 +113,8 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
             .exceptionHandling(exception -> exception
-                    .authenticationEntryPoint(unauthorizedHandler)
-                    .accessDeniedHandler(accessDeniedHandler))
+                    .authenticationEntryPoint(securityErrorHandler)
+                    .accessDeniedHandler(securityErrorHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
                 auth.requestMatchers("/api/auth/**").permitAll()

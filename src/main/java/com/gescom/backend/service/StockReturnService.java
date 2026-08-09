@@ -16,7 +16,7 @@ import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.InsufficientStockException;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.StockReturnMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.ProductRepository;
@@ -133,7 +133,7 @@ public class StockReturnService {
                 order.getCreatedAt(),
                 order.getFinalAmount(),
                 order.getClient() != null ? order.getClient().getId() : null,
-                StockReturnMapper.clientName(order.getClient()),
+                ReferenceMapper.clientName(order.getClient()),
                 order.getCreatedBy() != null ? order.getCreatedBy().getUsername() : null,
                 invoice != null ? invoice.getId() : null,
                 invoice != null ? invoice.getInvoiceNumber() : null,

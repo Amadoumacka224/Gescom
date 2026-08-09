@@ -6,7 +6,7 @@ import com.gescom.backend.dto.client.ClientResponse;
 import com.gescom.backend.entity.Client;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.ClientMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
 import com.gescom.backend.service.ClientService;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.OrderService;
@@ -32,32 +32,32 @@ public class ClientController {
     private final ClientService clientService;
     private final OrderService orderService;
     private final CsvExportService csvExportService;
-    private final ClientMapper clientMapper;
+    private final ReferenceMapper referenceMapper;
 
     public ClientController(ClientService clientService, OrderService orderService,
-                            CsvExportService csvExportService, ClientMapper clientMapper) {
+                            CsvExportService csvExportService, ReferenceMapper referenceMapper) {
         this.clientService = clientService;
         this.orderService = orderService;
         this.csvExportService = csvExportService;
-        this.clientMapper = clientMapper;
+        this.referenceMapper = referenceMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<ClientResponse>> getAllClients() {
         return ResponseEntity.ok(clientService.getAllClients().stream()
-                .map(clientMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/active")
     public ResponseEntity<List<ClientResponse>> getActiveClients() {
         return ResponseEntity.ok(clientService.getActiveClients().stream()
-                .map(clientMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ClientResponse> getClientById(@PathVariable Long id) {
         return clientService.getClientById(id)
-                .map(clientMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("client", id));
     }
@@ -65,7 +65,7 @@ public class ClientController {
     @GetMapping("/email/{email}")
     public ResponseEntity<ClientResponse> getClientByEmail(@PathVariable String email) {
         return clientService.getClientByEmail(email)
-                .map(clientMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("client", "email", email));
     }
@@ -73,20 +73,20 @@ public class ClientController {
     @GetMapping("/type/{type}")
     public ResponseEntity<List<ClientResponse>> getClientsByType(@PathVariable Client.ClientType type) {
         return ResponseEntity.ok(clientService.getClientsByType(type).stream()
-                .map(clientMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @PostMapping
     public ResponseEntity<ClientResponse> createClient(@Valid @RequestBody ClientRequest request) {
-        Client created = clientService.createClient(clientMapper.toEntity(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(clientMapper.toResponse(created));
+        Client created = clientService.createClient(referenceMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(referenceMapper.toResponse(created));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ClientResponse> updateClient(@PathVariable Long id,
                                                        @Valid @RequestBody ClientRequest request) {
-        Client details = clientMapper.toEntity(request);
-        return ResponseEntity.ok(clientMapper.toResponse(clientService.updateClient(id, details)));
+        Client details = referenceMapper.toEntity(request);
+        return ResponseEntity.ok(referenceMapper.toResponse(clientService.updateClient(id, details)));
     }
 
     @DeleteMapping("/{id}")
@@ -151,7 +151,7 @@ public class ClientController {
                                               @RequestParam(defaultValue = "json") String format) {
         Client client = clientService.getClientForExport(id);
         List<Order> orders = orderService.getOrdersByClient(id);
-        ClientDataExport export = clientMapper.toDataExport(client, orders);
+        ClientDataExport export = referenceMapper.toDataExport(client, orders);
 
         if (!"csv".equalsIgnoreCase(format)) {
             return ResponseEntity.ok(export);

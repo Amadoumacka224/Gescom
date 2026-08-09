@@ -8,7 +8,7 @@ import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.OrderMapper;
+import com.gescom.backend.mapper.SalesMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.InvoiceService;
 import com.gescom.backend.service.OrderService;
@@ -33,16 +33,16 @@ public class OrderController {
 
     private final OrderService orderService;
     private final CsvExportService csvExportService;
-    private final OrderMapper orderMapper;
+    private final SalesMapper salesMapper;
     private final InvoiceService invoiceService;
 
     public OrderController(OrderService orderService,
                            CsvExportService csvExportService,
-                           OrderMapper orderMapper,
+                           SalesMapper salesMapper,
                            InvoiceService invoiceService) {
         this.orderService = orderService;
         this.csvExportService = csvExportService;
-        this.orderMapper = orderMapper;
+        this.salesMapper = salesMapper;
         this.invoiceService = invoiceService;
     }
 
@@ -54,13 +54,13 @@ public class OrderController {
         Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 orders.stream().map(Order::getId).toList());
         return ResponseEntity.ok(orders.stream()
-                .map(o -> orderMapper.toResponse(o, invoices.get(o.getId()))).toList());
+                .map(o -> salesMapper.toResponse(o, invoices.get(o.getId()))).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getOrderById(@PathVariable Long id) {
         return orderService.getOrderById(id)
-                .map(orderMapper::toResponse)
+                .map(salesMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("order", id));
     }
@@ -68,7 +68,7 @@ public class OrderController {
     @GetMapping("/number/{orderNumber}")
     public ResponseEntity<OrderResponse> getOrderByOrderNumber(@PathVariable String orderNumber) {
         return orderService.getOrderByOrderNumber(orderNumber)
-                .map(orderMapper::toResponse)
+                .map(salesMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("order", "number", orderNumber));
     }
@@ -81,19 +81,19 @@ public class OrderController {
         Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 orders.stream().map(Order::getId).toList());
         return ResponseEntity.ok(orders.stream()
-                .map(o -> orderMapper.toResponse(o, invoices.get(o.getId()))).toList());
+                .map(o -> salesMapper.toResponse(o, invoices.get(o.getId()))).toList());
     }
 
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByUser(@PathVariable Long userId) {
         return ResponseEntity.ok(orderService.getOrdersByUser(userId).stream()
-                .map(orderMapper::toResponse).toList());
+                .map(salesMapper::toResponse).toList());
     }
 
     @GetMapping("/status/{status}")
     public ResponseEntity<List<OrderResponse>> getOrdersByStatus(@PathVariable Order.OrderStatus status) {
         return ResponseEntity.ok(orderService.getOrdersByStatus(status).stream()
-                .map(orderMapper::toResponse).toList());
+                .map(salesMapper::toResponse).toList());
     }
 
     @GetMapping("/date-range")
@@ -101,32 +101,32 @@ public class OrderController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         return ResponseEntity.ok(orderService.getOrdersByDateRange(start, end).stream()
-                .map(orderMapper::toResponse).toList());
+                .map(salesMapper::toResponse).toList());
     }
 
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderCreateRequest request) {
-        Order created = orderService.createOrder(orderMapper.toEntity(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(orderMapper.toResponse(created));
+        Order created = orderService.createOrder(salesMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(salesMapper.toResponse(created));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<OrderResponse> updateOrder(@PathVariable Long id,
                                                      @Valid @RequestBody OrderUpdateRequest request) {
-        Order patch = orderMapper.toUpdate(request);
-        return ResponseEntity.ok(orderMapper.toResponse(orderService.updateOrder(id, patch)));
+        Order patch = salesMapper.toUpdate(request);
+        return ResponseEntity.ok(salesMapper.toResponse(orderService.updateOrder(id, patch)));
     }
 
     @PostMapping("/{id}/confirm")
     public ResponseEntity<OrderResponse> confirmOrder(@PathVariable Long id) {
-        return ResponseEntity.ok(orderMapper.toResponse(orderService.confirmOrder(id)));
+        return ResponseEntity.ok(salesMapper.toResponse(orderService.confirmOrder(id)));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<OrderResponse> updateOrderStatus(@PathVariable Long id,
                                                            @Valid @RequestBody OrderStatusUpdateRequest request) {
         Order.OrderStatus status = parseStatus(request.status());
-        return ResponseEntity.ok(orderMapper.toResponse(orderService.updateOrderStatus(id, status)));
+        return ResponseEntity.ok(salesMapper.toResponse(orderService.updateOrderStatus(id, status)));
     }
 
     /** Convertit la valeur reçue en statut, en renvoyant une erreur métier 400 claire si invalide. */

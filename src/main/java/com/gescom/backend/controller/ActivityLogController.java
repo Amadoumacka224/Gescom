@@ -5,7 +5,7 @@ import com.gescom.backend.dto.activity.ActivityLogSummary;
 import com.gescom.backend.dto.common.PageResponse;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.ActivityLogMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
 import com.gescom.backend.service.ActivityLogService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -34,11 +34,11 @@ import java.time.LocalDateTime;
 public class ActivityLogController {
 
     private final ActivityLogService activityLogService;
-    private final ActivityLogMapper activityLogMapper;
+    private final ReferenceMapper referenceMapper;
 
-    public ActivityLogController(ActivityLogService activityLogService, ActivityLogMapper activityLogMapper) {
+    public ActivityLogController(ActivityLogService activityLogService, ReferenceMapper referenceMapper) {
         this.activityLogService = activityLogService;
-        this.activityLogMapper = activityLogMapper;
+        this.referenceMapper = referenceMapper;
     }
 
     /** Page du journal. Tous les critères sont optionnels et se combinent. */
@@ -54,7 +54,7 @@ public class ActivityLogController {
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
                 activityLogService.searchActivities(userId, actionType, entity, start, end, search, pageable),
-                activityLogMapper::toResponse));
+                referenceMapper::toResponse));
     }
 
     /** Indicateurs sur l'ensemble du journal (la page affichée n'en dit rien). */
@@ -68,7 +68,7 @@ public class ActivityLogController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ActivityLogResponse> getActivityById(@PathVariable Long id) {
         return activityLogService.getActivityById(id)
-                .map(activityLogMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("activity", id));
     }
@@ -79,7 +79,7 @@ public class ActivityLogController {
             @PathVariable Long userId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                activityLogService.getActivitiesByUser(userId, pageable), activityLogMapper::toResponse));
+                activityLogService.getActivitiesByUser(userId, pageable), referenceMapper::toResponse));
     }
 
     @GetMapping("/action/{actionType}")
@@ -88,7 +88,7 @@ public class ActivityLogController {
             @PathVariable ActivityLog.ActionType actionType,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                activityLogService.getActivitiesByActionType(actionType, pageable), activityLogMapper::toResponse));
+                activityLogService.getActivitiesByActionType(actionType, pageable), referenceMapper::toResponse));
     }
 
     @GetMapping("/entity/{entity}")
@@ -97,7 +97,7 @@ public class ActivityLogController {
             @PathVariable String entity,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                activityLogService.getActivitiesByEntity(entity, pageable), activityLogMapper::toResponse));
+                activityLogService.getActivitiesByEntity(entity, pageable), referenceMapper::toResponse));
     }
 
     @GetMapping("/date-range")
@@ -107,7 +107,7 @@ public class ActivityLogController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                activityLogService.getActivitiesByDateRange(start, end, pageable), activityLogMapper::toResponse));
+                activityLogService.getActivitiesByDateRange(start, end, pageable), referenceMapper::toResponse));
     }
 
     @GetMapping("/caissiers")
@@ -115,6 +115,6 @@ public class ActivityLogController {
     public ResponseEntity<PageResponse<ActivityLogResponse>> getCaissierActivities(
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                activityLogService.getCaissierActivities(pageable), activityLogMapper::toResponse));
+                activityLogService.getCaissierActivities(pageable), referenceMapper::toResponse));
     }
 }

@@ -2,16 +2,14 @@ package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.common.PageResponse;
 import com.gescom.backend.dto.product.ProductResponse;
-import com.gescom.backend.dto.stock.StockAddRequest;
+import com.gescom.backend.dto.stock.StockMovementRequest;
 import com.gescom.backend.dto.stock.StockAdjustRequest;
-import com.gescom.backend.dto.stock.StockDamageRequest;
 import com.gescom.backend.dto.stock.StockMovementResponse;
-import com.gescom.backend.dto.stock.StockRemoveRequest;
 import com.gescom.backend.entity.StockMovement;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.ProductMapper;
-import com.gescom.backend.mapper.StockMovementMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
+import com.gescom.backend.mapper.StockMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.StockService;
 import jakarta.validation.Valid;
@@ -40,15 +38,15 @@ public class StockController {
 
     private final StockService stockService;
     private final CsvExportService csvExportService;
-    private final StockMovementMapper stockMovementMapper;
-    private final ProductMapper productMapper;
+    private final StockMapper stockMapper;
+    private final ReferenceMapper referenceMapper;
 
     public StockController(StockService stockService, CsvExportService csvExportService,
-                           StockMovementMapper stockMovementMapper, ProductMapper productMapper) {
+                           StockMapper stockMapper, ReferenceMapper referenceMapper) {
         this.stockService = stockService;
         this.csvExportService = csvExportService;
-        this.stockMovementMapper = stockMovementMapper;
-        this.productMapper = productMapper;
+        this.stockMapper = stockMapper;
+        this.referenceMapper = referenceMapper;
     }
 
     private Long currentUserId() {
@@ -71,13 +69,13 @@ public class StockController {
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
                 stockService.searchMovements(type, productId, start, end, search, pageable),
-                stockMovementMapper::toResponse));
+                stockMapper::toResponse));
     }
 
     @GetMapping("/movements/{id}")
     public ResponseEntity<StockMovementResponse> getMovementById(@PathVariable Long id) {
         return stockService.getMovementById(id)
-                .map(stockMovementMapper::toResponse)
+                .map(stockMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("stockMovement", id));
     }
@@ -87,7 +85,7 @@ public class StockController {
             @PathVariable Long productId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                stockService.getMovementsByProduct(productId, pageable), stockMovementMapper::toResponse));
+                stockService.getMovementsByProduct(productId, pageable), stockMapper::toResponse));
     }
 
     @GetMapping("/movements/type/{type}")
@@ -95,7 +93,7 @@ public class StockController {
             @PathVariable StockMovement.MovementType type,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                stockService.getMovementsByType(type, pageable), stockMovementMapper::toResponse));
+                stockService.getMovementsByType(type, pageable), stockMapper::toResponse));
     }
 
     @GetMapping("/movements/date-range")
@@ -104,7 +102,7 @@ public class StockController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(PageResponse.of(
-                stockService.getMovementsByDateRange(start, end, pageable), stockMovementMapper::toResponse));
+                stockService.getMovementsByDateRange(start, end, pageable), stockMapper::toResponse));
     }
 
     // Les opérations d'écriture de stock sont réservées aux ADMIN (cohérent avec
@@ -112,20 +110,20 @@ public class StockController {
     // ouverts à CAISSIER via la sécurité au niveau classe — défaut corrigé ici.
     @PostMapping("/add")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<StockMovementResponse> addStock(@Valid @RequestBody StockAddRequest request) {
+    public ResponseEntity<StockMovementResponse> addStock(@Valid @RequestBody StockMovementRequest request) {
         StockMovement movement = stockService.addStock(
                 request.productId(), request.quantity(), request.unitCost(),
                 request.reason(), request.reference(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMapper.toResponse(movement));
     }
 
     @PostMapping("/remove")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<StockMovementResponse> removeStock(@Valid @RequestBody StockRemoveRequest request) {
+    public ResponseEntity<StockMovementResponse> removeStock(@Valid @RequestBody StockMovementRequest request) {
         StockMovement movement = stockService.removeStock(
                 request.productId(), request.quantity(),
                 request.reason(), request.reference(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMapper.toResponse(movement));
     }
 
     @PostMapping("/adjust")
@@ -133,15 +131,15 @@ public class StockController {
     public ResponseEntity<StockMovementResponse> adjustStock(@Valid @RequestBody StockAdjustRequest request) {
         StockMovement movement = stockService.adjustStock(
                 request.productId(), request.newQuantity(), request.reason(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMapper.toResponse(movement));
     }
 
     @PostMapping("/damage")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<StockMovementResponse> recordDamage(@Valid @RequestBody StockDamageRequest request) {
+    public ResponseEntity<StockMovementResponse> recordDamage(@Valid @RequestBody StockMovementRequest request) {
         StockMovement movement = stockService.recordDamage(
                 request.productId(), request.quantity(), request.reason(), currentUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockMovementMapper.toResponse(movement));
+        return ResponseEntity.status(HttpStatus.CREATED).body(stockMapper.toResponse(movement));
     }
 
     // Les retours clients ne sont plus une simple entrée de stock à saisir à la main : ils
@@ -150,13 +148,13 @@ public class StockController {
     @GetMapping("/low-stock")
     public ResponseEntity<List<ProductResponse>> getLowStockProducts() {
         return ResponseEntity.ok(stockService.getLowStockProducts().stream()
-                .map(productMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/out-of-stock")
     public ResponseEntity<List<ProductResponse>> getOutOfStockProducts() {
         return ResponseEntity.ok(stockService.getOutOfStockProducts().stream()
-                .map(productMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/statistics")

@@ -4,7 +4,7 @@ import com.gescom.backend.dto.category.CategoryRequest;
 import com.gescom.backend.dto.category.CategoryResponse;
 import com.gescom.backend.entity.Category;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.CategoryMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
 import com.gescom.backend.service.CategoryService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -21,29 +21,29 @@ import java.util.Map;
 public class CategoryController {
 
     private final CategoryService categoryService;
-    private final CategoryMapper categoryMapper;
+    private final ReferenceMapper referenceMapper;
 
-    public CategoryController(CategoryService categoryService, CategoryMapper categoryMapper) {
+    public CategoryController(CategoryService categoryService, ReferenceMapper referenceMapper) {
         this.categoryService = categoryService;
-        this.categoryMapper = categoryMapper;
+        this.referenceMapper = referenceMapper;
     }
 
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> getAllCategories() {
         return ResponseEntity.ok(categoryService.getAllCategories().stream()
-                .map(categoryMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/active")
     public ResponseEntity<List<CategoryResponse>> getActiveCategories() {
         return ResponseEntity.ok(categoryService.getActiveCategories().stream()
-                .map(categoryMapper::toResponse).toList());
+                .map(referenceMapper::toResponse).toList());
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<CategoryResponse> getCategoryById(@PathVariable Long id) {
         return categoryService.getCategoryById(id)
-                .map(categoryMapper::toResponse)
+                .map(referenceMapper::toResponse)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
@@ -51,16 +51,16 @@ public class CategoryController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CategoryResponse> createCategory(@Valid @RequestBody CategoryRequest request) {
-        Category created = categoryService.createCategory(categoryMapper.toEntity(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(categoryMapper.toResponse(created));
+        Category created = categoryService.createCategory(referenceMapper.toEntity(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(referenceMapper.toResponse(created));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CategoryResponse> updateCategory(@PathVariable Long id,
                                                             @Valid @RequestBody CategoryRequest request) {
-        Category details = categoryMapper.toEntity(request);
-        return ResponseEntity.ok(categoryMapper.toResponse(categoryService.updateCategory(id, details)));
+        Category details = referenceMapper.toEntity(request);
+        return ResponseEntity.ok(referenceMapper.toResponse(categoryService.updateCategory(id, details)));
     }
 
     @DeleteMapping("/{id}")

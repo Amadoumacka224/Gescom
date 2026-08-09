@@ -10,7 +10,7 @@ import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.DuplicateResourceException;
 import com.gescom.backend.exception.ResourceNotFoundException;
-import com.gescom.backend.mapper.UserMapper;
+import com.gescom.backend.mapper.ReferenceMapper;
 import com.gescom.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,16 +38,16 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ActivityLogService activityLogService;
-    private final UserMapper userMapper;
+    private final ReferenceMapper referenceMapper;
     private final PasswordPolicy passwordPolicy;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       ActivityLogService activityLogService, UserMapper userMapper,
+                       ActivityLogService activityLogService, ReferenceMapper referenceMapper,
                        PasswordPolicy passwordPolicy) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.activityLogService = activityLogService;
-        this.userMapper = userMapper;
+        this.referenceMapper = referenceMapper;
         this.passwordPolicy = passwordPolicy;
     }
 
@@ -86,17 +86,17 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
-        return userRepository.findAll().stream().map(userMapper::toResponse).toList();
+        return userRepository.findAll().stream().map(referenceMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public Optional<UserResponse> getUserById(Long id) {
-        return userRepository.findById(id).map(userMapper::toResponse);
+        return userRepository.findById(id).map(referenceMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
     public Optional<UserResponse> getUserByUsername(String username) {
-        return userRepository.findByUsername(username).map(userMapper::toResponse);
+        return userRepository.findByUsername(username).map(referenceMapper::toResponse);
     }
 
     /**
@@ -148,7 +148,7 @@ public class UserService {
         logActivity(ActivityLog.ActionType.CREATE, "User", savedUser.getId(),
             "Création de l'utilisateur " + savedUser.getUsername() + " (" + savedUser.getRole() + ")");
 
-        return userMapper.toResponse(savedUser);
+        return referenceMapper.toResponse(savedUser);
     }
 
     public UserResponse updateUserAsAdmin(Long id, UserUpdateAdminRequest request) {
@@ -179,7 +179,7 @@ public class UserService {
         logActivity(ActivityLog.ActionType.UPDATE, "User", savedUser.getId(),
             "Modification de l'utilisateur " + savedUser.getUsername());
 
-        return userMapper.toResponse(savedUser);
+        return referenceMapper.toResponse(savedUser);
     }
 
     public UserResponse updateSelf(Long id, UserUpdateSelfRequest request) {
@@ -201,7 +201,7 @@ public class UserService {
         logActivity(ActivityLog.ActionType.UPDATE, "User", savedUser.getId(),
             "Modification du profil par " + savedUser.getUsername());
 
-        return userMapper.toResponse(savedUser);
+        return referenceMapper.toResponse(savedUser);
     }
 
     public void deleteUser(Long id) {
@@ -226,22 +226,22 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<UserResponse> getUsersByRole(User.Role role) {
-        return userRepository.findByRole(role).stream().map(userMapper::toResponse).toList();
+        return userRepository.findByRole(role).stream().map(referenceMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<UserResponse> getActiveUsers() {
-        return userRepository.findByActive(true).stream().map(userMapper::toResponse).toList();
+        return userRepository.findByActive(true).stream().map(referenceMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<UserResponse> getCaissiers() {
-        return userRepository.findByRole(User.Role.CAISSIER).stream().map(userMapper::toResponse).toList();
+        return userRepository.findByRole(User.Role.CAISSIER).stream().map(referenceMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<UserResponse> getAdmins() {
-        return userRepository.findByRole(User.Role.ADMIN).stream().map(userMapper::toResponse).toList();
+        return userRepository.findByRole(User.Role.ADMIN).stream().map(referenceMapper::toResponse).toList();
     }
 
     public void changePassword(Long userId, ChangePasswordRequest request) {
