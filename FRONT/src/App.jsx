@@ -1,8 +1,15 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
+import PlatformLayout from './layouts/PlatformLayout';
+import PlatformDashboard from './pages/platform/PlatformDashboard';
+import PlatformCompanies from './pages/platform/PlatformCompanies';
+import PlatformSubscriptions from './pages/platform/PlatformSubscriptions';
+import PlatformPayments from './pages/platform/PlatformPayments';
+import PlatformActivity from './pages/platform/PlatformActivity';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
@@ -21,9 +28,11 @@ import Caisses from './pages/Caisses';
 import History from './pages/History';
 import './i18n';
 
-// Redirige vers l'accueil adapté au rôle : le caissier va sur sa caisse, l'admin sur le dashboard.
+// Redirige vers l'accueil adapté au rôle. Le propriétaire de la plateforme n'a pas d'accueil
+// métier : il n'appartient à aucune entreprise et atterrit sur son back-office.
 const HomeRedirect = () => {
   const { user } = useAuth();
+  if (user?.role === 'SUPER_ADMIN') return <Navigate to="/platform" replace />;
   return <Navigate to={user?.role === 'CAISSIER' ? '/caisse' : '/dashboard'} replace />;
 };
 
@@ -31,6 +40,16 @@ const HomeRedirect = () => {
 const AdminRoute = ({ children }) => {
   const { user } = useAuth();
   return user?.role === 'ADMIN' ? children : <Navigate to="/caisse" replace />;
+};
+
+/* Garde du back-office propriétaire.
+ *
+ * Le contrôle décisif reste côté serveur : /api/platform/** exige le rôle SUPER_ADMIN, et
+ * aucune donnée du parc ne transite sans lui. Cette garde-ci ne fait qu'éviter d'afficher
+ * une coquille vide à qui n'y a pas droit. */
+const PlatformRoute = ({ children }) => {
+  const { user } = useAuth();
+  return user?.role === 'SUPER_ADMIN' ? children : <Navigate to="/" replace />;
 };
 
 function App() {
@@ -41,6 +60,26 @@ function App() {
         <Routes>
           {/* Public Route */}
           <Route path="/login" element={<Login />} />
+
+          {/* Back-office du propriétaire de la plateforme.
+              Espace à part entière : sa propre coquille, sa propre navigation, aucun écran
+              métier. Déclaré avant /* pour que ces chemins ne tombent pas dans MainLayout. */}
+          <Route
+            path="/platform"
+            element={
+              <ProtectedRoute>
+                <PlatformRoute>
+                  <PlatformLayout />
+                </PlatformRoute>
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<PlatformDashboard />} />
+            <Route path="companies" element={<PlatformCompanies />} />
+            <Route path="subscriptions" element={<PlatformSubscriptions />} />
+            <Route path="payments" element={<PlatformPayments />} />
+            <Route path="activity" element={<PlatformActivity />} />
+          </Route>
 
           {/* Protected Routes */}
           <Route

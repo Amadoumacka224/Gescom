@@ -19,7 +19,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import Button from '../components/Button';
 import FormInput from '../components/FormInput';
 import InfoRow from '../components/InfoRow';

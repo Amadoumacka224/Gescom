@@ -31,7 +31,7 @@ const companyFrom = (settings) => ({
 
 /**
  * En-tête commun aux documents client : bandeau de couleur, raison sociale et coordonnées
- * légales. Facture et note de crédit sortent de la même entreprise, elles s'annoncent de la
+ * légales. Facture et avoir sortent de la même entreprise, elles s'annoncent de la
  * même façon — c'est ce qui les fait reconnaître comme deux pièces d'un même dossier.
  */
 const drawHeader = (doc, company) => {
@@ -370,11 +370,11 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
 };
 
 /**
- * Note de crédit (avoir) d'un retour client.
+ * Avoir d'un retour client.
  *
  * C'est la contrepartie documentaire de la facture : la vente a produit une pièce, le retour
  * en produit une autre, qui la référence. Le document reprend les articles rendus avec leur
- * motif et leur traitement — la note de crédit doit dire *pourquoi* on rembourse — et ne
+ * motif et leur traitement — l'avoir doit dire *pourquoi* on rembourse — et ne
  * chiffre que les lignes effectivement remboursées : une remise en stock ou un échange rend
  * de la marchandise sans rendre d'argent, et figure donc au tableau sans montant.
  *
@@ -389,7 +389,7 @@ export const generateCreditNotePDF = (stockReturn, settings = {}) => {
 
   drawHeader(doc, company);
 
-  // Titre NOTE DE CRÉDIT
+  // Titre AVOIR
   doc.setFontSize(20);
   doc.setTextColor(...darkColor);
   doc.setFont('helvetica', 'bold');

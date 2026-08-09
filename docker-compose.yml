@@ -65,6 +65,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      # Compte propriétaire du SaaS, créé au premier démarrage puis jamais
+      # réécrit. Sans ces variables, aucun compte n'est créé.
+      PLATFORM_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:-}
+      PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:-}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       # Une seule origine, celle du frontal. Le SPA étant servi sous ce même
       # domaine, cette valeur ne sert qu'aux éventuels appels hors navigateur.
       CORS_ORIGINS: https://gescom.example.com

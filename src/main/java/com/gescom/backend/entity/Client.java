@@ -2,6 +2,10 @@ package com.gescom.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.gescom.backend.tenancy.TenantEntityListener;
+import com.gescom.backend.tenancy.TenantOwned;
+import org.hibernate.annotations.Filter;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,16 +23,30 @@ import java.time.LocalDateTime;
  * validation sur les coordonnées (email unique et valide, format de téléphone, champs requis).
  */
 @Entity
-@Table(name = "clients")
+@Table(name = "clients", uniqueConstraints = @UniqueConstraint(name = "uq_clients_company_email", columnNames = {"company_id", "email"}))
+@Filter(name = "tenantFilter", condition = "company_id = :tenantCompanyId")
+@EntityListeners(TenantEntityListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class Client {
+public class Client implements TenantOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     *
+     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
+     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
+     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "company_id", nullable = false)
+    @JsonIgnore
+    private Company ownerCompany;
 
     @NotBlank(message = "Le prénom est obligatoire")
     @Size(max = 100)
@@ -42,7 +60,7 @@ public class Client {
 
     @Email(message = "Format d'email invalide")
     @Size(max = 100)
-    @Column(unique = true, length = 100)
+    @Column(length = 100)
     private String email;
 
     @NotBlank(message = "Le téléphone est obligatoire")

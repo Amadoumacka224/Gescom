@@ -23,7 +23,8 @@
     "forgotPassword": "Wachtwoord vergeten?",
     "loginSuccess": "Succesvol ingelogd!",
     "loginError": "Ongeldige inloggegevens",
-    "sessionExpired": "Sessie verlopen, gelieve opnieuw in te loggen"
+    "sessionExpired": "Sessie verlopen, gelieve opnieuw in te loggen",
+    "copyright": "© {{year}} GESCOM. Alle rechten voorbehouden."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -56,6 +57,10 @@
     "totalOrders": "Bestellingen",
     "totalClients": "Klanten",
     "lowStock": "Lage voorraad",
+    "topStock": "Grootste voorraad",
+    "lowStockAlerts": "Meldingen lage voorraad",
+    "inStock": "op voorraad",
+    "viewAll": "Alles bekijken",
     "recentOrders": "Recente bestellingen",
     "salesChart": "Verkoopevolutie",
     "statistics": "Statistieken",
@@ -327,6 +332,7 @@
     "activeStateHint": "Dit artikel kan aan een nieuwe bestelling worden toegevoegd.",
     "inactiveStateHint": "Dit artikel blijft in de catalogus maar verschijnt niet meer in nieuwe bestellingen.",
     "minStockHint": "Daaronder wordt het artikel als lage voorraad gemarkeerd.",
+    "stockManagedHint": "Bijgewerkt door verkopen, retours en voorraadbewegingen. Corrigeer hem via de pagina Voorraad.",
     "marginNegativeHint": "De verkoopprijs ligt onder de aankoopprijs: dit artikel wordt met verlies verkocht.",
     "noChanges": "Geen wijzigingen om op te slaan.",
     "formErrorTitle_one": "1 veld te corrigeren voor het opslaan",
@@ -350,7 +356,10 @@
       "METER": "Meter",
       "BOX": "Doos"
     },
-    "columnStatus": "Status"
+    "columnStatus": "Status",
+    "createdAtLabel": "Aangemaakt",
+    "updatedAtLabel": "Gewijzigd",
+    "exportFilename": "producten"
   },
   "categories": {
     "title": "Categorieën",
@@ -1991,6 +2000,187 @@
       "UNPAID": "NIET BETAALD",
       "PARTIALLY_PAID": "GEDEELTELIJK BETAALD",
       "CANCELED": "GEANNULEERD"
+    }
+  },
+  "platform": {
+    "brand": "GESCOM Platform",
+    "tagline": "Back-office eigenaar",
+    "roleLabel": "Eigenaar",
+    "filters": {
+      "all": "Alle"
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "companies": "Bedrijven",
+      "subscriptions": "Abonnementen",
+      "payments": "Betalingen",
+      "activity": "Activiteit"
+    },
+    "companyStatus": {
+      "ACTIVE": "Actief",
+      "TRIAL": "Proefperiode",
+      "SUSPENDED": "Geschorst",
+      "CANCELED": "Opgezegd"
+    },
+    "subscriptionStatus": {
+      "ACTIVE": "Actief",
+      "TRIALING": "Op proef",
+      "PAST_DUE": "Onbetaald",
+      "CANCELED": "Opgezegd",
+      "EXPIRED": "Verlopen"
+    },
+    "paymentStatus": {
+      "SUCCEEDED": "Geslaagd",
+      "PENDING": "In afwachting",
+      "FAILED": "Mislukt",
+      "REFUNDED": "Terugbetaald"
+    },
+    "paymentMethod": {
+      "TRANSFER": "Overschrijving",
+      "CARD": "Kaart",
+      "DIRECT_DEBIT": "Domiciliëring",
+      "MANUAL": "Handmatige invoer"
+    },
+    "billingPeriod": {
+      "MONTHLY": "Maandelijks",
+      "YEARLY": "Jaarlijks"
+    },
+    "healthStatus": {
+      "EXCELLENT": "Uitstekend",
+      "GOOD": "Goed",
+      "WARNING": "Opvolgen",
+      "CRITICAL": "Kritiek"
+    },
+    "severity": {
+      "CRITICAL": "Kritiek",
+      "WARNING": "Waarschuwing",
+      "INFO": "Info"
+    },
+    "dashboard": {
+      "title": "Platformdashboard",
+      "subtitle": "Geconsolideerd overzicht van alle klantbedrijven",
+      "totalCompanies": "Klantbedrijven",
+      "newThisMonth": "{{count}} deze maand",
+      "mrr": "Maandelijks terugkerende omzet",
+      "arrValue": "ARR: {{value}}",
+      "activeSubscriptions": "Actieve abonnementen",
+      "trialingCount": "{{count}} in proefperiode",
+      "totalUsers": "Gebruikers",
+      "activeUsers": "{{count}} actief",
+      "companyBreakdown": "Verdeling van het portfolio",
+      "growth": "Groei van nieuwe accounts",
+      "revenue": "Omzet",
+      "revenueThisMonth": "Geïnd deze maand",
+      "revenueLastMonth": "Geïnd vorige maand",
+      "revenueTotal": "Geïnd sinds het begin",
+      "arpa": "Gemiddelde omzet per account",
+      "health": "Gezondheid van het platform",
+      "overdue": "Vervallen termijnen",
+      "trialsEnding": "Proefperiodes die aflopen",
+      "failedPayments": "Mislukte betalingen deze maand",
+      "revenueTrend": "Geïnde omzet per maand",
+      "planBreakdown": "Verdeling per formule",
+      "planLine": "{{count}} abonnees · {{mrr}}",
+      "churnRate": "Opzeggingspercentage",
+      "canceledThisMonth": "{{count}} opzeggingen deze maand",
+      "renewals": "Verlengingen binnen 30 dagen",
+      "renewalsHint": "Komende vervaldata",
+      "paymentSuccess": "Slaagpercentage van betalingen",
+      "paymentCounts": "{{succeeded}} geslaagd · {{failed}} mislukt",
+      "platformActivity": "Acties in 24 u",
+      "activityHint": "{{users}} gebruikers actief over 7 dagen",
+      "alerts": "Waarschuwingen en gebeurtenissen",
+      "noAlerts": "Geen openstaande waarschuwingen",
+      "recentCompanies": "Nieuwe klanten"
+    },
+    "companies": {
+      "title": "Klantbedrijven",
+      "subtitle": "Accounts, abonnementen en commerciële levenscyclus",
+      "newCompany": "Nieuwe klant",
+      "company": "Bedrijf",
+      "slug": "Identificatie",
+      "plan": "Formule",
+      "usage": "Gebruik",
+      "usageValue": "{{users}} gebruikers · {{orders}} bestellingen",
+      "since": "Klant sinds",
+      "status": "Status",
+      "created": "Klantaccount geopend",
+      "updated": "Bedrijf bijgewerkt",
+      "editTitle": "Bedrijf bewerken",
+      "createTitle": "Een klantaccount openen",
+      "sectionCompany": "Bedrijf",
+      "sectionAdmin": "Initiële beheerder",
+      "sectionSubscription": "Abonnement",
+      "name": "Maatschappelijke naam",
+      "taxId": "Btw-nummer",
+      "city": "Stad",
+      "postalCode": "Postcode",
+      "country": "Land",
+      "adminFirstName": "Voornaam",
+      "adminLastName": "Naam",
+      "adminUsername": "Gebruikersnaam",
+      "adminEmail": "E-mail",
+      "adminPassword": "Wachtwoord",
+      "noPlan": "Geen formule",
+      "billingPeriod": "Facturatieperiode",
+      "startMode": "Start",
+      "startTrial": "Proefperiode",
+      "startPaid": "Betalend abonnement",
+      "suspend": "Toegang schorsen",
+      "suspendTitle": "Toegang schorsen",
+      "suspendMessage": "Gebruikers van {{name}} kunnen niet meer inloggen. Er worden geen gegevens verwijderd en de toegang kan op elk moment worden hersteld.",
+      "suspended": "Toegang geschorst",
+      "reactivate": "Toegang herstellen",
+      "reactivateTitle": "Toegang herstellen",
+      "reactivateMessage": "Gebruikers van {{name}} kunnen opnieuw inloggen.",
+      "reactivated": "Toegang hersteld",
+      "cancelAccount": "Account opzeggen",
+      "cancelTitle": "Account opzeggen",
+      "cancelMessage": "Het abonnement van {{name}} wordt afgesloten en de toegang afgesneden. De gegevens blijven bewaard en heractivering blijft mogelijk.",
+      "canceled": "Account opgezegd"
+    },
+    "subscriptions": {
+      "title": "Abonnementen",
+      "subtitle": "Lopende contracten en historiek van het portfolio",
+      "company": "Bedrijf",
+      "plan": "Formule",
+      "amount": "Bedrag",
+      "mrrShare": "MRR: {{value}}",
+      "periodEnd": "Volgende vervaldag",
+      "status": "Status",
+      "renew": "Verlengen",
+      "renewTitle": "Abonnement verlengen",
+      "renewMessage": "Het abonnement van {{name}} wordt met één periode verlengd.",
+      "renewed": "Abonnement verlengd",
+      "cancel": "Opzeggen",
+      "cancelTitle": "Abonnement opzeggen",
+      "cancelMessage": "Het abonnement van {{name}} wordt afgesloten. Het telt mee in het opzeggingspercentage van deze maand.",
+      "canceled": "Abonnement opgezegd"
+    },
+    "payments": {
+      "title": "Abonnementsbetalingen",
+      "subtitle": "Van klantbedrijven geïnde bedragen",
+      "record": "Een betaling registreren",
+      "recordTitle": "Een betaling registreren",
+      "recorded": "Betaling geregistreerd",
+      "reference": "Referentie",
+      "company": "Bedrijf",
+      "amount": "Bedrag",
+      "method": "Wijze",
+      "date": "Datum",
+      "status": "Status",
+      "failureMessage": "Reden van mislukking"
+    },
+    "activity": {
+      "title": "Platformactiviteit",
+      "subtitle": "Geconsolideerd logboek van alle bedrijven",
+      "when": "Datum",
+      "company": "Bedrijf",
+      "user": "Gebruiker",
+      "action": "Actie",
+      "description": "Beschrijving",
+      "platformScope": "Platform",
+      "searchPlaceholder": "Zoeken in het logboek…"
     }
   }
 }

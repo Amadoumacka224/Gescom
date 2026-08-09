@@ -138,6 +138,17 @@ public class ProductService {
         return code;
     }
 
+    /**
+     * Met à jour la fiche produit. Le stock n'en fait délibérément PAS partie : il appartient au
+     * grand livre des mouvements (vente à la confirmation, retour client, ajustement) et ne se
+     * réécrit que par une opération tracée — {@link #updateStock}, {@link StockService}.
+     *
+     * L'écrire ici resynchroniserait la fiche sur la valeur qu'affichait le formulaire à son
+     * ouverture : une simple correction de prix ramènerait le stock à ce qu'il valait avant les
+     * ventes de l'intervalle, sans le moindre mouvement pour l'expliquer. Le champ éventuellement
+     * envoyé par un appelant est donc ignoré, et non refusé : la fiche reste modifiable même
+     * depuis un client qui poste encore le produit entier.
+     */
     public Product updateProduct(Long id, Product productDetails) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("product", id));
@@ -148,7 +159,6 @@ public class ProductService {
         product.setSellingPrice(productDetails.getSellingPrice());
         product.setCategory(productDetails.getCategory());
         product.setUnit(productDetails.getUnit());
-        product.setStockQuantity(productDetails.getStockQuantity());
         product.setMinStockAlert(productDetails.getMinStockAlert());
         product.setBarcode(productDetails.getBarcode());
         product.setImageUrl(productDetails.getImageUrl());

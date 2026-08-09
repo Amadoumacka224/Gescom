@@ -578,8 +578,14 @@ const OrderWorkspace = ({
       >
         {/* La hauteur vient du modal (`fill`) plutôt que d'un calcul en vh recopiant ses
             marges : les deux colonnes descendent jusqu'en bas de l'écran quel que soit
-            l'affichage, et le panier récupère tout ce que le catalogue ne prend pas. */}
-        <div className="flex gap-3 h-full min-h-0">
+            l'affichage, et le panier récupère tout ce que le catalogue ne prend pas.
+
+            Les deux zones ne tiennent côte à côte qu'à partir de `lg`. En dessous, le panier
+            réclamait toute la largeur (`w-full`) sans pouvoir se réduire (`shrink-0`) : le
+            catalogue tombait à 0 px sur téléphone — plus aucun moyen d'ajouter un article — et
+            à des vignettes de 35 px sur tablette. Elles s'empilent donc, catalogue au-dessus
+            (on choisit avant d'encaisser), le tout défilant d'un seul bloc. */}
+        <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row lg:overflow-hidden">
           {editable ? (
             <OrderWorkspaceCatalog
               products={products}

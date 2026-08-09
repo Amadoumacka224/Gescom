@@ -1,6 +1,7 @@
 package com.gescom.backend.exception;
 
 import com.gescom.backend.dto.common.ErrorResponse;
+import com.gescom.backend.tenancy.TenantViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -162,6 +163,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return build(HttpStatus.FORBIDDEN, "Vous n'avez pas les droits nécessaires pour cette action.", request);
+    }
+
+    /**
+     * Tentative d'écriture sur une donnée appartenant à une autre entreprise.
+     *
+     * Journalisé en {@code warn} et non silencieusement : en lecture, une ressource d'autrui
+     * se comporte comme une ressource inexistante, mais une écriture hors périmètre signale
+     * soit un défaut de code, soit une tentative délibérée — les deux méritent une trace.
+     */
+    @ExceptionHandler(TenantViolationException.class)
+    public ResponseEntity<ErrorResponse> handleTenantViolation(TenantViolationException ex, HttpServletRequest request) {
+        log.warn("Cloisonnement enfreint sur {} : {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, localize(ex), request);
     }
 
     // --- 404 Not Found -------------------------------------------------------

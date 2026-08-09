@@ -1,6 +1,10 @@
 package com.gescom.backend.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.gescom.backend.tenancy.TenantEntityListener;
+import com.gescom.backend.tenancy.TenantOwned;
+import org.hibernate.annotations.Filter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,14 +20,28 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "stock_movements")
+@Filter(name = "tenantFilter", condition = "company_id = :tenantCompanyId")
+@EntityListeners(TenantEntityListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class StockMovement {
+public class StockMovement implements TenantOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     *
+     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
+     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
+     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "company_id", nullable = false)
+    @JsonIgnore
+    private Company ownerCompany;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)

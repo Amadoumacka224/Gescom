@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, type = 'info', confirmLabel, cancelLabel }) => {

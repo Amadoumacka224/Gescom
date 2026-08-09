@@ -279,7 +279,7 @@ const Dashboard = () => {
               onClick={() => navigate('/orders')}
               className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
             >
-              Voir tout <ArrowRight className="w-4 h-4" />
+              {t('dashboard.viewAll')} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           <div className="space-y-4">
@@ -318,13 +318,13 @@ const Dashboard = () => {
         >
           <div className="flex items-center justify-between mb-1">
             <h2 className="section-title">
-              Stock le plus important
+              {t('dashboard.topStock')}
             </h2>
             <button
               onClick={() => navigate('/products')}
               className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
             >
-              Voir tout <ArrowRight className="w-4 h-4" />
+              {t('dashboard.viewAll')} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           <p className="text-xs text-gray-500 mb-6">{t('dashboard.topStockHint')}</p>
@@ -338,7 +338,9 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-gray-900">{product.name}</span>
-                        <span className="text-sm text-gray-600">{product.stock} en stock</span>
+                        <span className="text-sm text-gray-600">
+                          {product.stock} {t('dashboard.inStock')}
+                        </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
@@ -360,7 +362,7 @@ const Dashboard = () => {
             <div className="mt-6 pt-4 border-t border-gray-200">
               <h3 className="subsection-title font-bold text-red-600 mb-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
-                Alertes stock bas
+                {t('dashboard.lowStockAlerts')}
               </h3>
               <div className="space-y-2">
                 {lowStockProducts.map((product) => (

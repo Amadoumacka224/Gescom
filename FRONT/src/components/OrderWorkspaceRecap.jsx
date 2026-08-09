@@ -67,8 +67,13 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
     client?.country,
   ].filter((part) => part && part.trim()).join(', ');
 
+  // Mêmes règles d'empilement que le catalogue : sous `lg`, le panier sert sa hauteur avant ce
+  // panneau, qui tombait sinon à quelques dizaines de pixels sur téléphone — et à zéro en
+  // paysage, faisant disparaître les lignes et le récapitulatif de facture. Il ne se comprime
+  // donc plus et laisse défiler la colonne entière ; son propre défilement ne sert qu'à partir
+  // de `lg`, où il partage une hauteur fixe avec le panier.
   return (
-    <div className="flex-1 min-w-0 overflow-y-auto pr-1 space-y-4">
+    <div className="min-w-0 shrink-0 min-h-[24rem] lg:flex-1 lg:shrink lg:min-h-0 lg:overflow-y-auto pr-1 space-y-4">
       {/* En-tête du dossier : l'état et le montant, c'est-à-dire ce qu'on vient vérifier.
           Le montant n'y figurait pas du tout tant qu'aucune facture n'était émise. */}
       <section className="bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700 p-4">

@@ -52,6 +52,17 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!--
+            AOP : requis par TenantFilterActivator, qui active le filtre de cloisonnement
+            multi-entreprises avant chaque appel au package repository. Un intercepteur est
+            le seul point de passage commun aux methodes derivees (findByX), aux @Query et
+            aux methodes heritees de JpaRepository.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- PostgreSQL Driver -->
         <dependency>
             <groupId>org.postgresql</groupId>

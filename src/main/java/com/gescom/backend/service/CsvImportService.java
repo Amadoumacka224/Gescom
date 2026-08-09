@@ -98,7 +98,9 @@ public class CsvImportService {
                     }
                 } catch (Exception e) {
                     log.error("Error at line {}: {}", lineNumber, e.getMessage());
-                    throw new BusinessException("Erreur à la ligne " + lineNumber + ": " + e.getMessage());
+                    throw BusinessException.of("import.line.error",
+                            "Erreur à la ligne " + lineNumber + " : " + e.getMessage(),
+                            lineNumber, e.getMessage());
                 }
             }
         }

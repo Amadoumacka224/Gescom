@@ -2,6 +2,10 @@ package com.gescom.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.gescom.backend.tenancy.TenantEntityListener;
+import com.gescom.backend.tenancy.TenantOwned;
+import org.hibernate.annotations.Filter;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,18 +23,32 @@ import java.util.Set;
  * machine à états simple (PENDING → DELIVERED) garantissant des transitions cohérentes.
  */
 @Entity
-@Table(name = "deliveries")
+@Table(name = "deliveries", uniqueConstraints = @UniqueConstraint(name = "uq_deliveries_company_number", columnNames = {"company_id", "delivery_number"}))
+@Filter(name = "tenantFilter", condition = "company_id = :tenantCompanyId")
+@EntityListeners(TenantEntityListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class Delivery {
+public class Delivery implements TenantOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
+    /**
+     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     *
+     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
+     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
+     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "company_id", nullable = false)
+    @JsonIgnore
+    private Company ownerCompany;
+
+    @Column(nullable = false, length = 50)
     private String deliveryNumber;
 
     @OneToOne(fetch = FetchType.LAZY)

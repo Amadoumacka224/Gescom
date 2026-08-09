@@ -23,7 +23,8 @@
     "forgotPassword": "Forgot password?",
     "loginSuccess": "Signed in successfully!",
     "loginError": "Invalid credentials",
-    "sessionExpired": "Session expired, please sign in again"
+    "sessionExpired": "Session expired, please sign in again",
+    "copyright": "© {{year}} GESCOM. All rights reserved."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -56,6 +57,10 @@
     "totalOrders": "Orders",
     "totalClients": "Clients",
     "lowStock": "Low stock",
+    "topStock": "Highest stock",
+    "lowStockAlerts": "Low stock alerts",
+    "inStock": "in stock",
+    "viewAll": "View all",
     "recentOrders": "Recent orders",
     "salesChart": "Sales trend",
     "statistics": "Statistics",
@@ -327,6 +332,7 @@
     "activeStateHint": "This item can be added to a new order.",
     "inactiveStateHint": "This item stays in the catalogue but no longer appears in new orders.",
     "minStockHint": "Below this, the item is flagged as low stock.",
+    "stockManagedHint": "Updated by sales, returns and stock movements. Use the Stock page to correct it.",
     "marginNegativeHint": "The selling price is below the purchase price: this item will be sold at a loss.",
     "noChanges": "No changes to save.",
     "formErrorTitle_one": "1 field to fix before saving",
@@ -350,7 +356,10 @@
       "METER": "Metre",
       "BOX": "Box"
     },
-    "columnStatus": "Status"
+    "columnStatus": "Status",
+    "createdAtLabel": "Created",
+    "updatedAtLabel": "Updated",
+    "exportFilename": "products"
   },
   "categories": {
     "title": "Categories",
@@ -1991,6 +2000,187 @@
       "UNPAID": "UNPAID",
       "PARTIALLY_PAID": "PARTIALLY PAID",
       "CANCELED": "CANCELED"
+    }
+  },
+  "platform": {
+    "brand": "GESCOM Platform",
+    "tagline": "Owner back-office",
+    "roleLabel": "Owner",
+    "filters": {
+      "all": "All"
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "companies": "Companies",
+      "subscriptions": "Subscriptions",
+      "payments": "Payments",
+      "activity": "Activity"
+    },
+    "companyStatus": {
+      "ACTIVE": "Active",
+      "TRIAL": "Trial",
+      "SUSPENDED": "Suspended",
+      "CANCELED": "Canceled"
+    },
+    "subscriptionStatus": {
+      "ACTIVE": "Active",
+      "TRIALING": "Trialing",
+      "PAST_DUE": "Past due",
+      "CANCELED": "Canceled",
+      "EXPIRED": "Expired"
+    },
+    "paymentStatus": {
+      "SUCCEEDED": "Succeeded",
+      "PENDING": "Pending",
+      "FAILED": "Failed",
+      "REFUNDED": "Refunded"
+    },
+    "paymentMethod": {
+      "TRANSFER": "Bank transfer",
+      "CARD": "Card",
+      "DIRECT_DEBIT": "Direct debit",
+      "MANUAL": "Manual entry"
+    },
+    "billingPeriod": {
+      "MONTHLY": "Monthly",
+      "YEARLY": "Yearly"
+    },
+    "healthStatus": {
+      "EXCELLENT": "Excellent",
+      "GOOD": "Good",
+      "WARNING": "Needs attention",
+      "CRITICAL": "Critical"
+    },
+    "severity": {
+      "CRITICAL": "Critical",
+      "WARNING": "Warning",
+      "INFO": "Info"
+    },
+    "dashboard": {
+      "title": "Platform dashboard",
+      "subtitle": "Consolidated view of every client company",
+      "totalCompanies": "Client companies",
+      "newThisMonth": "{{count}} this month",
+      "mrr": "Monthly recurring revenue",
+      "arrValue": "ARR: {{value}}",
+      "activeSubscriptions": "Active subscriptions",
+      "trialingCount": "{{count}} on trial",
+      "totalUsers": "Users",
+      "activeUsers": "{{count}} active",
+      "companyBreakdown": "Portfolio breakdown",
+      "growth": "New account growth",
+      "revenue": "Revenue",
+      "revenueThisMonth": "Collected this month",
+      "revenueLastMonth": "Collected last month",
+      "revenueTotal": "Collected all time",
+      "arpa": "Average revenue per account",
+      "health": "Platform health",
+      "overdue": "Overdue renewals",
+      "trialsEnding": "Trials ending soon",
+      "failedPayments": "Failed payments this month",
+      "revenueTrend": "Revenue collected per month",
+      "planBreakdown": "Breakdown by plan",
+      "planLine": "{{count}} subscribers · {{mrr}}",
+      "churnRate": "Churn rate",
+      "canceledThisMonth": "{{count}} cancellations this month",
+      "renewals": "Renewals within 30 days",
+      "renewalsHint": "Upcoming due dates",
+      "paymentSuccess": "Payment success rate",
+      "paymentCounts": "{{succeeded}} succeeded · {{failed}} failed",
+      "platformActivity": "Actions in 24h",
+      "activityHint": "{{users}} users active over 7 days",
+      "alerts": "Alerts and events",
+      "noAlerts": "No open alerts",
+      "recentCompanies": "New clients"
+    },
+    "companies": {
+      "title": "Client companies",
+      "subtitle": "Accounts, subscriptions and commercial lifecycle",
+      "newCompany": "New client",
+      "company": "Company",
+      "slug": "Identifier",
+      "plan": "Plan",
+      "usage": "Usage",
+      "usageValue": "{{users}} users · {{orders}} orders",
+      "since": "Client since",
+      "status": "Status",
+      "created": "Client account opened",
+      "updated": "Company updated",
+      "editTitle": "Edit company",
+      "createTitle": "Open a client account",
+      "sectionCompany": "Company",
+      "sectionAdmin": "Initial administrator",
+      "sectionSubscription": "Subscription",
+      "name": "Legal name",
+      "taxId": "VAT number",
+      "city": "City",
+      "postalCode": "Postal code",
+      "country": "Country",
+      "adminFirstName": "First name",
+      "adminLastName": "Last name",
+      "adminUsername": "Username",
+      "adminEmail": "Email",
+      "adminPassword": "Password",
+      "noPlan": "No plan",
+      "billingPeriod": "Billing period",
+      "startMode": "Start mode",
+      "startTrial": "Trial period",
+      "startPaid": "Paid subscription",
+      "suspend": "Suspend access",
+      "suspendTitle": "Suspend access",
+      "suspendMessage": "Users of {{name}} will no longer be able to sign in. No data is deleted and access can be restored at any time.",
+      "suspended": "Access suspended",
+      "reactivate": "Restore access",
+      "reactivateTitle": "Restore access",
+      "reactivateMessage": "Users of {{name}} will be able to sign in again.",
+      "reactivated": "Access restored",
+      "cancelAccount": "Cancel account",
+      "cancelTitle": "Cancel account",
+      "cancelMessage": "The subscription of {{name}} will be closed and access cut off. Data is retained and reactivation remains possible.",
+      "canceled": "Account canceled"
+    },
+    "subscriptions": {
+      "title": "Subscriptions",
+      "subtitle": "Current contracts and portfolio history",
+      "company": "Company",
+      "plan": "Plan",
+      "amount": "Amount",
+      "mrrShare": "MRR: {{value}}",
+      "periodEnd": "Next renewal",
+      "status": "Status",
+      "renew": "Renew",
+      "renewTitle": "Renew subscription",
+      "renewMessage": "The subscription of {{name}} will be extended by one period.",
+      "renewed": "Subscription renewed",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel subscription",
+      "cancelMessage": "The subscription of {{name}} will be closed. It will count towards this month’s churn rate.",
+      "canceled": "Subscription canceled"
+    },
+    "payments": {
+      "title": "Subscription payments",
+      "subtitle": "Amounts collected from client companies",
+      "record": "Record a payment",
+      "recordTitle": "Record a payment",
+      "recorded": "Payment recorded",
+      "reference": "Reference",
+      "company": "Company",
+      "amount": "Amount",
+      "method": "Method",
+      "date": "Date",
+      "status": "Status",
+      "failureMessage": "Failure reason"
+    },
+    "activity": {
+      "title": "Platform activity",
+      "subtitle": "Consolidated log across every company",
+      "when": "Date",
+      "company": "Company",
+      "user": "User",
+      "action": "Action",
+      "description": "Description",
+      "platformScope": "Platform",
+      "searchPlaceholder": "Search the log…"
     }
   }
 }

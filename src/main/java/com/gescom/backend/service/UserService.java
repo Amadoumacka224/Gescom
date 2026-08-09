@@ -109,7 +109,31 @@ public class UserService {
         return userRepository.findByUsername(username).map(userMapper::toResponse);
     }
 
+    /**
+     * Interdit à l'administrateur d'une entreprise de fabriquer un compte propriétaire.
+     *
+     * Sans ce garde-fou, un ADMIN pourrait s'octroyer le rôle SUPER_ADMIN et accéder à
+     * l'ensemble du parc — une élévation de privilège franchissant la frontière entre une
+     * entreprise cliente et l'exploitant du SaaS.
+     *
+     * La contrainte {@code chk_users_company_scope} rejetterait déjà l'écriture en base,
+     * puisque le compte serait rattaché à une entreprise, mais elle répondrait par un
+     * conflit d'intégrité opaque. Le refus est posé ici pour être explicite, et pour ne pas
+     * faire reposer une frontière de sécurité sur le seul effet de bord d'une contrainte.
+     *
+     * Le compte propriétaire se crée exclusivement au démarrage, via PlatformAdminBootstrap
+     * et les variables d'environnement PLATFORM_ADMIN_*.
+     */
+    private void rejectPlatformRole(User.Role role) {
+        if (role == User.Role.SUPER_ADMIN) {
+            throw BusinessException.of("user.role.platformReserved",
+                    "Le rôle propriétaire de la plateforme ne peut pas être attribué depuis cet écran");
+        }
+    }
+
     public UserResponse createUser(UserCreateRequest request) {
+        rejectPlatformRole(request.role());
+
         if (userRepository.existsByUsername(request.username())) {
             throw new DuplicateResourceException("user", "username", request.username());
         }
@@ -138,6 +162,8 @@ public class UserService {
     }
 
     public UserResponse updateUserAsAdmin(Long id, UserUpdateAdminRequest request) {
+        rejectPlatformRole(request.role());
+
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("user", id));
 

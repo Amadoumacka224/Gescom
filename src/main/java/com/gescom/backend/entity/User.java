@@ -2,7 +2,10 @@ package com.gescom.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.gescom.backend.tenancy.TenantEntityListener;
+import com.gescom.backend.tenancy.TenantOwned;
 import jakarta.persistence.*;
+import org.hibernate.annotations.Filter;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -27,15 +30,32 @@ import java.util.List;
  */
 @Entity
 @Table(name = "users")
+@Filter(name = "tenantFilter", condition = "company_id = :tenantCompanyId")
+@EntityListeners(TenantEntityListener.class)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password"})
-public class User implements UserDetails {
+public class User implements UserDetails, TenantOwned {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Entreprise d'appartenance — nulle pour le seul SUPER_ADMIN.
+     *
+     * C'est l'unique champ facultatif de tout le cloisonnement, et il porte le modele a lui
+     * seul : le proprietaire de la plateforme n'appartient a aucune entreprise cliente, et
+     * c'est precisement cette absence de rattachement qui lui ouvre la vue globale (voir
+     * TenantContext). La coherence role / entreprise est verrouillee en base par la
+     * contrainte chk_users_company_scope, pour qu'un ADMIN ne puisse jamais se retrouver
+     * sans entreprise et heriter par accident de cette vue.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "company_id")
+    @JsonIgnore
+    private Company ownerCompany;
 
     @NotBlank(message = "Le nom d'utilisateur est obligatoire")
     @Size(min = 3, max = 50, message = "Le nom d'utilisateur doit contenir entre 3 et 50 caractères")
@@ -128,15 +148,36 @@ public class User implements UserDetails {
         return true;
     }
 
-    // Un compte désactivé (active = false) ne peut pas se connecter.
+    /**
+     * Un compte désactivé (active = false) ne peut pas se connecter — et, depuis la bascule
+     * multi-entreprises, un compte dont l'entreprise n'est plus opérationnelle non plus.
+     *
+     * Porter la règle ici plutôt que dans le contrôleur d'authentification la rend
+     * inévitable : c'est le contrat {@code UserDetails} que Spring Security interroge, de
+     * sorte que suspendre une entreprise pour impayé coupe l'accès de tous ses utilisateurs
+     * d'un seul geste, sans toucher à leurs comptes ni à leurs données.
+     */
     @Override
     @JsonIgnore
     public boolean isEnabled() {
-        return active;
+        return active && (ownerCompany == null || ownerCompany.isOperational());
     }
 
-    // ADMIN : accès complet ; CAISSIER : opérations de caisse (ventes, encaissements).
+    /**
+     * SUPER_ADMIN n'est pas un ADMIN plus puissant : c'est un rôle d'une autre nature.
+     * L'ADMIN administre son entreprise et ne voit qu'elle ; le SUPER_ADMIN exploite la
+     * plateforme, n'appartient à aucune entreprise et n'a accès à aucun écran métier —
+     * son périmètre est l'espace /api/platform, et rien d'autre.
+     */
     public enum Role {
-        ADMIN, CAISSIER
+        ADMIN,       // Accès complet au sein de son entreprise
+        CAISSIER,    // Opérations de caisse (ventes, encaissements)
+        SUPER_ADMIN  // Propriétaire de la plateforme : vue globale du parc, aucun accès métier
+    }
+
+    /** Vrai pour le propriétaire de la plateforme, seul compte non rattaché à une entreprise. */
+    @JsonIgnore
+    public boolean isPlatformOwner() {
+        return role == Role.SUPER_ADMIN;
     }
 }

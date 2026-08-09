@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { Menu, Bell, Globe, ShoppingCart, AlertTriangle, PackageX } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 

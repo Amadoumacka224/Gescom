@@ -101,4 +101,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
+
+    /** Volume de commandes d'une entreprise — indicateur d'usage du back-office propriétaire. */
+    long countByOwnerCompanyId(Long companyId);
 }

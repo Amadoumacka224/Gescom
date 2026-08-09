@@ -122,7 +122,16 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
                 auth.requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                    // Espace du propriétaire de la plateforme. La règle est doublée par un
+                    // @PreAuthorize au niveau de chaque contrôleur : ce filtrage par URL est
+                    // la barrière de périmètre, l'annotation la barrière de méthode. Un
+                    // contrôleur ajouté sous ce préfixe est ainsi protégé même si son auteur
+                    // oublie l'annotation.
+                    .requestMatchers("/api/platform/**").hasRole("SUPER_ADMIN")
+                    // Symétriquement, le propriétaire de la plateforme n'a rien à faire dans
+                    // les écrans métier d'une entreprise : il n'appartient à aucune d'elles,
+                    // et son contexte de cloisonnement vide lui ferait traverser tout le parc.
+                    .requestMatchers("/api/**").hasAnyRole("ADMIN", "CAISSIER")
                     .anyRequest().authenticated()
             )
             .cors(cors -> cors.configurationSource(corsConfigurationSource()));

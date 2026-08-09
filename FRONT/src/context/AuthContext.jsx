@@ -1,19 +1,17 @@
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState } from 'react';
 import authService from '../services/authService';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
-    setLoading(false);
-  }, []);
+  // La session est lue au premier rendu, pas dans un effet. Le faire dans un useEffect
+  // imposait un rendu initial à `user = null, loading = true` suivi d'un second rendu en
+  // cascade — soit un clignotement de l'écran de chargement à chaque montage, alors que
+  // authService.getCurrentUser() ne fait que lire le stockage local, de façon synchrone.
+  const [user, setUser] = useState(() => authService.getCurrentUser() || null);
+  // Conservé dans le contexte : ProtectedRoute et consorts le lisent. Il n'y a plus rien
+  // d'asynchrone à attendre au démarrage, la valeur reste donc false.
+  const [loading] = useState(false);
 
   const login = async (username, password) => {
     const userData = await authService.login(username, password);
@@ -52,14 +50,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
 
 export default AuthContext;

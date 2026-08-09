@@ -6,13 +6,12 @@ import {
   Eye, RefreshCw, Download, Hash, CalendarClock, X, Copy, ShoppingCart,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import clientService from '../services/clientService';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
-import FormInput from '../components/FormInput';
 import Button from '../components/Button';
 import Table from '../components/Table';
 import SearchBox from '../components/SearchBox';

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const Button = ({
   children,
@@ -11,6 +12,8 @@ const Button = ({
   type = 'button',
   className = '',
 }) => {
+  const { t } = useTranslation();
+
   const variants = {
     primary: 'btn-primary',
     secondary: 'btn-secondary',
@@ -46,7 +49,7 @@ const Button = ({
       {loading ? (
         <>
           <div className={`w-4 h-4 border-2 ${spinnerColor} rounded-full animate-spin`}></div>
-          Chargement...
+          {t('common.loading')}
         </>
       ) : (
         <>

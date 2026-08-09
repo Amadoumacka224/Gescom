@@ -204,8 +204,17 @@ const OrderWorkspaceCatalog = ({
     if (added) setSearch('');
   };
 
+  // Empilé sous `lg`, le catalogue est borné à 55 vh et sa grille défile à l'intérieur. Sans
+  // borne, le bloc prenait la hauteur de ses vignettes : avec 180 articles sur deux colonnes,
+  // le panier et le bouton de validation tombaient à une centaine de rangées sous la ligne de
+  // flottaison. La borne est relative à la fenêtre et non fixe, et c'est ce qui la distingue
+  // des 24 rem essayés auparavant : le haut du panier reste visible sans défilement, là où une
+  // borne fixe imposait de faire défiler la page — glissement qui n'atteignait que la grille —
+  // avant même de savoir que le panier était là. Le plancher couvre les fenêtres très basses,
+  // où 55 vh ne tiendrait plus une rangée. Au-delà de `lg` la hauteur redevient celle de la
+  // colonne, que le panier ne dispute plus.
   return (
-    <div className="flex gap-3 flex-1 min-w-0">
+    <div className="flex gap-3 min-w-0 shrink-0 h-[55vh] min-h-[18rem] lg:h-auto lg:min-h-0 lg:flex-1 lg:shrink">
       {/* ───────── Panneau de filtres ───────── */}
       <aside className="hidden md:flex w-44 lg:w-52 shrink-0 flex-col gap-3 border-r border-gray-200 pr-3 dark:border-gray-700">
         {/* Disponibilité d'abord : c'est le filtre le plus utilisé au comptoir, et il tient en
@@ -272,7 +281,7 @@ const OrderWorkspaceCatalog = ({
       </aside>
 
       {/* ───────── Barre de commande et grille ───────── */}
-      <main className="flex-1 min-w-0 flex flex-col gap-2.5">
+      <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-2.5">
         {/* Une seule barre : elle filtre la grille à la frappe et sert d'entrée au scan. Le champ
             de code-barres séparé faisait double emploi à l'œil — deux barres identiques côte à
             côte — pour une différence qui ne se lisait qu'au placeholder.
@@ -338,7 +347,11 @@ const OrderWorkspaceCatalog = ({
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+        {/* La grille défile pour son propre compte à toutes les tailles : c'est elle qui absorbe
+            le débordement, et donc ce qui tient le catalogue dans sa borne au lieu de le laisser
+            repousser le panier. `min-h-0` est indispensable — sans lui l'élément flex refuse de
+            se réduire sous sa hauteur de contenu et le débordement remonte d'un cran. */}
+        <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
           {filteredProducts.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-8">
               <Package className="w-10 h-10 mb-2 text-gray-300 dark:text-gray-600" aria-hidden="true" />
@@ -357,11 +370,10 @@ const OrderWorkspaceCatalog = ({
               )}
             </div>
           ) : (
-            /* Six articles par ligne, plafond assumé : au-delà les vignettes deviennent trop
-               petites pour être identifiées de loin. La sixième colonne n'arrive qu'à partir de
-               `xl` — en dessous, l'atelier réserve déjà la moitié de la largeur au panier et au
-               panneau de filtres, et six vignettes y descendraient sous les 90 px. */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
+            /* Six articles par ligne au plus, 120 px par vignette au moins : les deux bornes
+               sont portées par `.catalog-grid`, qui se règle sur la largeur de la grille et
+               non sur celle de la fenêtre (cf. `index.css`). */
+            <div className="catalog-grid">
               {filteredProducts.map((product) => {
                 const inCart = cartQtyByProduct[String(product.id)] || 0;
                 const outOfStock = isOutOfStock(product);

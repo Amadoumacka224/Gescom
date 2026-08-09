@@ -79,8 +79,11 @@ const OrderWorkspaceCart = ({
     setGlobalDiscount('');
   };
 
+  // Largeur fixe seulement une fois côte à côte avec le catalogue (`lg`) ; empilé en dessous,
+  // le panier prend toute la largeur et sa hauteur suit son contenu — `h-full` le tirait sinon
+  // à la hauteur du modal, reléguant le catalogue hors écran.
   return (
-    <aside className="w-full sm:w-80 lg:w-[380px] shrink-0 h-full flex flex-col bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <aside className="w-full lg:w-[380px] shrink-0 lg:h-full flex flex-col bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* ───────── En-tête : identité du panier et client ───────── */}
       <div className="shrink-0 px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 space-y-2">
         <div className="flex items-center justify-between gap-2">
@@ -229,8 +232,14 @@ const OrderWorkspaceCart = ({
           lui revient, et c'est elle qui absorbe l'agrandissement de l'écran. Chaque ligne tient
           en trois rangs (article / prix et stock / quantité, remise et total) plutôt qu'en
           quatre — le total remonte à côté des commandes de quantité, l'alerte de stock rejoint
-          la ligne de prix. */}
-      <div className="flex-1 min-h-[120px] overflow-y-auto p-1.5 space-y-1">
+          la ligne de prix.
+
+          `flex-1` seulement à partir de `lg`, là où le panneau a une hauteur définie à se
+          partager. Empilé en dessous, le panier fait sa hauteur : `flex-1` y calait la zone
+          sur son `min-h` de 120 px — une ligne et demie, quel que soit le nombre d'articles —
+          alors qu'en hauteur automatique elle suit vraiment son contenu, la colonne entière
+          défilant d'un bloc. */}
+      <div className="min-h-[120px] lg:flex-1 overflow-y-auto p-1.5 space-y-1">
         {items.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-8">
             <ShoppingCart className="w-9 h-9 mb-2 text-gray-300 dark:text-gray-600" aria-hidden="true" />

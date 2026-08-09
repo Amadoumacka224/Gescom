@@ -23,7 +23,8 @@
     "forgotPassword": "Mot de passe oublié ?",
     "loginSuccess": "Connexion réussie !",
     "loginError": "Identifiants incorrects",
-    "sessionExpired": "Session expirée, veuillez vous reconnecter"
+    "sessionExpired": "Session expirée, veuillez vous reconnecter",
+    "copyright": "© {{year}} GESCOM. Tous droits réservés."
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -56,6 +57,10 @@
     "totalOrders": "Commandes",
     "totalClients": "Clients",
     "lowStock": "Stock faible",
+    "topStock": "Stock le plus important",
+    "lowStockAlerts": "Alertes stock bas",
+    "inStock": "en stock",
+    "viewAll": "Voir tout",
     "recentOrders": "Commandes récentes",
     "salesChart": "Évolution des ventes",
     "statistics": "Statistiques",
@@ -327,6 +332,7 @@
     "activeStateHint": "Cet article peut être ajouté à une nouvelle commande.",
     "inactiveStateHint": "Cet article reste au catalogue mais n'apparaît plus dans les nouvelles commandes.",
     "minStockHint": "En dessous, l'article est signalé « stock faible ».",
+    "stockManagedHint": "Mis à jour par les ventes, les retours et les mouvements. Pour le corriger, passez par la page Stock.",
     "marginNegativeHint": "Le prix de vente est inférieur au prix d'achat : cet article sera vendu à perte.",
     "noChanges": "Aucune modification à enregistrer.",
     "formErrorTitle_one": "1 champ à corriger avant l'enregistrement",
@@ -350,7 +356,10 @@
       "METER": "Mètre",
       "BOX": "Boîte"
     },
-    "columnStatus": "Statut"
+    "columnStatus": "Statut",
+    "createdAtLabel": "Créé",
+    "updatedAtLabel": "Modifié",
+    "exportFilename": "produits"
   },
   "categories": {
     "title": "Catégories",
@@ -1197,9 +1206,9 @@
       "lineCount_other": "{{count}} lignes",
       "articlesTitle": "Articles rendus",
       "replacedBy": "Remplacé par {{product}}",
-      "creditNote": "Note de crédit",
-      "creditNoteNoRefund": "Aucun montant remboursé sur ce retour : il n'y a rien à créditer.",
-      "creditNoteError": "Erreur lors de la génération de la note de crédit"
+      "creditNote": "Avoir",
+      "creditNoteNoRefund": "Aucun montant remboursé sur ce retour : il n'y a pas d'avoir à établir.",
+      "creditNoteError": "Erreur lors de la génération de l'avoir"
     }
   },
   "users": {
@@ -1973,8 +1982,8 @@
     "defaultCountry": "Belgique",
     "fileNamePrefix": "Facture",
     "creditNote": {
-      "heading": "NOTE DE CRÉDIT",
-      "numberLabel": "N° Avoir :",
+      "heading": "AVOIR",
+      "numberLabel": "N° d'avoir :",
       "invoiceLabel": "Facture :",
       "orderLabel": "Commande :",
       "creditedTo": "CRÉDITÉ À :",
@@ -1984,13 +1993,194 @@
       "refundTotalLabel": "À REMBOURSER :",
       "quantityLine_one": "1 article repris",
       "quantityLine_other": "{{count}} articles repris",
-      "fileNamePrefix": "Note_de_credit"
+      "fileNamePrefix": "Avoir"
     },
     "status": {
       "PAID": "PAYÉE",
       "UNPAID": "NON PAYÉE",
       "PARTIALLY_PAID": "PARTIELLEMENT PAYÉE",
       "CANCELED": "ANNULÉE"
+    }
+  },
+  "platform": {
+    "brand": "GESCOM Plateforme",
+    "tagline": "Back-office propriétaire",
+    "roleLabel": "Propriétaire",
+    "filters": {
+      "all": "Tous"
+    },
+    "nav": {
+      "dashboard": "Tableau de bord",
+      "companies": "Entreprises",
+      "subscriptions": "Abonnements",
+      "payments": "Paiements",
+      "activity": "Activité"
+    },
+    "companyStatus": {
+      "ACTIVE": "Active",
+      "TRIAL": "Période d'essai",
+      "SUSPENDED": "Suspendue",
+      "CANCELED": "Résiliée"
+    },
+    "subscriptionStatus": {
+      "ACTIVE": "Actif",
+      "TRIALING": "En essai",
+      "PAST_DUE": "Impayé",
+      "CANCELED": "Résilié",
+      "EXPIRED": "Expiré"
+    },
+    "paymentStatus": {
+      "SUCCEEDED": "Réussi",
+      "PENDING": "En attente",
+      "FAILED": "Échoué",
+      "REFUNDED": "Remboursé"
+    },
+    "paymentMethod": {
+      "TRANSFER": "Virement",
+      "CARD": "Carte",
+      "DIRECT_DEBIT": "Domiciliation",
+      "MANUAL": "Saisie manuelle"
+    },
+    "billingPeriod": {
+      "MONTHLY": "Mensuel",
+      "YEARLY": "Annuel"
+    },
+    "healthStatus": {
+      "EXCELLENT": "Excellente",
+      "GOOD": "Bonne",
+      "WARNING": "À surveiller",
+      "CRITICAL": "Critique"
+    },
+    "severity": {
+      "CRITICAL": "Critique",
+      "WARNING": "Alerte",
+      "INFO": "Info"
+    },
+    "dashboard": {
+      "title": "Tableau de bord de la plateforme",
+      "subtitle": "Vue consolidée de l'ensemble des entreprises clientes",
+      "totalCompanies": "Entreprises clientes",
+      "newThisMonth": "{{count}} ce mois-ci",
+      "mrr": "Revenu mensuel récurrent",
+      "arrValue": "ARR : {{value}}",
+      "activeSubscriptions": "Abonnements actifs",
+      "trialingCount": "{{count}} en période d'essai",
+      "totalUsers": "Utilisateurs",
+      "activeUsers": "{{count}} actifs",
+      "companyBreakdown": "Répartition du parc",
+      "growth": "Évolution des nouveaux comptes",
+      "revenue": "Revenus",
+      "revenueThisMonth": "Encaissé ce mois-ci",
+      "revenueLastMonth": "Encaissé le mois dernier",
+      "revenueTotal": "Encaissé depuis l’origine",
+      "arpa": "Revenu moyen par compte",
+      "health": "Santé de la plateforme",
+      "overdue": "Échéances dépassées",
+      "trialsEnding": "Essais arrivant à terme",
+      "failedPayments": "Paiements échoués ce mois-ci",
+      "revenueTrend": "Revenus encaissés par mois",
+      "planBreakdown": "Répartition par formule",
+      "planLine": "{{count}} abonnés · {{mrr}}",
+      "churnRate": "Taux de résiliation",
+      "canceledThisMonth": "{{count}} résiliations ce mois-ci",
+      "renewals": "Renouvellements à 30 jours",
+      "renewalsHint": "Échéances à venir",
+      "paymentSuccess": "Taux de réussite des paiements",
+      "paymentCounts": "{{succeeded}} réussis · {{failed}} échoués",
+      "platformActivity": "Actions sur 24 h",
+      "activityHint": "{{users}} utilisateurs actifs sur 7 jours",
+      "alerts": "Alertes et événements",
+      "noAlerts": "Aucune alerte en cours",
+      "recentCompanies": "Nouveaux clients"
+    },
+    "companies": {
+      "title": "Entreprises clientes",
+      "subtitle": "Comptes, abonnements et cycle de vie commercial",
+      "newCompany": "Nouveau client",
+      "company": "Entreprise",
+      "slug": "Identifiant",
+      "plan": "Formule",
+      "usage": "Usage",
+      "usageValue": "{{users}} utilisateurs · {{orders}} commandes",
+      "since": "Client depuis",
+      "status": "Statut",
+      "created": "Compte client ouvert",
+      "updated": "Entreprise mise à jour",
+      "editTitle": "Modifier l'entreprise",
+      "createTitle": "Ouvrir un compte client",
+      "sectionCompany": "Entreprise",
+      "sectionAdmin": "Administrateur initial",
+      "sectionSubscription": "Abonnement",
+      "name": "Raison sociale",
+      "taxId": "N° de TVA",
+      "city": "Ville",
+      "postalCode": "Code postal",
+      "country": "Pays",
+      "adminFirstName": "Prénom",
+      "adminLastName": "Nom",
+      "adminUsername": "Nom d'utilisateur",
+      "adminEmail": "Email",
+      "adminPassword": "Mot de passe",
+      "noPlan": "Aucune formule",
+      "billingPeriod": "Périodicité",
+      "startMode": "Démarrage",
+      "startTrial": "Période d'essai",
+      "startPaid": "Abonnement payant",
+      "suspend": "Suspendre l'accès",
+      "suspendTitle": "Suspendre l'accès",
+      "suspendMessage": "Les utilisateurs de {{name}} ne pourront plus se connecter. Aucune donnée n'est supprimée et l'accès peut être rétabli à tout moment.",
+      "suspended": "Accès suspendu",
+      "reactivate": "Rétablir l'accès",
+      "reactivateTitle": "Rétablir l'accès",
+      "reactivateMessage": "Les utilisateurs de {{name}} pourront à nouveau se connecter.",
+      "reactivated": "Accès rétabli",
+      "cancelAccount": "Résilier le compte",
+      "cancelTitle": "Résilier le compte",
+      "cancelMessage": "L'abonnement de {{name}} sera clôturé et l'accès coupé. Les données sont conservées et une réactivation reste possible.",
+      "canceled": "Compte résilié"
+    },
+    "subscriptions": {
+      "title": "Abonnements",
+      "subtitle": "Contrats en cours et historique du parc",
+      "company": "Entreprise",
+      "plan": "Formule",
+      "amount": "Montant",
+      "mrrShare": "MRR : {{value}}",
+      "periodEnd": "Prochaine échéance",
+      "status": "Statut",
+      "renew": "Renouveler",
+      "renewTitle": "Renouveler l'abonnement",
+      "renewMessage": "L'abonnement de {{name}} sera prolongé d'une période.",
+      "renewed": "Abonnement renouvelé",
+      "cancel": "Résilier",
+      "cancelTitle": "Résilier l'abonnement",
+      "cancelMessage": "L'abonnement de {{name}} sera clôturé. Il comptera dans le taux de résiliation du mois.",
+      "canceled": "Abonnement résilié"
+    },
+    "payments": {
+      "title": "Paiements des abonnements",
+      "subtitle": "Encaissements des entreprises clientes",
+      "record": "Enregistrer un paiement",
+      "recordTitle": "Enregistrer un paiement",
+      "recorded": "Paiement enregistré",
+      "reference": "Référence",
+      "company": "Entreprise",
+      "amount": "Montant",
+      "method": "Moyen",
+      "date": "Date",
+      "status": "Statut",
+      "failureMessage": "Motif de l'échec"
+    },
+    "activity": {
+      "title": "Activité de la plateforme",
+      "subtitle": "Journal consolidé de l'ensemble des entreprises",
+      "when": "Date",
+      "company": "Entreprise",
+      "user": "Utilisateur",
+      "action": "Action",
+      "description": "Description",
+      "platformScope": "Plateforme",
+      "searchPlaceholder": "Rechercher dans le journal…"
     }
   }
 }

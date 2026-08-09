@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { LogIn, User, Lock, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -32,7 +32,12 @@ const Login = () => {
 
     try {
       await login(formData.username, formData.password);
-      navigate('/dashboard');
+      // Redirection confiée à HomeRedirect plutôt qu'écrite en dur ici : l'accueil dépend du
+      // rôle, et une seule règle vaut mieux que deux à tenir d'accord. Viser /dashboard
+      // fonctionnait par ricochet pour le caissier (AdminRoute le renvoyait sur sa caisse),
+      // mais expédiait le propriétaire de la plateforme sur un écran de caisse dont l'API
+      // lui refuse chaque appel.
+      navigate('/');
     } catch (err) {
       const message = err.response?.data?.message || t('auth.loginError');
       setError(message);
@@ -199,7 +204,7 @@ const Login = () => {
           transition={{ delay: 0.8 }}
           className="text-center text-sm text-gray-600 mt-6"
         >
-          © 2026 GESCOM. Tous droits réservés.
+          {t('auth.copyright', { year: new Date().getFullYear() })}
         </motion.p>
       </motion.div>
     </div>

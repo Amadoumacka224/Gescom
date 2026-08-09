@@ -583,6 +583,27 @@
     @apply bg-primary-500/45 border-primary-400/50 text-white;
   }
 
+  /* ---- Grille du catalogue de vente ----
+   *
+   * Le nombre de colonnes se règle sur la largeur de la GRILLE, jamais sur celle de la
+   * fenêtre. C'est le seul repère juste : le catalogue ne reçoit qu'une fraction de l'écran
+   * (le panier lui en prend 380 px, le panneau de filtres 176 à 208 px de plus), si bien
+   * qu'un jeu de points de rupture classiques promettait quatre colonnes à 768 px alors que
+   * la grille n'en mesurait que 168 — des vignettes de 35 px, illisibles et rognées.
+   *
+   * La formule dit les deux bornes à la fois :
+   *   - plancher 7,5 rem (120 px) par vignette — en dessous, ni le nom ni le prix ne se
+   *     lisent, et la grille préfère retirer une colonne ;
+   *   - plafond de six colonnes, via la part `(100% - 5 gouttières) / 6` : au-delà les
+   *     vignettes redeviennent trop petites pour être identifiées de loin, ce que
+   *     `auto-fill` seul ne sait pas empêcher sur un large écran.
+   * Le `max()` retient la plus contraignante, `auto-fill` remplit avec ce qui reste.
+   */
+  .catalog-grid {
+    @apply grid gap-2.5;
+    grid-template-columns: repeat(auto-fill, minmax(max(7.5rem, (100% - 5 * 0.625rem) / 6), 1fr));
+  }
+
   /* Squelette de chargement réutilisable */
   .skeleton {
     @apply animate-pulse rounded-md bg-gray-200;

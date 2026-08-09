@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, Euro, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, Euro, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import productService from '../services/productService';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -236,13 +236,20 @@ const Products = () => {
         categoryId: formData.categoryId ? parseInt(formData.categoryId) : null,
         purchasePrice: Number(formData.purchasePrice),
         sellingPrice: Number(formData.sellingPrice),
-        stockQuantity: parseInt(formData.stockQuantity, 10),
         minStockAlert: parseInt(formData.minStockAlert, 10),
         unit: formData.unit,
         barcode: (formData.barcode || '').trim() || null,
         imageUrl: (formData.imageUrl || '').trim() || null,
         active: formData.active,
       };
+
+      // Le stock n'est envoyé qu'à la création (stock de départ). En édition, le formulaire porte
+      // la valeur lue à son ouverture : la renvoyer ramènerait le stock d'avant les ventes de
+      // l'intervalle. Il n'évolue ensuite que par les ventes, les retours et les ajustements de
+      // la page Stock — le backend ignore d'ailleurs ce champ sur un PUT.
+      if (!editingProduct) {
+        productData.stockQuantity = parseInt(formData.stockQuantity, 10);
+      }
 
       if (editingProduct) {
         await productService.updateProduct(editingProduct.id, productData);
@@ -411,7 +418,15 @@ const Products = () => {
 
   const handleExport = () => {
     const csvContent = [
-      ['Code', 'Nom', 'Catégorie', 'Prix Achat', 'Prix Vente', 'Stock', 'Statut'],
+      [
+        t('products.code'),
+        t('products.name'),
+        t('products.category'),
+        t('products.purchasePrice'),
+        t('products.sellingPrice'),
+        t('products.stock'),
+        t('products.columnStatus'),
+      ],
       ...products.map(p => [
         p.code,
         p.name,
@@ -419,7 +434,7 @@ const Products = () => {
         p.purchasePrice,
         p.sellingPrice,
         p.stockQuantity,
-        p.active ? 'Actif' : 'Inactif'
+        p.active ? t('common.active') : t('common.inactive')
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -427,7 +442,7 @@ const Products = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `produits_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${t('products.exportFilename')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
@@ -614,14 +629,16 @@ const Products = () => {
             <p className="page-subtitle">{t('products.subtitle')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        {/* `flex-wrap` comme sur les autres en-têtes : les quatre boutons réclamaient 540 px
+            dans un en-tête de 334 px, et la page partait en défilement horizontal. */}
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
             icon={RefreshCw}
             onClick={fetchProducts}
             loading={loading}
           >
-            Actualiser
+            {t('common.refresh')}
           </Button>
           {isAdmin && (
             <>
@@ -630,14 +647,14 @@ const Products = () => {
                 icon={Upload}
                 onClick={() => toast(t('common.comingSoon'), { icon: 'ℹ️' })}
               >
-                Importer
+                {t('common.import')}
               </Button>
               <Button
                 variant="secondary"
                 icon={Download}
                 onClick={handleExport}
               >
-                Exporter
+                {t('common.export')}
               </Button>
               <Button
                 variant="primary"
@@ -677,7 +694,7 @@ const Products = () => {
                 <span className="flex flex-col min-w-0">
                   <span className="font-medium truncate">{p.name}</span>
                   <span className="text-xs text-gray-400 truncate">
-                    Code : {p.code}{p.barcode ? ` · ${p.barcode}` : ''}
+                    {t('products.code')} : {p.code}{p.barcode ? ` · ${p.barcode}` : ''}
                   </span>
                 </span>
                 <span className="text-xs text-gray-500 shrink-0">
@@ -780,7 +797,7 @@ const Products = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {displayedProducts.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
-              Aucun produit disponible
+              {t('products.noProducts')}
             </div>
           ) : (
             displayedProducts.map((product, index) => (
@@ -819,7 +836,7 @@ const Products = () => {
                     <div className="absolute top-2 left-2">
                       <span className="badge badge-danger flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" />
-                        Rupture
+                        {t('products.outOfStockShort')}
                       </span>
                     </div>
                   )}
@@ -827,7 +844,7 @@ const Products = () => {
                     <div className="absolute top-2 left-2">
                       <span className="badge-warning">
                         <AlertTriangle className="w-3 h-3" />
-                        Stock faible
+                        {t('products.lowStockShort')}
                       </span>
                     </div>
                   )}
@@ -1096,6 +1113,8 @@ const Products = () => {
               description={t('products.sectionStockHint')}
             >
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {/* En édition le champ n'est qu'un rappel : le stock appartient au journal des
+                    mouvements (ventes, retours, ajustements) et se corrige depuis la page Stock. */}
                 <FormInput
                   label={t('products.stockQuantityLabel')}
                   name="stockQuantity"
@@ -1107,7 +1126,9 @@ const Products = () => {
                   onBlur={handleBlur}
                   placeholder={t('products.quantityPlaceholder')}
                   error={visibleErrors.stockQuantity}
-                  required
+                  hint={editingProduct ? t('products.stockManagedHint') : undefined}
+                  required={!editingProduct}
+                  disabled={!!editingProduct}
                   icon={Package}
                 />
                 <FormInput
@@ -1381,7 +1402,7 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
       {/* Prix & marge */}
       <div>
         <h3 className="subsection-title mb-2 flex items-center gap-2">
-          <Euro className="w-4 h-4" /> Prix
+          <Euro className="w-4 h-4" /> {t('products.sectionPricing')}
         </h3>
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-gray-50 rounded-lg p-3">
@@ -1407,7 +1428,7 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
       {/* Stock */}
       <div>
         <h3 className="subsection-title mb-2 flex items-center gap-2">
-          <Package className="w-4 h-4" /> Stock
+          <Package className="w-4 h-4" /> {t('products.sectionStock')}
         </h3>
         <div className="grid grid-cols-3 gap-3 mb-3">
           <div className="bg-gray-50 rounded-lg p-3">
@@ -1435,23 +1456,23 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
       <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-200 text-sm text-gray-600">
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-400" />
-          <span>Créé&nbsp;: {formatDateTime(product.createdAt)}</span>
+          <span>{t('products.createdAtLabel')}&nbsp;: {formatDateTime(product.createdAt)}</span>
         </div>
         <div className="flex items-center gap-2">
           <Calendar className="w-4 h-4 text-gray-400" />
-          <span>Modifié&nbsp;: {formatDateTime(product.updatedAt)}</span>
+          <span>{t('products.updatedAtLabel')}&nbsp;: {formatDateTime(product.updatedAt)}</span>
         </div>
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
         <Button variant="secondary" type="button" onClick={onClose}>
-          Fermer
+          {t('common.close')}
         </Button>
         {/* « Modifier » n'est rendu que si l'appelant fournit onEdit (ADMIN) : le caissier,
             en lecture seule, ne voit que « Fermer ». */}
         {onEdit && (
           <Button variant="primary" type="button" icon={Edit} onClick={onEdit}>
-            Modifier
+            {t('common.edit')}
           </Button>
         )}
       </div>

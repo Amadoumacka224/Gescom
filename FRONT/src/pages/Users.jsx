@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import FormInput from '../components/FormInput';

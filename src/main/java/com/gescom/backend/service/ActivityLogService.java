@@ -187,6 +187,15 @@ public class ActivityLogService {
         log.setDescription(description);
         log.setDetails(details);
         log.setIpAddress(ipAddress);
+        // L'entreprise est déduite de l'auteur plutôt que laissée au TenantEntityListener,
+        // qui n'a rien à déduire quand le contexte de cloisonnement est vide. C'est le cas
+        // de la connexion : elle est journalisée avant qu'un jeton n'existe, et l'entrée
+        // LOGIN se retrouvait alors avec company_id NULL — donc invisible sur l'écran
+        // Historique de l'entreprise, dont le filtre exclut les NULL.
+        //
+        // Reste nul pour le SUPER_ADMIN, qui n'appartient à aucune entreprise : c'est
+        // précisément pourquoi la colonne est la seule du cloisonnement à être facultative.
+        log.setOwnerCompany(user.getOwnerCompany());
 
         return activityLogRepository.save(log);
     }

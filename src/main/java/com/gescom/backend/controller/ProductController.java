@@ -102,6 +102,12 @@ public class ProductController {
         return ResponseEntity.status(HttpStatus.CREATED).body(productMapper.toResponse(created));
     }
 
+    /**
+     * Modification de la fiche produit. {@code stockQuantity} n'est lu qu'à la création : sur une
+     * mise à jour il est ignoré (cf. {@link com.gescom.backend.service.ProductService#updateProduct}),
+     * le stock ne se corrigeant que par {@code PATCH /{id}/stock} ou les opérations de {@code /stock},
+     * qui laissent une trace dans le grand livre des mouvements.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ProductResponse> updateProduct(@PathVariable Long id,

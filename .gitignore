@@ -83,7 +83,7 @@ src/main/resources/application-local.properties
 *.sql.gz
 *.dump
 *.bak
-!db/schema.sql
+!dump.db/schema.sql
 !src/main/resources/db/migration/**/*.sql
 !src/main/resources/db/changelog/**/*.sql
 
