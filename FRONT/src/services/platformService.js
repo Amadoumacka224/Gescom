@@ -91,6 +91,50 @@ const platformService = {
   // --- Activité consolidée --------------------------------------------------
 
   getActivity: (params = {}) => axios.get('/platform/activity', { params }),
+
+  // --- Support --------------------------------------------------------------
+
+  getTickets: (params = {}) => axios.get('/platform/support', { params }),
+
+  getTicket: (id) => axios.get(`/platform/support/${id}`),
+
+  /** Compteur du badge : tickets encore à traiter. */
+  getOpenTicketCount: () => axios.get('/platform/support/open-count'),
+
+  /** La description devient le premier message du fil, pas un champ séparé. */
+  openTicket: (payload) => axios.post('/platform/support', payload),
+
+  /** `internal: true` marque une note de service, jamais destinée au client. */
+  addTicketMessage: (id, payload) => axios.post(`/platform/support/${id}/messages`, payload),
+
+  setTicketStatus: (id, status) => axios.patch(`/platform/support/${id}/status`, { status }),
+
+  setTicketPriority: (id, priority) =>
+    axios.patch(`/platform/support/${id}/priority`, { priority }),
+
+  // --- Notifications --------------------------------------------------------
+
+  getNotifications: (params = {}) => axios.get('/platform/notifications', { params }),
+
+  getUnreadCount: () => axios.get('/platform/notifications/unread-count'),
+
+  markNotificationRead: (id) => axios.patch(`/platform/notifications/${id}/read`),
+
+  markAllNotificationsRead: () => axios.patch('/platform/notifications/read-all'),
+
+  // --- Paramètres de la plateforme ------------------------------------------
+
+  /** Seuils du tableau de bord + identité du compte propriétaire connecté. */
+  getSettings: () => axios.get('/platform/settings'),
+
+  updateSettings: (payload) => axios.put('/platform/settings', payload),
+
+  /**
+   * Modifie l'email ou le mot de passe du propriétaire. Le mot de passe actuel est exigé
+   * dans les deux cas — c'est le seul chemin pour faire tourner ce secret, le bootstrap ne
+   * réécrivant jamais un compte existant.
+   */
+  updateAccount: (payload) => axios.patch('/platform/settings/account', payload),
 };
 
 export default platformService;

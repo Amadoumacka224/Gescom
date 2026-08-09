@@ -2,6 +2,7 @@ package com.gescom.backend.service;
 
 import com.gescom.backend.dto.platform.SaasPaymentRequest;
 import com.gescom.backend.entity.Company;
+import com.gescom.backend.entity.PlatformNotification;
 import com.gescom.backend.entity.SaasPayment;
 import com.gescom.backend.entity.Subscription;
 import com.gescom.backend.exception.BusinessException;
@@ -36,15 +37,18 @@ public class SaasPaymentService {
     private final CompanyRepository companyRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
+    private final PlatformNotificationService notificationService;
 
     public SaasPaymentService(SaasPaymentRepository saasPaymentRepository,
                               CompanyRepository companyRepository,
                               SubscriptionRepository subscriptionRepository,
-                              SubscriptionService subscriptionService) {
+                              SubscriptionService subscriptionService,
+                              PlatformNotificationService notificationService) {
         this.saasPaymentRepository = saasPaymentRepository;
         this.companyRepository = companyRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.subscriptionService = subscriptionService;
+        this.notificationService = notificationService;
     }
 
     @Transactional(readOnly = true)
@@ -118,6 +122,14 @@ public class SaasPaymentService {
             } else if (status == SaasPayment.SaasPaymentStatus.FAILED && subscription.isLive()) {
                 subscriptionService.markPastDue(subscription.getId());
             }
+        }
+
+        if (status == SaasPayment.SaasPaymentStatus.FAILED) {
+            notificationService.record("PAYMENT_FAILED", PlatformNotification.Severity.CRITICAL,
+                    "Paiement refuse : " + company.getName(),
+                    saved.getReference() + (request.failureMessage() != null
+                            ? " — " + request.failureMessage() : ""),
+                    company, "SaasPayment", saved.getId());
         }
         return saved;
     }

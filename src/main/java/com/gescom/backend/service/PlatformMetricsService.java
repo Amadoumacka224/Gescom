@@ -3,6 +3,7 @@ package com.gescom.backend.service;
 import com.gescom.backend.dto.platform.PlatformDashboardResponse;
 import com.gescom.backend.dto.platform.PlatformDashboardResponse.*;
 import com.gescom.backend.entity.Company;
+import com.gescom.backend.entity.PlatformSettings;
 import com.gescom.backend.entity.SaasPayment;
 import com.gescom.backend.entity.Subscription;
 import com.gescom.backend.entity.User;
@@ -39,7 +40,6 @@ import java.util.Map;
 public class PlatformMetricsService {
 
     private static final Locale FR = Locale.FRENCH;
-    private static final int TREND_MONTHS = 12;
 
     private final CompanyRepository companyRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -49,6 +49,7 @@ public class PlatformMetricsService {
     private final ProductRepository productRepository;
     private final ActivityLogRepository activityLogRepository;
     private final PlatformMapper platformMapper;
+    private final PlatformSettingsService platformSettingsService;
 
     public PlatformMetricsService(CompanyRepository companyRepository,
                                   SubscriptionRepository subscriptionRepository,
@@ -57,7 +58,8 @@ public class PlatformMetricsService {
                                   OrderRepository orderRepository,
                                   ProductRepository productRepository,
                                   ActivityLogRepository activityLogRepository,
-                                  PlatformMapper platformMapper) {
+                                  PlatformMapper platformMapper,
+                                  PlatformSettingsService platformSettingsService) {
         this.companyRepository = companyRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.saasPaymentRepository = saasPaymentRepository;
@@ -66,6 +68,7 @@ public class PlatformMetricsService {
         this.productRepository = productRepository;
         this.activityLogRepository = activityLogRepository;
         this.platformMapper = platformMapper;
+        this.platformSettingsService = platformSettingsService;
     }
 
     public PlatformDashboardResponse buildDashboard() {
@@ -73,15 +76,21 @@ public class PlatformMetricsService {
         LocalDateTime monthStart = now.withDayOfMonth(1).toLocalDate().atStartOfDay();
         LocalDateTime lastMonthStart = monthStart.minusMonths(1);
 
+        // Les seuils sont lus une fois pour tout le tableau de bord : les relire dans chaque
+        // bloc multiplierait les requetes et, pire, exposerait a une modification concurrente
+        // en cours de calcul — deux indicateurs de la meme reponse ne reposeraient plus sur
+        // les memes reglages.
+        PlatformSettings settings = platformSettingsService.getSettings();
+
         CompanyStats companies = companyStats(monthStart, lastMonthStart);
-        SubscriptionStats subscriptions = subscriptionStats(now, monthStart);
+        SubscriptionStats subscriptions = subscriptionStats(now, monthStart, settings);
         RevenueStats revenue = revenueStats(now, monthStart, lastMonthStart);
         PaymentStats payments = paymentStats(now, monthStart);
         ActivityStats activity = activityStats(now);
         List<PlanBreakdown> planBreakdown = planBreakdown(revenue.mrr());
-        List<MonthlyRevenuePoint> trend = revenueTrend(monthStart);
-        List<PlatformAlert> alerts = alerts(now);
-        HealthStats health = health(companies, alerts, now, monthStart);
+        List<MonthlyRevenuePoint> trend = revenueTrend(monthStart, settings);
+        List<PlatformAlert> alerts = alerts(now, settings);
+        HealthStats health = health(companies, alerts, now, monthStart, settings);
 
         return new PlatformDashboardResponse(
                 companies, subscriptions, revenue, payments, activity,
@@ -120,7 +129,8 @@ public class PlatformMetricsService {
 
     // ── Abonnements et churn ─────────────────────────────────────────────────
 
-    private SubscriptionStats subscriptionStats(LocalDateTime now, LocalDateTime monthStart) {
+    private SubscriptionStats subscriptionStats(LocalDateTime now, LocalDateTime monthStart,
+                                                PlatformSettings settings) {
         Map<Subscription.SubscriptionStatus, Long> byStatus = new EnumMap<>(Subscription.SubscriptionStatus.class);
         for (Object[] row : subscriptionRepository.countGroupedByStatus()) {
             byStatus.put((Subscription.SubscriptionStatus) row[0], ((Number) row[1]).longValue());
@@ -130,7 +140,8 @@ public class PlatformMetricsService {
         long canceledThisMonth = subscriptionRepository.countByCanceledAtBetween(monthStart, now);
         long liveAtMonthStart = subscriptionRepository.countLiveAt(monthStart);
         long renewals = subscriptionRepository
-                .findRenewalsBetween(Subscription.LIVE_STATUSES, now, now.plusDays(30)).size();
+                .findRenewalsBetween(Subscription.LIVE_STATUSES, now,
+                        now.plusDays(settings.getRenewalWindowDays())).size();
 
         return new SubscriptionStats(
                 total,
@@ -141,7 +152,8 @@ public class PlatformMetricsService {
                 byStatus.getOrDefault(Subscription.SubscriptionStatus.EXPIRED, 0L),
                 ratioAsPercent(canceledThisMonth, liveAtMonthStart),
                 canceledThisMonth,
-                renewals
+                renewals,
+                settings.getRenewalWindowDays()
         );
     }
 
@@ -177,8 +189,8 @@ public class PlatformMetricsService {
         );
     }
 
-    private List<MonthlyRevenuePoint> revenueTrend(LocalDateTime monthStart) {
-        LocalDateTime since = monthStart.minusMonths(TREND_MONTHS - 1L);
+    private List<MonthlyRevenuePoint> revenueTrend(LocalDateTime monthStart, PlatformSettings settings) {
+        LocalDateTime since = monthStart.minusMonths(settings.getRevenueHistoryMonths() - 1L);
         List<MonthlyRevenuePoint> points = new ArrayList<>();
         for (Object[] row : saasPaymentRepository.monthlyRevenueSince(
                 SaasPayment.SaasPaymentStatus.SUCCEEDED, since)) {
@@ -254,7 +266,7 @@ public class PlatformMetricsService {
      * Les plus graves d'abord, chacun rattache a son entreprise pour que l'operateur puisse
      * y aller d'un clic depuis le tableau de bord.
      */
-    private List<PlatformAlert> alerts(LocalDateTime now) {
+    private List<PlatformAlert> alerts(LocalDateTime now, PlatformSettings settings) {
         List<PlatformAlert> alerts = new ArrayList<>();
 
         for (Subscription s : subscriptionRepository.findOverdue(Subscription.LIVE_STATUSES, now)) {
@@ -274,7 +286,7 @@ public class PlatformMetricsService {
         }
 
         for (Company c : companyRepository.findTrialsEndingBefore(
-                Company.CompanyStatus.TRIAL, now.plusDays(7))) {
+                Company.CompanyStatus.TRIAL, now.plusDays(settings.getTrialAlertDays()))) {
             boolean expired = c.getTrialEndsAt().isBefore(now);
             alerts.add(new PlatformAlert(
                     expired ? "TRIAL_EXPIRED" : "TRIAL_ENDING",
@@ -315,7 +327,8 @@ public class PlatformMetricsService {
      * justifier devant un comite n'a pas sa place sur un tableau de bord de direction.
      */
     private HealthStats health(CompanyStats companies, List<PlatformAlert> alerts,
-                               LocalDateTime now, LocalDateTime monthStart) {
+                               LocalDateTime now, LocalDateTime monthStart,
+                               PlatformSettings settings) {
         long overdue = alerts.stream().filter(a -> "SUBSCRIPTION_OVERDUE".equals(a.type())).count();
         long trialsEndingSoon = alerts.stream()
                 .filter(a -> "TRIAL_ENDING".equals(a.type()) || "TRIAL_EXPIRED".equals(a.type())).count();
@@ -329,7 +342,9 @@ public class PlatformMetricsService {
         } else {
             long operational = companies.active() + companies.trial();
             double base = (double) operational / companies.total() * 100d;
-            score = (int) Math.round(Math.max(0d, base - overdue * 5d - failedThisMonth * 2d));
+            score = (int) Math.round(Math.max(0d, base
+                    - overdue * settings.getOverduePenaltyPoints()
+                    - failedThisMonth * settings.getFailedPaymentPenaltyPoints()));
         }
 
         String status = score >= 90 ? "EXCELLENT"

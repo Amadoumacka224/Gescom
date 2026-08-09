@@ -34,19 +34,21 @@ import java.util.Optional;
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
-    private static final int MIN_PASSWORD_LENGTH = 8;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ActivityLogService activityLogService;
     private final UserMapper userMapper;
+    private final PasswordPolicy passwordPolicy;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       ActivityLogService activityLogService, UserMapper userMapper) {
+                       ActivityLogService activityLogService, UserMapper userMapper,
+                       PasswordPolicy passwordPolicy) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.activityLogService = activityLogService;
         this.userMapper = userMapper;
+        this.passwordPolicy = passwordPolicy;
     }
 
     private Long getCurrentUserId() {
@@ -72,26 +74,14 @@ public class UserService {
      * Applique la politique de robustesse des mots de passe : au moins 8 caractères,
      * une majuscule, une minuscule et un chiffre. Lève BusinessException au premier critère manqué.
      */
+    /**
+     * Delegue a {@link PasswordPolicy}, source unique de la regle depuis que le back-office
+     * proprietaire applique la meme. Le controle du chiffre y gagne au passage une cle de
+     * traduction, qu'il n'avait pas ici — le message partait en francais quelle que soit la
+     * langue de l'appelant.
+     */
     private void validatePassword(String password) {
-        if (password == null || password.isEmpty()) {
-            throw BusinessException.of("user.password.empty", "Le mot de passe ne peut pas être vide");
-        }
-        if (password.length() < MIN_PASSWORD_LENGTH) {
-            throw BusinessException.of("user.password.tooShort",
-                    "Le mot de passe doit contenir au moins " + MIN_PASSWORD_LENGTH + " caractères",
-                    MIN_PASSWORD_LENGTH);
-        }
-        if (!password.matches(".*[A-Z].*")) {
-            throw BusinessException.of("user.password.needsUppercase",
-                    "Le mot de passe doit contenir au moins une lettre majuscule");
-        }
-        if (!password.matches(".*[a-z].*")) {
-            throw BusinessException.of("user.password.needsLowercase",
-                    "Le mot de passe doit contenir au moins une lettre minuscule");
-        }
-        if (!password.matches(".*\\d.*")) {
-            throw new BusinessException("Le mot de passe doit contenir au moins un chiffre");
-        }
+        passwordPolicy.validate(password);
     }
 
     @Transactional(readOnly = true)

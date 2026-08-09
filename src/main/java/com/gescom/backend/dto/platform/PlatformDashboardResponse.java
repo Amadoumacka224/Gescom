@@ -59,7 +59,14 @@ public record PlatformDashboardResponse(
              */
             BigDecimal churnRate,
             long canceledThisMonth,
-            long renewalsNext30Days
+            /**
+             * Echeances tombant dans la fenetre parametree. Le nom ne mentionne aucune duree :
+             * elle est configurable, et un champ nomme « next30Days » aurait menti des la
+             * premiere modification du reglage.
+             */
+            long renewalsUpcoming,
+            /** Fenetre effectivement appliquee, pour que l'interface puisse l'annoncer. */
+            int renewalWindowDays
     ) {
     }
 

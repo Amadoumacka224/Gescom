@@ -2016,7 +2016,10 @@
       "payments": "Paiements",
       "activity": "Activité",
       "users": "Utilisateurs",
-      "plans": "Formules"
+      "plans": "Formules",
+      "settings": "Paramètres",
+      "support": "Support",
+      "notifications": "Notifications"
     },
     "companyStatus": {
       "ACTIVE": "Active",
@@ -2085,7 +2088,7 @@
       "planLine": "{{count}} abonnés · {{mrr}}",
       "churnRate": "Taux de résiliation",
       "canceledThisMonth": "{{count}} résiliations ce mois-ci",
-      "renewals": "Renouvellements à 30 jours",
+      "renewals": "Renouvellements à {{days}} jours",
       "renewalsHint": "Échéances à venir",
       "paymentSuccess": "Taux de réussite des paiements",
       "paymentCounts": "{{succeeded}} réussis · {{failed}} échoués",
@@ -2251,6 +2254,87 @@
       "priceChangeWarning": "{{count}} abonnement(s) utilisent cette formule. Modifier les tarifs n'affecte QUE les souscriptions à venir : les contrats en cours gardent le montant figé à leur souscription.",
       "created": "Formule créée",
       "updated": "Formule mise à jour"
+    },
+    "settings": {
+      "title": "Paramètres de la plateforme",
+      "subtitle": "Réglages du tableau de bord et compte propriétaire",
+      "thresholds": "Seuils du tableau de bord",
+      "thresholdsHint": "Ces valeurs déterminent ce que le tableau de bord considère comme « à venir » ou « à surveiller ». Elles prennent effet au prochain affichage.",
+      "renewalWindow": "Renouvellements à venir",
+      "renewalWindowHint": "En jours",
+      "trialAlert": "Alerte fin d'essai",
+      "trialAlertHint": "En jours avant échéance",
+      "revenueHistory": "Historique des revenus",
+      "revenueHistoryHint": "En mois",
+      "overduePenalty": "Pénalité par impayé",
+      "failedPenalty": "Pénalité par échec de paiement",
+      "healthFormula": "Score de santé = part des entreprises opérationnelles dans le parc, moins ces pénalités. Volontairement simple : un indicateur qu'on ne sait pas justifier n'a pas sa place sur un tableau de bord de direction.",
+      "thresholdsSaved": "Seuils enregistrés",
+      "account": "Mon compte",
+      "accountHint": "Seul endroit d'où ce mot de passe peut être changé : le compte est créé au premier démarrage puis jamais réécrit, modifier le fichier .env ensuite n'a aucun effet.",
+      "username": "Nom d'utilisateur",
+      "usernameLocked": "Non modifiable — c'est l'identifiant de connexion",
+      "currentPassword": "Mot de passe actuel",
+      "currentPasswordHint": "Exigé même pour changer seulement l’email",
+      "newPassword": "Nouveau mot de passe",
+      "newPasswordHint": "Laisser vide pour ne pas le changer",
+      "confirmPassword": "Confirmation",
+      "passwordMismatch": "Les deux mots de passe ne correspondent pas",
+      "accountSaved": "Compte mis à jour"
+    },
+    "support": {
+      "title": "Support",
+      "subtitle": "Demandes des entreprises clientes",
+      "newTicket": "Nouveau ticket",
+      "open": "Ouvrir le ticket",
+      "opened": "Ticket ouvert",
+      "reference": "Référence",
+      "subject": "Objet",
+      "company": "Entreprise",
+      "description": "Description",
+      "descriptionPlaceholder": "Ce que rapporte le client, aussi précisément que possible…",
+      "category": "Catégorie",
+      "priority": "Priorité",
+      "status": "Statut",
+      "messages": "Messages",
+      "searchPlaceholder": "Référence, objet, entreprise…",
+      "statusChanged": "Statut mis à jour",
+      "internalNote": "Note interne",
+      "markInternal": "Note interne (jamais transmise au client)",
+      "addMessage": "Ajouter au fil",
+      "replyPlaceholder": "Votre message ou votre note…",
+      "closedHint": "Ce ticket est clos. Changez son statut pour y ajouter un message.",
+      "statuses": {
+        "OPEN": "Ouvert",
+        "IN_PROGRESS": "En cours",
+        "WAITING_CUSTOMER": "Attente client",
+        "RESOLVED": "Résolu",
+        "CLOSED": "Clos"
+      },
+      "priorities": {
+        "LOW": "Basse",
+        "NORMAL": "Normale",
+        "HIGH": "Haute",
+        "URGENT": "Urgente"
+      },
+      "categories": {
+        "TECHNICAL": "Technique",
+        "BILLING": "Facturation",
+        "ACCOUNT": "Comptes",
+        "FEATURE": "Évolution",
+        "OTHER": "Autre"
+      }
+    },
+    "notifications": {
+      "title": "Notifications",
+      "subtitle": "Événements de la plateforme, du plus récent au plus ancien",
+      "filter": "Affichage",
+      "unreadOnly": "Non lues",
+      "markAllRead": "Tout marquer comme lu",
+      "allRead": "{{count}} notification(s) marquée(s) comme lue(s)",
+      "empty": "Aucune notification",
+      "detailTitle": "Détail de la notification",
+      "occurredAt": "Survenue le"
     }
   }
 }

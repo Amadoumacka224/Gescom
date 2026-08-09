@@ -2,12 +2,19 @@ package com.gescom.backend.mapper;
 
 import com.gescom.backend.dto.platform.CompanyResponse;
 import com.gescom.backend.dto.platform.PlanResponse;
+import com.gescom.backend.dto.platform.PlatformNotificationResponse;
 import com.gescom.backend.dto.platform.SaasPaymentResponse;
 import com.gescom.backend.dto.platform.SubscriptionResponse;
+import com.gescom.backend.dto.platform.SupportMessageResponse;
+import com.gescom.backend.dto.platform.SupportTicketResponse;
 import com.gescom.backend.entity.Company;
 import com.gescom.backend.entity.Plan;
+import com.gescom.backend.entity.PlatformNotification;
 import com.gescom.backend.entity.SaasPayment;
 import com.gescom.backend.entity.Subscription;
+import com.gescom.backend.entity.SupportTicket;
+import com.gescom.backend.entity.SupportTicketMessage;
+import com.gescom.backend.entity.User;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.SubscriptionRepository;
 import com.gescom.backend.repository.UserRepository;
@@ -15,6 +22,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 /**
  * Conversion des entites de la plateforme vers leurs DTO de reponse.
@@ -167,5 +175,84 @@ public class PlatformMapper {
     /** Tarif catalogue correspondant a une periodicite. */
     public BigDecimal priceFor(Plan plan, Subscription.BillingPeriod period) {
         return period == Subscription.BillingPeriod.YEARLY ? plan.getYearlyPrice() : plan.getMonthlyPrice();
+    }
+
+    // ── Support ──────────────────────────────────────────────────────────────
+
+    /**
+     * Ticket sans son fil, pour les listes.
+     *
+     * Le fil n'est volontairement pas charge ici : l'afficher sur chaque ligne d'une page
+     * n'aurait aucun usage et couterait une requete par ticket.
+     */
+    public SupportTicketResponse toSummary(SupportTicket ticket) {
+        return toResponse(ticket, null);
+    }
+
+    /** Ticket avec son fil, pour l'ecran de detail. */
+    public SupportTicketResponse toDetail(SupportTicket ticket) {
+        List<SupportMessageResponse> messages = ticket.getMessages().stream()
+                .map(this::toResponse)
+                .toList();
+        return toResponse(ticket, messages);
+    }
+
+    private SupportTicketResponse toResponse(SupportTicket ticket, List<SupportMessageResponse> messages) {
+        if (ticket == null) {
+            return null;
+        }
+        Company company = ticket.getCompany();
+        return new SupportTicketResponse(
+                ticket.getId(),
+                ticket.getReference(),
+                company != null ? company.getId() : null,
+                company != null ? company.getName() : null,
+                ticket.getSubject(),
+                ticket.getStatus().name(),
+                ticket.getPriority().name(),
+                ticket.getCategory().name(),
+                fullName(ticket.getContactUser()),
+                fullName(ticket.getOpenedBy()),
+                ticket.getMessages().size(),
+                ticket.getResolvedAt(),
+                ticket.getClosedAt(),
+                ticket.getCreatedAt(),
+                ticket.getUpdatedAt(),
+                messages
+        );
+    }
+
+    public SupportMessageResponse toResponse(SupportTicketMessage message) {
+        return new SupportMessageResponse(
+                message.getId(),
+                fullName(message.getAuthor()),
+                message.getAuthor() != null ? message.getAuthor().getRole().name() : null,
+                message.getBody(),
+                message.isInternal(),
+                message.getCreatedAt()
+        );
+    }
+
+    // ── Notifications ────────────────────────────────────────────────────────
+
+    public PlatformNotificationResponse toResponse(PlatformNotification notification) {
+        Company company = notification.getCompany();
+        return new PlatformNotificationResponse(
+                notification.getId(),
+                notification.getType(),
+                notification.getSeverity().name(),
+                notification.getTitle(),
+                notification.getMessage(),
+                company != null ? company.getId() : null,
+                company != null ? company.getName() : null,
+                notification.getEntity(),
+                notification.getEntityId(),
+                notification.getReadAt(),
+                notification.getCreatedAt()
+        );
+    }
+
+    private String fullName(User user) {
+        return user == null ? null : user.getFirstName() + " " + user.getLastName();
     }
 }

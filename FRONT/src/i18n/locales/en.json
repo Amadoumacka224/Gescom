@@ -2016,7 +2016,10 @@
       "payments": "Payments",
       "activity": "Activity",
       "users": "Users",
-      "plans": "Plans"
+      "plans": "Plans",
+      "settings": "Settings",
+      "support": "Support",
+      "notifications": "Notifications"
     },
     "companyStatus": {
       "ACTIVE": "Active",
@@ -2085,7 +2088,7 @@
       "planLine": "{{count}} subscribers · {{mrr}}",
       "churnRate": "Churn rate",
       "canceledThisMonth": "{{count}} cancellations this month",
-      "renewals": "Renewals within 30 days",
+      "renewals": "Renewals within {{days}} days",
       "renewalsHint": "Upcoming due dates",
       "paymentSuccess": "Payment success rate",
       "paymentCounts": "{{succeeded}} succeeded · {{failed}} failed",
@@ -2251,6 +2254,87 @@
       "priceChangeWarning": "{{count}} subscription(s) use this plan. Changing prices affects ONLY future subscriptions: current contracts keep the amount frozen at signup.",
       "created": "Plan created",
       "updated": "Plan updated"
+    },
+    "settings": {
+      "title": "Platform settings",
+      "subtitle": "Dashboard thresholds and owner account",
+      "thresholds": "Dashboard thresholds",
+      "thresholdsHint": "These values decide what the dashboard treats as \"upcoming\" or \"needs attention\". They take effect on the next render.",
+      "renewalWindow": "Upcoming renewals",
+      "renewalWindowHint": "In days",
+      "trialAlert": "Trial ending alert",
+      "trialAlertHint": "In days before expiry",
+      "revenueHistory": "Revenue history",
+      "revenueHistoryHint": "In months",
+      "overduePenalty": "Penalty per overdue renewal",
+      "failedPenalty": "Penalty per failed payment",
+      "healthFormula": "Health score = share of operational companies in the portfolio, minus these penalties. Deliberately simple: an indicator you cannot justify has no place on an executive dashboard.",
+      "thresholdsSaved": "Thresholds saved",
+      "account": "My account",
+      "accountHint": "The only place this password can be changed: the account is created at first startup and never rewritten, so editing the .env file afterwards has no effect.",
+      "username": "Username",
+      "usernameLocked": "Not editable — it is the sign-in identifier",
+      "currentPassword": "Current password",
+      "currentPasswordHint": "Required even to change only the email",
+      "newPassword": "New password",
+      "newPasswordHint": "Leave empty to keep it unchanged",
+      "confirmPassword": "Confirmation",
+      "passwordMismatch": "The two passwords do not match",
+      "accountSaved": "Account updated"
+    },
+    "support": {
+      "title": "Support",
+      "subtitle": "Requests from client companies",
+      "newTicket": "New ticket",
+      "open": "Open ticket",
+      "opened": "Ticket opened",
+      "reference": "Reference",
+      "subject": "Subject",
+      "company": "Company",
+      "description": "Description",
+      "descriptionPlaceholder": "What the client reports, as precisely as possible…",
+      "category": "Category",
+      "priority": "Priority",
+      "status": "Status",
+      "messages": "Messages",
+      "searchPlaceholder": "Reference, subject, company…",
+      "statusChanged": "Status updated",
+      "internalNote": "Internal note",
+      "markInternal": "Internal note (never sent to the client)",
+      "addMessage": "Add to thread",
+      "replyPlaceholder": "Your message or note…",
+      "closedHint": "This ticket is closed. Change its status to add a message.",
+      "statuses": {
+        "OPEN": "Open",
+        "IN_PROGRESS": "In progress",
+        "WAITING_CUSTOMER": "Awaiting client",
+        "RESOLVED": "Resolved",
+        "CLOSED": "Closed"
+      },
+      "priorities": {
+        "LOW": "Low",
+        "NORMAL": "Normal",
+        "HIGH": "High",
+        "URGENT": "Urgent"
+      },
+      "categories": {
+        "TECHNICAL": "Technical",
+        "BILLING": "Billing",
+        "ACCOUNT": "Accounts",
+        "FEATURE": "Feature request",
+        "OTHER": "Other"
+      }
+    },
+    "notifications": {
+      "title": "Notifications",
+      "subtitle": "Platform events, newest first",
+      "filter": "Display",
+      "unreadOnly": "Unread",
+      "markAllRead": "Mark all as read",
+      "allRead": "{{count}} notification(s) marked as read",
+      "empty": "No notifications",
+      "detailTitle": "Notification details",
+      "occurredAt": "Occurred on"
     }
   }
 }

@@ -4,6 +4,7 @@ import com.gescom.backend.dto.platform.CompanyProvisionRequest;
 import com.gescom.backend.dto.platform.CompanyRequest;
 import com.gescom.backend.entity.Company;
 import com.gescom.backend.entity.Plan;
+import com.gescom.backend.entity.PlatformNotification;
 import com.gescom.backend.entity.Subscription;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
@@ -40,15 +41,18 @@ public class CompanyService {
     private final PlanRepository planRepository;
     private final SubscriptionService subscriptionService;
     private final PasswordEncoder passwordEncoder;
+    private final PlatformNotificationService notificationService;
 
     public CompanyService(CompanyRepository companyRepository, UserRepository userRepository,
                           PlanRepository planRepository, SubscriptionService subscriptionService,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          PlatformNotificationService notificationService) {
         this.companyRepository = companyRepository;
         this.userRepository = userRepository;
         this.planRepository = planRepository;
         this.subscriptionService = subscriptionService;
         this.passwordEncoder = passwordEncoder;
+        this.notificationService = notificationService;
     }
 
     // ── Lectures ─────────────────────────────────────────────────────────────
@@ -118,6 +122,11 @@ public class CompanyService {
             }
         }
 
+        notificationService.record("COMPANY_PROVISIONED", PlatformNotification.Severity.INFO,
+                "Nouveau client : " + company.getName(),
+                "Compte ouvert avec l'administrateur " + owner.getUsername(),
+                company, "Company", company.getId());
+
         return company;
     }
 
@@ -163,6 +172,9 @@ public class CompanyService {
         if (reason != null && !reason.isBlank()) {
             company.setNotes(reason);
         }
+        notificationService.record("COMPANY_SUSPENDED", PlatformNotification.Severity.WARNING,
+                "Compte suspendu : " + company.getName(),
+                reason, company, "Company", company.getId());
         return companyRepository.save(company);
     }
 
@@ -191,6 +203,9 @@ public class CompanyService {
             company.setNotes(reason);
         }
         subscriptionService.cancelForCompany(company.getId(), reason);
+        notificationService.record("COMPANY_CANCELED", PlatformNotification.Severity.CRITICAL,
+                "Resiliation : " + company.getName(),
+                reason, company, "Company", company.getId());
         return companyRepository.save(company);
     }
 

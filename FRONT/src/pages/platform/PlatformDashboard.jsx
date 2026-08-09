@@ -325,8 +325,10 @@ const PlatformDashboard = () => {
           loading={loading}
         />
         <StatCard
-          title={t('platform.dashboard.renewals')}
-          value={subscriptions?.renewalsNext30Days ?? 0}
+          title={t('platform.dashboard.renewals', {
+            days: subscriptions?.renewalWindowDays ?? 30,
+          })}
+          value={subscriptions?.renewalsUpcoming ?? 0}
           subtitle={t('platform.dashboard.renewalsHint')}
           icon={CheckCircle2}
           tone="info"

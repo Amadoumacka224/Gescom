@@ -1,6 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/useAuth';
+import platformService from '../services/platformService';
 import {
   Gauge,
   Building2,
@@ -9,6 +11,9 @@ import {
   Layers,
   Receipt,
   Activity,
+  Settings,
+  LifeBuoy,
+  Bell,
   LogOut,
   ChevronLeft,
   ShieldCheck,
@@ -29,7 +34,15 @@ const NAV_ITEMS = [
   { path: '/platform/subscriptions', icon: BadgeEuro, labelKey: 'platform.nav.subscriptions' },
   { path: '/platform/plans', icon: Layers, labelKey: 'platform.nav.plans' },
   { path: '/platform/payments', icon: Receipt, labelKey: 'platform.nav.payments' },
+  { path: '/platform/support', icon: LifeBuoy, labelKey: 'platform.nav.support', badge: 'support' },
+  {
+    path: '/platform/notifications',
+    icon: Bell,
+    labelKey: 'platform.nav.notifications',
+    badge: 'notifications',
+  },
   { path: '/platform/activity', icon: Activity, labelKey: 'platform.nav.activity' },
+  { path: '/platform/settings', icon: Settings, labelKey: 'platform.nav.settings' },
 ];
 
 const navLinkClass = ({ isActive }) =>
@@ -39,7 +52,7 @@ const navLinkClass = ({ isActive }) =>
       : 'font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
   }`;
 
-const NavItem = ({ to, icon: Icon, label, end, onClick }) => (
+const NavItem = ({ to, icon: Icon, label, end, count, onClick }) => (
   <NavLink to={to} end={end} onClick={onClick} className={navLinkClass}>
     {({ isActive }) => (
       <>
@@ -53,6 +66,13 @@ const NavItem = ({ to, icon: Icon, label, end, onClick }) => (
           strokeWidth={2}
         />
         <span className="truncate">{label}</span>
+        {/* Le compteur n'apparaît qu'à partir de 1 : un « 0 » permanent devient du bruit
+            et fait perdre au badge sa valeur d'alerte. */}
+        {count > 0 && (
+          <span className="ml-auto shrink-0 rounded-full bg-primary-500 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white">
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
       </>
     )}
   </NavLink>
@@ -62,6 +82,29 @@ const PlatformSidebar = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [counts, setCounts] = useState({ support: 0, notifications: 0 });
+
+  /* Compteurs rafraîchis à chaque changement d'écran plutôt que par un intervalle : le
+   * back-office n'a qu'un utilisateur, la navigation est le seul moment où l'état a pu
+   * changer de son fait. Un sondage périodique interrogerait la base sans rien apprendre.
+   * Les échecs sont ignorés — un badge absent ne justifie pas un message d'erreur. */
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      platformService.getOpenTicketCount().catch(() => null),
+      platformService.getUnreadCount().catch(() => null),
+    ]).then(([tickets, unread]) => {
+      if (cancelled) return;
+      setCounts({
+        support: tickets?.data?.count ?? 0,
+        notifications: unread?.data?.count ?? 0,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -99,6 +142,7 @@ const PlatformSidebar = ({ isOpen, setIsOpen }) => {
           end={item.end}
           icon={item.icon}
           label={t(item.labelKey)}
+          count={item.badge ? counts[item.badge] : 0}
           onClick={onItemClick}
         />
       ))}

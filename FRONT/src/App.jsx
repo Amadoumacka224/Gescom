@@ -12,6 +12,9 @@ import PlatformPlans from './pages/platform/PlatformPlans';
 import PlatformSubscriptions from './pages/platform/PlatformSubscriptions';
 import PlatformPayments from './pages/platform/PlatformPayments';
 import PlatformActivity from './pages/platform/PlatformActivity';
+import PlatformSettings from './pages/platform/PlatformSettings';
+import PlatformSupport from './pages/platform/PlatformSupport';
+import PlatformNotifications from './pages/platform/PlatformNotifications';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
@@ -82,7 +85,10 @@ function App() {
             <Route path="subscriptions" element={<PlatformSubscriptions />} />
             <Route path="plans" element={<PlatformPlans />} />
             <Route path="payments" element={<PlatformPayments />} />
+            <Route path="support" element={<PlatformSupport />} />
+            <Route path="notifications" element={<PlatformNotifications />} />
             <Route path="activity" element={<PlatformActivity />} />
+            <Route path="settings" element={<PlatformSettings />} />
           </Route>
 
           {/* Protected Routes */}

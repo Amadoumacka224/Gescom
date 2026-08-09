@@ -2016,7 +2016,10 @@
       "payments": "Betalingen",
       "activity": "Activiteit",
       "users": "Gebruikers",
-      "plans": "Formules"
+      "plans": "Formules",
+      "settings": "Instellingen",
+      "support": "Support",
+      "notifications": "Meldingen"
     },
     "companyStatus": {
       "ACTIVE": "Actief",
@@ -2085,7 +2088,7 @@
       "planLine": "{{count}} abonnees · {{mrr}}",
       "churnRate": "Opzeggingspercentage",
       "canceledThisMonth": "{{count}} opzeggingen deze maand",
-      "renewals": "Verlengingen binnen 30 dagen",
+      "renewals": "Verlengingen binnen {{days}} dagen",
       "renewalsHint": "Komende vervaldata",
       "paymentSuccess": "Slaagpercentage van betalingen",
       "paymentCounts": "{{succeeded}} geslaagd · {{failed}} mislukt",
@@ -2251,6 +2254,87 @@
       "priceChangeWarning": "{{count}} abonnement(en) gebruiken deze formule. Tariefwijzigingen gelden ALLEEN voor toekomstige abonnementen: lopende contracten behouden het bedrag van bij de inschrijving.",
       "created": "Formule aangemaakt",
       "updated": "Formule bijgewerkt"
+    },
+    "settings": {
+      "title": "Platforminstellingen",
+      "subtitle": "Dashboarddrempels en eigenaarsaccount",
+      "thresholds": "Dashboarddrempels",
+      "thresholdsHint": "Deze waarden bepalen wat het dashboard als \"aankomend\" of \"op te volgen\" beschouwt. Ze gelden vanaf de volgende weergave.",
+      "renewalWindow": "Aankomende verlengingen",
+      "renewalWindowHint": "In dagen",
+      "trialAlert": "Waarschuwing einde proefperiode",
+      "trialAlertHint": "In dagen voor de vervaldag",
+      "revenueHistory": "Omzethistoriek",
+      "revenueHistoryHint": "In maanden",
+      "overduePenalty": "Strafpunten per vervallen termijn",
+      "failedPenalty": "Strafpunten per mislukte betaling",
+      "healthFormula": "Gezondheidsscore = aandeel operationele bedrijven in het portfolio, min deze strafpunten. Bewust eenvoudig: een indicator die je niet kunt verantwoorden hoort niet op een directiedashboard.",
+      "thresholdsSaved": "Drempels opgeslagen",
+      "account": "Mijn account",
+      "accountHint": "De enige plek waar dit wachtwoord kan worden gewijzigd: het account wordt bij de eerste start aangemaakt en nooit herschreven, het .env-bestand achteraf aanpassen heeft geen effect.",
+      "username": "Gebruikersnaam",
+      "usernameLocked": "Niet wijzigbaar — het is de aanmeldnaam",
+      "currentPassword": "Huidig wachtwoord",
+      "currentPasswordHint": "Vereist, ook om alleen het e-mailadres te wijzigen",
+      "newPassword": "Nieuw wachtwoord",
+      "newPasswordHint": "Laat leeg om het niet te wijzigen",
+      "confirmPassword": "Bevestiging",
+      "passwordMismatch": "De twee wachtwoorden komen niet overeen",
+      "accountSaved": "Account bijgewerkt"
+    },
+    "support": {
+      "title": "Support",
+      "subtitle": "Aanvragen van klantbedrijven",
+      "newTicket": "Nieuw ticket",
+      "open": "Ticket openen",
+      "opened": "Ticket geopend",
+      "reference": "Referentie",
+      "subject": "Onderwerp",
+      "company": "Bedrijf",
+      "description": "Beschrijving",
+      "descriptionPlaceholder": "Wat de klant meldt, zo nauwkeurig mogelijk…",
+      "category": "Categorie",
+      "priority": "Prioriteit",
+      "status": "Status",
+      "messages": "Berichten",
+      "searchPlaceholder": "Referentie, onderwerp, bedrijf…",
+      "statusChanged": "Status bijgewerkt",
+      "internalNote": "Interne notitie",
+      "markInternal": "Interne notitie (nooit naar de klant verstuurd)",
+      "addMessage": "Aan de reeks toevoegen",
+      "replyPlaceholder": "Uw bericht of notitie…",
+      "closedHint": "Dit ticket is gesloten. Wijzig de status om een bericht toe te voegen.",
+      "statuses": {
+        "OPEN": "Open",
+        "IN_PROGRESS": "In behandeling",
+        "WAITING_CUSTOMER": "Wacht op klant",
+        "RESOLVED": "Opgelost",
+        "CLOSED": "Gesloten"
+      },
+      "priorities": {
+        "LOW": "Laag",
+        "NORMAL": "Normaal",
+        "HIGH": "Hoog",
+        "URGENT": "Dringend"
+      },
+      "categories": {
+        "TECHNICAL": "Technisch",
+        "BILLING": "Facturatie",
+        "ACCOUNT": "Accounts",
+        "FEATURE": "Nieuwe functie",
+        "OTHER": "Andere"
+      }
+    },
+    "notifications": {
+      "title": "Meldingen",
+      "subtitle": "Platformgebeurtenissen, nieuwste eerst",
+      "filter": "Weergave",
+      "unreadOnly": "Ongelezen",
+      "markAllRead": "Alles als gelezen markeren",
+      "allRead": "{{count}} melding(en) als gelezen gemarkeerd",
+      "empty": "Geen meldingen",
+      "detailTitle": "Details van de melding",
+      "occurredAt": "Voorgevallen op"
     }
   }
 }
