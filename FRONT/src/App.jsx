@@ -7,6 +7,8 @@ import MainLayout from './layouts/MainLayout';
 import PlatformLayout from './layouts/PlatformLayout';
 import PlatformDashboard from './pages/platform/PlatformDashboard';
 import PlatformCompanies from './pages/platform/PlatformCompanies';
+import PlatformUsers from './pages/platform/PlatformUsers';
+import PlatformPlans from './pages/platform/PlatformPlans';
 import PlatformSubscriptions from './pages/platform/PlatformSubscriptions';
 import PlatformPayments from './pages/platform/PlatformPayments';
 import PlatformActivity from './pages/platform/PlatformActivity';
@@ -76,7 +78,9 @@ function App() {
           >
             <Route index element={<PlatformDashboard />} />
             <Route path="companies" element={<PlatformCompanies />} />
+            <Route path="users" element={<PlatformUsers />} />
             <Route path="subscriptions" element={<PlatformSubscriptions />} />
+            <Route path="plans" element={<PlatformPlans />} />
             <Route path="payments" element={<PlatformPayments />} />
             <Route path="activity" element={<PlatformActivity />} />
           </Route>

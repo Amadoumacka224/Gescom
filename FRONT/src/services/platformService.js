@@ -45,8 +45,6 @@ const platformService = {
 
   getSubscriptions: (params = {}) => axios.get('/platform/subscriptions', { params }),
 
-  getPlans: () => axios.get('/platform/subscriptions/plans'),
-
   // Souscrire alors qu'un contrat court déjà vaut changement de formule : le serveur
   // clôture l'ancien et ouvre le nouveau, une entreprise n'ayant qu'un contrat vivant.
   subscribe: (payload) => axios.post('/platform/subscriptions', payload),
@@ -64,6 +62,31 @@ const platformService = {
 
   // Un succès renouvelle la période de l'abonnement, un échec le passe en impayé.
   recordPayment: (payload) => axios.post('/platform/payments', payload),
+
+  // --- Utilisateurs du parc -------------------------------------------------
+
+  /** Liste consolidée, filtrable par entreprise, rôle, statut et recherche libre. */
+  getUsers: (params = {}) => axios.get('/platform/users', { params }),
+
+  /**
+   * Coupe ou rétablit l'accès d'un compte précis — le levier du support, là où suspendre
+   * l'entreprise couperait tous ses utilisateurs d'un coup.
+   */
+  setUserActive: (id, active) => axios.patch(`/platform/users/${id}/active`, { active }),
+
+  // --- Catalogue des formules -----------------------------------------------
+
+  getPlans: () => axios.get('/platform/plans'),
+
+  createPlan: (payload) => axios.post('/platform/plans', payload),
+
+  updatePlan: (id, payload) => axios.put(`/platform/plans/${id}`, payload),
+
+  /** Retire ou remet une formule au catalogue. Sans effet sur les contrats en cours. */
+  setPlanActive: (id, active) => axios.patch(`/platform/plans/${id}/active`, { active }),
+
+  /** Refusé par le serveur dès qu'un abonnement, même résilié, s'y rattache. */
+  deletePlan: (id) => axios.delete(`/platform/plans/${id}`),
 
   // --- Activité consolidée --------------------------------------------------
 

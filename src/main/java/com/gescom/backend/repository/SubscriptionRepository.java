@@ -35,6 +35,14 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     long countByStatus(Subscription.SubscriptionStatus status);
 
+    /**
+     * Contrats rattaches a une formule, tous statuts confondus.
+     *
+     * Les resilies comptent : l'historique reference la formule, et c'est ce qui interdit
+     * de supprimer une formule deja vendue (voir {@code PlanService.delete}).
+     */
+    long countByPlanId(Long planId);
+
     Page<Subscription> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     Page<Subscription> findByStatusOrderByCreatedAtDesc(Subscription.SubscriptionStatus status, Pageable pageable);

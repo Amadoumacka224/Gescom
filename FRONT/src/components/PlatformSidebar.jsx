@@ -4,7 +4,9 @@ import { useAuth } from '../context/useAuth';
 import {
   Gauge,
   Building2,
+  Users,
   BadgeEuro,
+  Layers,
   Receipt,
   Activity,
   LogOut,
@@ -23,7 +25,9 @@ import { motion } from 'framer-motion';
 const NAV_ITEMS = [
   { path: '/platform', icon: Gauge, labelKey: 'platform.nav.dashboard', end: true },
   { path: '/platform/companies', icon: Building2, labelKey: 'platform.nav.companies' },
+  { path: '/platform/users', icon: Users, labelKey: 'platform.nav.users' },
   { path: '/platform/subscriptions', icon: BadgeEuro, labelKey: 'platform.nav.subscriptions' },
+  { path: '/platform/plans', icon: Layers, labelKey: 'platform.nav.plans' },
   { path: '/platform/payments', icon: Receipt, labelKey: 'platform.nav.payments' },
   { path: '/platform/activity', icon: Activity, labelKey: 'platform.nav.activity' },
 ];

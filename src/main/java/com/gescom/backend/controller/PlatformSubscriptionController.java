@@ -1,12 +1,10 @@
 package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.common.PageResponse;
-import com.gescom.backend.dto.platform.PlanResponse;
 import com.gescom.backend.dto.platform.SubscriptionRequest;
 import com.gescom.backend.dto.platform.SubscriptionResponse;
 import com.gescom.backend.entity.Subscription;
 import com.gescom.backend.mapper.PlatformMapper;
-import com.gescom.backend.repository.PlanRepository;
 import com.gescom.backend.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,31 +16,27 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Abonnements et catalogue des formules.
+ * Contrats d'abonnement du parc.
  *
- * Les formules sont exposees ici plutot que dans un controleur separe : elles ne servent
- * qu'a souscrire, et l'ecran d'abonnements est le seul a les consulter.
+ * Le catalogue des formules vit dans {@code PlatformPlanController} : il s'y gere autant
+ * qu'il s'y lit, et l'exposer ici en double aurait laisse deux routes pour la meme donnee.
  */
 @RestController
 @RequestMapping("/api/platform/subscriptions")
 @PreAuthorize("hasRole('SUPER_ADMIN')")
-@Tag(name = "Plateforme - Abonnements", description = "Contrats et catalogue des formules")
+@Tag(name = "Plateforme - Abonnements", description = "Contrats d'abonnement des entreprises clientes")
 public class PlatformSubscriptionController {
 
     private final SubscriptionService subscriptionService;
-    private final PlanRepository planRepository;
     private final PlatformMapper platformMapper;
 
     public PlatformSubscriptionController(SubscriptionService subscriptionService,
-                                          PlanRepository planRepository,
                                           PlatformMapper platformMapper) {
         this.subscriptionService = subscriptionService;
-        this.planRepository = planRepository;
         this.platformMapper = platformMapper;
     }
 
@@ -61,14 +55,6 @@ public class PlatformSubscriptionController {
         return ResponseEntity.ok(new PageResponse<>(
                 result.getContent(), result.getNumber(), result.getSize(),
                 result.getTotalElements(), result.getTotalPages()));
-    }
-
-    @GetMapping("/plans")
-    @Operation(summary = "Catalogue des formules")
-    public ResponseEntity<List<PlanResponse>> plans() {
-        return ResponseEntity.ok(planRepository.findAllByOrderBySortOrderAsc().stream()
-                .map(platformMapper::toResponse)
-                .toList());
     }
 
     @PostMapping

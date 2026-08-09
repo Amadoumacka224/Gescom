@@ -139,6 +139,11 @@ public class PlatformMapper {
         );
     }
 
+    /**
+     * Fiche d'une formule, avec le nombre de contrats qui s'y rattachent — tous statuts
+     * confondus, l'historique comptant autant que les contrats vivants pour decider si la
+     * formule est encore supprimable.
+     */
     public PlanResponse toResponse(Plan plan) {
         if (plan == null) {
             return null;
@@ -154,7 +159,8 @@ public class PlatformMapper {
                 plan.getMaxProducts(),
                 plan.getTrialDays(),
                 plan.getActive(),
-                plan.getSortOrder()
+                plan.getSortOrder(),
+                subscriptionRepository.countByPlanId(plan.getId())
         );
     }
 
