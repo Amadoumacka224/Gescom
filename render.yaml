@@ -1,0 +1,117 @@
+# ==============================================================================
+# GESCOM — plan d'infrastructure Render
+#
+# Décrit le service applicatif et sa base. Render lit ce fichier à la création
+# du blueprint puis à chaque modification poussée sur la branche suivie.
+#
+# Ce déploiement est une alternative à docker-compose.yml, pas un complément :
+# l'un met l'application chez un hébergeur managé qui fournit le certificat et
+# le routage, l'autre la met sur une machine que l'on administre soi-même avec
+# Caddy en frontal. Les deux construisent la même image d'API.
+#
+# Le SPA n'est pas déployé ici. La cible `web` du Dockerfile (Caddy servant les
+# fichiers compilés) appartient au déploiement docker-compose ; sur Render, le
+# front est à publier séparément en service statique.
+# ==============================================================================
+
+services:
+  - type: web
+    name: gescom-app
+
+    # `runtime` et non `env`, qui est le nom déprécié du même champ.
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+
+    # Render ne sait pas construire une étape intermédiaire d'un Dockerfile
+    # multi-étapes : il n'existe pas d'équivalent de `--target`, la dernière
+    # étape du fichier est toujours celle qui est déployée. C'est la raison pour
+    # laquelle l'API est écrite en dernier dans le Dockerfile — voir le
+    # commentaire d'en-tête de celui-ci avant d'en réordonner les étapes.
+
+    region: oregon
+    plan: starter
+
+    # L'application écoute sur $PORT, injecté par Render (voir le profil render).
+    # Le service n'est mis en rotation qu'une fois cette sonde satisfaite : elle
+    # ne répond qu'après le rafraîchissement du contexte Spring, donc après les
+    # migrations Flyway. Un déploiement dont le schéma n'a pas migré ne reçoit
+    # jamais de trafic, et l'instance précédente reste en place.
+    healthCheckPath: /actuator/health
+
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+
+      # ------------------------------------------------------------------------
+      # Base de données
+      #
+      # DB_URL n'est pas dérivable de la base : `fromDatabase` n'expose que
+      # connectionString, connectionPoolString, user, password et database — ni
+      # hôte ni port — et connectionString est une URL de connexion PostgreSQL
+      # (postgresql://…), que le pilote JDBC rejette.
+      #
+      # `sync: false` fait donc demander la valeur à la création du blueprint,
+      # sans la faire figurer dans le dépôt. La composer à partir de l'onglet
+      # Connect de la base, en reprenant l'hôte interne :
+      #
+      #   jdbc:postgresql://<hôte-interne>:5432/gescom_k7fn?sslmode=require
+      #
+      # L'identifiant et le mot de passe, eux, viennent bien de la base : ils
+      # suivent automatiquement une rotation côté Render.
+      # ------------------------------------------------------------------------
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        fromDatabase:
+          name: gescom-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: gescom-db
+          property: password
+
+      # Secret de signature des jetons, tiré une fois par Render et conservé
+      # d'un déploiement à l'autre. Le régénérer invaliderait toutes les
+      # sessions en cours.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Origine autorisée à appeler l'API depuis un navigateur : celle du SPA.
+      # À renseigner à la création — elle dépend de l'adresse sous laquelle le
+      # front est publié, que ce fichier ne décrit pas.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ------------------------------------------------------------------------
+      # Compte propriétaire de la plateforme, créé au premier démarrage par
+      # PlatformAdminBootstrap puis jamais réécrit. Renseigné à la main : un
+      # mot de passe engendré par la plateforme resterait illisible pour son
+      # titulaire, et ces identifiants ouvrent le back-office SaaS complet.
+      # Les omettre est un choix valable — aucun compte n'est alors créé.
+      # ------------------------------------------------------------------------
+      - key: PLATFORM_ADMIN_USERNAME
+        sync: false
+      - key: PLATFORM_ADMIN_EMAIL
+        sync: false
+      - key: PLATFORM_ADMIN_PASSWORD
+        sync: false
+
+      # Aucune clé Stripe réelle n'est déployée : le mode simulé génère les
+      # intentions de paiement localement et ne sort pas sur le réseau.
+      - key: STRIPE_MODE
+        value: simulated
+
+# ------------------------------------------------------------------------------
+# Base PostgreSQL managée.
+#
+# L'offre `free` est supprimée par Render au bout d'un mois, sans sauvegarde
+# conservée. Elle convient à une démonstration, pas à une installation qui doit
+# garder ses données : passer à `starter` avant toute mise en service réelle.
+# ------------------------------------------------------------------------------
+databases:
+  - name: gescom-db
+    databaseName: gescom_k7fn
+    user: gescom_k7fn_user
+    region: oregon
+    plan: free

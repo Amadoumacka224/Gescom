@@ -122,6 +122,10 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
                 auth.requestMatchers("/api/auth/**").permitAll()
+                    // Sonde de l'hebergeur, interrogee sans jeton depuis le reseau interne de
+                    // la plateforme. Elle ne divulgue rien : show-details=never renvoie le seul
+                    // statut UP/DOWN, et aucun autre point de terminaison actuator n'est expose.
+                    .requestMatchers("/actuator/health").permitAll()
                     // Espace du propriétaire de la plateforme. La règle est doublée par un
                     // @PreAuthorize au niveau de chaque contrôleur : ce filtrage par URL est
                     // la barrière de périmètre, l'annotation la barrière de méthode. Un

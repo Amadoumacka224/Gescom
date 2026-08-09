@@ -20,10 +20,17 @@
 	# Let's Encrypt — « HTTP 400 urn:ietf:params:acme:error:invalidContact -
 	# contact email has forbidden domain "example.com" » — et Caddy bascule
 	# alors silencieusement sur l'émetteur de repli (ZeroSSL).
-	email mackaldine22@gmail.com
+	#
+	# ACME_EMAIL vient de .env ; la valeur après ':' reste le repli si la
+	# variable n'est pas renseignée.
+	email {$ACME_EMAIL:mackaldine22@gmail.com}
 }
 
-gescom.example.com {
+# Le domaine vient de APP_DOMAIN (.env), passé au conteneur par docker-compose.
+# Volontairement sans valeur de repli : une variable absente rend le bloc de site
+# vide et Caddy s'arrête sur une erreur de configuration, au lieu de servir
+# l'application sous un nom qui n'est pas celui du déploiement.
+{$APP_DOMAIN} {
 	encode zstd gzip
 
 	# --------------------------------------------------------------------------

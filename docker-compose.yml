@@ -10,7 +10,21 @@
 # répondent qu'à travers le frontal.
 #
 # Sur la machine hôte, n'ouvrir que 22, 80 et 443 au pare-feu.
+#
+# Le domaine de service n'est écrit nulle part dans les fichiers versionnés : il
+# vient de APP_DOMAIN (.env) et alimente à la fois le bloc de site du Caddyfile
+# et l'origine CORS de l'API. Déployer ailleurs ne demande donc pas de modifier
+# un fichier suivi en dépôt, et les deux valeurs ne peuvent plus diverger.
 # ==============================================================================
+
+# Journaux des conteneurs : sans plafond, le pilote json-file écrit indéfiniment
+# dans /var/lib/docker et finit par remplir le disque de la machine hôte. Cinq
+# fichiers de 10 Mio bornent chaque service à 50 Mio.
+x-journalisation: &journalisation
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
 
 services:
 
@@ -38,6 +52,7 @@ services:
       start_period: 30s
     security_opt:
       - no-new-privileges:true
+    logging: *journalisation
     networks:
       - interne
 
@@ -72,12 +87,24 @@ services:
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       # Une seule origine, celle du frontal. Le SPA étant servi sous ce même
       # domaine, cette valeur ne sert qu'aux éventuels appels hors navigateur.
-      CORS_ORIGINS: https://gescom.example.com
+      CORS_ORIGINS: https://${APP_DOMAIN}
       STRIPE_MODE: ${STRIPE_MODE:-simulated}
       STRIPE_API_KEY: ${STRIPE_API_KEY:-sk_test_fictive_key_for_simulation}
       STRIPE_CURRENCY: ${STRIPE_CURRENCY:-eur}
+    # Le port n'est ouvert qu'une fois le contexte Spring rafraîchi, donc après
+    # les migrations Flyway : le voir répondre vaut « application démarrée », pas
+    # seulement « conteneur lancé ». La sonde passe par bash et son /dev/tcp car
+    # l'image ne contient ni curl ni wget, et le /bin/sh d'Ubuntu (dash) ne sait
+    # pas ouvrir de socket — d'où CMD et non CMD-SHELL.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8085"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     security_opt:
       - no-new-privileges:true
+    logging: *journalisation
     networks:
       - interne
 
@@ -87,6 +114,11 @@ services:
   # Le volume `caddy-data` est indispensable : il conserve les certificats et la
   # clé de compte ACME. Sans lui, chaque redémarrage redemande un certificat à
   # Let's Encrypt et finit par heurter les quotas d'émission.
+  #
+  # Attendre que l'API soit saine évite la fenêtre où Caddy, déjà en écoute,
+  # renvoie des 502 sur /api pendant que Spring démarre — et surtout évite de
+  # demander un certificat pour un service qui n'est pas encore en état de
+  # répondre.
   # ----------------------------------------------------------------------------
   web:
     build:
@@ -94,7 +126,14 @@ services:
       target: web
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    environment:
+      # Lues par le Caddyfile sous la forme {$VARIABLE}. APP_DOMAIN y est le nom
+      # du bloc de site : sans valeur, Caddy refuse de démarrer plutôt que de
+      # servir l'application sous un nom inattendu.
+      APP_DOMAIN: ${APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
     ports:
       - "80:80"
       - "443:443"
@@ -104,6 +143,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
       - caddy-logs:/var/log/caddy
+    logging: *journalisation
     networks:
       - interne
 
