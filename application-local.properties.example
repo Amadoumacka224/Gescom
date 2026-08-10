@@ -1,0 +1,38 @@
+# Surcharge locale du poste de developpement — modele.
+#
+# Copier ce fichier en `application-local.properties` (a la racine du projet, a cote du
+# pom.xml) et renseigner les valeurs. La copie est ignoree par .gitignore : les secrets
+# restent sur le poste.
+#
+#     cp application-local.properties.example application-local.properties
+#
+# `application.properties` l'importe avec `optional:`, donc son absence ne change rien :
+# en conteneur, sur Render et en CI, la configuration continue de venir de l'environnement.
+
+# ── Compte proprietaire de la plateforme (back-office SaaS) ──────────────────
+#
+# Cree au premier demarrage par PlatformAdminBootstrap, puis jamais reecrit — une rotation
+# de mot de passe faite depuis le back-office survit donc aux redemarrages.
+#
+# Sans ces trois valeurs, aucun compte n'est cree et l'application demarre normalement : le
+# back-office est simplement inaccessible, faute de compte SUPER_ADMIN. C'est ce qui se
+# produit apres chaque recreation de la base tant que ce fichier n'existe pas.
+#
+# Elles ne sont pas versionnees, et c'est deliberé : un identifiant proprietaire par defaut,
+# identique sur toutes les installations, ne serait jamais change.
+#
+# Equivalent conteneur : les variables PLATFORM_ADMIN_* de .env, lues par docker-compose.
+platform.admin.username=
+platform.admin.email=
+platform.admin.password=
+
+# ── Autres surcharges utiles ────────────────────────────────────────────────
+#
+# Tout parametre de application.properties peut etre redefini ici. Les plus courants :
+#
+# spring.datasource.url=jdbc:postgresql://localhost:5432/GESCOM_2
+# spring.datasource.username=postgres
+# spring.datasource.password=
+# stripe.mode=api
+# stripe.api-key=sk_test_...
+# logging.level.com.gescom.backend=DEBUG

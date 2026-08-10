@@ -60,6 +60,9 @@ L'application lit l'ensemble de ses paramètres sensibles depuis l'environnement
 | `JWT_SECRET`      | Secret JWT — **64 caractères aléatoires minimum en production**    |
 | `JWT_EXPIRATION`  | Durée de validité du token (ms)                                    |
 | `CORS_ORIGINS`    | Origines CORS autorisées (séparées par virgule)                    |
+| `PLATFORM_ADMIN_USERNAME` | Compte propriétaire du back-office SaaS — voir ci-dessous  |
+| `PLATFORM_ADMIN_EMAIL`    | Adresse de ce compte                                       |
+| `PLATFORM_ADMIN_PASSWORD` | Mot de passe initial de ce compte                          |
 
 Exemple (Linux/macOS) :
 
@@ -70,6 +73,20 @@ export DB_PASSWORD=********
 export JWT_SECRET=$(openssl rand -hex 64)
 export CORS_ORIGINS=https://app.example.com
 ```
+
+#### Compte propriétaire et développement local
+
+Le compte `SUPER_ADMIN` du back-office n'est semé par aucune migration : il faudrait y versionner une empreinte de mot de passe en dur, identique sur toutes les installations. Il est créé au premier démarrage par `PlatformAdminBootstrap`, à partir des trois variables `PLATFORM_ADMIN_*`, et jamais réécrit ensuite — une rotation faite depuis le back-office survit donc aux redéploiements.
+
+Conséquence en local : `docker compose up` lit `.env` et fournit ces variables, mais **`mvn spring-boot:run` ne lit pas `.env`**. Sans elles, aucun compte n'est créé et le back-office reste inaccessible après chaque recréation de la base.
+
+Pour y remédier une fois pour toutes, copiez le modèle fourni et renseignez-le :
+
+```bash
+cp application-local.properties.example application-local.properties
+```
+
+`application.properties` l'importe avec `spring.config.import=optional:file:./application-local.properties`. Le fichier est ignoré par Git, et `optional:` garantit que son absence ne change rien en conteneur, sur Render ou en CI. N'y recopiez pas `.env` tel quel : celui-ci vise le PostgreSQL du conteneur (`DB_USERNAME=gescom`) et casserait la connexion à votre base locale.
 
 ## Installation et démarrage
 
