@@ -61,6 +61,7 @@ public class CsvExportService {
         String[] escaped = new String[values.length];
         for (int i = 0; i < values.length; i++) {
             String value = values[i] != null ? values[i] : "";
+            value = neutralizeFormula(value);
             // Escape quotes and wrap in quotes if contains special characters
             if (value.contains(";") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
                 value = "\"" + value.replace("\"", "\"\"") + "\"";
@@ -68,6 +69,28 @@ public class CsvExportService {
             escaped[i] = value;
         }
         return escaped;
+    }
+
+    /**
+     * Neutralise l'injection de formule (CSV injection / DDE).
+     *
+     * Un tableur interprète comme une formule toute cellule débutant par =, +, -, @
+     * ou une tabulation : un nom de client valant {@code =HYPERLINK(...)} ou
+     * {@code =cmd|'/c calc'!A1} s'exécuterait à l'ouverture du fichier exporté.
+     * Le remède recommandé (OWASP) est de préfixer ces cellules d'une apostrophe,
+     * que le tableur retire à l'affichage : la valeur reste lisible mais cesse
+     * d'être une formule. On applique le préfixe AVANT la mise entre guillemets,
+     * pour qu'il se retrouve bien à l'intérieur de la cellule.
+     */
+    private String neutralizeFormula(String value) {
+        if (value.isEmpty()) {
+            return value;
+        }
+        char first = value.charAt(0);
+        if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r') {
+            return "'" + value;
+        }
+        return value;
     }
 
     /**

@@ -84,6 +84,31 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		# Aucune fonctionnalité sensible n'est utilisée par le SPA.
 		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		# Limite les dégâts d'une injection de contenu : même si une chaîne
+		# hostile parvenait jusqu'au DOM, le navigateur refuserait d'exécuter le
+		# script ou de joindre le serveur du tiers. Directive par directive :
+		#
+		#   script-src 'self'   Vite ne produit aucun script en ligne — le seul
+		#                       <script> d'index.html est un module externe
+		#                       empreinté. Ni 'unsafe-inline' ni nonce à prévoir.
+		#   style-src           'unsafe-inline' est ici incompressible : React
+		#                       pose des attributs style= (style={{…}}), que la
+		#                       CSP bloque au même titre qu'une balise <style>,
+		#                       et framer-motion anime de la même façon. Le CDN
+		#                       de Google Fonts est appelé depuis index.html.
+		#   img-src data:       les graphiques Recharts et les aperçus jsPDF
+		#                       passent par des images encodées en ligne.
+		#   connect-src 'self'  suffit parce que Caddy sert le SPA et relaie
+		#                       l'API sous le même domaine (voir l'en-tête de ce
+		#                       fichier). À élargir si l'API en sortait.
+		#   frame-ancestors     équivalent moderne du X-Frame-Options ci-dessus,
+		#                       conservé le temps que les vieux navigateurs
+		#                       sortent du parc.
+		#
+		# Les téléchargements (exports CSV, PDF) ouvrent des URL blob: par un
+		# <a download> : c'est une navigation, elle n'est régie par aucune de ces
+		# directives et reste donc fonctionnelle.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		# Ne pas annoncer le serveur ni sa version.
 		-Server
 	}
