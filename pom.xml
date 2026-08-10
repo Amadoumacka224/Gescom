@@ -67,9 +67,9 @@
             Actuator : uniquement pour /actuator/health, la sonde que l'hebergeur interroge
             pour savoir si le conteneur peut recevoir du trafic. Le point de terminaison
             repond 200 une fois le contexte rafraichi et la base joignable, ce qui evite de
-            router vers une instance dont les migrations n'ont pas abouti. Seuls health et
-            info sont exposes (voir application.properties) : le reste de l'arborescence
-            actuator publierait la configuration et l'environnement.
+            router vers une instance dont les migrations n'ont pas abouti. Seul health est
+            expose (voir application.properties) : le reste de l'arborescence actuator
+            publierait la configuration et l'environnement.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

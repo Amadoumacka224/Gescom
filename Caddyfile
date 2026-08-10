@@ -21,8 +21,11 @@
 	# contact email has forbidden domain "example.com" » — et Caddy bascule
 	# alors silencieusement sur l'émetteur de repli (ZeroSSL).
 	#
-	# ACME_EMAIL vient de .env ; la valeur après ':' reste le repli si la
-	# variable n'est pas renseignée.
+	# ACME_EMAIL vient de .env. La valeur après ':' n'est un repli que si la
+	# variable est absente de l'environnement : Caddy ne la substitue pas
+	# lorsqu'elle est présente et vide. Or docker-compose la définit toujours —
+	# c'est pourquoi le repli est doublé côté compose, en ${ACME_EMAIL:-...}.
+	# Celui-ci ne sert donc qu'à un lancement de Caddy hors compose.
 	email {$ACME_EMAIL:mackaldine22@gmail.com}
 }
 
