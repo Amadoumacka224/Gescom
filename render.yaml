@@ -1,17 +1,24 @@
 # ==============================================================================
 # GESCOM — plan d'infrastructure Render
 #
-# Décrit le service applicatif et sa base. Render lit ce fichier à la création
-# du blueprint puis à chaque modification poussée sur la branche suivie.
+# Décrit les deux services — l'API et le SPA — et la base. Render lit ce fichier
+# à la création du blueprint puis à chaque modification poussée sur la branche
+# suivie.
 #
 # Ce déploiement est une alternative à docker-compose.yml, pas un complément :
 # l'un met l'application chez un hébergeur managé qui fournit le certificat et
 # le routage, l'autre la met sur une machine que l'on administre soi-même avec
 # Caddy en frontal. Les deux construisent la même image d'API.
 #
-# Le SPA n'est pas déployé ici. La cible `web` du Dockerfile (Caddy servant les
-# fichiers compilés) appartient au déploiement docker-compose ; sur Render, le
-# front est à publier séparément en service statique.
+# Différence structurante entre les deux : sous docker-compose, Caddy sert le SPA
+# et relaie /api sous un seul et même domaine — aucune requête inter-origines.
+# Ici, le SPA est un service statique publié sous SON propre domaine, distinct de
+# celui de l'API. Deux conséquences dont ni l'une ni l'autre n'est facultative :
+# le front doit être construit avec VITE_API_URL pointant sur l'API en absolu,
+# sinon ses appels partent en relatif vers l'hôte statique et font 404 ; et
+# l'API doit déclarer le domaine du front dans CORS_ORIGINS, sinon le navigateur
+# refuse les réponses. La cible `web` du Dockerfile (Caddy) n'est donc pas
+# utilisée ici : elle appartient au déploiement docker-compose.
 # ==============================================================================
 
 services:
@@ -77,9 +84,14 @@ services:
       - key: JWT_SECRET
         generateValue: true
 
-      # Origine autorisée à appeler l'API depuis un navigateur : celle du SPA.
-      # À renseigner à la création — elle dépend de l'adresse sous laquelle le
-      # front est publié, que ce fichier ne décrit pas.
+      # Origine autorisée à appeler l'API depuis un navigateur : celle du service
+      # statique `gescom-front` déclaré plus bas, schéma compris et sans barre
+      # oblique finale — par exemple https://gescom-front.onrender.com.
+      #
+      # Demandée à la création plutôt que dérivée du service : `fromService` avec
+      # la propriété `host` ne rend que le nom d'hôte, sans schéma, et
+      # SecurityConfig passe la valeur telle quelle à setAllowedOrigins, qui
+      # exige une origine complète.
       - key: CORS_ORIGINS
         sync: false
 
@@ -101,6 +113,61 @@ services:
       # intentions de paiement localement et ne sort pas sur le réseau.
       - key: STRIPE_MODE
         value: simulated
+
+  # ----------------------------------------------------------------------------
+  # SPA — service statique
+  #
+  # Pas de conteneur : Render exécute la commande de construction puis sert le
+  # contenu de staticPublishPath depuis son réseau de diffusion.
+  #
+  # Node 24 et non la version par défaut de la plateforme : @zxing/library, tiré
+  # par le scanner de codes-barres, déclare engines.node >= 24 — même raison que
+  # dans le Dockerfile, à garder alignée avec lui.
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: gescom-front
+    runtime: static
+
+    buildCommand: cd FRONT && npm ci && npm run build
+    staticPublishPath: FRONT/dist
+
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+
+      # Sans cette variable, src/services/axios.js retombe sur '/api' en relatif,
+      # qui viserait l'hôte statique et non l'API : toutes les requêtes feraient
+      # 404. Elle est lue à la construction, pas à l'exécution — la modifier
+      # impose donc de reconstruire le service, pas seulement de le redémarrer.
+      # Valeur attendue : https://<hôte de gescom-app>/api
+      - key: VITE_API_URL
+        sync: false
+
+    # Même politique de sécurité du contenu que sous docker-compose, où elle est
+    # posée par Caddy — voir le bloc `header` du Caddyfile pour le détail de
+    # chaque directive.
+    #
+    # Une seule diffère, et c'est la conséquence directe du découpage décrit en
+    # tête de fichier : ici le SPA et l'API sont sur deux domaines distincts, si
+    # bien qu'un connect-src 'self' couperait tous les appels métier. L'origine
+    # de l'API doit donc y figurer en toutes lettres. Elle ne peut pas être
+    # dérivée de VITE_API_URL — un blueprint n'interpole pas de variable dans la
+    # valeur d'un en-tête —, d'où la valeur écrite en dur ci-dessous : à tenir
+    # alignée sur l'hôte réel du service gescom-app, et à remplacer si celui-ci
+    # est publié sous un domaine personnalisé.
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://gescom-app.onrender.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+    # Le routage d'une application à page unique est côté navigateur : une URL
+    # comme /platform/companies ne correspond à aucun fichier. Sans cette
+    # réécriture, un rechargement ou un lien direct renvoie 404 au lieu de
+    # laisser React Router résoudre la route.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 # ------------------------------------------------------------------------------
 # Base PostgreSQL managée.
