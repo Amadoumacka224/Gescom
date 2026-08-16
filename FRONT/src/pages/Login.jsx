@@ -2,8 +2,33 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/useAuth';
-import { LogIn, User, Lock, Globe } from 'lucide-react';
+import {
+  LogIn,
+  User,
+  Lock,
+  Globe,
+  ShoppingCart,
+  Boxes,
+  ReceiptText,
+  BarChart3,
+  Mail,
+  Phone,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
+
+// Les quatre arguments de vente, dans l'ordre du flux métier : commande → stock →
+// facturation → pilotage. Les libellés vivent dans les catalogues i18n, seuls l'icône
+// et le ton restent ici.
+const BENEFITS = [
+  { key: 'sales', Icon: ShoppingCart, tone: 'panel-tone-info' },
+  { key: 'stock', Icon: Boxes, tone: 'panel-tone-success' },
+  { key: 'billing', Icon: ReceiptText, tone: 'panel-tone-accent' },
+  { key: 'insights', Icon: BarChart3, tone: 'panel-tone-warning' },
+];
 
 const Login = () => {
   const { t, i18n } = useTranslation();
@@ -16,6 +41,7 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -46,8 +72,13 @@ const Login = () => {
     }
   };
 
+  // Même cycle que le sélecteur de l'en-tête : les trois langues sont traduites, un
+  // bascule fr/en enfermait le visiteur néerlandophone hors de sa langue.
   const toggleLanguage = () => {
-    const newLang = i18n.language === 'fr' ? 'en' : 'fr';
+    const languages = ['fr', 'en', 'nl'];
+    const currentIndex = languages.indexOf(i18n.language);
+    const nextIndex = (currentIndex + 1) % languages.length;
+    const newLang = languages[nextIndex];
     i18n.changeLanguage(newLang);
     localStorage.setItem('language', newLang);
   };
@@ -61,152 +92,216 @@ const Login = () => {
       {/* Language Toggle */}
       <button
         onClick={toggleLanguage}
+        title={t('common.changeLanguage')}
         className="absolute top-6 right-6 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-soft ring-1 ring-gray-900/5 hover:shadow-card-hover transition-all duration-200"
       >
         <Globe className="w-4 h-4 text-primary-600" />
-        <span className="text-sm font-medium text-gray-700">
-          {i18n.language === 'fr' ? 'FR' : 'EN'}
+        <span className="text-sm font-medium text-gray-700 uppercase">
+          {i18n.language}
         </span>
       </button>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-md"
-      >
-        {/* Logo & Title */}
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl shadow-lg mb-4"
-          >
-            <LogIn className="w-10 h-10 text-white" />
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-4xl font-bold text-gray-900 mb-2"
-          >
-            {t('app.name')}
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-gray-600"
-          >
-            {t('app.tagline')}
-          </motion.p>
-        </div>
-
-        {/* Login Card */}
-        <motion.div
+      {/* Colonnes asymétriques : la vitrine porte plus de contenu que le formulaire,
+          qui reste calé sur la largeur de lecture confortable d'une carte de connexion. */}
+      <div className="relative z-10 w-full max-w-5xl grid lg:grid-cols-[minmax(0,1fr)_26rem] gap-10 lg:gap-14 items-center py-10">
+        {/* Présentation de la solution */}
+        <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-elevated ring-1 ring-gray-900/5 p-8"
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-xl mx-auto lg:mx-0 lg:max-w-none"
         >
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">
-              {t('auth.welcomeBack')}
-            </h2>
-            <p className="text-gray-600 text-sm">{t('auth.signInMessage')}</p>
+          <div className="flex items-center gap-3 mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl shadow-lg shrink-0">
+              <LogIn className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 leading-tight">
+                {t('app.name')}
+              </h1>
+              <p className="text-sm text-gray-600">{t('app.tagline')}</p>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.username')}
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  className="input-field pl-10"
-                  placeholder="admin"
-                  required
-                />
-              </div>
-            </div>
+          <span className="inline-flex items-center px-3 py-1 mb-5 rounded-full bg-primary-100 text-primary-800 text-xs font-semibold uppercase tracking-wide">
+            {t('landing.badge')}
+          </span>
 
-            {/* Password Field */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t('auth.password')}
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="input-field pl-10"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight mb-8">
+            {t('landing.headline')}
+          </h2>
 
-            {/* Error Message */}
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
+          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-7 mb-10">
+            {BENEFITS.map(({ key, Icon, tone }) => (
+              <li key={key} className="flex gap-3">
+                <span className={`panel-icon ${tone} shrink-0`}>
+                  <Icon />
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    {t(`landing.benefits.${key}Title`)}
+                  </h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {t(`landing.benefits.${key}Description`)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Contact — coordonnées de l'éditeur, reprises des paramètres de la société */}
+          <div className="rounded-2xl bg-white/70 backdrop-blur-sm ring-1 ring-gray-900/5 p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">
+              {t('landing.contact.title')}
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {t('landing.contact.description')}
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+              <a
+                href={`mailto:${t('landing.contact.email')}`}
+                className="flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
               >
-                {error}
-              </motion.div>
-            )}
+                <Mail className="w-4 h-4 shrink-0" />
+                {t('landing.contact.email')}
+              </a>
+              <a
+                href={`tel:${t('landing.contact.phone').replace(/\s/g, '')}`}
+                className="flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+              >
+                <Phone className="w-4 h-4 shrink-0" />
+                {t('landing.contact.phone')}
+              </a>
+            </div>
+          </div>
+        </motion.section>
 
-            {/* Login Button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={loading}
-              className="w-full btn-primary py-3 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {t('common.loading')}
+        {/* Espace de connexion */}
+        <div className="w-full max-w-md mx-auto lg:mx-0 lg:max-w-none">
+          {/* Login Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-elevated ring-1 ring-gray-900/5 p-8"
+          >
+            <div className="mb-7">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-700 mb-3">
+                <ShieldCheck className="w-4 h-4" />
+                {t('auth.secureAccess')}
+              </span>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                {t('auth.welcomeBack')}
+              </h2>
+              <p className="text-gray-600 text-sm">{t('auth.signInMessage')}</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Username Field */}
+              <div>
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  {t('auth.username')}
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="username"
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleChange}
+                    className="input-field pl-10"
+                    autoComplete="username"
+                    required
+                  />
                 </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <LogIn className="w-5 h-5" />
-                  {t('auth.login')}
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  {t('auth.password')}
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="input-field pl-10 pr-10"
+                    autoComplete="current-password"
+                    required
+                  />
+                  {/* Affichage du mot de passe : le champ reste maître, seul son type change */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={t(showPassword ? 'auth.hidePassword' : 'auth.showPassword')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </button>
                 </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <motion.div
+                  role="alert"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </motion.div>
               )}
-            </motion.button>
-          </form>
 
-          {/* Demo Credentials */}
-         
-        </motion.div>
+              {/* Login Button */}
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                type="submit"
+                disabled={loading}
+                className="w-full btn-primary py-3 text-base font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {t('common.loading')}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <LogIn className="w-5 h-5" />
+                    {t('auth.login')}
+                  </div>
+                )}
+              </motion.button>
+            </form>
+          </motion.div>
 
-        {/* Footer */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="text-center text-sm text-gray-600 mt-6"
-        >
-          {t('auth.copyright', { year: new Date().getFullYear() })}
-        </motion.p>
-      </motion.div>
+          {/* Footer */}
+          <p className="text-center text-sm text-gray-600 mt-6">
+            {t('auth.copyright', { year: new Date().getFullYear() })}
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

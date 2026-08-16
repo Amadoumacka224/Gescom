@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GESCOM — plan du site
+
+  Une seule entrée, et ce n'est pas un oubli : hormis la page d'accueil, qui
+  présente la solution et porte le formulaire de connexion, toutes les routes de
+  l'application sont derrière l'authentification et n'ont rien à faire ici.
+
+  Aucune alternative de langue n'est déclarée non plus : les trois langues
+  partagent la même URL, le choix étant mémorisé côté navigateur et non porté par
+  l'adresse. Des balises hreflang supposeraient une URL distincte par langue.
+
+  L'adresse est celle du service statique de render.yaml : à reprendre avec celle
+  de robots.txt et l'URL canonique de index.html lors d'un passage sous domaine
+  propre.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://gescom-front.onrender.com/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

@@ -24,7 +24,32 @@
     "loginSuccess": "Succesvol ingelogd!",
     "loginError": "Ongeldige inloggegevens",
     "sessionExpired": "Sessie verlopen, gelieve opnieuw in te loggen",
+    "secureAccess": "Beveiligde toegang",
+    "showPassword": "Wachtwoord tonen",
+    "hidePassword": "Wachtwoord verbergen",
     "copyright": "© {{year}} GESCOM. Alle rechten voorbehouden."
+  },
+  "landing": {
+    "badge": "Oplossing voor commercieel beheer",
+    "headline": "Verkoop, voorraad en facturatie samen in één tool",
+    "benefits": {
+      "salesTitle": "Van bestelling tot levering",
+      "salesDescription": "Een vast traject: bevestiging, facturatie, levering.",
+      "stockTitle": "Voorraad die altijd klopt",
+      "stockDescription": "Hoeveelheden bijgewerkt bij elke bestelling en retour, met volledige historiek.",
+      "billingTitle": "Facturatie en inning",
+      "billingDescription": "Facturen, kassabetalingen en betalingen in hetzelfde klantendossier.",
+      "insightsTitle": "Beslissingen op basis van cijfers",
+      "insightsDescription": "Omzet, marges en bij te bestellen artikelen in één oogopslag."
+    },
+    "contact": {
+      "title": "Een vraag over de oplossing?",
+      "description": "Ons team antwoordt u en plant een demo.",
+      "emailLabel": "E-mail",
+      "email": "contact@gescom.com",
+      "phoneLabel": "Telefoon",
+      "phone": "+32 467 61 34 61"
+    }
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -2044,7 +2069,7 @@
       "TRANSFER": "Overschrijving",
       "CARD": "Kaart",
       "DIRECT_DEBIT": "Domiciliëring",
-      "MANUAL": "Handmatige invoer"
+      "CASH": "Contant"
     },
     "billingPeriod": {
       "MONTHLY": "Maandelijks",
@@ -2241,7 +2266,7 @@
       "editTitle": "Formule bewerken",
       "createTitle": "Nieuwe formule",
       "code": "Code",
-      "codeHint": "Hoofdletters en cijfers, vast na aanmaak",
+      "codeHint": "Hoofdletters, cijfers en underscores, vast na aanmaak",
       "codeLocked": "De code identificeert de formule en kan niet meer wijzigen",
       "name": "Naam",
       "monthlyPrice": "Maandtarief",

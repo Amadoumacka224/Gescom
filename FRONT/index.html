@@ -4,16 +4,82 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1d6fa5" />
+
+    <!--
+      Référencement — l'application est une SPA : hormis la page de connexion, tout
+      est derrière l'authentification et n'a pas vocation à être indexé. Ces balises
+      décrivent donc la page publique, la seule que rencontre un moteur.
+
+      L'adresse ci-dessous est celle du service statique décrit dans render.yaml.
+      À reprendre ici, dans robots.txt et dans sitemap.xml le jour où le site est
+      publié sous un domaine propre : une URL canonique fausse est pire qu'absente.
+    -->
+    <title>GESCOM — Ventes, stocks et facturation en un seul outil</title>
+    <meta
+      name="description"
+      content="GESCOM réunit commandes, stocks, facturation et caisse dans une seule application de gestion commerciale : parcours de la commande à la livraison, stock à jour à chaque mouvement et suivi des règlements."
+    />
+    <link rel="canonical" href="https://gescom-front.onrender.com/" />
+
+    <!-- Aperçu au partage (réseaux sociaux, messageries) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GESCOM" />
+    <meta
+      property="og:title"
+      content="GESCOM — Ventes, stocks et facturation en un seul outil"
+    />
+    <meta
+      property="og:description"
+      content="Application de gestion commerciale : commandes, stocks, facturation, caisse et tableaux de bord réunis dans un même flux."
+    />
+    <meta property="og:url" content="https://gescom-front.onrender.com/" />
+    <meta property="og:locale" content="fr_BE" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta property="og:locale:alternate" content="nl_BE" />
+    <meta name="twitter:card" content="summary" />
+    <meta
+      name="twitter:title"
+      content="GESCOM — Ventes, stocks et facturation en un seul outil"
+    />
+    <meta
+      name="twitter:description"
+      content="Application de gestion commerciale : commandes, stocks, facturation, caisse et tableaux de bord réunis dans un même flux."
+    />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <title>GestionCom</title>
   </head>
   <body>
     <div id="root"></div>
+
+    <!--
+      Le contenu de la page est rendu par React : un lecteur qui n'exécute pas le
+      JavaScript — certains robots, un navigateur où il est désactivé — ne verrait
+      qu'une coquille vide. Ce repli donne la proposition de valeur et le contact
+      en HTML servi tel quel. Il est retiré du rendu dès que le script s'exécute,
+      il ne peut donc pas se retrouver affiché en double.
+    -->
+    <noscript>
+      <h1>GESCOM — Gestion commerciale</h1>
+      <p>
+        GESCOM réunit les commandes, les stocks, la facturation et la caisse dans
+        une seule application : un parcours balisé de la commande à la livraison,
+        un stock mis à jour à chaque mouvement, le suivi des règlements et des
+        tableaux de bord sur le chiffre d'affaires et les marges.
+      </p>
+      <p>
+        L'accès à l'application nécessite JavaScript. Pour toute question ou pour
+        une démonstration :
+        <a href="mailto:contact@gescom.com">contact@gescom.com</a> —
+        <a href="tel:+32467613461">+32 467 61 34 61</a>
+      </p>
+    </noscript>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

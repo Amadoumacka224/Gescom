@@ -1,0 +1,32 @@
+# GESCOM — directives d'exploration
+#
+# La page de connexion est la seule page publique : elle porte la présentation de
+# la solution et peut être indexée. Tout le reste est derrière l'authentification.
+# Un robot n'y accède pas — l'API répond 401 —, mais l'y envoyer ne sert à rien
+# et fait apparaître des URLs vides dans les rapports d'indexation, d'où ces
+# interdictions explicites.
+#
+# Ces règles ne sont PAS une mesure de sécurité : elles n'engagent que les robots
+# qui les respectent. La protection des données reste le contrôle d'accès JWT.
+
+User-agent: *
+Allow: /$
+Disallow: /dashboard
+Disallow: /platform/
+Disallow: /clients
+Disallow: /products
+Disallow: /categories
+Disallow: /orders
+Disallow: /deliveries
+Disallow: /invoices
+Disallow: /stock
+Disallow: /users
+Disallow: /settings
+Disallow: /caisse
+Disallow: /reports
+Disallow: /history
+Disallow: /profile
+
+# À réécrire avec le domaine définitif le jour d'une publication sous nom propre,
+# en même temps que l'URL canonique de index.html et celle de sitemap.xml.
+Sitemap: https://gescom-front.onrender.com/sitemap.xml
