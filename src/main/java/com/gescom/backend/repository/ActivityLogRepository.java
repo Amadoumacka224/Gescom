@@ -27,8 +27,12 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long>,
     // Filtrage combiné (utilisateur, action, entité, période, recherche) : construit en
     // Specification plutôt qu'en JPQL, car un critère absent ne participe alors pas du tout
     // à la requête — pas de « :param IS NULL » à faire avaler à Postgres sur un enum.
+    //
+    // `ownerCompany` accompagne `user` dans le graphe : le journal consolidé du back-office
+    // affiche l'entreprise d'origine à chaque ligne, et son export en tire des milliers de
+    // lignes d'un coup — chargée paresseusement, elle valait une requête par ligne.
     @Override
-    @EntityGraph(attributePaths = "user")
+    @EntityGraph(attributePaths = {"user", "ownerCompany"})
     Page<ActivityLog> findAll(Specification<ActivityLog> spec, Pageable pageable);
 
     @EntityGraph(attributePaths = "user")

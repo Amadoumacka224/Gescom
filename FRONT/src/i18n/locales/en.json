@@ -2210,7 +2210,20 @@
       "action": "Action",
       "description": "Description",
       "platformScope": "Platform",
-      "searchPlaceholder": "Search the log…"
+      "searchPlaceholder": "Search the log…",
+      "actionTypeLabel": "Action type",
+      "entityLabel": "Object",
+      "fromLabel": "From",
+      "toLabel": "To",
+      "allCompanies": "All companies",
+      "allActions": "All actions",
+      "allEntities": "All objects",
+      "scopeAll": "{{total}} entries in the log",
+      "scopeFiltered": "{{total}} entries match the filters",
+      "export": "Export to CSV",
+      "exported": "CSV export downloaded",
+      "exportFilename": "platform-activity",
+      "exportCapped": "Export limited to the {{limit}} most recent entries"
     },
     "users": {
       "title": "Users across the portfolio",

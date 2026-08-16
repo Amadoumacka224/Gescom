@@ -1,5 +1,6 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.dto.activity.ActivityFilterOptions;
 import com.gescom.backend.dto.activity.ActivityLogSummary;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.User;
@@ -9,7 +10,9 @@ import com.gescom.backend.repository.UserRepository;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,10 +60,65 @@ public class ActivityLogService {
                                               String search,
                                               Pageable pageable) {
         return activityLogRepository.findAll(
-                buildFilter(userId, actionType, entity, start, end, search), pageable);
+                buildFilter(null, false, userId, actionType, entity, start, end, search), pageable);
     }
 
-    private Specification<ActivityLog> buildFilter(Long userId,
+    /**
+     * Page du journal consolidé de tout le parc, pour le back-office.
+     *
+     * Se distingue de {@link #searchActivities} par le seul critère qui n'a de sens qu'au-dessus
+     * du cloisonnement : l'entreprise d'origine. `platformScope` isole symétriquement les lignes
+     * qui n'en ont aucune — les actions du propriétaire de la plateforme lui-même, à commencer
+     * par ses connexions.
+     */
+    @Transactional(readOnly = true)
+    public Page<ActivityLog> searchPlatformActivities(Long companyId,
+                                                      boolean platformScope,
+                                                      ActivityLog.ActionType actionType,
+                                                      String entity,
+                                                      LocalDateTime start,
+                                                      LocalDateTime end,
+                                                      String search,
+                                                      Pageable pageable) {
+        return activityLogRepository.findAll(
+                buildFilter(companyId, platformScope, null, actionType, entity, start, end, search),
+                pageable);
+    }
+
+    /**
+     * Lignes à exporter : le résultat filtré complet, et non la page affichée — un export qui
+     * n'emporte que les lignes visibles tout en s'annonçant comme le résultat filtré est le
+     * piège classique de ces écrans.
+     *
+     * Plafonné (`limit`) parce que le journal est le seul registre qui croît sans borne : sans
+     * ce garde-fou, un export sans critère matérialiserait le parc entier en mémoire. Les lignes
+     * les plus récentes sont conservées, ce sont celles que l'on vient consulter.
+     */
+    @Transactional(readOnly = true)
+    public List<ActivityLog> exportPlatformActivities(Long companyId,
+                                                      boolean platformScope,
+                                                      ActivityLog.ActionType actionType,
+                                                      String entity,
+                                                      LocalDateTime start,
+                                                      LocalDateTime end,
+                                                      String search,
+                                                      int limit) {
+        return activityLogRepository.findAll(
+                buildFilter(companyId, platformScope, null, actionType, entity, start, end, search),
+                PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
+    }
+
+    /** Valeurs réellement présentes dans le journal : un critère qui ne rend rien n'est pas proposé. */
+    @Transactional(readOnly = true)
+    public ActivityFilterOptions getFilterOptions() {
+        return new ActivityFilterOptions(
+                activityLogRepository.findDistinctActionTypes().stream().map(Enum::name).toList(),
+                activityLogRepository.findDistinctEntities());
+    }
+
+    private Specification<ActivityLog> buildFilter(Long companyId,
+                                                   boolean platformScope,
+                                                   Long userId,
                                                    ActivityLog.ActionType actionType,
                                                    String entity,
                                                    LocalDateTime start,
@@ -68,6 +126,13 @@ public class ActivityLogService {
                                                    String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            // Critère du seul back-office : le cloisonnement étant inactif pour le SUPER_ADMIN,
+            // c'est ici la seule façon de ramener le journal à une entreprise.
+            if (companyId != null) {
+                predicates.add(cb.equal(root.get("ownerCompany").get("id"), companyId));
+            } else if (platformScope) {
+                predicates.add(cb.isNull(root.get("ownerCompany")));
+            }
             if (userId != null) {
                 predicates.add(cb.equal(root.get("user").get("id"), userId));
             }

@@ -1,5 +1,6 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.activity.ActivityFilterOptions;
 import com.gescom.backend.dto.common.PageResponse;
 import com.gescom.backend.dto.platform.PlatformAccountRequest;
 import com.gescom.backend.dto.platform.PlatformActivityResponse;
@@ -16,6 +17,7 @@ import com.gescom.backend.entity.PlatformSettings;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.mapper.PlatformMapper;
 import com.gescom.backend.service.ActivityLogService;
+import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.PlatformMetricsService;
 import com.gescom.backend.service.PlatformNotificationService;
 import com.gescom.backend.service.PlatformSettingsService;
@@ -26,12 +28,19 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -48,11 +57,24 @@ import java.util.Map;
 @PreAuthorize("hasRole('SUPER_ADMIN')")
 public class PlatformOperationsController {
 
+    /**
+     * Plafond de l'export du journal. Le parc entier tient rarement dans un tableur au-dela,
+     * et surtout : rien ne borne la croissance de cette table, un export sans critere la
+     * materialiserait toute entiere en memoire.
+     */
+    private static final int ACTIVITY_EXPORT_LIMIT = 10_000;
+
+    private static final DateTimeFormatter EXPORT_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /** Colonne « entreprise » des lignes qui n'en ont pas : les actions du proprietaire. */
+    private static final String PLATFORM_SCOPE_LABEL = "Plateforme";
+
     private final PlatformMetricsService platformMetricsService;
     private final ActivityLogService activityLogService;
     private final PlatformNotificationService notificationService;
     private final PlatformSettingsService platformSettingsService;
     private final SupportTicketService supportTicketService;
+    private final CsvExportService csvExportService;
     private final PlatformMapper platformMapper;
 
     public PlatformOperationsController(PlatformMetricsService platformMetricsService,
@@ -60,12 +82,14 @@ public class PlatformOperationsController {
                                         PlatformNotificationService notificationService,
                                         PlatformSettingsService platformSettingsService,
                                         SupportTicketService supportTicketService,
+                                        CsvExportService csvExportService,
                                         PlatformMapper platformMapper) {
         this.platformMetricsService = platformMetricsService;
         this.activityLogService = activityLogService;
         this.notificationService = notificationService;
         this.platformSettingsService = platformSettingsService;
         this.supportTicketService = supportTicketService;
+        this.csvExportService = csvExportService;
         this.platformMapper = platformMapper;
     }
 
@@ -89,26 +113,97 @@ public class PlatformOperationsController {
      */
     @GetMapping("/activity")
     @Tag(name = "Plateforme - Activite", description = "Journal consolide de toutes les entreprises")
-    @Operation(summary = "Journal d'activite de toutes les entreprises")
+    @Operation(summary = "Journal d'activite de toutes les entreprises",
+               description = "Filtrable par entreprise, type d'action, entite, periode et recherche libre")
     public ResponseEntity<PageResponse<PlatformActivityResponse>> listActivity(
+            @RequestParam(required = false) Long companyId,
+            @RequestParam(defaultValue = "false") boolean platformScope,
             @RequestParam(required = false) String actionType,
             @RequestParam(required = false) String entity,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size) {
 
-        ActivityLog.ActionType parsed = actionType == null || actionType.isBlank()
-                ? null
-                : ActivityLog.ActionType.valueOf(actionType.trim().toUpperCase(Locale.ROOT));
-
         Page<PlatformActivityResponse> result = activityLogService
-                .searchActivities(null, parsed, entity, null, null, search,
+                .searchPlatformActivities(companyId, platformScope, parseActionType(actionType),
+                        entity, start, end, search,
                         PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")))
                 .map(this::toActivityResponse);
 
         return ResponseEntity.ok(new PageResponse<>(
                 result.getContent(), result.getNumber(), result.getSize(),
                 result.getTotalElements(), result.getTotalPages()));
+    }
+
+    /** Alimente les listes deroulantes de filtrage avec les seules valeurs presentes au journal. */
+    @GetMapping("/activity/filters")
+    @Tag(name = "Plateforme - Activite")
+    @Operation(summary = "Valeurs disponibles pour filtrer le journal")
+    public ResponseEntity<ActivityFilterOptions> activityFilterOptions() {
+        return ResponseEntity.ok(activityLogService.getFilterOptions());
+    }
+
+    /**
+     * Export CSV du journal filtre.
+     *
+     * L'export porte sur le resultat filtre complet et non sur la page affichee, mais reste
+     * plafonne a {@code ACTIVITY_EXPORT_LIMIT} lignes, les plus recentes : le journal du parc
+     * est le seul registre qui croit sans borne. L'assemblage revient a {@code CsvExportService},
+     * qui gere le BOM, le separateur attendu par Excel et la neutralisation des formules.
+     */
+    @GetMapping("/activity/export")
+    @Tag(name = "Plateforme - Activite")
+    @Operation(summary = "Export CSV du journal filtre",
+               description = "Memes criteres que la liste ; au plus 10 000 lignes, les plus recentes")
+    public ResponseEntity<byte[]> exportActivity(
+            @RequestParam(required = false) Long companyId,
+            @RequestParam(defaultValue = "false") boolean platformScope,
+            @RequestParam(required = false) String actionType,
+            @RequestParam(required = false) String entity,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(required = false) String search) {
+
+        List<ActivityLog> rows = activityLogService.exportPlatformActivities(
+                companyId, platformScope, parseActionType(actionType), entity, start, end, search,
+                ACTIVITY_EXPORT_LIMIT);
+
+        String[] headers = {
+            "Date", "Entreprise", "Utilisateur", "Role", "Action", "Entite", "ID entite",
+            "Description", "Adresse IP"
+        };
+
+        byte[] csv = csvExportService.exportToCsv(rows, headers, log -> {
+            User user = log.getUser();
+            Company company = log.getOwnerCompany();
+            return new String[]{
+                log.getCreatedAt() != null ? log.getCreatedAt().format(EXPORT_DATE) : "",
+                company != null ? company.getName() : PLATFORM_SCOPE_LABEL,
+                user != null ? user.getFirstName() + " " + user.getLastName() : "",
+                user != null ? user.getRole().name() : "",
+                log.getActionType().name(),
+                csvExportService.toString(log.getEntity()),
+                csvExportService.toString(log.getEntityId()),
+                csvExportService.toString(log.getDescription()),
+                csvExportService.toString(log.getIpAddress())
+            };
+        });
+
+        HttpHeaders responseHeaders = new HttpHeaders();
+        responseHeaders.setContentType(MediaType.parseMediaType("text/csv"));
+        responseHeaders.setContentDispositionFormData("attachment",
+                "activite-plateforme-" + LocalDate.now() + ".csv");
+
+        return new ResponseEntity<>(csv, responseHeaders, HttpStatus.OK);
+    }
+
+    /** Un type d'action absent ou vide ne filtre pas ; un type inconnu est un 400. */
+    private ActivityLog.ActionType parseActionType(String actionType) {
+        return actionType == null || actionType.isBlank()
+                ? null
+                : ActivityLog.ActionType.valueOf(actionType.trim().toUpperCase(Locale.ROOT));
     }
 
     private PlatformActivityResponse toActivityResponse(ActivityLog log) {

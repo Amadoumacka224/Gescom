@@ -2210,7 +2210,20 @@
       "action": "Action",
       "description": "Description",
       "platformScope": "Plateforme",
-      "searchPlaceholder": "Rechercher dans le journal…"
+      "searchPlaceholder": "Rechercher dans le journal…",
+      "actionTypeLabel": "Type d'action",
+      "entityLabel": "Objet concerné",
+      "fromLabel": "Du",
+      "toLabel": "Au",
+      "allCompanies": "Toutes les entreprises",
+      "allActions": "Toutes les actions",
+      "allEntities": "Tous les objets",
+      "scopeAll": "{{total}} entrée(s) au journal",
+      "scopeFiltered": "{{total}} entrée(s) correspondent aux critères",
+      "export": "Exporter en CSV",
+      "exported": "Export CSV téléchargé",
+      "exportFilename": "activite-plateforme",
+      "exportCapped": "Export limité aux {{limit}} entrées les plus récentes"
     },
     "users": {
       "title": "Utilisateurs du parc",

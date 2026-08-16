@@ -2210,7 +2210,20 @@
       "action": "Actie",
       "description": "Beschrijving",
       "platformScope": "Platform",
-      "searchPlaceholder": "Zoeken in het logboek…"
+      "searchPlaceholder": "Zoeken in het logboek…",
+      "actionTypeLabel": "Type actie",
+      "entityLabel": "Betrokken object",
+      "fromLabel": "Van",
+      "toLabel": "Tot",
+      "allCompanies": "Alle bedrijven",
+      "allActions": "Alle acties",
+      "allEntities": "Alle objecten",
+      "scopeAll": "{{total}} regels in het logboek",
+      "scopeFiltered": "{{total}} regels voldoen aan de criteria",
+      "export": "Exporteren naar CSV",
+      "exported": "CSV-export gedownload",
+      "exportFilename": "platformactiviteit",
+      "exportCapped": "Export beperkt tot de {{limit}} recentste regels"
     },
     "users": {
       "title": "Gebruikers van het portfolio",

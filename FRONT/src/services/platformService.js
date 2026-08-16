@@ -90,7 +90,23 @@ const platformService = {
 
   // --- Activité consolidée --------------------------------------------------
 
+  /**
+   * Page du journal du parc. `params` accepte companyId, platformScope, actionType, entity,
+   * start, end et search — tous optionnels et cumulables. Le filtrage est fait en base : sur
+   * une liste paginée, filtrer les lignes reçues ne porterait que sur la page affichée.
+   */
   getActivity: (params = {}) => axios.get('/platform/activity', { params }),
+
+  /** Valeurs présentes au journal (types d'action, entités), pour les listes de filtres. */
+  getActivityFilters: () => axios.get('/platform/activity/filters'),
+
+  /**
+   * Export CSV du résultat filtré complet, assemblé par le serveur — réponse binaire, d'où
+   * `responseType: 'blob'`. Passer les mêmes critères que `getActivity` : c'est le périmètre
+   * affiché qui est exporté, pas la seule page visible.
+   */
+  exportActivity: (params = {}) =>
+    axios.get('/platform/activity/export', { params, responseType: 'blob' }),
 
   // --- Support --------------------------------------------------------------
 
