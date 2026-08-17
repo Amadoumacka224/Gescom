@@ -10,6 +10,9 @@ import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.InsufficientStockException;
 import com.gescom.backend.exception.ResourceNotFoundException;
+import com.gescom.backend.dto.order.OrderFilterOptions;
+import com.gescom.backend.dto.order.OrderSearchCriteria;
+import com.gescom.backend.dto.order.OrderSummary;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.ProductRepository;
@@ -18,8 +21,19 @@ import com.gescom.backend.repository.StockReturnRepository;
 import com.gescom.backend.repository.UserRepository;
 import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.security.OwnershipViolationException;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -28,8 +42,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Service métier des commandes : création, modification, transitions de statut et annulation.
@@ -181,6 +200,255 @@ public class OrderService {
         // Chargement en une requête (client, créateur, lignes, produits) pour éviter le N+1
         // au mapping des listes et lors des agrégats du tableau de bord.
         return orderRepository.findAllWithDetails(cashierScope.restrictedUserId());
+    }
+
+    /**
+     * Page de commandes, filtrée et triée en base, chaque ligne entièrement chargée.
+     *
+     * <h2>Pourquoi deux requêtes</h2>
+     *
+     * Une seule ne suffit pas, et ce n'est pas un détail d'optimisation. La liste a besoin des
+     * ARTICLES de chaque commande (le tableau en affiche le décompte, la recherche libre porte
+     * sur leurs libellés) ; les charger demande un {@code JOIN FETCH} sur une collection. Or
+     * une requête qui embarque un tel fetch ne peut pas être paginée par la base : la jointure
+     * multiplie les lignes, un {@code LIMIT 50} couperait une commande au milieu de ses
+     * articles. Hibernate le sait, rapatrie TOUT et pagine en mémoire — en le signalant par
+     * l'avertissement {@code HHH90003004}. On aurait alors la même consommation qu'avant, plus
+     * le coût de la découpe : une pagination purement décorative.
+     *
+     * Le premier temps sélectionne donc les commandes SANS leurs articles : pas de collection
+     * jointe, donc un vrai {@code LIMIT/OFFSET} et un {@code COUNT} exact. Le second recharge
+     * le détail des seules commandes retenues.
+     *
+     * <h2>Le montant filtré n'est pas une colonne</h2>
+     *
+     * L'écran affiche et filtre un montant TTC qui n'existe nulle part en base : facturée, la
+     * commande vaut le total de sa facture (TVA et remise arrêtées à l'émission) ; pas encore
+     * facturée, ce montant n'existe pas et l'écran l'estime au taux des réglages. La même règle
+     * est reproduite ici en SQL, faute de quoi une fourchette exclurait des lignes dont le
+     * chiffre affiché est pourtant dans l'intervalle — ce qui se lit comme une panne.
+     */
+    @Transactional(readOnly = true)
+    public Page<Order> searchOrders(OrderSearchCriteria criteria, BigDecimal taxRate, Pageable pageable) {
+        Page<Order> idPage = orderRepository.findAll(buildFilter(criteria, taxRate), pageable);
+        List<Long> ids = idPage.getContent().stream().map(Order::getId).toList();
+        if (ids.isEmpty()) {
+            return idPage;
+        }
+
+        // Réordonnancement selon la page demandée : `IN (...)` ne garantit aucun ordre, et
+        // laisser la base décider ferait sauter les lignes d'une page à l'autre au rafraîchissement.
+        Map<Long, Order> byId = orderRepository.findAllWithDetailsByIds(ids).stream()
+                .collect(Collectors.toMap(Order::getId, o -> o));
+        List<Order> ordered = ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+
+        return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
+    }
+
+    /** Décompte par statut sur le périmètre de l'appelant — voir {@link OrderSummary}. */
+    @Transactional(readOnly = true)
+    public OrderSummary getSummary() {
+        OrderRepository.OrderSummaryView v = orderRepository.summaryFor(
+                cashierScope.restrictedUserId(),
+                Order.OrderStatus.PENDING, Order.OrderStatus.CONFIRMED, Order.OrderStatus.INVOICED,
+                Order.OrderStatus.DELIVERED, Order.OrderStatus.CANCELED);
+        return new OrderSummary(v.getTotal(), v.getPending(), v.getConfirmed(),
+                v.getInvoiced(), v.getDelivered(), v.getCanceled());
+    }
+
+    /** Opérateurs et villes proposés par les filtres — voir {@link OrderFilterOptions}. */
+    @Transactional(readOnly = true)
+    public OrderFilterOptions getFilterOptions() {
+        Long restrictedUserId = cashierScope.restrictedUserId();
+        List<OrderFilterOptions.Operator> operators = orderRepository.findDistinctOperators(restrictedUserId)
+                .stream()
+                .map(v -> new OrderFilterOptions.Operator(v.getId(), operatorLabel(v)))
+                .toList();
+        return new OrderFilterOptions(operators, orderRepository.findDistinctClientCities(restrictedUserId));
+    }
+
+    /** « Prénom Nom », à défaut le nom de connexion — la règle qu'appliquait l'écran. */
+    private String operatorLabel(OrderRepository.OperatorView v) {
+        String composed = java.util.stream.Stream.of(v.getFirstName(), v.getLastName())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(Collectors.joining(" "));
+        return composed.isBlank() ? v.getUsername() : composed;
+    }
+
+    private Specification<Order> buildFilter(OrderSearchCriteria c, BigDecimal taxRate) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Cloisonnement caissier, posé ici comme dans findAllWithDetails : il doit être
+            // évalué EN BASE, sinon la page renvoyée serait celle de toute l'entreprise, filtrée
+            // ensuite — un caissier verrait des pages à moitié vides et un total faux.
+            Long restrictedUserId = cashierScope.restrictedUserId();
+            if (restrictedUserId != null) {
+                predicates.add(cb.equal(root.get("createdBy").get("id"), restrictedUserId));
+            }
+
+            if (c.status() != null) {
+                predicates.add(cb.equal(root.get("status"), c.status()));
+            }
+            if (c.clientId() != null) {
+                predicates.add(cb.equal(root.get("client").get("id"), c.clientId()));
+            }
+            if (c.clientType() != null) {
+                predicates.add(cb.equal(root.get("client").get("type"), c.clientType()));
+            }
+            if (c.city() != null && !c.city().isBlank()) {
+                predicates.add(cb.equal(root.get("client").get("city"), c.city()));
+            }
+            if (c.createdById() != null) {
+                predicates.add(cb.equal(root.get("createdBy").get("id"), c.createdById()));
+            }
+            if (c.dateFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), c.dateFrom().atStartOfDay()));
+            }
+            if (c.dateTo() != null) {
+                // Borne haute exclusive au lendemain minuit : createdAt est un horodatage, une
+                // commande passée à 14 h le jour de fin serait sinon écartée.
+                predicates.add(cb.lessThan(root.get("createdAt"), c.dateTo().plusDays(1).atStartOfDay()));
+            }
+            if (c.onlyDiscounted()) {
+                predicates.add(cb.greaterThan(cb.coalesce(root.get("discount"), BigDecimal.ZERO), BigDecimal.ZERO));
+            }
+            if (c.notes() != null && !c.notes().isBlank()) {
+                predicates.add(cb.like(cb.lower(cb.coalesce(root.get("notes"), "")),
+                        "%" + c.notes().toLowerCase().trim() + "%"));
+            }
+
+            // Article ou famille commandés : sous-requête EXISTS plutôt qu'une jointure, qui
+            // dupliquerait la commande autant de fois qu'elle a de lignes correspondantes et
+            // fausserait le COUNT de la pagination.
+            if (c.productId() != null) {
+                predicates.add(existsItem(root, query, cb, item ->
+                        cb.equal(item.get("product").get("id"), c.productId())));
+            }
+            if (c.categoryId() != null) {
+                predicates.add(existsItem(root, query, cb, item ->
+                        cb.equal(item.get("product").get("category").get("id"), c.categoryId())));
+            }
+
+            addPaymentPredicate(c, root, query, cb, predicates);
+            addAmountPredicate(c, root, query, cb, taxRate, predicates);
+            addFullTextPredicate(c, root, query, cb, predicates);
+
+            return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /** {@code EXISTS (SELECT 1 FROM OrderItem i WHERE i.order = o AND <condition>)}. */
+    private Predicate existsItem(Root<Order> root, CriteriaQuery<?> query, CriteriaBuilder cb,
+                                 Function<Root<OrderItem>, Predicate> condition) {
+        Subquery<Integer> sub = query.subquery(Integer.class);
+        Root<OrderItem> item = sub.from(OrderItem.class);
+        sub.select(cb.literal(1))
+           .where(cb.and(cb.equal(item.get("order"), root), condition.apply(item)));
+        return cb.exists(sub);
+    }
+
+    /**
+     * Statut de la facture liée.
+     *
+     * « Pas encore facturée » est l'ABSENCE de facture vivante, pas un statut : une commande
+     * dont la facture a été annulée y retombe, exactement comme le fait l'écran.
+     */
+    private void addPaymentPredicate(OrderSearchCriteria c, Root<Order> root, CriteriaQuery<?> query,
+                                     CriteriaBuilder cb, List<Predicate> predicates) {
+        if (c.notInvoiced()) {
+            predicates.add(cb.not(existsLiveInvoice(root, query, cb, null)));
+        } else if (c.payment() != null) {
+            predicates.add(existsLiveInvoice(root, query, cb, c.payment()));
+        }
+    }
+
+    /**
+     * {@code EXISTS} d'une facture non annulée sur la commande, éventuellement d'un statut donné.
+     * Une facture annulée ne compte jamais : elle est sortie des livres.
+     */
+    private Predicate existsLiveInvoice(Root<Order> root, CriteriaQuery<?> query, CriteriaBuilder cb,
+                                        Invoice.InvoiceStatus status) {
+        Subquery<Integer> sub = query.subquery(Integer.class);
+        Root<Invoice> invoice = sub.from(Invoice.class);
+        List<Predicate> conditions = new ArrayList<>();
+        conditions.add(cb.equal(invoice.get("order"), root));
+        conditions.add(cb.notEqual(invoice.get("status"), Invoice.InvoiceStatus.CANCELED));
+        if (status != null) {
+            conditions.add(cb.equal(invoice.get("status"), status));
+        }
+        sub.select(cb.literal(1)).where(cb.and(conditions.toArray(new Predicate[0])));
+        return cb.exists(sub);
+    }
+
+    /**
+     * Fourchette sur le montant TTC affiché, reconstruit en SQL selon la règle de l'écran :
+     * total de la facture vivante s'il en existe une, sinon net HT majoré du taux des réglages.
+     */
+    private void addAmountPredicate(OrderSearchCriteria c, Root<Order> root, CriteriaQuery<?> query,
+                                    CriteriaBuilder cb, BigDecimal taxRate, List<Predicate> predicates) {
+        if (c.amountMin() == null && c.amountMax() == null) {
+            return;
+        }
+        Subquery<BigDecimal> billed = query.subquery(BigDecimal.class);
+        Root<Invoice> invoice = billed.from(Invoice.class);
+        billed.select(invoice.get("totalAmount"))
+              .where(cb.and(
+                      cb.equal(invoice.get("order"), root),
+                      cb.notEqual(invoice.get("status"), Invoice.InvoiceStatus.CANCELED)));
+
+        BigDecimal multiplier = BigDecimal.ONE.add(
+                (taxRate == null ? BigDecimal.ZERO : taxRate).divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP));
+        Expression<BigDecimal> estimated = cb.prod(
+                cb.coalesce(root.get("finalAmount"), BigDecimal.ZERO), multiplier);
+        Expression<BigDecimal> payable = cb.coalesce(billed, estimated);
+
+        if (c.amountMin() != null) {
+            predicates.add(cb.greaterThanOrEqualTo(payable, c.amountMin()));
+        }
+        if (c.amountMax() != null) {
+            predicates.add(cb.lessThanOrEqualTo(payable, c.amountMax()));
+        }
+    }
+
+    /**
+     * Recherche libre. Un seul champ interroge le numéro, le client sous toutes ses formes,
+     * l'opérateur, les notes et les articles commandés — c'est ce qui permet de retrouver une
+     * vente à partir de ce dont on se souvient, sans savoir dans quel champ chercher.
+     */
+    private void addFullTextPredicate(OrderSearchCriteria c, Root<Order> root, CriteriaQuery<?> query,
+                                      CriteriaBuilder cb, List<Predicate> predicates) {
+        if (c.q() == null || c.q().isBlank()) {
+            return;
+        }
+        String pattern = "%" + c.q().toLowerCase().trim() + "%";
+        Path<Object> client = root.get("client");
+        Path<Object> createdBy = root.get("createdBy");
+
+        Predicate onOrder = cb.or(
+                like(cb, root.get("orderNumber"), pattern),
+                like(cb, root.get("notes"), pattern),
+                like(cb, client.get("firstName"), pattern),
+                like(cb, client.get("lastName"), pattern),
+                like(cb, client.get("email"), pattern),
+                like(cb, client.get("phone"), pattern),
+                like(cb, client.get("company"), pattern),
+                like(cb, client.get("city"), pattern),
+                like(cb, createdBy.get("username"), pattern),
+                like(cb, createdBy.get("firstName"), pattern),
+                like(cb, createdBy.get("lastName"), pattern));
+
+        Predicate onItems = existsItem(root, query, cb, item -> cb.or(
+                like(cb, item.get("product").get("name"), pattern),
+                like(cb, item.get("product").get("code"), pattern),
+                like(cb, item.get("product").get("barcode"), pattern)));
+
+        predicates.add(cb.or(onOrder, onItems));
+    }
+
+    /** COALESCE avant LOWER : une colonne nulle ferait échouer la comparaison au lieu de la rendre fausse. */
+    private Predicate like(CriteriaBuilder cb, Path<?> path, String pattern) {
+        return cb.like(cb.lower(cb.coalesce(path.as(String.class), "")), pattern);
     }
 
     /**

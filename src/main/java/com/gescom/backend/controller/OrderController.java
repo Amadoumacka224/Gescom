@@ -1,9 +1,14 @@
 package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.order.OrderCreateRequest;
+import com.gescom.backend.dto.common.PageResponse;
+import com.gescom.backend.dto.order.OrderFilterOptions;
+import com.gescom.backend.dto.order.OrderSearchCriteria;
 import com.gescom.backend.dto.order.OrderResponse;
+import com.gescom.backend.dto.order.OrderSummary;
 import com.gescom.backend.dto.order.OrderStatusUpdateRequest;
 import com.gescom.backend.dto.order.OrderUpdateRequest;
+import com.gescom.backend.entity.Client;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.BusinessException;
@@ -12,7 +17,12 @@ import com.gescom.backend.mapper.SalesMapper;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.InvoiceService;
 import com.gescom.backend.service.OrderService;
+import com.gescom.backend.service.SettingsService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -21,6 +31,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -37,17 +49,29 @@ public class OrderController {
     private final CsvExportService csvExportService;
     private final SalesMapper salesMapper;
     private final InvoiceService invoiceService;
+    // Uniquement pour le taux de TVA du filtre par montant : la fourchette porte sur un TTC
+    // que la base ne stocke pas, et que le serveur doit donc reconstruire comme l'écran.
+    private final SettingsService settingsService;
 
     public OrderController(OrderService orderService,
                            CsvExportService csvExportService,
                            SalesMapper salesMapper,
-                           InvoiceService invoiceService) {
+                           InvoiceService invoiceService,
+                           SettingsService settingsService) {
         this.orderService = orderService;
         this.csvExportService = csvExportService;
         this.salesMapper = salesMapper;
         this.invoiceService = invoiceService;
+        this.settingsService = settingsService;
     }
 
+    /**
+     * Toutes les commandes du périmètre, sans pagination.
+     *
+     * Conservé pour les écrans qui s'en servent de référentiel — la préparation d'une livraison
+     * a besoin des commandes facturées, le module de retour part d'une vente existante. Le
+     * tableau de l'écran Commandes, lui, passe par {@link #searchOrders}.
+     */
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAllOrders() {
         List<Order> orders = orderService.getAllOrders();
@@ -57,6 +81,64 @@ public class OrderController {
                 orders.stream().map(Order::getId).toList());
         return ResponseEntity.ok(orders.stream()
                 .map(o -> salesMapper.toResponse(o, invoices.get(o.getId()))).toList());
+    }
+
+    /**
+     * Page de commandes, filtrée et triée en base.
+     *
+     * Le taux de TVA vient des réglages et non de l'appelant : il sert à reconstruire le montant
+     * TTC sur lequel porte la fourchette (voir {@code OrderService.searchOrders}). Le laisser
+     * choisir au client permettrait de faire dire à la fourchette autre chose que ce que
+     * l'écran affiche.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<PageResponse<OrderResponse>> searchOrders(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Order.OrderStatus status,
+            @RequestParam(required = false) Invoice.InvoiceStatus payment,
+            @RequestParam(defaultValue = "false") boolean notInvoiced,
+            @RequestParam(required = false) Long clientId,
+            @RequestParam(required = false) Client.ClientType clientType,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) Long productId,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long createdById,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @RequestParam(required = false) BigDecimal amountMin,
+            @RequestParam(required = false) BigDecimal amountMax,
+            @RequestParam(required = false) String notes,
+            @RequestParam(defaultValue = "false") boolean onlyDiscounted,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        OrderSearchCriteria criteria = new OrderSearchCriteria(
+                q, status, payment, notInvoiced, clientId, clientType, city, productId, categoryId,
+                createdById, dateFrom, dateTo, amountMin, amountMax, notes, onlyDiscounted);
+
+        BigDecimal taxRate = BigDecimal.valueOf(
+                settingsService.getSettings().getTaxRate() == null ? 0d
+                        : settingsService.getSettings().getTaxRate());
+
+        Page<Order> page = orderService.searchOrders(criteria, taxRate, pageable);
+        // Même enrichissement que la liste complète : la facture liée porte le « Payée » de la
+        // ligne et le montant TTC. Une seule requête groupée, sur la page seulement.
+        Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
+                page.getContent().stream().map(Order::getId).toList());
+
+        return ResponseEntity.ok(PageResponse.of(page,
+                o -> salesMapper.toResponse(o, invoices.get(o.getId()))));
+    }
+
+    /** Décompte par statut des tuiles : il porte sur tout le périmètre, pas sur la page. */
+    @GetMapping("/summary")
+    public ResponseEntity<OrderSummary> getSummary() {
+        return ResponseEntity.ok(orderService.getSummary());
+    }
+
+    /** Opérateurs et villes proposés par les filtres — voir {@link OrderFilterOptions}. */
+    @GetMapping("/filter-options")
+    public ResponseEntity<OrderFilterOptions> getFilterOptions() {
+        return ResponseEntity.ok(orderService.getFilterOptions());
     }
 
     @GetMapping("/{id}")
