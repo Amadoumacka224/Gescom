@@ -1,5 +1,6 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.entity.OrderItem;
 import com.gescom.backend.entity.Product;
@@ -58,7 +59,8 @@ class OrderServiceCancellationTest {
     @BeforeEach
     void setUp() {
         service = new OrderService(orderRepository, productRepository, userRepository,
-                stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService);
+                stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
+                new CashierScope());
 
         product = new Product();
         product.setId(7L);

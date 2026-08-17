@@ -16,6 +16,8 @@ import com.gescom.backend.repository.ProductRepository;
 import com.gescom.backend.repository.StockMovementRepository;
 import com.gescom.backend.repository.StockReturnRepository;
 import com.gescom.backend.repository.UserRepository;
+import com.gescom.backend.security.CashierScope;
+import com.gescom.backend.security.OwnershipViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -48,11 +50,12 @@ public class OrderService {
     private final InvoiceRepository invoiceRepository;
     private final StockReturnRepository stockReturnRepository;
     private final ActivityLogService activityLogService;
+    private final CashierScope cashierScope;
 
     public OrderService(OrderRepository orderRepository, ProductRepository productRepository,
                         UserRepository userRepository, StockMovementRepository stockMovementRepository,
                         InvoiceRepository invoiceRepository, StockReturnRepository stockReturnRepository,
-                        ActivityLogService activityLogService) {
+                        ActivityLogService activityLogService, CashierScope cashierScope) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
@@ -60,6 +63,7 @@ public class OrderService {
         this.invoiceRepository = invoiceRepository;
         this.stockReturnRepository = stockReturnRepository;
         this.activityLogService = activityLogService;
+        this.cashierScope = cashierScope;
     }
 
     /**
@@ -167,41 +171,60 @@ public class OrderService {
         productRepository.save(lockedProduct);
     }
 
+    /**
+     * Toutes les commandes du périmètre de l'appelant : l'entreprise entière pour un ADMIN,
+     * ses seules ventes pour un caissier ({@link CashierScope#restrictedUserId()} vaut null
+     * dans le premier cas et désactive alors le filtre).
+     */
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         // Chargement en une requête (client, créateur, lignes, produits) pour éviter le N+1
         // au mapping des listes et lors des agrégats du tableau de bord.
-        return orderRepository.findAllWithDetails();
+        return orderRepository.findAllWithDetails(cashierScope.restrictedUserId());
     }
 
+    /**
+     * Lecture unitaire. Hors périmètre, la commande est rendue absente plutôt que refusée :
+     * un caissier ne doit pas pouvoir déduire, par la différence entre 403 et 404, l'existence
+     * ni le volume des ventes de ses collègues.
+     */
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
-        return orderRepository.findById(id);
+        return cashierScope.filterReadable(orderRepository.findById(id), o -> o);
     }
 
     @Transactional(readOnly = true)
     public Optional<Order> getOrderByOrderNumber(String orderNumber) {
-        return orderRepository.findByOrderNumber(orderNumber);
+        return cashierScope.filterReadable(orderRepository.findByOrderNumber(orderNumber), o -> o);
     }
 
     @Transactional(readOnly = true)
     public List<Order> getOrdersByClient(Long clientId) {
-        return orderRepository.findByClientId(clientId);
+        return orderRepository.findByClientId(clientId, cashierScope.restrictedUserId());
     }
 
+    /**
+     * Ventes d'un opérateur donné. L'accès à un autre opérateur que soi-même est barré en
+     * amont, par le {@code @PreAuthorize} du contrôleur ; la garde est répétée ici pour que
+     * la méthode reste sûre quel que soit son appelant.
+     */
     @Transactional(readOnly = true)
     public List<Order> getOrdersByUser(Long userId) {
+        Long restricted = cashierScope.restrictedUserId();
+        if (restricted != null && !restricted.equals(userId)) {
+            throw new OwnershipViolationException();
+        }
         return orderRepository.findByCreatedById(userId);
     }
 
     @Transactional(readOnly = true)
     public List<Order> getOrdersByStatus(Order.OrderStatus status) {
-        return orderRepository.findByStatus(status);
+        return orderRepository.findByStatus(status, cashierScope.restrictedUserId());
     }
 
     @Transactional(readOnly = true)
     public List<Order> getOrdersByDateRange(LocalDateTime start, LocalDateTime end) {
-        return orderRepository.findByCreatedAtBetween(start, end);
+        return orderRepository.findByCreatedAtBetween(start, end, cashierScope.restrictedUserId());
     }
 
     /**
@@ -257,6 +280,7 @@ public class OrderService {
     public Order confirmOrder(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order", id));
+        cashierScope.requireAccess(order);
 
         if (order.getStatus() != Order.OrderStatus.PENDING) {
             throw BusinessException.of("order.confirm.onlyPending",
@@ -295,6 +319,7 @@ public class OrderService {
     public Order updateOrder(Long id, Order updatedOrder) {
         Order existingOrder = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order", id));
+        cashierScope.requireAccess(existingOrder);
 
         if (existingOrder.getStatus() != Order.OrderStatus.PENDING) {
             throw BusinessException.of("order.update.onlyPending",
@@ -390,6 +415,7 @@ public class OrderService {
     public void cancelOrder(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order", id));
+        cashierScope.requireAccess(order);
 
         if (!order.getStatus().canTransitionTo(Order.OrderStatus.CANCELED)) {
             throw BusinessException.of("order.cancel.notAllowed",
@@ -429,6 +455,7 @@ public class OrderService {
     public void deleteOrder(Long id) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("order", id));
+        cashierScope.requireAccess(order);
 
         requireNoReturns(order, "order.delete.returnAttached",
                 "Un retour client est rattaché à la commande " + order.getOrderNumber()

@@ -10,6 +10,7 @@ import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.PaymentRepository;
+import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.service.stripe.StripeGateway;
 import com.gescom.backend.service.stripe.StripeIntent;
 import org.slf4j.Logger;
@@ -60,29 +61,67 @@ public class PaymentService {
     private final ActivityLogService activityLogService;
     private final StripeGateway stripeGateway;
     private final StripeProperties stripeProperties;
+    private final CashierScope cashierScope;
 
     public PaymentService(PaymentRepository paymentRepository, InvoiceRepository invoiceRepository,
                           InvoiceService invoiceService, ActivityLogService activityLogService,
-                          StripeGateway stripeGateway, StripeProperties stripeProperties) {
+                          StripeGateway stripeGateway, StripeProperties stripeProperties,
+                          CashierScope cashierScope) {
         this.paymentRepository = paymentRepository;
         this.invoiceRepository = invoiceRepository;
         this.invoiceService = invoiceService;
         this.activityLogService = activityLogService;
         this.stripeGateway = stripeGateway;
         this.stripeProperties = stripeProperties;
+        this.cashierScope = cashierScope;
     }
 
     // ── Lecture ──────────────────────────────────────────────────────────────
 
+    /**
+     * Session de paiement, cloisonnée sur le caissier qui a saisi la vente d'origine
+     * (payment → facture → commande).
+     *
+     * Hors périmètre, la session est traitée comme inexistante plutôt que refusée : contrairement
+     * à une commande ou une facture, son identifiant n'est qu'une poignée interne que l'interface
+     * n'expose jamais entre opérateurs — il n'y a donc rien à confirmer à qui la devinerait.
+     */
     @Transactional(readOnly = true)
     public Payment getPayment(Long id) {
-        return paymentRepository.findById(id)
+        return cashierScope.filterReadable(
+                        paymentRepository.findById(id), p -> p.getInvoice().getOrder())
                 .orElseThrow(() -> new ResourceNotFoundException("payment", id));
     }
 
+    /**
+     * Historique des tentatives d'une facture. La facture est relue au préalable pour que
+     * l'historique d'un collègue ne puisse pas être obtenu en donnant simplement son
+     * identifiant — le cloisonnement ne porterait sinon que sur la facture elle-même.
+     *
+     * Hors périmètre, la facture est traitée comme inexistante : un 403 confirmerait à qui
+     * balaierait les identifiants lesquels correspondent aux ventes de ses collègues.
+     */
     @Transactional(readOnly = true)
     public List<Payment> getPaymentsByInvoice(Long invoiceId) {
+        cashierScope.filterReadable(invoiceRepository.findById(invoiceId), Invoice::getOrder)
+                .orElseThrow(() -> new ResourceNotFoundException("invoice", invoiceId));
         return paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(invoiceId);
+    }
+
+    /**
+     * Session à modifier. La réponse reste celle de la lecture — hors périmètre, la session est
+     * inexistante — mais la tentative, elle, est tracée : l'interface ne mène jamais à la session
+     * d'un collègue, un tel appel traduit une requête forgée ou une régression.
+     */
+    private Payment getPaymentForWrite(Long id) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("payment", id));
+        if (!cashierScope.canAccess(payment)) {
+            log.warn("Caissier {} : tentative d'écriture sur le paiement {} d'un autre opérateur",
+                    cashierScope.restrictedUserId(), payment.getIntentId());
+            throw new ResourceNotFoundException("payment", id);
+        }
+        return payment;
     }
 
     // ── 1. Création de l'intention ───────────────────────────────────────────
@@ -95,6 +134,9 @@ public class PaymentService {
     public Payment createIntent(Long invoiceId, BigDecimal requestedAmount) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("invoice", invoiceId));
+        // On n'encaisse que ses propres ventes : ouvrir une session sur la facture d'un collègue
+        // porterait son encaissement au crédit d'une autre caisse.
+        cashierScope.requireAccess(invoice);
 
         // Mêmes gardes que l'encaissement manuel — autant refuser avant d'appeler Stripe
         // qu'après avoir créé une intention qu'on ne pourra pas honorer.
@@ -145,7 +187,7 @@ public class PaymentService {
      * enregistre l'encaissement sur la facture.
      */
     public Payment confirmIntent(Long paymentId, String paymentMethodId) {
-        Payment payment = getPayment(paymentId);
+        Payment payment = getPaymentForWrite(paymentId);
 
         if (payment.getStatus() != Payment.PaymentStatus.REQUIRES_CONFIRMATION) {
             throw new BusinessException("Ce paiement n'est plus en attente de confirmation (statut actuel : "
@@ -212,7 +254,7 @@ public class PaymentService {
     // ── Abandon ──────────────────────────────────────────────────────────────
 
     public Payment cancelIntent(Long paymentId) {
-        Payment payment = getPayment(paymentId);
+        Payment payment = getPaymentForWrite(paymentId);
 
         if (payment.getStatus() != Payment.PaymentStatus.REQUIRES_CONFIRMATION) {
             throw BusinessException.of("payment.cancel.onlyPending",

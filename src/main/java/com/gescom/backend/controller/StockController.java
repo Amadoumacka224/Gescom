@@ -61,7 +61,14 @@ public class StockController {
 
     // Le grand livre des mouvements est append-only : ses listes sont paginées, contrairement
     // à /export qui doit rester exhaustif.
+    //
+    // Sa consultation est réservée aux ADMIN, au même titre que les écritures plus bas. Un
+    // mouvement porte le numéro de la commande qui l'a produit en référence : ouvert au
+    // CAISSIER, le registre lui donnerait le détail des ventes de tous ses collègues, article
+    // par article — exactement ce que le cloisonnement des commandes interdit par ailleurs.
+    // C'est aussi ce que fait déjà le frontend, où /stock est un écran d'administrateur.
     @GetMapping("/movements")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<StockMovementResponse>> getAllMovements(
             @RequestParam(required = false) StockMovement.MovementType type,
             @RequestParam(required = false) Long productId,
@@ -75,6 +82,7 @@ public class StockController {
     }
 
     @GetMapping("/movements/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockMovementResponse> getMovementById(@PathVariable Long id) {
         return stockService.getMovementById(id)
                 .map(stockMapper::toResponse)
@@ -83,6 +91,7 @@ public class StockController {
     }
 
     @GetMapping("/movements/product/{productId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<StockMovementResponse>> getMovementsByProduct(
             @PathVariable Long productId,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -91,6 +100,7 @@ public class StockController {
     }
 
     @GetMapping("/movements/type/{type}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<StockMovementResponse>> getMovementsByType(
             @PathVariable StockMovement.MovementType type,
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -99,6 +109,7 @@ public class StockController {
     }
 
     @GetMapping("/movements/date-range")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<StockMovementResponse>> getMovementsByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,

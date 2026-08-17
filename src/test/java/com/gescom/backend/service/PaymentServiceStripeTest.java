@@ -1,5 +1,6 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.config.StripeProperties;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
@@ -51,14 +52,14 @@ class PaymentServiceStripeTest {
     @BeforeEach
     void setUp() {
         InvoiceService invoiceService = new InvoiceService(
-                invoiceRepository, orderRepository, activityLogService, orderService);
+                invoiceRepository, orderRepository, activityLogService, orderService, new CashierScope());
 
         StripeProperties properties = new StripeProperties();
         properties.setMode("simulated");
         properties.setCurrency("eur");
 
         paymentService = new PaymentService(paymentRepository, invoiceRepository, invoiceService,
-                activityLogService, new SimulatedStripeGateway(), properties);
+                activityLogService, new SimulatedStripeGateway(), properties, new CashierScope());
 
         invoice = unpaidInvoiceOf100();
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));

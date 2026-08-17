@@ -313,19 +313,24 @@ const OrderFilters = ({
               </select>
             </Field>
 
-            <Field label={t('orders.filters.createdByLabel')} htmlFor="f-user">
-              <select
-                id="f-user"
-                value={filters.createdById}
-                onChange={(e) => onChange('createdById', e.target.value)}
-                className={selectClass}
-              >
-                <option value="">{t('orders.filters.allUsers')}</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.label}</option>
-                ))}
-              </select>
-            </Field>
+            {/* Filtre « créée par » : n'a de sens que si la liste couvre plusieurs opérateurs.
+                Un caissier ne voit que ses propres ventes — le serveur les cloisonne — donc
+                cette liste se réduit à lui seul et le filtre n'écarterait jamais rien. */}
+            {users.length > 1 && (
+              <Field label={t('orders.filters.createdByLabel')} htmlFor="f-user">
+                <select
+                  id="f-user"
+                  value={filters.createdById}
+                  onChange={(e) => onChange('createdById', e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">{t('orders.filters.allUsers')}</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.label}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
 
             <Field label={t('orders.filters.cityLabel')} htmlFor="f-city">
               <select

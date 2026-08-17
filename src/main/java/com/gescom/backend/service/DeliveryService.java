@@ -10,6 +10,7 @@ import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.DeliveryRepository;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
+import com.gescom.backend.security.CashierScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -38,15 +39,17 @@ public class DeliveryService {
     private final InvoiceRepository invoiceRepository;
     private final OrderService orderService;
     private final ActivityLogService activityLogService;
+    private final CashierScope cashierScope;
 
     public DeliveryService(DeliveryRepository deliveryRepository, OrderRepository orderRepository,
                            InvoiceRepository invoiceRepository, OrderService orderService,
-                           ActivityLogService activityLogService) {
+                           ActivityLogService activityLogService, CashierScope cashierScope) {
         this.deliveryRepository = deliveryRepository;
         this.orderRepository = orderRepository;
         this.invoiceRepository = invoiceRepository;
         this.orderService = orderService;
         this.activityLogService = activityLogService;
+        this.cashierScope = cashierScope;
     }
 
     private Long getCurrentUserId() {
@@ -72,37 +75,44 @@ public class DeliveryService {
     public List<Delivery> getAllDeliveries() {
         // Chargement de la commande associée (client, créateur, lignes, produits) en une requête
         // pour éviter le N+1 au mapping (chaque DeliveryResponse embarque un OrderResponse complet).
-        return deliveryRepository.findAllWithDetails();
+        return deliveryRepository.findAllWithDetails(cashierScope.restrictedUserId());
     }
 
+    /**
+     * Lecture unitaire. Hors périmètre du caissier, la livraison est rendue absente (404) plutôt
+     * que refusée — même règle que pour la vente dont elle découle.
+     */
     @Transactional(readOnly = true)
     public Optional<Delivery> getDeliveryById(Long id) {
-        return deliveryRepository.findById(id);
+        return cashierScope.filterReadable(deliveryRepository.findById(id), Delivery::getOrder);
     }
 
     @Transactional(readOnly = true)
     public Optional<Delivery> getDeliveryByDeliveryNumber(String deliveryNumber) {
-        return deliveryRepository.findByDeliveryNumber(deliveryNumber);
+        return cashierScope.filterReadable(
+                deliveryRepository.findByDeliveryNumber(deliveryNumber), Delivery::getOrder);
     }
 
     @Transactional(readOnly = true)
     public Optional<Delivery> getDeliveryByOrder(Long orderId) {
-        return deliveryRepository.findByOrderId(orderId);
+        return cashierScope.filterReadable(deliveryRepository.findByOrderId(orderId), Delivery::getOrder);
     }
 
     @Transactional(readOnly = true)
     public List<Delivery> getDeliveriesByStatus(Delivery.DeliveryStatus status) {
-        return deliveryRepository.findByStatus(status);
+        return deliveryRepository.findByStatus(status, cashierScope.restrictedUserId());
     }
 
     @Transactional(readOnly = true)
     public List<Delivery> getDeliveriesByDateRange(LocalDateTime start, LocalDateTime end) {
-        return deliveryRepository.findByScheduledDateBetween(start, end);
+        return deliveryRepository.findByScheduledDateBetween(start, end, cashierScope.restrictedUserId());
     }
 
     public Delivery createDelivery(Delivery delivery) {
         Order order = orderRepository.findById(delivery.getOrder().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("order", delivery.getOrder().getId()));
+        // On ne planifie une livraison que sur ses propres ventes.
+        cashierScope.requireAccess(order);
 
         // Pré-requis métier : la livraison ne peut être créée qu'après la facturation.
         if (order.getStatus() != Order.OrderStatus.INVOICED) {
@@ -169,6 +179,7 @@ public class DeliveryService {
     public Delivery updateDelivery(Long id, Delivery updatedDelivery) {
         Delivery existingDelivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
+        cashierScope.requireAccess(existingDelivery);
 
         Delivery.DeliveryStatus current = existingDelivery.getStatus();
         Delivery.DeliveryStatus target = updatedDelivery.getStatus();
@@ -203,6 +214,7 @@ public class DeliveryService {
 
         Delivery delivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
+        cashierScope.requireAccess(delivery);
 
         Delivery.DeliveryStatus current = delivery.getStatus();
         if (current == status) {
@@ -225,6 +237,7 @@ public class DeliveryService {
     public Delivery markAsDelivered(Long id, String deliveredBy) {
         Delivery delivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
+        cashierScope.requireAccess(delivery);
 
         Delivery.DeliveryStatus current = delivery.getStatus();
         if (current != Delivery.DeliveryStatus.DELIVERED
@@ -245,6 +258,7 @@ public class DeliveryService {
     public void deleteDelivery(Long id) {
         Delivery delivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("delivery", id));
+        cashierScope.requireAccess(delivery);
         deliveryRepository.delete(delivery);
 
         logActivity(ActivityLog.ActionType.DELETE, "Delivery", id,

@@ -31,8 +31,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             + "LEFT JOIN FETCH i.product p "
             + "LEFT JOIN FETCH p.category ";
 
-    @Query(WITH_DETAILS + "ORDER BY o.createdAt DESC")
-    List<Order> findAllWithDetails();
+    /**
+     * Toutes les commandes visibles par la requête. {@code createdById} porte le cloisonnement
+     * caissier : nul, il désactive le filtre (vue ADMIN) ; renseigné, il borne la liste aux
+     * ventes de cet opérateur. Le filtre est appliqué en base et non après coup, faute de quoi
+     * il ne tiendrait pas dès qu'une pagination ou une agrégation SQL viendrait s'y greffer.
+     */
+    @Query(WITH_DETAILS + "WHERE (:createdById IS NULL OR u.id = :createdById) ORDER BY o.createdAt DESC")
+    List<Order> findAllWithDetails(@Param("createdById") Long createdById);
 
     Optional<Order> findByOrderNumber(String orderNumber);
 
@@ -46,18 +52,26 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     // Les quatre listes filtrées reprennent le même plan de chargement : en requête dérivée,
     // chaque commande rechargeait ses lignes puis ses produits, soit ~2 requêtes par commande.
-    @Query(WITH_DETAILS + "WHERE c.id = :clientId ORDER BY o.createdAt DESC")
-    List<Order> findByClientId(@Param("clientId") Long clientId);
+    // Elles portent toutes le même `createdById` optionnel que findAllWithDetails : aucune
+    // liste de commandes ne doit offrir de contournement au cloisonnement caissier.
+    @Query(WITH_DETAILS + "WHERE c.id = :clientId "
+            + "AND (:createdById IS NULL OR u.id = :createdById) ORDER BY o.createdAt DESC")
+    List<Order> findByClientId(@Param("clientId") Long clientId,
+                               @Param("createdById") Long createdById);
 
     @Query(WITH_DETAILS + "WHERE u.id = :userId ORDER BY o.createdAt DESC")
     List<Order> findByCreatedById(@Param("userId") Long userId);
 
-    @Query(WITH_DETAILS + "WHERE o.status = :status ORDER BY o.createdAt DESC")
-    List<Order> findByStatus(@Param("status") Order.OrderStatus status);
+    @Query(WITH_DETAILS + "WHERE o.status = :status "
+            + "AND (:createdById IS NULL OR u.id = :createdById) ORDER BY o.createdAt DESC")
+    List<Order> findByStatus(@Param("status") Order.OrderStatus status,
+                             @Param("createdById") Long createdById);
 
-    @Query(WITH_DETAILS + "WHERE o.createdAt >= :start AND o.createdAt <= :end ORDER BY o.createdAt DESC")
+    @Query(WITH_DETAILS + "WHERE o.createdAt >= :start AND o.createdAt <= :end "
+            + "AND (:createdById IS NULL OR u.id = :createdById) ORDER BY o.createdAt DESC")
     List<Order> findByCreatedAtBetween(@Param("start") LocalDateTime start,
-                                       @Param("end") LocalDateTime end);
+                                       @Param("end") LocalDateTime end,
+                                       @Param("createdById") Long createdById);
 
     /**
      * Commandes d'un caissier sur une journée [start, end), lignes et client chargés

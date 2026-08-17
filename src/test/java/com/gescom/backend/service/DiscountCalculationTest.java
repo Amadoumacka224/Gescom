@@ -1,5 +1,6 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.entity.Category;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
@@ -56,8 +57,10 @@ class DiscountCalculationTest {
     @BeforeEach
     void setUp() {
         orderService = new OrderService(orderRepository, productRepository, userRepository,
-                stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService);
-        invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService);
+                stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
+                new CashierScope());
+        invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService,
+                new CashierScope());
 
         User caissier = new User();
         caissier.setId(1L);

@@ -8,6 +8,7 @@ import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
+import com.gescom.backend.security.CashierScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -41,13 +42,16 @@ public class InvoiceService {
     private final OrderRepository orderRepository;
     private final ActivityLogService activityLogService;
     private final OrderService orderService;
+    private final CashierScope cashierScope;
 
     public InvoiceService(InvoiceRepository invoiceRepository, OrderRepository orderRepository,
-                          ActivityLogService activityLogService, OrderService orderService) {
+                          ActivityLogService activityLogService, OrderService orderService,
+                          CashierScope cashierScope) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.activityLogService = activityLogService;
         this.orderService = orderService;
+        this.cashierScope = cashierScope;
     }
 
     private Long getCurrentUserId() {
@@ -74,12 +78,17 @@ public class InvoiceService {
         // Ordre déterministe (facture la plus récente en tête) + chargement de la commande
         // associée en une seule requête pour éviter le N+1 au mapping (chaque réponse embarque
         // un OrderResponse complet).
-        return invoiceRepository.findAllWithDetails();
+        return invoiceRepository.findAllWithDetails(cashierScope.restrictedUserId());
     }
 
+    /**
+     * Lecture unitaire. Hors périmètre du caissier, la facture est rendue absente (404) plutôt
+     * que refusée — même règle que pour la vente dont elle découle.
+     */
     @Transactional(readOnly = true)
     public Optional<Invoice> getInvoiceById(Long id) {
-        Optional<Invoice> invoiceOpt = invoiceRepository.findById(id);
+        Optional<Invoice> invoiceOpt = cashierScope.filterReadable(
+                invoiceRepository.findById(id), Invoice::getOrder);
         if (invoiceOpt.isPresent()) {
             Invoice invoice = invoiceOpt.get();
             // Force loading of lazy relations
@@ -102,27 +111,29 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public Optional<Invoice> getInvoiceByInvoiceNumber(String invoiceNumber) {
-        return invoiceRepository.findByInvoiceNumber(invoiceNumber);
+        return cashierScope.filterReadable(
+                invoiceRepository.findByInvoiceNumber(invoiceNumber), Invoice::getOrder);
     }
 
     @Transactional(readOnly = true)
     public Optional<Invoice> getInvoiceByOrder(Long orderId) {
-        return invoiceRepository.findByOrderId(orderId);
+        return cashierScope.filterReadable(invoiceRepository.findByOrderId(orderId), Invoice::getOrder);
     }
 
     @Transactional(readOnly = true)
     public List<Invoice> getInvoicesByStatus(Invoice.InvoiceStatus status) {
-        return invoiceRepository.findByStatus(status);
+        return invoiceRepository.findByStatus(status, cashierScope.restrictedUserId());
     }
 
     @Transactional(readOnly = true)
     public List<Invoice> getInvoicesByDateRange(LocalDate start, LocalDate end) {
-        return invoiceRepository.findByInvoiceDateBetween(start, end);
+        return invoiceRepository.findByInvoiceDateBetween(start, end, cashierScope.restrictedUserId());
     }
 
     @Transactional(readOnly = true)
     public List<Invoice> getOverdueInvoices() {
-        return invoiceRepository.findByDueDateBeforeAndStatusNot(LocalDate.now(), Invoice.InvoiceStatus.PAID);
+        return invoiceRepository.findByDueDateBeforeAndStatusNot(
+                LocalDate.now(), Invoice.InvoiceStatus.PAID, cashierScope.restrictedUserId());
     }
 
     // ── Agrégats du tableau de bord caisse (filtrés sur Order.createdBy) ──────────
@@ -169,6 +180,9 @@ public class InvoiceService {
     public Invoice createInvoice(Invoice invoice) {
         Order order = orderRepository.findById(invoice.getOrder().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("order", invoice.getOrder().getId()));
+        // On ne facture que ses propres ventes : facturer celle d'un collègue reviendrait à
+        // engager son chiffre et lui retirerait la main sur son dossier.
+        cashierScope.requireAccess(order);
 
         // La facturation précède la livraison : seule une commande CONFIRMED peut être facturée.
         if (order.getStatus() != Order.OrderStatus.CONFIRMED) {
@@ -245,6 +259,7 @@ public class InvoiceService {
     public Invoice recordPayment(Long id, BigDecimal amount, Invoice.PaymentMethod paymentMethod, LocalDate paymentDate) {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
+        cashierScope.requireAccess(invoice);
 
         // Règles métier d'encaissement : on ne paie ni une facture annulée ni une facture soldée.
         if (invoice.getStatus() == Invoice.InvoiceStatus.CANCELED) {
@@ -297,6 +312,7 @@ public class InvoiceService {
     public void cancelInvoice(Long id) {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
+        cashierScope.requireAccess(invoice);
 
         if (invoice.getStatus() == Invoice.InvoiceStatus.PAID) {
             throw BusinessException.of("invoice.cancel.alreadyPaid",
@@ -313,6 +329,7 @@ public class InvoiceService {
     public void deleteInvoice(Long id) {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
+        cashierScope.requireAccess(invoice);
         String invoiceNumber = invoice.getInvoiceNumber();
         invoiceRepository.delete(invoice);
 

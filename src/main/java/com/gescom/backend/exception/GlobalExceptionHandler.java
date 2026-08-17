@@ -1,6 +1,7 @@
 package com.gescom.backend.exception;
 
 import com.gescom.backend.dto.common.ErrorResponse;
+import com.gescom.backend.security.OwnershipViolationException;
 import com.gescom.backend.tenancy.TenantViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.MessageSource;
@@ -176,6 +177,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TenantViolationException.class)
     public ResponseEntity<ErrorResponse> handleTenantViolation(TenantViolationException ex, HttpServletRequest request) {
         log.warn("Cloisonnement enfreint sur {} : {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.FORBIDDEN, localize(ex), request);
+    }
+
+    /**
+     * Tentative d'écriture, par un caissier, sur une vente enregistrée par un autre.
+     *
+     * Tracée pour la même raison que la violation de cloisonnement d'entreprise : l'interface
+     * ne présente jamais à un caissier la vente d'un collègue, une telle requête ne peut donc
+     * venir que d'un appel direct à l'API ou d'une régression.
+     */
+    @ExceptionHandler(OwnershipViolationException.class)
+    public ResponseEntity<ErrorResponse> handleOwnershipViolation(OwnershipViolationException ex, HttpServletRequest request) {
+        log.warn("Périmètre caissier enfreint sur {} : {}", request.getRequestURI(), ex.getMessage());
         return build(HttpStatus.FORBIDDEN, localize(ex), request);
     }
 

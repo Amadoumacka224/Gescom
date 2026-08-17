@@ -86,7 +86,13 @@ public class OrderController {
                 .map(o -> salesMapper.toResponse(o, invoices.get(o.getId()))).toList());
     }
 
+    /**
+     * Ventes d'un opérateur. Un caissier n'a le droit d'interroger que son propre identifiant :
+     * c'est la seule route qui désigne explicitement un utilisateur, et donc la porte la plus
+     * évidente pour aller lire les ventes d'un collègue depuis l'API.
+     */
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#userId)")
     public ResponseEntity<List<OrderResponse>> getOrdersByUser(@PathVariable Long userId) {
         return ResponseEntity.ok(orderService.getOrdersByUser(userId).stream()
                 .map(salesMapper::toResponse).toList());

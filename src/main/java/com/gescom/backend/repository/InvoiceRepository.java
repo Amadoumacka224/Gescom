@@ -19,15 +19,21 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * Toutes les factures avec la commande associée (client, créateur, lignes, produits) chargée
      * en une seule requête, pour éviter le N+1 au mapping — chaque InvoiceResponse embarque un
      * OrderResponse complet. DISTINCT à cause du JOIN FETCH sur la collection de lignes.
+     *
+     * {@code createdById} porte le cloisonnement caissier et s'entend du créateur de la VENTE,
+     * pas de celui de la facture : une facture appartient au caissier qui a saisi la commande,
+     * sans quoi il perdrait de vue la facture de sa propre vente dès qu'un collègue l'aurait
+     * éditée. Nul, il désactive le filtre (vue ADMIN).
      */
     @Query("SELECT DISTINCT i FROM Invoice i " +
            "LEFT JOIN FETCH i.order o " +
            "LEFT JOIN FETCH o.client " +
-           "LEFT JOIN FETCH o.createdBy " +
+           "LEFT JOIN FETCH o.createdBy u " +
            "LEFT JOIN FETCH o.items it " +
            "LEFT JOIN FETCH it.product " +
+           "WHERE (:createdById IS NULL OR u.id = :createdById) " +
            "ORDER BY i.invoiceDate DESC, i.id DESC")
-    List<Invoice> findAllWithDetails();
+    List<Invoice> findAllWithDetails(@Param("createdById") Long createdById);
 
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
 
@@ -47,9 +53,24 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findByInvoiceNumberWithDetails(@Param("invoiceNumber") String invoiceNumber);
     Optional<Invoice> findByOrderId(Long orderId);
     List<Invoice> findByOrderIdIn(Collection<Long> orderIds);
-    List<Invoice> findByStatus(Invoice.InvoiceStatus status);
-    List<Invoice> findByInvoiceDateBetween(LocalDate start, LocalDate end);
-    List<Invoice> findByDueDateBeforeAndStatusNot(LocalDate date, Invoice.InvoiceStatus status);
+    // Les trois listes filtrées portent le même `createdById` optionnel que findAllWithDetails :
+    // aucune liste de factures ne doit offrir de contournement au cloisonnement caissier.
+    @Query("SELECT i FROM Invoice i WHERE i.status = :status "
+            + "AND (:createdById IS NULL OR i.order.createdBy.id = :createdById)")
+    List<Invoice> findByStatus(@Param("status") Invoice.InvoiceStatus status,
+                               @Param("createdById") Long createdById);
+
+    @Query("SELECT i FROM Invoice i WHERE i.invoiceDate >= :start AND i.invoiceDate <= :end "
+            + "AND (:createdById IS NULL OR i.order.createdBy.id = :createdById)")
+    List<Invoice> findByInvoiceDateBetween(@Param("start") LocalDate start,
+                                           @Param("end") LocalDate end,
+                                           @Param("createdById") Long createdById);
+
+    @Query("SELECT i FROM Invoice i WHERE i.dueDate < :date AND i.status <> :status "
+            + "AND (:createdById IS NULL OR i.order.createdBy.id = :createdById)")
+    List<Invoice> findByDueDateBeforeAndStatusNot(@Param("date") LocalDate date,
+                                                  @Param("status") Invoice.InvoiceStatus status,
+                                                  @Param("createdById") Long createdById);
 
     /**
      * Montant encaissé par un caissier à une date donnée.

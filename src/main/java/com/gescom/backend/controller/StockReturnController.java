@@ -28,14 +28,18 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Retours clients. Comme les autres écritures de stock, l'enregistrement est réservé aux ADMIN
- * (la barre latérale masque déjà /stock au CAISSIER) ; la consultation du registre suit la
- * sécurité de classe.
+ * Retours clients — module d'administration de bout en bout, écriture comme consultation.
+ *
+ * L'enregistrement était déjà réservé aux ADMIN ; la consultation l'est désormais aussi. Le
+ * registre et surtout {@link #lookup} portent le détail d'une vente à partir de son seul
+ * numéro : laissés ouverts au CAISSIER, ils rouvraient par la bande l'accès aux ventes des
+ * collègues que le cloisonnement des commandes ferme. La barre latérale masque de toute façon
+ * /stock au caissier — le contrôle est ici pour qu'un appel direct à l'API le constate aussi.
  */
 @Tag(name = "Retours clients", description = "Retours a partir d'une vente existante")
 @RestController
 @RequestMapping("/api/stock/returns")
-@PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")
+@PreAuthorize("hasRole('ADMIN')")
 public class StockReturnController {
 
     private final StockReturnService stockReturnService;
@@ -77,7 +81,6 @@ public class StockReturnController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockReturnResponse> createReturn(@Valid @RequestBody StockReturnRequest request) {
         StockReturn stockReturn = stockReturnService.createReturn(request);
         return ResponseEntity.status(HttpStatus.CREATED)

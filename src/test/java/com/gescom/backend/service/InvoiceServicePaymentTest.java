@@ -1,5 +1,6 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.repository.InvoiceRepository;
@@ -36,7 +37,8 @@ class InvoiceServicePaymentTest {
 
     @BeforeEach
     void setUp() {
-        invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService);
+        invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService,
+                new CashierScope());
     }
 
     /** Facture de référence : total 100,00 €, encore due (statut UNPAID). */
