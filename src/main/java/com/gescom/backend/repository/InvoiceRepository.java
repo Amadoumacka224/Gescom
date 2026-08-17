@@ -2,6 +2,7 @@ package com.gescom.backend.repository;
 
 import com.gescom.backend.entity.Invoice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
+public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
 
     /**
      * Toutes les factures avec la commande associée (client, créateur, lignes, produits) chargée
@@ -90,4 +91,79 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
            "WHERE i.paymentDate = :date AND i.order.createdBy IS NOT NULL " +
            "GROUP BY i.order.createdBy.id")
     List<Object[]> sumCollectedPerCashierOnDate(@Param("date") LocalDate date);
+
+    /**
+     * Recharge en un coup, avec tout leur detail, des factures deja selectionnees.
+     *
+     * Second temps de la recherche paginee, meme mecanique que
+     * {@code OrderRepository.findAllWithDetailsByIds} et pour la meme raison : les requetes
+     * ci-dessus embarquent un JOIN FETCH sur les lignes de la commande, et une requete qui
+     * joint une collection ne peut pas etre paginee par la base — Hibernate rapatrierait tout
+     * pour decouper en memoire (HHH90003004).
+     */
+    @Query("SELECT DISTINCT i FROM Invoice i " +
+           "LEFT JOIN FETCH i.order o " +
+           "LEFT JOIN FETCH o.client " +
+           "LEFT JOIN FETCH o.createdBy " +
+           "LEFT JOIN FETCH o.items it " +
+           "LEFT JOIN FETCH it.product p " +
+           "LEFT JOIN FETCH p.category " +
+           "WHERE i.id IN :ids")
+    List<Invoice> findAllWithDetailsByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * Compteurs d'en-tete, agreges en base.
+     *
+     * `collected` et `pending` excluent les factures annulees : elles sont sorties des livres,
+     * et compter leur encaissement sans compter leur reliquat donnerait un taux qui n'est celui
+     * d'aucun perimetre. `overdue` n'est pas un statut mais une echeance depassee sur une
+     * facture ni soldee ni annulee — d'ou le calcul plutot qu'un simple COUNT par statut.
+     */
+    @Query("""
+           SELECT COUNT(i) AS total,
+                  COALESCE(SUM(CASE WHEN i.status <> :canceled THEN i.paidAmount ELSE 0 END), 0) AS collected,
+                  COALESCE(SUM(CASE WHEN i.status <> :canceled THEN i.totalAmount - i.paidAmount ELSE 0 END), 0) AS pending,
+                  SUM(CASE WHEN i.dueDate < :today AND i.status <> :paid AND i.status <> :canceled THEN 1 ELSE 0 END) AS overdue,
+                  SUM(CASE WHEN i.status = :unpaid THEN 1 ELSE 0 END) AS unpaid,
+                  SUM(CASE WHEN i.status = :partial THEN 1 ELSE 0 END) AS partial,
+                  SUM(CASE WHEN i.status = :paid THEN 1 ELSE 0 END) AS paid,
+                  SUM(CASE WHEN i.status = :canceled THEN 1 ELSE 0 END) AS canceled
+           FROM Invoice i
+           LEFT JOIN i.order o LEFT JOIN o.createdBy u
+           WHERE (:createdById IS NULL OR u.id = :createdById)
+           """)
+    InvoiceSummaryView summaryFor(@Param("createdById") Long createdById,
+                                  @Param("today") LocalDate today,
+                                  @Param("unpaid") Invoice.InvoiceStatus unpaid,
+                                  @Param("partial") Invoice.InvoiceStatus partial,
+                                  @Param("paid") Invoice.InvoiceStatus paid,
+                                  @Param("canceled") Invoice.InvoiceStatus canceled);
+
+    /** Clients ayant au moins une facture dans le perimetre de l'appelant. */
+    @Query("""
+           SELECT DISTINCT c.id AS id, c.firstName AS firstName, c.lastName AS lastName, c.company AS company
+           FROM Invoice i JOIN i.order o JOIN o.client c LEFT JOIN o.createdBy u
+           WHERE (:createdById IS NULL OR u.id = :createdById)
+           ORDER BY c.lastName, c.firstName
+           """)
+    List<InvoiceClientView> findDistinctClients(@Param("createdById") Long createdById);
+
+    interface InvoiceClientView {
+        Long getId();
+        String getFirstName();
+        String getLastName();
+        String getCompany();
+    }
+
+    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour le motif. */
+    interface InvoiceSummaryView {
+        long getTotal();
+        BigDecimal getCollected();
+        BigDecimal getPending();
+        long getOverdue();
+        long getUnpaid();
+        long getPartial();
+        long getPaid();
+        long getCanceled();
+    }
 }

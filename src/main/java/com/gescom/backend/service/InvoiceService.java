@@ -4,6 +4,8 @@ import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.entity.User;
+import com.gescom.backend.dto.invoice.InvoiceSearchCriteria;
+import com.gescom.backend.dto.invoice.InvoiceSummary;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
 import com.gescom.backend.repository.DeliveryRepository;
@@ -11,8 +13,13 @@ import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.security.CashierScope;
+import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -20,13 +27,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service métier des factures : émission, enregistrement des paiements et annulation.
@@ -88,6 +98,123 @@ public class InvoiceService {
         // associée en une seule requête pour éviter le N+1 au mapping (chaque réponse embarque
         // un OrderResponse complet).
         return invoiceRepository.findAllWithDetails(cashierScope.restrictedUserId());
+    }
+
+    /**
+     * Page de factures, filtrée et triée en base, chaque ligne entièrement chargée.
+     *
+     * Même recherche en deux temps que pour les commandes, et pour la même raison : la réponse
+     * embarque la commande facturée avec ses lignes, donc un JOIN FETCH sur une collection, et
+     * une telle requête ne peut pas être paginée par la base — Hibernate rapatrierait tout pour
+     * découper en mémoire. On sélectionne donc les factures sans leur détail, puis on recharge
+     * celui des seules retenues.
+     */
+    @Transactional(readOnly = true)
+    public Page<Invoice> searchInvoices(InvoiceSearchCriteria criteria, Pageable pageable) {
+        Page<Invoice> idPage = invoiceRepository.findAll(buildFilter(criteria), pageable);
+        List<Long> ids = idPage.getContent().stream().map(Invoice::getId).toList();
+        if (ids.isEmpty()) {
+            return idPage;
+        }
+        Map<Long, Invoice> byId = invoiceRepository.findAllWithDetailsByIds(ids).stream()
+                .collect(Collectors.toMap(Invoice::getId, i -> i));
+        List<Invoice> ordered = ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+        return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
+    }
+
+    /** Compteurs d'en-tête, agrégés en base — voir {@link InvoiceSummary}. */
+    @Transactional(readOnly = true)
+    public InvoiceSummary getSummary() {
+        InvoiceRepository.InvoiceSummaryView v = invoiceRepository.summaryFor(
+                cashierScope.restrictedUserId(), LocalDate.now(),
+                Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIALLY_PAID,
+                Invoice.InvoiceStatus.PAID, Invoice.InvoiceStatus.CANCELED);
+        return new InvoiceSummary(v.getTotal(), v.getCollected(), v.getPending(), v.getOverdue(),
+                v.getUnpaid(), v.getPartial(), v.getPaid(), v.getCanceled());
+    }
+
+    /** Clients proposés par le filtre : ceux qui ont réellement une facture. */
+    @Transactional(readOnly = true)
+    public InvoiceSummary.FilterOptions getFilterOptions() {
+        List<InvoiceSummary.ClientOption> clients =
+                invoiceRepository.findDistinctClients(cashierScope.restrictedUserId()).stream()
+                        .map(v -> new InvoiceSummary.ClientOption(v.getId(), clientLabel(v)))
+                        .toList();
+        return new InvoiceSummary.FilterOptions(clients);
+    }
+
+    /** « Prénom Nom », à défaut la raison sociale — la règle qu'appliquait l'écran. */
+    private String clientLabel(InvoiceRepository.InvoiceClientView v) {
+        String composed = Stream.of(v.getFirstName(), v.getLastName())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(Collectors.joining(" "));
+        if (!composed.isBlank()) return composed;
+        return v.getCompany() != null && !v.getCompany().isBlank() ? v.getCompany() : "#" + v.getId();
+    }
+
+    private Specification<Invoice> buildFilter(InvoiceSearchCriteria c) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Cloisonnement caissier, évalué EN BASE : appliqué après coup, il rendrait des
+            // pages à moitié vides et un total faux.
+            Long restrictedUserId = cashierScope.restrictedUserId();
+            if (restrictedUserId != null) {
+                predicates.add(cb.equal(root.get("order").get("createdBy").get("id"), restrictedUserId));
+            }
+
+            if (c.overdue()) {
+                // « En retard » n'est pas un statut : c'est une échéance dépassée sur une
+                // facture ni soldée ni annulée. L'écran le présente pourtant dans la même liste
+                // que les statuts, d'où ce critère à part.
+                predicates.add(cb.and(
+                        cb.isNotNull(root.get("dueDate")),
+                        cb.lessThan(root.get("dueDate"), LocalDate.now()),
+                        cb.notEqual(root.get("status"), Invoice.InvoiceStatus.PAID),
+                        cb.notEqual(root.get("status"), Invoice.InvoiceStatus.CANCELED)));
+            } else if (c.status() != null) {
+                predicates.add(cb.equal(root.get("status"), c.status()));
+            }
+
+            if (c.clientId() != null) {
+                predicates.add(cb.equal(root.get("order").get("client").get("id"), c.clientId()));
+            }
+            if (c.paymentMethod() != null) {
+                predicates.add(cb.equal(root.get("paymentMethod"), c.paymentMethod()));
+            }
+            if (c.issuedFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("invoiceDate"), c.issuedFrom()));
+            }
+            if (c.issuedTo() != null) {
+                // invoiceDate est une DATE et non un horodatage : la borne haute reste inclusive
+                // telle quelle, contrairement aux écrans qui filtrent sur createdAt.
+                predicates.add(cb.lessThanOrEqualTo(root.get("invoiceDate"), c.issuedTo()));
+            }
+            if (c.amountMin() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("totalAmount"), c.amountMin()));
+            }
+            if (c.amountMax() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("totalAmount"), c.amountMax()));
+            }
+            if (c.onlyRemaining()) {
+                // Même tolérance au centime que l'écran : un reliquat de 0,0004 € vient d'un
+                // arrondi, pas d'une dette.
+                predicates.add(cb.greaterThan(
+                        cb.diff(root.get("totalAmount"), cb.coalesce(root.get("paidAmount"), BigDecimal.ZERO)),
+                        new BigDecimal("0.001")));
+            }
+            if (c.search() != null && !c.search().isBlank()) {
+                String pattern = "%" + c.search().toLowerCase().trim() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(cb.coalesce(root.get("invoiceNumber"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("order").get("orderNumber"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("order").get("client").get("firstName"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("order").get("client").get("lastName"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("order").get("client").get("company"), "")), pattern)));
+            }
+
+            return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     /**

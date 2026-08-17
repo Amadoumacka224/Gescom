@@ -56,6 +56,23 @@ const STATUS_LABEL_KEYS = {
  * Le statut y figure au même titre que les autres : il était porté par un bandeau segmenté
  * au-dessus de la liste, qui doublonnait avec les tuiles d'indicateurs.
  */
+/**
+ * Colonnes triables, traduites en champs d'entité pour le `sort` de Spring Data.
+ *
+ * « Règlement » n'y figure pas : c'est le rapport encaissé / total, une expression et non une
+ * colonne. Le trier au sein de la seule page affichée donnerait un tableau qui se prétend trié
+ * sans l'être — même arbitrage que sur l'écran Commandes. Le montant, lui, est bien une
+ * colonne et reste triable.
+ */
+const SORT_FIELDS = {
+  invoiceNumber: 'invoiceNumber',
+  client: 'order.client.lastName',
+  dueDate: 'dueDate',
+  totalAmount: 'totalAmount',
+  status: 'status',
+  invoiceDate: 'invoiceDate',
+};
+
 const EMPTY_ADVANCED = {
   status: 'ALL',
   clientId: '',
@@ -116,6 +133,17 @@ const Invoices = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'invoiceDate', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  // Cardinalité du résultat courant, renvoyée par le serveur.
+  const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
+  // Compteurs d'en-tête, agrégés en base : `collected` et `pending` excluent les factures
+  // annulées, et leur somme vaut le facturé — l'écran affiche les deux côte à côte.
+  const [summary, setSummary] = useState({
+    total: 0, collected: 0, pending: 0, overdue: 0,
+    unpaid: 0, partial: 0, paid: 0, canceled: 0,
+  });
+  // Clients proposés par le filtre. Exhaustifs : un client qui n'apparaît qu'en page 3 doit
+  // être proposé depuis la page 1.
+  const [filterOptions, setFilterOptions] = useState({ clients: [] });
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
 
   const { settings, defaultTaxRate, defaultDueDate } = useSettings();
@@ -173,8 +201,11 @@ const Invoices = () => {
     }
   };
 
+  // Compteurs et options : chargés une fois, ils ne dependent pas de la page affichee. Le
+  // chargement de la page elle-meme est declare plus bas, apres `queryParams` dont il depend.
   useEffect(() => {
-    fetchInvoices();
+    fetchSummary();
+    fetchFilterOptions();
   }, []);
 
   useEffect(() => {
@@ -202,14 +233,44 @@ const Invoices = () => {
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/invoices');
-      setInvoices(response.data);
+      const { data } = await api.get('/invoices/search', { params: queryParams });
+      setInvoices(data.content || []);
+      setPageMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
     } catch (error) {
       console.error('Error fetching invoices:', error);
       toast.error(t('invoices.loadError'));
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Compteurs d'en-tête : ils décrivent tout le périmètre, pas la page. */
+  const fetchSummary = async () => {
+    try {
+      const { data } = await api.get('/invoices/summary');
+      setSummary(data);
+    } catch (error) {
+      console.error('Error fetching invoice summary:', error);
+    }
+  };
+
+  /** Clients proposés par le filtre : ceux qui ont réellement une facture. */
+  const fetchFilterOptions = async () => {
+    try {
+      const { data } = await api.get('/invoices/filter-options');
+      setFilterOptions(data);
+    } catch (error) {
+      console.error('Error fetching invoice filter options:', error);
+    }
+  };
+
+  /** Recharge page, compteurs et options — à appeler après toute écriture sur une facture. */
+  const refreshInvoices = async () => {
+    await Promise.all([fetchInvoices(), fetchSummary(), fetchFilterOptions()]);
   };
 
   const fetchOrders = async () => {
@@ -288,7 +349,7 @@ const Invoices = () => {
       });
       toast.success(t('invoices.createdSuccess'), { id: toastId });
       handleCloseCreateModal();
-      fetchInvoices();
+      refreshInvoices();
     } catch (error) {
       console.error('Error creating invoice:', error);
       const raw = error.response?.data;
@@ -373,7 +434,7 @@ const Invoices = () => {
       });
       toast.success(t('invoices.paymentRecordedSuccess'), { id: toastId });
       setShowPaymentModal(false);
-      fetchInvoices();
+      refreshInvoices();
     } catch (error) {
       console.error('Error processing payment:', error);
       const raw = error.response?.data;
@@ -409,34 +470,18 @@ const Invoices = () => {
   const paymentMethodText = (method) =>
     PAYMENT_METHOD_KEYS[method] ? t(PAYMENT_METHOD_KEYS[method]) : (method || '—');
 
-  // Mêmes montants que le tableau de bord (`/dashboard/overview`), donc même périmètre : les
-  // factures annulées sortent des livres. Sans ce filtre, « Revenus encaissés » et « En attente »
-  // afficheraient ici des chiffres différents de ceux du tableau de bord pour les mêmes données,
-  // le reliquat d'une facture annulée étant compté comme une créance vivante.
-  const stats = useMemo(() => {
-    const live = invoices.filter((inv) => inv.status !== 'CANCELED');
-    return {
-      total: invoices.length,
-      collected: live.reduce((sum, inv) => sum + num(inv.paidAmount), 0),
-      pending: live.reduce((sum, inv) => sum + (num(inv.totalAmount) - num(inv.paidAmount)), 0),
-      overdue: invoices.filter(isOverdue).length,
-      unpaid: invoices.filter((inv) => inv.status === 'UNPAID').length,
-      partial: invoices.filter((inv) => inv.status === 'PARTIALLY_PAID').length,
-      paid: invoices.filter((inv) => inv.status === 'PAID').length,
-      canceled: invoices.filter((inv) => inv.status === 'CANCELED').length,
-    };
-  }, [invoices, today]);
+  // Compteurs du périmètre entier, agrégés en base (cf. /api/invoices/summary). Les recalculer
+  // ici ne décrirait que la page affichée.
+  //
+  // Le périmètre est celui du tableau de bord (`/dashboard/overview`) : « Revenus encaissés »
+  // et « En attente » excluent les factures annulées, sorties des livres. Sans cela les deux
+  // écrans afficheraient des chiffres différents pour les mêmes données, le reliquat d'une
+  // facture annulée passant pour une créance vivante.
+  const stats = summary;
 
-  // Clients déduits des factures elles-mêmes : n'afficher que ceux qui en ont réellement une
-  // évite un critère qui ne rendrait aucun résultat.
-  const clientOptions = useMemo(() => {
-    const byId = new Map();
-    invoices.forEach((inv) => {
-      const client = inv.order?.client;
-      if (client?.id) byId.set(client.id, { id: client.id, label: clientNameOf(inv) || `#${client.id}` });
-    });
-    return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [invoices]);
+  // Clients servis par /invoices/filter-options : les déduire de la page n'en proposerait
+  // qu'une poignée, et le choix disparaîtrait dès qu'on change de page.
+  const clientOptions = filterOptions.clients;
 
   const advancedFields = useMemo(() => [
     {
@@ -477,64 +522,6 @@ const Invoices = () => {
     { key: 'onlyRemaining', label: t('invoices.onlyRemaining'), type: 'checkbox' },
   ], [t, clientOptions]);
 
-  const filteredInvoices = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const min = advanced.amountMin === '' ? null : parseFloat(advanced.amountMin);
-    const max = advanced.amountMax === '' ? null : parseFloat(advanced.amountMax);
-
-    return invoices.filter((invoice) => {
-      if (advanced.status === 'OVERDUE') {
-        if (!isOverdue(invoice)) return false;
-      } else if (advanced.status !== 'ALL' && invoice.status !== advanced.status) {
-        return false;
-      }
-
-      if (advanced.clientId && String(invoice.order?.client?.id) !== String(advanced.clientId)) return false;
-      if (advanced.paymentMethod && invoice.paymentMethod !== advanced.paymentMethod) return false;
-
-      // Bornes inclusives sur la date d'émission (déjà au format `yyyy-MM-dd`).
-      if (advanced.issuedFrom && (invoice.invoiceDate || '') < advanced.issuedFrom) return false;
-      if (advanced.issuedTo && (invoice.invoiceDate || '') > advanced.issuedTo) return false;
-
-      const amount = num(invoice.totalAmount);
-      if (min !== null && !Number.isNaN(min) && amount < min) return false;
-      if (max !== null && !Number.isNaN(max) && amount > max) return false;
-
-      // Reliquat : même tolérance au centime que le reste de l'écran.
-      if (advanced.onlyRemaining && remainingOf(invoice) <= 0.001) return false;
-
-      if (!term) return true;
-      return [invoice.invoiceNumber, invoice.order?.orderNumber, clientNameOf(invoice), String(invoice.id)]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(term);
-    });
-  }, [invoices, searchTerm, advanced, today]);
-
-  const sortedInvoices = useMemo(() => {
-    const direction = sortConfig.direction === 'asc' ? 1 : -1;
-    const valueOf = (invoice) => {
-      switch (sortConfig.key) {
-        case 'invoiceNumber': return (invoice.invoiceNumber || '').toLowerCase();
-        case 'client': return (clientNameOf(invoice) || '').toLowerCase();
-        case 'dueDate': return invoice.dueDate || '';
-        case 'totalAmount': return num(invoice.totalAmount);
-        case 'settlement': return safeRatio(num(invoice.paidAmount), num(invoice.totalAmount));
-        case 'status': return invoice.status || '';
-        case 'invoiceDate':
-        default: return invoice.invoiceDate || '';
-      }
-    };
-    return [...filteredInvoices].sort((a, b) => {
-      const left = valueOf(a);
-      const right = valueOf(b);
-      if (left < right) return -direction;
-      if (left > right) return direction;
-      return b.id - a.id;
-    });
-  }, [filteredInvoices, sortConfig]);
-
   const invoiceSuggestions = rankSuggestions(
     invoices,
     searchTerm,
@@ -547,19 +534,51 @@ const Invoices = () => {
   const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
   const showFullList = hasActiveFilters || viewMode === 'all';
 
-  const totalPages = Math.max(1, Math.ceil(sortedInvoices.length / itemsPerPage));
-  const safePage = Math.min(currentPage, totalPages);
-  const paginatedInvoices = sortedInvoices.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
+  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  // Les dernières factures émises (la liste arrive déjà triée « plus récente d'abord » côté
-  // backend ; on le réaffirme ici pour ne pas dépendre de cet ordre).
-  const recentInvoices = useMemo(() => (
-    [...invoices]
-      .sort((a, b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || '') || (b.id - a.id))
-      .slice(0, RECENT_COUNT)
-  ), [invoices]);
+  /**
+   * Critères envoyés au serveur.
+   *
+   * « En retard » n'est pas un statut mais une échéance dépassée sur une facture ni soldée ni
+   * annulée : l'écran le propose dans la même liste que les statuts, le serveur en fait un
+   * paramètre distinct.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'invoiceDate,desc' };
+    }
+    const params = {
+      page: currentPage - 1,
+      size: itemsPerPage,
+      sort: `${SORT_FIELDS[sortConfig.key] ?? 'invoiceDate'},${sortConfig.direction}`,
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (advanced.status === 'OVERDUE') params.overdue = true;
+    else if (advanced.status !== 'ALL') params.status = advanced.status;
+    if (advanced.clientId) params.clientId = advanced.clientId;
+    if (advanced.paymentMethod) params.paymentMethod = advanced.paymentMethod;
+    if (advanced.issuedFrom) params.issuedFrom = advanced.issuedFrom;
+    if (advanced.issuedTo) params.issuedTo = advanced.issuedTo;
+    if (advanced.amountMin !== '') params.amountMin = advanced.amountMin;
+    if (advanced.amountMax !== '') params.amountMax = advanced.amountMax;
+    if (advanced.onlyRemaining) params.onlyRemaining = true;
+    return params;
+  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
 
-  const displayedInvoices = showFullList ? paginatedInvoices : recentInvoices;
+  // Le filtrage, le tri et la pagination sont faits en base : `invoices` porte déjà la page
+  // demandée, dans l'ordre demandé.
+  const displayedInvoices = invoices;
+  const totalPages = pageMeta.totalPages;
+
+  useEffect(() => {
+    fetchInvoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -906,11 +925,11 @@ const Invoices = () => {
           )}
         />
 
-        {showFullList && !loading && sortedInvoices.length > 0 && (
+        {showFullList && !loading && pageMeta.totalElements > 0 && (
           <Pagination
-            currentPage={safePage}
+            currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={sortedInvoices.length}
+            totalItems={pageMeta.totalElements}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
             onItemsPerPageChange={setItemsPerPage}
@@ -1451,7 +1470,7 @@ const Invoices = () => {
           amount={terminalAmount}
           // Appelé aussi bien après un encaissement qu'après une session close par le serveur :
           // dans les deux cas la liste affichée n'est plus à jour.
-          onPaid={() => fetchInvoices()}
+          onPaid={() => refreshInvoices()}
         />
       )}
 
