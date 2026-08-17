@@ -34,7 +34,7 @@ FROM (VALUES
 
     ('SUBSCRIPTION_RENEWED', 'INFO',
      'Abonnement renouvele : Gescom SA',
-     'Formule Pro, mensuel — 79,00 EUR encaisses',
+     'Formule Pro, mensuel — 71,39 EUR encaisses',
      NULL, CURRENT_TIMESTAMP - INTERVAL '6 hours'),
 
     ('TRIAL_ENDING', 'WARNING',
