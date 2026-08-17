@@ -468,6 +468,7 @@
     "title": "Gestion des commandes",
     "pageTitle": "Commandes",
     "subtitle": "Gérez vos commandes clients",
+    "loadError": "Erreur lors du chargement des commandes",
     "addOrder": "Nouvelle commande",
     "addNew": "Nouvelle commande",
     "orderNumber": "N° commande",

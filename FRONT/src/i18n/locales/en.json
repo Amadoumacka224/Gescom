@@ -468,6 +468,7 @@
     "title": "Order management",
     "pageTitle": "Orders",
     "subtitle": "Manage your client orders",
+    "loadError": "Failed to load orders",
     "addOrder": "New order",
     "addNew": "New order",
     "orderNumber": "Order #",

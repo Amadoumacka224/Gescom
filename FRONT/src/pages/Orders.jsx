@@ -452,56 +452,12 @@ const Orders = () => {
       const response = await api.get('/orders');
       setOrders(response.data);
     } catch (error) {
+      // Un échec de chargement laisse la liste vide et le signale. L'écran retombait
+      // auparavant sur un jeu de commandes fictives, que rien ne distinguait de vraies
+      // ventes : l'application paraissait fonctionner alors que l'API était injoignable.
       console.error('Error fetching orders:', error);
-      // Données de démonstration en cas d'erreur
-      setOrders([
-        {
-          id: 1,
-          orderNumber: 'CMD-2024-001',
-          client: {
-            firstName: 'Jean',
-            lastName: 'Dupont',
-            email: 'jean.dupont@email.com',
-            phone: '0612345678',
-            address: '123 Rue de la Paix'
-          },
-          createdAt: '2024-11-15T14:30:00',
-          totalAmount: 1250.00,
-          status: 'CONFIRMED',
-          items: [
-            { id: 1, product: { name: 'Produit A' }, quantity: 2, unitPrice: 250.00 },
-            { id: 2, product: { name: 'Produit B' }, quantity: 3, unitPrice: 150.00 }
-          ]
-        },
-        {
-          id: 2,
-          orderNumber: 'CMD-2024-002',
-          client: {
-            firstName: 'Marie',
-            lastName: 'Martin',
-            email: 'marie.martin@email.com',
-            phone: '0698765432'
-          },
-          createdAt: '2024-11-14T10:15:00',
-          totalAmount: 890.50,
-          status: 'PENDING',
-          items: []
-        },
-        {
-          id: 3,
-          orderNumber: 'CMD-2024-003',
-          client: {
-            firstName: 'Pierre',
-            lastName: 'Bernard',
-            email: 'pierre.bernard@email.com',
-            phone: '0687654321'
-          },
-          createdAt: '2024-11-13T16:45:00',
-          totalAmount: 2100.00,
-          status: 'DELIVERED',
-          items: []
-        }
-      ]);
+      toast.error(t('orders.loadError'));
+      setOrders([]);
     } finally {
       setLoading(false);
     }

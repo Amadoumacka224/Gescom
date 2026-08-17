@@ -30,7 +30,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Stock", description = "Mouvements de stock et grand livre")
 @RestController
 @RequestMapping("/api/stock")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

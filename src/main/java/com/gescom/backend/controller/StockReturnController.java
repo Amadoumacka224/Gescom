@@ -25,12 +25,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Retours clients. Comme les autres écritures de stock, l'enregistrement est réservé aux ADMIN
  * (la barre latérale masque déjà /stock au CAISSIER) ; la consultation du registre suit la
  * sécurité de classe.
  */
+@Tag(name = "Retours clients", description = "Retours a partir d'une vente existante")
 @RestController
 @RequestMapping("/api/stock/returns")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

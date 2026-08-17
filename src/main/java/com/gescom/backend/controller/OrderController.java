@@ -25,7 +25,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Commandes", description = "Cycle de vie des ventes, de la saisie a la livraison")
 @RestController
 @RequestMapping("/api/orders")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

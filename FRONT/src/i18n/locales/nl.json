@@ -468,6 +468,7 @@
     "title": "Bestellingenbeheer",
     "pageTitle": "Bestellingen",
     "subtitle": "Beheer uw klantbestellingen",
+    "loadError": "Fout bij het laden van de bestellingen",
     "addOrder": "Nieuwe bestelling",
     "addNew": "Nieuwe bestelling",
     "orderNumber": "Bestelnr.",
