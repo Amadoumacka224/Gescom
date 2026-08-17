@@ -197,6 +197,29 @@ et à la redirection vers HTTPS, que Caddy met en place de lui-même.
 
 > Toutes les routes sont préfixées par `/api`. Hors `/api/auth/**`, un JWT valide est requis.
 
+### Documentation interactive
+
+L'application démarrée, la référence complète — et essayable — se trouve sur
+**<http://localhost:8085/swagger-ui.html>**. La liste ci-dessous en reste un résumé de lecture,
+elle n'est pas engendrée et peut retarder sur le code ; le document OpenAPI, lui, est produit
+depuis les contrôleurs eux-mêmes (`/v3/api-docs`).
+
+Pour dérouler un appel authentifié depuis l'interface :
+
+1. `POST /api/auth/login` avec un compte existant ;
+2. copier la valeur du champ `token` de la réponse ;
+3. la coller dans **Authorize**, en haut à droite — sans le préfixe `Bearer`, ajouté par l'interface.
+
+Les essais passent alors par exactement les mêmes contrôles que n'importe quel appel : un
+CAISSIER se verra refuser les routes réservées à l'ADMIN, et le cloisonnement par entreprise
+s'applique aussi.
+
+> La documentation n'est ouverte qu'en développement. Le profil `render` la désactive
+> entièrement (`springdoc.*.enabled=false`, ces chemins répondent alors 404), et le déploiement
+> docker-compose ne la publie pas non plus : Caddy ne relaie que `/api/*`. Publier la
+> cartographie des 164 points d'entrée d'une installation en service épargnerait à un attaquant
+> tout son travail de reconnaissance.
+
 ### Authentification (`/api/auth`)
 - `POST /login` — Connexion (retourne un token JWT)
 - `POST /logout` — Déconnexion

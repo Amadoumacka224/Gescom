@@ -23,7 +23,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Livraisons", description = "Expedition des commandes facturees")
 @RestController
 @RequestMapping("/api/deliveries")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

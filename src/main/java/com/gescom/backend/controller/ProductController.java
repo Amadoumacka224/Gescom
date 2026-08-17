@@ -21,7 +21,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Produits", description = "Catalogue et niveaux de stock")
 @RestController
 @RequestMapping("/api/products")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

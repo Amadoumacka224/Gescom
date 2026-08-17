@@ -7,7 +7,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Parametres", description = "Reglages de l'entreprise (devise, TVA, fuseau)")
 @RestController
 @RequestMapping("/api/settings")
 @PreAuthorize("hasAnyRole('ADMIN','CAISSIER')")

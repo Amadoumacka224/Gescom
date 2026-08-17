@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Terminal de paiement carte (Stripe, mode test).
@@ -20,6 +21,7 @@ import java.util.List;
  * (annulation) pour la session abandonnée. Encaisser fait partie du métier du caissier :
  * l'accès suit celui de la facturation, ADMIN et CAISSIER.
  */
+@Tag(name = "Paiements par carte", description = "Terminal Stripe, encaissement des factures")
 @RestController
 @RequestMapping("/api/payments")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

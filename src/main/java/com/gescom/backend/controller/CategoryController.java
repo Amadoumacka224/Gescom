@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Categories", description = "Classement des produits")
 @RestController
 @RequestMapping("/api/categories")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

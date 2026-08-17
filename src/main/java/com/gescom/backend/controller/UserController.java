@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Utilisateurs", description = "Comptes ADMIN et CAISSIER de l'entreprise")
 @RestController
 @RequestMapping("/api/users")
 public class UserController {

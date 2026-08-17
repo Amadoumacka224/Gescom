@@ -18,7 +18,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Authentification", description = "Connexion et deconnexion, seules routes ouvertes sans jeton")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {

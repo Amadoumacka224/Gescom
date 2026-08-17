@@ -22,7 +22,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Tableau de bord", description = "Indicateurs de l'entreprise et vues caisse")
 @RestController
 @RequestMapping("/api/dashboard")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

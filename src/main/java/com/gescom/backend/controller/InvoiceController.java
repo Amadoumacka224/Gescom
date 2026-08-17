@@ -16,7 +16,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Factures", description = "Facturation et encaissements")
 @RestController
 @RequestMapping("/api/invoices")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

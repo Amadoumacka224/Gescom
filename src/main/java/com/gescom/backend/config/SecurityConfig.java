@@ -122,6 +122,18 @@ public class SecurityConfig {
                     // la plateforme. Elle ne divulgue rien : show-details=never renvoie le seul
                     // statut UP/DOWN, et aucun autre point de terminaison actuator n'est expose.
                     .requestMatchers("/actuator/health").permitAll()
+                    // Documentation OpenAPI. Ces chemins tombaient jusqu'ici sous le
+                    // anyRequest().authenticated() final : l'API étant sans session, un
+                    // navigateur n'a aucun moyen d'y joindre un jeton, et l'interface
+                    // annoncée par le README répondait 401 — donc inutilisable.
+                    //
+                    // Les ouvrir ne divulgue que la forme de l'API, jamais de donnée : les
+                    // essais lancés depuis l'interface passent par les mêmes règles que
+                    // n'importe quel appel, et échouent sans jeton valide. Par prudence,
+                    // le profil `render` désactive tout de même springdoc — la surface
+                    // publiée d'une installation en service n'a pas à être documentée en
+                    // libre accès (voir application-render.properties).
+                    .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                     // Espace du propriétaire de la plateforme. La règle est doublée par un
                     // @PreAuthorize au niveau de chaque contrôleur : ce filtrage par URL est
                     // la barrière de périmètre, l'annotation la barrière de méthode. Un

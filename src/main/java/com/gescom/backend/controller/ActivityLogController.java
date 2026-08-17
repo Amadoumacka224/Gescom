@@ -16,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Consultation (lecture seule) du journal d'activité. Les entrées sont produites
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
  * borne, et le renvoyer d'un bloc chargeait déjà près d'un mégaoctet par appel. Le filtrage
  * est fait en base, faute de quoi il ne porterait que sur la page reçue.
  */
+@Tag(name = "Journal d'activite", description = "Tracabilite des operations de l'entreprise")
 @RestController
 @RequestMapping("/api/activities")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")

@@ -21,7 +21,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Clients", description = "Fichier clients de l'entreprise")
 @RestController
 @RequestMapping("/api/clients")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")
