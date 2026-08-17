@@ -101,6 +101,6 @@ public class SaasPayment {
         TRANSFER,      // Virement bancaire
         CARD,          // Carte
         DIRECT_DEBIT,  // Domiciliation SEPA
-        MANUAL         // Saisie manuelle (regularisation, geste commercial)
+        CASH           // Especes (versement direct, regularisation au comptoir)
     }
 }

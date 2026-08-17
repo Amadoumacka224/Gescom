@@ -17,7 +17,7 @@ CREATE TABLE saas_payments (
                                status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
                                    CHECK (status IN ('PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED')),
                                method VARCHAR(20) NOT NULL DEFAULT 'TRANSFER'
-                                   CHECK (method IN ('TRANSFER', 'CARD', 'DIRECT_DEBIT', 'MANUAL')),
+                                   CHECK (method IN ('TRANSFER', 'CARD', 'DIRECT_DEBIT', 'CASH')),
                                -- Periode d'abonnement couverte par ce versement : deux paiements
                                -- d'un meme mois se distinguent ainsi sans ambiguite.
                                period_start TIMESTAMP,

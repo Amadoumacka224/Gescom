@@ -258,7 +258,7 @@ const PlatformPayments = () => {
               name="status"
               value={form.status}
               onChange={setField('status')}
-              placeholder={t('platform.paymentStatus.SUCCEEDED')}
+              allowEmpty={false}
               options={['SUCCEEDED', 'PENDING', 'FAILED', 'REFUNDED'].map((value) => ({
                 value,
                 label: t(`platform.paymentStatus.${value}`),
@@ -269,8 +269,8 @@ const PlatformPayments = () => {
               name="method"
               value={form.method}
               onChange={setField('method')}
-              placeholder={t('platform.paymentMethod.TRANSFER')}
-              options={['TRANSFER', 'CARD', 'DIRECT_DEBIT', 'MANUAL'].map((value) => ({
+              allowEmpty={false}
+              options={['TRANSFER', 'CARD', 'DIRECT_DEBIT', 'CASH'].map((value) => ({
                 value,
                 label: t(`platform.paymentMethod.${value}`),
               }))}
