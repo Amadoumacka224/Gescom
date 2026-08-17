@@ -264,6 +264,18 @@ public class OrderService {
         return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
     }
 
+    /**
+     * Commandes prêtes à être livrées : facturées et sans livraison.
+     *
+     * Sert le sélecteur du formulaire de livraison, qui composait cette liste lui-même à partir
+     * de la liste complète des livraisons — désormais paginée, donc incomplète pour cet usage.
+     */
+    @Transactional(readOnly = true)
+    public List<Order> getDeliverableOrders() {
+        return orderRepository.findDeliverable(
+                Order.OrderStatus.INVOICED, cashierScope.restrictedUserId());
+    }
+
     /** Décompte par statut sur le périmètre de l'appelant — voir {@link OrderSummary}. */
     @Transactional(readOnly = true)
     public OrderSummary getSummary() {

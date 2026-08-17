@@ -148,6 +148,21 @@ public class OrderController {
                 o -> salesMapper.toResponse(o, invoices.get(o.getId()))));
     }
 
+    /**
+     * Commandes prêtes à être livrées : facturées et sans livraison déjà enregistrée.
+     *
+     * Sert le sélecteur du formulaire de livraison. Sans pagination : c'est une file de travail,
+     * bornée par nature — une commande en sort dès qu'elle est livrée.
+     */
+    @GetMapping("/deliverable")
+    public ResponseEntity<List<OrderResponse>> getDeliverableOrders() {
+        List<Order> orders = orderService.getDeliverableOrders();
+        Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
+                orders.stream().map(Order::getId).toList());
+        return ResponseEntity.ok(orders.stream()
+                .map(o -> salesMapper.toResponse(o, invoices.get(o.getId()))).toList());
+    }
+
     /** Décompte par statut des tuiles : il porte sur tout le périmètre, pas sur la page. */
     @GetMapping("/summary")
     public ResponseEntity<OrderSummary> getSummary() {

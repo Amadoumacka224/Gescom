@@ -1,5 +1,7 @@
 package com.gescom.backend.service;
 
+import com.gescom.backend.dto.delivery.DeliverySearchCriteria;
+import com.gescom.backend.dto.delivery.DeliverySummary;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.Delivery;
 import com.gescom.backend.entity.Invoice;
@@ -11,16 +13,29 @@ import com.gescom.backend.repository.DeliveryRepository;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.security.CashierScope;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service métier des livraisons : création, suivi de statut et confirmation de livraison.
@@ -76,6 +91,125 @@ public class DeliveryService {
         // Chargement de la commande associée (client, créateur, lignes, produits) en une requête
         // pour éviter le N+1 au mapping (chaque DeliveryResponse embarque un OrderResponse complet).
         return deliveryRepository.findAllWithDetails(cashierScope.restrictedUserId());
+    }
+
+    /**
+     * Page de livraisons, filtrée et triée en base, chaque ligne entièrement chargée.
+     *
+     * Même recherche en deux temps que pour les commandes et les factures : la réponse embarque
+     * la commande livrée avec ses lignes, donc un JOIN FETCH sur une collection, qu'une base ne
+     * sait pas paginer.
+     */
+    @Transactional(readOnly = true)
+    public Page<Delivery> searchDeliveries(DeliverySearchCriteria criteria, Pageable pageable) {
+        Page<Delivery> idPage = deliveryRepository.findAll(buildFilter(criteria), pageable);
+        List<Long> ids = idPage.getContent().stream().map(Delivery::getId).toList();
+        if (ids.isEmpty()) {
+            return idPage;
+        }
+        Map<Long, Delivery> byId = deliveryRepository.findAllWithDetailsByIds(ids).stream()
+                .collect(Collectors.toMap(Delivery::getId, d -> d));
+        List<Delivery> ordered = ids.stream().map(byId::get).filter(Objects::nonNull).toList();
+        return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
+    }
+
+    /** Compteurs d'en-tête, agrégés en base — voir {@link DeliverySummary}. */
+    @Transactional(readOnly = true)
+    public DeliverySummary getSummary() {
+        DeliveryRepository.DeliverySummaryView v = deliveryRepository.summaryFor(
+                cashierScope.restrictedUserId(), LocalDate.now().atStartOfDay(),
+                Delivery.DeliveryStatus.PENDING, Delivery.DeliveryStatus.DELIVERED);
+        return new DeliverySummary(v.getTotal(), v.getPending(), v.getDelivered(), v.getLate());
+    }
+
+    /** Clients, villes et pays proposés par les filtres — voir {@link DeliverySummary.FilterOptions}. */
+    @Transactional(readOnly = true)
+    public DeliverySummary.FilterOptions getFilterOptions() {
+        Long restrictedUserId = cashierScope.restrictedUserId();
+        List<DeliverySummary.Option> clients = deliveryRepository.findDistinctClients(restrictedUserId)
+                .stream()
+                .map(v -> new DeliverySummary.Option(v.getId(), clientLabel(v)))
+                .toList();
+        return new DeliverySummary.FilterOptions(
+                clients,
+                deliveryRepository.findDistinctCities(restrictedUserId),
+                deliveryRepository.findDistinctCountries(restrictedUserId));
+    }
+
+    /** « Prénom Nom », à défaut la raison sociale — la règle qu'appliquait l'écran. */
+    private String clientLabel(DeliveryRepository.DeliveryClientView v) {
+        String composed = Stream.of(v.getFirstName(), v.getLastName())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(Collectors.joining(" "));
+        if (!composed.isBlank()) return composed;
+        return v.getCompany() != null && !v.getCompany().isBlank() ? v.getCompany() : "#" + v.getId();
+    }
+
+    private Specification<Delivery> buildFilter(DeliverySearchCriteria c) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Cloisonnement caissier, évalué EN BASE : appliqué après coup, il rendrait des
+            // pages à moitié vides et un total faux.
+            Long restrictedUserId = cashierScope.restrictedUserId();
+            if (restrictedUserId != null) {
+                predicates.add(cb.equal(root.get("order").get("createdBy").get("id"), restrictedUserId));
+            }
+
+            if (c.late()) {
+                // « En retard » n'est pas un statut : c'est une date prévue dépassée sur une
+                // livraison ENCORE EN ATTENTE. Une livraison effectuée en retard n'est plus en
+                // retard, elle est faite.
+                predicates.add(cb.and(
+                        cb.equal(root.get("status"), Delivery.DeliveryStatus.PENDING),
+                        cb.isNotNull(root.get("scheduledDate")),
+                        cb.lessThan(root.get("scheduledDate"), LocalDate.now().atStartOfDay())));
+            } else if (c.status() != null) {
+                predicates.add(cb.equal(root.get("status"), c.status()));
+            }
+
+            if (c.clientId() != null) {
+                predicates.add(cb.equal(root.get("order").get("client").get("id"), c.clientId()));
+            }
+            if (c.city() != null && !c.city().isBlank()) {
+                predicates.add(cb.equal(root.get("deliveryCity"), c.city()));
+            }
+            if (c.country() != null && !c.country().isBlank()) {
+                predicates.add(cb.equal(root.get("deliveryCountry"), c.country()));
+            }
+            if (c.contact() != null && !c.contact().isBlank()) {
+                predicates.add(cb.like(cb.lower(cb.coalesce(root.get("contactName"), "")),
+                        "%" + c.contact().toLowerCase().trim() + "%"));
+            }
+            if (c.scheduledFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(
+                        root.get("scheduledDate"), c.scheduledFrom().atStartOfDay()));
+            }
+            if (c.scheduledTo() != null) {
+                // Borne haute exclusive au lendemain minuit : scheduledDate est un horodatage,
+                // une livraison prévue à 14 h le jour de fin serait sinon écartée.
+                predicates.add(cb.lessThan(
+                        root.get("scheduledDate"), c.scheduledTo().plusDays(1).atStartOfDay()));
+            }
+            if (c.search() != null && !c.search().isBlank()) {
+                String pattern = "%" + c.search().toLowerCase().trim() + "%";
+                predicates.add(cb.or(
+                        like(cb, root.get("deliveryNumber"), pattern),
+                        like(cb, root.get("contactName"), pattern),
+                        like(cb, root.get("deliveryCity"), pattern),
+                        like(cb, root.get("order").get("orderNumber"), pattern),
+                        like(cb, root.get("order").get("client").get("firstName"), pattern),
+                        like(cb, root.get("order").get("client").get("lastName"), pattern),
+                        like(cb, root.get("order").get("client").get("company"), pattern)));
+            }
+
+            return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /** COALESCE avant LOWER : une colonne nulle rendrait la comparaison indéfinie, pas fausse. */
+    private Predicate like(CriteriaBuilder cb, Path<?> path, String pattern) {
+        return cb.like(cb.lower(cb.coalesce(path.as(String.class), "")), pattern);
     }
 
     /**

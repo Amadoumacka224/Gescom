@@ -208,6 +208,23 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
         long getCanceled();
     }
 
+    /**
+     * Commandes prêtes à être livrées : facturées, et sans livraison déjà enregistrée.
+     *
+     * L'écran Livraisons déduisait cette liste lui-même, en retranchant des commandes facturées
+     * celles qui apparaissaient dans la liste des livraisons. Cette liste n'étant plus chargée
+     * en entier, la soustraction ne verrait plus que la page affichée et proposerait de livrer
+     * une commande déjà livrée — refusée ensuite par {@code createDelivery}, mais proposée.
+     *
+     * Le NOT EXISTS place la question là où elle a une réponse complète.
+     */
+    @Query(WITH_DETAILS + "WHERE o.status = :invoiced "
+            + "AND NOT EXISTS (SELECT 1 FROM Delivery d WHERE d.order = o) "
+            + "AND (:createdById IS NULL OR u.id = :createdById) "
+            + "ORDER BY o.createdAt DESC")
+    List<Order> findDeliverable(@Param("invoiced") Order.OrderStatus invoiced,
+                                @Param("createdById") Long createdById);
+
     /** Volume de commandes d'une entreprise — indicateur d'usage du back-office propriétaire. */
     long countByOwnerCompanyId(Long companyId);
 }

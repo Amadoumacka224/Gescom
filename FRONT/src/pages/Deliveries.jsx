@@ -36,6 +36,18 @@ const VIEW_MODE_KEY = 'deliveriesViewMode';
 const RECENT_COUNT = 5;
 
 /**
+ * Colonnes triables, traduites en champs d'entité pour le `sort` de Spring Data.
+ * `order` trie sur le nom du client, ce que faisait déjà l'accesseur remplacé.
+ */
+const SORT_FIELDS = {
+  deliveryNumber: 'deliveryNumber',
+  order: 'order.client.lastName',
+  destination: 'deliveryCity',
+  status: 'status',
+  scheduledDate: 'scheduledDate',
+};
+
+/**
  * Critères de filtrage, à l'état neutre. Sert de valeur initiale, de cible du bouton
  * « Réinitialiser » et de référence pour savoir quels critères sont actifs.
  * Le statut y figure au même titre que les autres : il était porté par un bandeau segmenté
@@ -162,10 +174,6 @@ const clientNameOf = (delivery) => {
   return `${client.firstName || ''} ${client.lastName || ''}`.trim();
 };
 
-/** Livraisons de la plus récemment créée à la plus ancienne (repli sur l'id si la date manque). */
-const sortedByRecency = (list) =>
-  [...list].sort((a, b) => (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)) || (b.id - a.id));
-
 /** Une livraison est en retard tant qu'elle n'est pas effectuée et que sa date prévue est passée. */
 const isLate = (delivery, today) =>
   delivery.status === 'PENDING' && !!dayOf(delivery.scheduledDate) && dayOf(delivery.scheduledDate) < today;
@@ -192,6 +200,14 @@ const Deliveries = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'scheduledDate', direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
+  // Cardinalité du résultat courant, renvoyée par le serveur.
+  const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
+  // Compteurs d'en-tête, agrégés en base. `late` désigne un sous-ensemble de `pending` et ne
+  // s'y ajoute pas : une livraison effectuée en retard n'est plus en retard, elle est faite.
+  const [summary, setSummary] = useState({ total: 0, pending: 0, delivered: 0, late: 0 });
+  // Options des filtres, exhaustives : une ville qui n'apparaît qu'en page 3 doit être
+  // proposée depuis la page 1.
+  const [filterOptions, setFilterOptions] = useState({ clients: [], cities: [], countries: [] });
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
   const [formData, setFormData] = useState(EMPTY_FORM);
@@ -209,15 +225,23 @@ const Deliveries = () => {
   const today = new Date().toISOString().slice(0, 10);
   const todayISO = today;
 
+  // Referentiels et agregats : charges une fois. La page, elle, est rechargee par l'effet
+  // declare plus bas, apres `queryParams` dont il depend.
   useEffect(() => {
-    refresh();
+    fetchOrders();
+    fetchSummary();
+    fetchFilterOptions();
   }, []);
 
   const fetchDeliveries = async () => {
     try {
-      const response = await api.get('/deliveries');
-      setDeliveries(response.data);
-      return response.data;
+      const { data } = await api.get('/deliveries/search', { params: queryParams });
+      setDeliveries(data.content || []);
+      setPageMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
+      return data.content || [];
     } catch (error) {
       console.error('Error fetching deliveries:', error);
       toast.error(t('deliveries.loadError'));
@@ -226,27 +250,54 @@ const Deliveries = () => {
     }
   };
 
-  const fetchOrders = async (currentDeliveries) => {
+  /** Compteurs d'en-tête : ils décrivent tout le périmètre, pas la page. */
+  const fetchSummary = async () => {
     try {
-      const response = await api.get('/orders');
-      // Une livraison ne peut être créée qu'après facturation : on n'affiche que les
-      // commandes INVOICED, et on exclut celles qui ont déjà une livraison.
-      const deliveredOrderIds = new Set((currentDeliveries || []).map(d => d.order?.id).filter(Boolean));
-      const availableOrders = response.data.filter(
-        order => order.status === 'INVOICED' && !deliveredOrderIds.has(order.id)
-      );
-      setOrders(availableOrders);
+      const { data } = await api.get('/deliveries/summary');
+      setSummary(data);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error('Error fetching delivery summary:', error);
+    }
+  };
+
+  /** Clients, villes et pays proposés par les filtres. */
+  const fetchFilterOptions = async () => {
+    try {
+      const { data } = await api.get('/deliveries/filter-options');
+      setFilterOptions(data);
+    } catch (error) {
+      console.error('Error fetching delivery filter options:', error);
+    }
+  };
+
+
+  /**
+   * Commandes proposables au formulaire : facturées et sans livraison.
+   *
+   * La liste était composée ici, en retranchant des commandes facturées celles qui
+   * apparaissaient parmi les livraisons chargées. Celles-ci n'étant plus rapatriées en entier,
+   * la soustraction ne verrait plus que la page affichée et proposerait de livrer une commande
+   * déjà livrée. Le serveur répond désormais à la question, où elle a une réponse complète.
+   */
+  const fetchOrders = async () => {
+    try {
+      const { data } = await api.get('/orders/deliverable');
+      setOrders(data);
+    } catch (error) {
+      console.error('Error fetching deliverable orders:', error);
       setOrders([]);
     }
   };
 
+  /**
+   * Rechargement après écriture. Les compteurs et les options en font partie : une livraison
+   * marquée effectuée déplace une tuile, une livraison créée peut introduire une ville
+   * nouvelle dans le filtre.
+   */
   const refresh = async () => {
     setLoading(true);
     try {
-      const list = await fetchDeliveries();
-      await fetchOrders(list);
+      await Promise.all([fetchDeliveries(), fetchOrders(), fetchSummary(), fetchFilterOptions()]);
     } finally {
       setLoading(false);
     }
@@ -540,34 +591,16 @@ const Deliveries = () => {
     );
   };
 
-  const stats = useMemo(() => ({
-    total: deliveries.length,
-    pending: deliveries.filter(d => d.status === 'PENDING').length,
-    delivered: deliveries.filter(d => d.status === 'DELIVERED').length,
-    late: deliveries.filter(d => isLate(d, today)).length,
-  }), [deliveries, today]);
+  // Compteurs du perimetre entier, agreges en base (cf. /api/deliveries/summary). Les
+  // recalculer ici ne decrirait que la page affichee.
+  const stats = summary;
 
-  // Listes déduites des livraisons elles-mêmes : n'afficher que les valeurs réellement
-  // présentes évite les critères qui ne rendent aucun résultat.
-  const clientOptions = useMemo(() => {
-    const byId = new Map();
-    deliveries.forEach((d) => {
-      const client = d.order?.client;
-      if (client?.id) byId.set(client.id, { id: client.id, label: clientNameOf(d) || `#${client.id}` });
-    });
-    return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [deliveries]);
-
-  const cityOptions = useMemo(() => {
-    const set = new Set(deliveries.map((d) => d.deliveryCity).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [deliveries]);
-
-  const countryOptions = useMemo(() => {
-    const set = new Set(deliveries.map((d) => d.deliveryCountry).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [deliveries]);
-
+  // Options servies par /deliveries/filter-options. Les déduire de `deliveries` ne
+  // proposerait plus que les valeurs de la page affichée, et un critère disparaîtrait de la
+  // liste dès qu'on change de page.
+  const clientOptions = filterOptions.clients;
+  const cityOptions = filterOptions.cities;
+  const countryOptions = filterOptions.countries;
   const advancedFields = useMemo(() => [
     {
       key: 'status',
@@ -611,63 +644,6 @@ const Deliveries = () => {
     { key: 'scheduledTo', label: t('deliveries.scheduledToLabel'), type: 'date' },
   ], [t, clientOptions, cityOptions, countryOptions]);
 
-  const filteredDeliveries = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return deliveries.filter((delivery) => {
-      if (advanced.status === 'LATE') {
-        if (!isLate(delivery, today)) return false;
-      } else if (advanced.status !== 'ALL' && delivery.status !== advanced.status) {
-        return false;
-      }
-
-      if (advanced.clientId && String(delivery.order?.client?.id) !== String(advanced.clientId)) return false;
-      if (advanced.city && delivery.deliveryCity !== advanced.city) return false;
-      if (advanced.country && delivery.deliveryCountry !== advanced.country) return false;
-      if (advanced.contact
-        && !(delivery.contactName || '').toLowerCase().includes(advanced.contact.trim().toLowerCase())) {
-        return false;
-      }
-
-      // Bornes inclusives sur le jour de la date prévue.
-      if (advanced.scheduledFrom || advanced.scheduledTo) {
-        const day = dayOf(delivery.scheduledDate);
-        if (!day) return false;
-        if (advanced.scheduledFrom && day < advanced.scheduledFrom) return false;
-        if (advanced.scheduledTo && day > advanced.scheduledTo) return false;
-      }
-
-      if (!term) return true;
-      return [
-        delivery.deliveryNumber,
-        delivery.order?.orderNumber,
-        clientNameOf(delivery),
-        delivery.contactName,
-        delivery.deliveryCity,
-      ].filter(Boolean).join(' ').toLowerCase().includes(term);
-    });
-  }, [deliveries, searchTerm, advanced, today]);
-
-  const sortedDeliveries = useMemo(() => {
-    const direction = sortConfig.direction === 'asc' ? 1 : -1;
-    const valueOf = (delivery) => {
-      switch (sortConfig.key) {
-        case 'deliveryNumber': return (delivery.deliveryNumber || '').toLowerCase();
-        case 'order': return (clientNameOf(delivery) || delivery.order?.orderNumber || '').toLowerCase();
-        case 'destination': return (delivery.deliveryCity || '').toLowerCase();
-        case 'status': return delivery.status === 'DELIVERED' ? 1 : 0;
-        case 'scheduledDate':
-        default: return dayOf(delivery.scheduledDate);
-      }
-    };
-    return [...filteredDeliveries].sort((a, b) => {
-      const left = valueOf(a);
-      const right = valueOf(b);
-      if (left < right) return -direction;
-      if (left > right) return direction;
-      return b.id - a.id;
-    });
-  }, [filteredDeliveries, sortConfig]);
-
   const deliverySuggestions = rankSuggestions(
     deliveries,
     searchTerm,
@@ -680,18 +656,51 @@ const Deliveries = () => {
   const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
   const showFullList = hasActiveFilters || viewMode === 'all';
 
-  const totalPages = Math.max(1, Math.ceil(sortedDeliveries.length / itemsPerPage));
-  const safePage = Math.min(currentPage, totalPages);
-  const paginatedDeliveries = sortedDeliveries.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
+  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  // Les dernières livraisons créées. À défaut de date de création exploitable, on retombe
-  // sur l'id décroissant.
-  const recentDeliveries = useMemo(
-    () => sortedByRecency(deliveries).slice(0, RECENT_COUNT),
-    [deliveries]
-  );
+  /**
+   * Critères envoyés au serveur.
+   *
+   * « En retard » n'est pas un statut mais une date prévue dépassée sur une livraison ENCORE
+   * EN ATTENTE : une livraison effectuée en retard n'est plus en retard, elle est faite.
+   * L'écran le propose dans la même liste que les statuts, le serveur en fait un paramètre à
+   * part.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'scheduledDate,desc' };
+    }
+    const params = {
+      page: currentPage - 1,
+      size: itemsPerPage,
+      sort: `${SORT_FIELDS[sortConfig.key] ?? 'scheduledDate'},${sortConfig.direction}`,
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (advanced.status === 'LATE') params.late = true;
+    else if (advanced.status !== 'ALL') params.status = advanced.status;
+    if (advanced.clientId) params.clientId = advanced.clientId;
+    if (advanced.city) params.city = advanced.city;
+    if (advanced.country) params.country = advanced.country;
+    if (advanced.contact.trim()) params.contact = advanced.contact.trim();
+    if (advanced.scheduledFrom) params.scheduledFrom = advanced.scheduledFrom;
+    if (advanced.scheduledTo) params.scheduledTo = advanced.scheduledTo;
+    return params;
+  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
 
-  const displayedDeliveries = showFullList ? paginatedDeliveries : recentDeliveries;
+  // Le filtrage, le tri et la pagination sont faits en base : `deliveries` porte déjà la page
+  // demandée, dans l'ordre demandé.
+  const displayedDeliveries = deliveries;
+  const totalPages = pageMeta.totalPages;
+
+  useEffect(() => {
+    fetchDeliveries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1040,11 +1049,11 @@ const Deliveries = () => {
           }}
         />
 
-        {showFullList && !loading && sortedDeliveries.length > 0 && (
+        {showFullList && !loading && pageMeta.totalElements > 0 && (
           <Pagination
-            currentPage={safePage}
+            currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={sortedDeliveries.length}
+            totalItems={pageMeta.totalElements}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
             onItemsPerPageChange={setItemsPerPage}
