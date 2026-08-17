@@ -160,6 +160,27 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--
+            Base en memoire des tests d'integration du cloisonnement.
+
+            H2 plutot que Testcontainers : le second exige un demon Docker, que ni un poste de
+            developpement ni une integration continue ne garantissent — la suite echouerait
+            alors pour une raison etrangere au code teste. H2 ne demande rien et demarre en
+            une seconde.
+
+            Le schema de ces tests est derive des entites (ddl-auto=create-drop), pas joue par
+            Flyway : les migrations emploient des constructions propres a PostgreSQL (index
+            partiels notamment) qu'H2 ne reproduit pas. Ce que ces tests verifient — le filtre
+            de cloisonnement, la surcharge de findById, l'estampillage a la persistance — ne
+            depend pas du DDL. La conformite des migrations, elle, est verifiee au demarrage
+            de l'application sur PostgreSQL par ddl-auto=validate.
+        -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
