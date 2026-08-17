@@ -9,6 +9,8 @@ import com.gescom.backend.entity.Product;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.repository.InvoiceRepository;
+import com.gescom.backend.repository.DeliveryRepository;
+import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.ProductRepository;
 import com.gescom.backend.repository.StockMovementRepository;
@@ -49,6 +51,8 @@ class DiscountCalculationTest {
     @Mock private StockMovementRepository stockMovementRepository;
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private StockReturnRepository stockReturnRepository;
+    @Mock private PaymentRepository paymentRepository;
+    @Mock private DeliveryRepository deliveryRepository;
     @Mock private ActivityLogService activityLogService;
 
     private OrderService orderService;
@@ -60,7 +64,7 @@ class DiscountCalculationTest {
                 stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
                 new CashierScope());
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService,
-                new CashierScope());
+                new CashierScope(), paymentRepository, deliveryRepository);
 
         User caissier = new User();
         caissier.setId(1L);

@@ -7,6 +7,7 @@ import com.gescom.backend.entity.Order;
 import com.gescom.backend.entity.Payment;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.repository.InvoiceRepository;
+import com.gescom.backend.repository.DeliveryRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.service.stripe.SimulatedStripeGateway;
@@ -45,6 +46,7 @@ class PaymentServiceStripeTest {
     @Mock private OrderRepository orderRepository;
     @Mock private ActivityLogService activityLogService;
     @Mock private OrderService orderService;
+    @Mock private DeliveryRepository deliveryRepository;
 
     private PaymentService paymentService;
     private Invoice invoice;
@@ -52,7 +54,8 @@ class PaymentServiceStripeTest {
     @BeforeEach
     void setUp() {
         InvoiceService invoiceService = new InvoiceService(
-                invoiceRepository, orderRepository, activityLogService, orderService, new CashierScope());
+                invoiceRepository, orderRepository, activityLogService, orderService, new CashierScope(),
+                paymentRepository, deliveryRepository);
 
         StripeProperties properties = new StripeProperties();
         properties.setMode("simulated");

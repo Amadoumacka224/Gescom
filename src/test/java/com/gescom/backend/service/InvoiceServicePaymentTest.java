@@ -4,6 +4,8 @@ import com.gescom.backend.security.CashierScope;
 import com.gescom.backend.entity.Invoice;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.repository.InvoiceRepository;
+import com.gescom.backend.repository.DeliveryRepository;
+import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.repository.OrderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,8 @@ class InvoiceServicePaymentTest {
 
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private OrderRepository orderRepository;
+    @Mock private PaymentRepository paymentRepository;
+    @Mock private DeliveryRepository deliveryRepository;
     @Mock private ActivityLogService activityLogService;
     @Mock private OrderService orderService;
 
@@ -38,7 +42,7 @@ class InvoiceServicePaymentTest {
     @BeforeEach
     void setUp() {
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService,
-                new CashierScope());
+                new CashierScope(), paymentRepository, deliveryRepository);
     }
 
     /** Facture de référence : total 100,00 €, encore due (statut UNPAID). */

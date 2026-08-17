@@ -5,6 +5,7 @@ import com.gescom.backend.entity.Order;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.repository.DeliveryRepository;
 import com.gescom.backend.repository.InvoiceRepository;
+import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.ProductRepository;
 import com.gescom.backend.repository.StockMovementRepository;
@@ -66,6 +67,7 @@ class CashierIsolationTest {
     @Mock private InvoiceRepository invoiceRepository;
     @Mock private StockReturnRepository stockReturnRepository;
     @Mock private DeliveryRepository deliveryRepository;
+    @Mock private PaymentRepository paymentRepository;
     @Mock private ActivityLogService activityLogService;
 
     private static final long ALICE_ID = 11L;
@@ -86,7 +88,7 @@ class CashierIsolationTest {
                 stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
                 cashierScope);
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService,
-                orderService, cashierScope);
+                orderService, cashierScope, paymentRepository, deliveryRepository);
         deliveryService = new DeliveryService(deliveryRepository, orderRepository, invoiceRepository,
                 orderService, activityLogService, cashierScope);
 

@@ -6,8 +6,10 @@ import com.gescom.backend.entity.Order;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.BusinessException;
 import com.gescom.backend.exception.ResourceNotFoundException;
+import com.gescom.backend.repository.DeliveryRepository;
 import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
+import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.security.CashierScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,15 +45,22 @@ public class InvoiceService {
     private final ActivityLogService activityLogService;
     private final OrderService orderService;
     private final CashierScope cashierScope;
+    // Uniquement consultés par requireDeletable : une facture ne se supprime pas sans savoir
+    // ce qui s'y rattache.
+    private final PaymentRepository paymentRepository;
+    private final DeliveryRepository deliveryRepository;
 
     public InvoiceService(InvoiceRepository invoiceRepository, OrderRepository orderRepository,
                           ActivityLogService activityLogService, OrderService orderService,
-                          CashierScope cashierScope) {
+                          CashierScope cashierScope, PaymentRepository paymentRepository,
+                          DeliveryRepository deliveryRepository) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.activityLogService = activityLogService;
         this.orderService = orderService;
         this.cashierScope = cashierScope;
+        this.paymentRepository = paymentRepository;
+        this.deliveryRepository = deliveryRepository;
     }
 
     private Long getCurrentUserId() {
@@ -330,10 +339,84 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("invoice", id));
         cashierScope.requireAccess(invoice);
+        requireDeletable(invoice);
+
         String invoiceNumber = invoice.getInvoiceNumber();
         invoiceRepository.delete(invoice);
 
         logActivity(ActivityLog.ActionType.DELETE, "Invoice", id,
             "Suppression de la facture " + invoiceNumber);
+    }
+
+    /**
+     * Conditions de suppression d'une facture.
+     *
+     * La suppression effaçait jusqu'ici la ligne sans rien vérifier, alors que le reste du
+     * domaine est gardé : {@code OrderService.requireNoReturns} refuse d'annuler une commande
+     * porteuse d'un retour, {@code cancelOrder} refuse une commande dont la facture est encore
+     * vivante. La facture, elle, partait quel que soit ce qui s'y rattachait.
+     *
+     * Le principe retenu est celui de la comptabilité, et c'est le même que pour la commande :
+     * <b>un document émis ne se détruit pas, il s'annule</b>. {@link #cancelInvoice} est la
+     * voie normale ; la suppression n'est qu'un ménage sur un document qui ne pèse déjà plus
+     * rien. Elle reste d'ailleurs réservée à l'API — aucun écran ne l'expose.
+     *
+     * Quatre refus, du plus grave au plus formel :
+     *
+     * <ol>
+     *   <li><b>Un encaissement est enregistré.</b> Supprimer effacerait la trace d'argent
+     *       réellement reçu. Le cas existe même sur une facture annulée : {@code cancelInvoice}
+     *       ne refuse que les factures soldées, pas les partiellement payées.</li>
+     *   <li><b>Un paiement carte est rattaché.</b> La clé étrangère de {@code payments} ferait
+     *       de toute façon échouer la suppression, mais en 409 sur un message technique. Le
+     *       cas se produit sans encaissement : une intention de paiement en attente ou refusée
+     *       laisse une ligne sans jamais créditer la facture.</li>
+     *   <li><b>Une livraison existe sur la commande.</b> Elle n'a pu être créée que parce que
+     *       la commande était facturée ; lui retirer sa facture la laisserait sans
+     *       justification. Le cas est atteignable, {@code cancelInvoice} ne vérifiant pas les
+     *       livraisons.</li>
+     *   <li><b>La facture n'est pas annulée.</b> Dernier filtre, volontairement le plus
+     *       formel : il impose de passer par l'annulation, laquelle trace l'opération dans le
+     *       journal d'activité et refuse les factures soldées.</li>
+     * </ol>
+     *
+     * Ce que ce garde-fou ne règle pas : la commande reste en {@code INVOICED}, statut depuis
+     * lequel elle ne peut plus être ni refacturée ({@code createInvoice} exige
+     * {@code CONFIRMED}) ni livrée. La ramener à {@code CONFIRMED} supposerait une transition
+     * arrière dans {@code ALLOWED_TRANSITIONS}, donc ouverte aussi à
+     * {@code PATCH /orders/{id}/status} — le remède serait pire que le mal. Corriger une
+     * facture erronée passe par l'annulation de la vente, et la note de crédit reste
+     * l'évolution à mener pour traiter proprement le cas.
+     */
+    private void requireDeletable(Invoice invoice) {
+        BigDecimal paid = invoice.getPaidAmount();
+        if (paid != null && paid.compareTo(BigDecimal.ZERO) > 0) {
+            throw BusinessException.of("invoice.delete.paymentRecorded",
+                    "La facture " + invoice.getInvoiceNumber() + " porte un encaissement de "
+                            + paid + " € : la supprimer effacerait la trace de cet argent reçu.",
+                    invoice.getInvoiceNumber(), paid);
+        }
+
+        if (!paymentRepository.findByInvoiceIdOrderByCreatedAtDesc(invoice.getId()).isEmpty()) {
+            throw BusinessException.of("invoice.delete.cardPaymentAttached",
+                    "Des paiements par carte sont rattachés à la facture "
+                            + invoice.getInvoiceNumber() + " : la supprimer romprait leur suivi.",
+                    invoice.getInvoiceNumber());
+        }
+
+        Order order = invoice.getOrder();
+        if (order != null && deliveryRepository.findByOrderId(order.getId()).isPresent()) {
+            throw BusinessException.of("invoice.delete.deliveryAttached",
+                    "Une livraison est rattachée à la commande " + order.getOrderNumber()
+                            + " : elle n'existe que parce que cette commande a été facturée.",
+                    order.getOrderNumber());
+        }
+
+        if (invoice.getStatus() != Invoice.InvoiceStatus.CANCELED) {
+            throw BusinessException.of("invoice.delete.notCanceled",
+                    "La facture " + invoice.getInvoiceNumber() + " doit d'abord être annulée : "
+                            + "un document émis s'annule, il ne se détruit pas.",
+                    invoice.getInvoiceNumber());
+        }
     }
 }
