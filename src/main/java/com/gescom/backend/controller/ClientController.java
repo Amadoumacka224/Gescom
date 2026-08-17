@@ -1,8 +1,12 @@
 package com.gescom.backend.controller;
 
 import com.gescom.backend.dto.client.ClientDataExport;
+import com.gescom.backend.dto.client.ClientFilterOptions;
 import com.gescom.backend.dto.client.ClientRequest;
 import com.gescom.backend.dto.client.ClientResponse;
+import com.gescom.backend.dto.client.ClientSearchCriteria;
+import com.gescom.backend.dto.client.ClientSummary;
+import com.gescom.backend.dto.common.PageResponse;
 import com.gescom.backend.entity.Client;
 import com.gescom.backend.entity.Order;
 import com.gescom.backend.exception.ResourceNotFoundException;
@@ -11,6 +15,10 @@ import com.gescom.backend.service.ClientService;
 import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.OrderService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,10 +53,54 @@ public class ClientController {
         this.referenceMapper = referenceMapper;
     }
 
+    /**
+     * Fichier clients intégral, sans pagination.
+     *
+     * Conservé pour les écrans qui s'en servent de référentiel — la saisie d'une commande a
+     * besoin de la liste entière pour son sélecteur. Le tableau de l'écran Clients, lui, passe
+     * par {@link #searchClients}.
+     */
     @GetMapping
     public ResponseEntity<List<ClientResponse>> getAllClients() {
         return ResponseEntity.ok(clientService.getAllClients().stream()
                 .map(referenceMapper::toResponse).toList());
+    }
+
+    /**
+     * Page du fichier clients, filtrée et triée en base.
+     *
+     * Le tri vient du {@code Pageable} (?sort=lastName,asc). Défaut sur la date de création
+     * décroissante : c'est l'ordre attendu d'un fichier que l'on alimente au fil de l'eau, et
+     * celui que l'écran appliquait déjà.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<PageResponse<ClientResponse>> searchClients(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Client.ClientType type,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String country,
+            @RequestParam(required = false) String company,
+            @RequestParam(required = false) Boolean withEmail,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        ClientSearchCriteria criteria = new ClientSearchCriteria(
+                search, type, active, city, country, company, withEmail, createdFrom, createdTo);
+        return ResponseEntity.ok(PageResponse.of(
+                clientService.searchClients(criteria, pageable), referenceMapper::toResponse));
+    }
+
+    /** Compteurs d'en-tête : ils portent sur le fichier entier, pas sur la page affichée. */
+    @GetMapping("/summary")
+    public ResponseEntity<ClientSummary> getSummary() {
+        return ResponseEntity.ok(clientService.getSummary());
+    }
+
+    /** Villes et pays proposés par les filtres — voir {@link ClientFilterOptions}. */
+    @GetMapping("/filter-options")
+    public ResponseEntity<ClientFilterOptions> getFilterOptions() {
+        return ResponseEntity.ok(clientService.getFilterOptions());
     }
 
     @GetMapping("/active")

@@ -5,14 +5,22 @@ import com.gescom.backend.entity.Client;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.DuplicateResourceException;
 import com.gescom.backend.exception.ResourceNotFoundException;
+import com.gescom.backend.dto.client.ClientFilterOptions;
+import com.gescom.backend.dto.client.ClientSearchCriteria;
+import com.gescom.backend.dto.client.ClientSummary;
 import com.gescom.backend.repository.ClientRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -57,6 +65,95 @@ public class ClientService {
     @Transactional(readOnly = true)
     public List<Client> getAllClients() {
         return clientRepository.findAll();
+    }
+
+    /**
+     * Page du fichier clients, filtrée et triée en base.
+     *
+     * L'écran rapatriait tout le fichier puis filtrait, triait et découpait dans le navigateur.
+     * Dès lors que la pagination passe au serveur, les critères doivent suivre : filtrer une
+     * liste déjà tronquée ne chercherait que dans la page reçue, et l'écran mentirait sur ce
+     * qu'il montre.
+     */
+    @Transactional(readOnly = true)
+    public Page<Client> searchClients(ClientSearchCriteria criteria, Pageable pageable) {
+        return clientRepository.findAll(buildFilter(criteria), pageable);
+    }
+
+    /** Compteurs d'en-tête, agrégés en base sur le fichier entier — voir {@link ClientSummary}. */
+    @Transactional(readOnly = true)
+    public ClientSummary getSummary() {
+        ClientRepository.ClientSummaryView view = clientRepository.summary(
+                Client.ClientType.PARTICULIER, Client.ClientType.ENTREPRISE);
+        return new ClientSummary(
+                view.getTotal(), view.getActive(), view.getIndividuals(), view.getCompanies());
+    }
+
+    /** Villes et pays réellement présents, pour les listes déroulantes des filtres. */
+    @Transactional(readOnly = true)
+    public ClientFilterOptions getFilterOptions() {
+        return new ClientFilterOptions(
+                clientRepository.findDistinctCities(),
+                clientRepository.findDistinctCountries());
+    }
+
+    private Specification<Client> buildFilter(ClientSearchCriteria criteria) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (criteria.search() != null && !criteria.search().isBlank()) {
+                // Mêmes champs que l'ancienne recherche du navigateur — nom, prénom, société,
+                // e-mail, téléphone, ville —, pour que le passage au serveur ne change rien à
+                // ce que l'utilisateur trouve. Le nom complet y était cherché d'un bloc
+                // (« Jean Dupont ») : CONCAT le reconstitue, sans quoi une recherche sur deux
+                // mots ne ramènerait plus personne.
+                String pattern = "%" + criteria.search().toLowerCase().trim() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(cb.concat(cb.concat(
+                                cb.coalesce(root.get("firstName"), ""), " "),
+                                cb.coalesce(root.get("lastName"), ""))), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("company"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("email"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("phone"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("city"), "")), pattern)));
+            }
+            if (criteria.type() != null) {
+                predicates.add(cb.equal(root.get("type"), criteria.type()));
+            }
+            if (criteria.active() != null) {
+                predicates.add(cb.equal(root.get("active"), criteria.active()));
+            }
+            if (criteria.city() != null && !criteria.city().isBlank()) {
+                predicates.add(cb.equal(root.get("city"), criteria.city()));
+            }
+            if (criteria.country() != null && !criteria.country().isBlank()) {
+                predicates.add(cb.equal(root.get("country"), criteria.country()));
+            }
+            if (criteria.company() != null && !criteria.company().isBlank()) {
+                predicates.add(cb.like(cb.lower(cb.coalesce(root.get("company"), "")),
+                        "%" + criteria.company().toLowerCase().trim() + "%"));
+            }
+            if (criteria.withEmail() != null) {
+                // « Sans e-mail » couvre le nul ET la chaîne vide : les deux se saisissent depuis
+                // le formulaire et se ressemblent à l'écran.
+                Predicate hasEmail = cb.and(
+                        cb.isNotNull(root.get("email")),
+                        cb.notEqual(root.get("email"), ""));
+                predicates.add(criteria.withEmail() ? hasEmail : cb.not(hasEmail));
+            }
+            if (criteria.createdFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(
+                        root.get("createdAt"), criteria.createdFrom().atStartOfDay()));
+            }
+            if (criteria.createdTo() != null) {
+                // Borne haute EXCLUSIVE au lendemain minuit, et non « <= date » : createdAt est
+                // un horodatage, un client créé à 14 h le jour de fin serait sinon écarté.
+                predicates.add(cb.lessThan(
+                        root.get("createdAt"), criteria.createdTo().plusDays(1).atStartOfDay()));
+            }
+
+            return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     @Transactional(readOnly = true)

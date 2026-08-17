@@ -57,6 +57,23 @@ const EMPTY_ADVANCED = {
   createdTo: '',
 };
 
+/**
+ * Colonnes triables, traduites en champs d'entité pour le `sort` de Spring Data.
+ *
+ * Deux écarts assumés avec l'ancien tri du navigateur :
+ *   - « nom » trie désormais sur le NOM DE FAMILLE, là où le navigateur triait sur « prénom
+ *     nom » concaténé. Un `sort` ne porte que sur un champ, et c'est de toute façon l'ordre
+ *     attendu d'un fichier clients ;
+ *   - « lieu » trie sur la ville, ce que faisait déjà l'accesseur remplacé.
+ */
+const SORT_FIELDS = {
+  name: 'lastName',
+  location: 'city',
+  type: 'type',
+  status: 'active',
+  createdAt: 'createdAt',
+};
+
 const fullName = (client) => `${client?.firstName || ''} ${client?.lastName || ''}`.trim();
 
 /** Adresse postale mise en lignes, dans l'ordre où on l'écrit sur une enveloppe. */
@@ -181,21 +198,107 @@ const Clients = () => {
   // celles d'un client coûterait une requête énorme à chaque affichage de la page.
   const [activity, setActivity] = useState({ loading: false, error: false, orders: [] });
 
+  // Cardinalité du résultat courant, renvoyée par le serveur : elle n'est plus déductible de
+  // `clients`, qui ne porte que la page affichée.
+  const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
+  // Compteurs d'en-tête : ils décrivent le fichier ENTIER, d'où un appel distinct.
+  const [summary, setSummary] = useState({ total: 0, active: 0, individuals: 0, companies: 0 });
+  // Villes et pays proposés par les filtres. Doivent rester exhaustifs : une ville qui
+  // n'apparaît qu'en page 3 doit être proposée depuis la page 1.
+  const [filterOptions, setFilterOptions] = useState({ cities: [], countries: [] });
+
+  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
+    .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
+  const hasActiveFilters = debouncedSearch !== '' || hasAdvancedFilters;
+  // Un filtre actif force la liste complète : filtrer pour ne voir que les cinq derniers
+  // ajoutés n'aurait aucun sens.
+  const showFullList = hasActiveFilters || viewMode === 'all';
+
+  /**
+   * Critères envoyés au serveur.
+   *
+   * La vue « récents » n'est plus un découpage de la liste chargée mais une requête à part
+   * entière : les cinq derniers créés, soit la première page triée par date décroissante.
+   * C'est la même chose exprimée là où sont les données.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'createdAt,desc' };
+    }
+    const params = {
+      page: currentPage - 1,
+      size: itemsPerPage,
+      sort: `${SORT_FIELDS[sortConfig.key] ?? 'createdAt'},${sortConfig.direction}`,
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (advanced.type !== 'ALL') params.type = advanced.type;
+    if (advanced.status !== 'ALL') params.active = advanced.status === 'ACTIVE';
+    if (advanced.city) params.city = advanced.city;
+    if (advanced.country) params.country = advanced.country;
+    if (advanced.company.trim()) params.company = advanced.company.trim();
+    if (advanced.contact !== 'ALL') params.withEmail = advanced.contact === 'WITH_EMAIL';
+    if (advanced.createdFrom) params.createdFrom = advanced.createdFrom;
+    if (advanced.createdTo) params.createdTo = advanced.createdTo;
+    return params;
+  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
+
+  useEffect(() => {
+    fetchSummary();
+    fetchFilterOptions();
+  }, []);
+
   useEffect(() => {
     fetchClients();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams]);
 
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const response = await clientService.getAllClients();
-      setClients(response.data);
+      const { data } = await clientService.searchClients(queryParams);
+      setClients(data.content || []);
+      setPageMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
     } catch (error) {
       console.error('Error fetching clients:', error);
       toast.error(t('clients.loadError'));
+      setClients([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSummary = async () => {
+    try {
+      const { data } = await clientService.getSummary();
+      setSummary(data);
+    } catch (error) {
+      console.error('Error fetching client summary:', error);
+    }
+  };
+
+  /** Rechargées après écriture : un client créé dans une ville nouvelle ajoute un choix. */
+  const fetchFilterOptions = async () => {
+    try {
+      const { data } = await clientService.getFilterOptions();
+      setFilterOptions(data);
+    } catch (error) {
+      console.error('Error fetching client filter options:', error);
+    }
+  };
+
+  /** Recharge page, compteurs et options — à appeler après création, édition, suppression. */
+  const refresh = async () => {
+    await Promise.all([fetchClients(), fetchSummary(), fetchFilterOptions()]);
   };
 
   // ---- Formulaire : saisie, validation, enregistrement ----
@@ -266,7 +369,7 @@ const Clients = () => {
         toast.success(t('clients.createdSuccess'), { id: toastId });
       }
 
-      await fetchClients();
+      await refresh();
       closeForm();
     } catch (error) {
       console.error('Error saving client:', error);
@@ -497,7 +600,7 @@ const Clients = () => {
       // La suppression peut être lancée depuis la fiche elle-même : la laisser ouverte
       // afficherait un client qui n'existe plus.
       if (selectedClient?.id === clientToDelete.id) setSelectedClient(null);
-      await fetchClients();
+      await refresh();
     } catch (error) {
       console.error('Error deleting client:', error);
       const raw = error.response?.data;
@@ -552,24 +655,17 @@ const Clients = () => {
     closeForm();
   };
 
-  const stats = useMemo(() => ({
-    total: clients.length,
-    active: clients.filter((c) => c.active).length,
-    individuals: clients.filter((c) => c.type === 'PARTICULIER').length,
-    companies: clients.filter((c) => c.type === 'ENTREPRISE').length,
-  }), [clients]);
+  // Compteurs du fichier entier, agrégés en base (cf. /api/clients/summary). Les recalculer
+  // ici ne décrirait que la page affichée — soit dix lignes sur cent trente.
+  const stats = summary;
 
   // Listes déduites des clients eux-mêmes : n'afficher que les valeurs réellement présentes
   // évite les critères qui ne rendent aucun résultat.
-  const cityOptions = useMemo(() => {
-    const set = new Set(clients.map((c) => c.city).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [clients]);
-
-  const countryOptions = useMemo(() => {
-    const set = new Set(clients.map((c) => c.country).filter(Boolean));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [clients]);
+  // Villes et pays viennent du serveur (/clients/filter-options) : les déduire de `clients` ne
+  // proposerait plus que les valeurs de la page affichée, et un filtre disparaîtrait de la
+  // liste dès qu'on change de page.
+  const cityOptions = filterOptions.cities;
+  const countryOptions = filterOptions.countries;
 
   const advancedFields = useMemo(() => [
     {
@@ -619,64 +715,12 @@ const Clients = () => {
     { key: 'createdTo', label: t('clients.createdToLabel'), type: 'date' },
   ], [t, cityOptions, countryOptions]);
 
-  const filteredClients = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    return clients.filter((client) => {
-      if (advanced.type !== 'ALL' && client.type !== advanced.type) return false;
-      if (advanced.status === 'ACTIVE' && !client.active) return false;
-      if (advanced.status === 'INACTIVE' && client.active) return false;
-
-      if (advanced.city && client.city !== advanced.city) return false;
-      if (advanced.country && client.country !== advanced.country) return false;
-      if (advanced.company
-        && !(client.company || '').toLowerCase().includes(advanced.company.trim().toLowerCase())) {
-        return false;
-      }
-      if (advanced.contact === 'WITH_EMAIL' && !client.email) return false;
-      if (advanced.contact === 'WITHOUT_EMAIL' && client.email) return false;
-
-      // Bornes inclusives, comparées sur la partie `yyyy-MM-dd` de l'horodatage : comparer des
-      // dates entières exclurait les clients créés le jour de fin passé minuit.
-      if (advanced.createdFrom || advanced.createdTo) {
-        const day = (client.createdAt || '').slice(0, 10);
-        if (!day) return false;
-        if (advanced.createdFrom && day < advanced.createdFrom) return false;
-        if (advanced.createdTo && day > advanced.createdTo) return false;
-      }
-
-      if (!term) return true;
-      return [fullName(client), client.company, client.email, client.phone, client.city]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(term);
-    });
-  }, [clients, searchTerm, advanced]);
-
-  const sortedClients = useMemo(() => {
-    const direction = sortConfig.direction === 'asc' ? 1 : -1;
-    const valueOf = (client) => {
-      switch (sortConfig.key) {
-        case 'name': return fullName(client).toLowerCase();
-        case 'location': return (client.city || '').toLowerCase();
-        case 'type': return client.type || '';
-        case 'status': return client.active ? 1 : 0;
-        case 'createdAt': return new Date(client.createdAt || 0).getTime();
-        default: return client.id;
-      }
-    };
-    return [...filteredClients].sort((a, b) => {
-      const left = valueOf(a);
-      const right = valueOf(b);
-      if (left < right) return -direction;
-      if (left > right) return direction;
-      // Départage stable : le plus récemment créé d'abord.
-      return b.id - a.id;
-    });
-  }, [filteredClients, sortConfig]);
-
   // Suggestions d'autocomplétion classées par pertinence (nom complet et société
-  // prioritaires sur e-mail / téléphone), distinctes du filtrage du tableau.
+  // prioritaires sur e-mail / téléphone).
+  //
+  // Tirées de la page reçue et non plus du fichier entier, qui n'est plus rapatrié : la page
+  // EST le résultat de la recherche en cours, les suggestions portent donc sur les mêmes
+  // lignes qu'avant, bornées à la page.
   const clientSuggestions = rankSuggestions(
     clients,
     searchTerm,
@@ -684,31 +728,16 @@ const Clients = () => {
     8
   );
 
-  const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
-    .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
-  const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
-  // Un filtre actif force la liste complète : filtrer pour ne voir qu'une ligne n'aurait aucun sens.
-  const showFullList = hasActiveFilters || viewMode === 'all';
-
-  const totalPages = Math.ceil(sortedClients.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedClients = sortedClients.slice(startIndex, startIndex + itemsPerPage);
-
-  // Les derniers clients ajoutés, du plus récent au plus ancien.
-  // À défaut de date de création exploitable, on retombe sur l'id le plus élevé.
-  const recentClients = useMemo(() => (
-    [...clients]
-      .sort((a, b) => (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)) || (b.id - a.id))
-      .slice(0, RECENT_COUNT)
-  ), [clients]);
-
-  const displayedClients = showFullList ? paginatedClients : recentClients;
+  // Le filtrage, le tri et la pagination sont faits en base : `clients` porte déjà la page
+  // demandée, dans l'ordre demandé. Refiltrer ici ne chercherait que dans les lignes reçues.
+  const displayedClients = clients;
+  const totalPages = pageMeta.totalPages;
 
   // Toute modification du périmètre ramène à la première page : rester en page 4 d'un
   // résultat qui n'en compte plus que 2 afficherait un tableau vide à tort.
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, advanced, sortConfig, itemsPerPage, viewMode]);
+  }, [debouncedSearch, advanced, sortConfig, itemsPerPage, viewMode]);
 
   const handleSort = (key) => {
     setSortConfig((prev) => {
@@ -1035,11 +1064,11 @@ const Clients = () => {
 
         {/* Pagination : seulement quand la liste complète est affichée (la vue « dernier ajout »
             ne montre qu'une ligne, un pied de pagination y serait trompeur). */}
-        {showFullList && !loading && sortedClients.length > 0 && (
+        {showFullList && !loading && pageMeta.totalElements > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={sortedClients.length}
+            totalItems={pageMeta.totalElements}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
             onItemsPerPageChange={setItemsPerPage}
