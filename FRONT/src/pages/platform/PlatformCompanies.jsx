@@ -482,7 +482,7 @@ const PlatformCompanies = () => {
                     name="billingPeriod"
                     value={form.billingPeriod}
                     onChange={setField('billingPeriod')}
-                    placeholder={t('platform.billingPeriod.MONTHLY')}
+                    allowEmpty={false}
                     options={[
                       { value: 'MONTHLY', label: t('platform.billingPeriod.MONTHLY') },
                       { value: 'YEARLY', label: t('platform.billingPeriod.YEARLY') },
@@ -493,7 +493,7 @@ const PlatformCompanies = () => {
                     name="startTrial"
                     value={form.startTrial}
                     onChange={setField('startTrial')}
-                    placeholder={t('platform.companies.startTrial')}
+                    allowEmpty={false}
                     options={[
                       { value: 'true', label: t('platform.companies.startTrial') },
                       { value: 'false', label: t('platform.companies.startPaid') },

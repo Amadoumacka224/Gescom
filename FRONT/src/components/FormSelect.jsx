@@ -9,6 +9,10 @@ const FormSelect = ({
   required = false,
   error,
   placeholder = 'Sélectionner...',
+  // L'option vide de tête n'a de sens que si « rien » est un choix valable.
+  // Sur une liste dont une valeur est toujours retenue, elle ferait doublon
+  // avec la première option et permettrait de vider un champ obligatoire.
+  allowEmpty = true,
 }) => {
   return (
     <div className="space-y-2">
@@ -26,7 +30,7 @@ const FormSelect = ({
           required={required}
           className={`input-field appearance-none pr-10 cursor-pointer ${error ? 'border-red-500' : ''}`}
         >
-          <option value="">{placeholder}</option>
+          {allowEmpty && <option value="">{placeholder}</option>}
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

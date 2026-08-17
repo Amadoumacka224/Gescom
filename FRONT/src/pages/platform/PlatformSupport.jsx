@@ -363,7 +363,7 @@ const PlatformSupport = () => {
               name="priority"
               value={form.priority}
               onChange={setField('priority')}
-              placeholder={t('platform.support.priorities.NORMAL')}
+              allowEmpty={false}
               options={PRIORITIES.map((p) => ({
                 value: p,
                 label: t(`platform.support.priorities.${p}`),
@@ -374,7 +374,7 @@ const PlatformSupport = () => {
               name="category"
               value={form.category}
               onChange={setField('category')}
-              placeholder={t('platform.support.categories.TECHNICAL')}
+              allowEmpty={false}
               options={CATEGORIES.map((c) => ({
                 value: c,
                 label: t(`platform.support.categories.${c}`),
@@ -413,7 +413,7 @@ const PlatformSupport = () => {
                   name="ticketStatus"
                   value={detail.status}
                   onChange={(e) => changeStatus(e.target.value)}
-                  placeholder={t(`platform.support.statuses.${detail.status}`)}
+                  allowEmpty={false}
                   options={STATUSES.map((s) => ({
                     value: s,
                     label: t(`platform.support.statuses.${s}`),
