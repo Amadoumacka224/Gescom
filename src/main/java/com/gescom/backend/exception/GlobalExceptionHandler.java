@@ -2,6 +2,8 @@ package com.gescom.backend.exception;
 
 import com.gescom.backend.dto.common.ErrorResponse;
 import com.gescom.backend.security.OwnershipViolationException;
+import com.gescom.backend.security.TooManyAttemptsException;
+import org.springframework.http.HttpHeaders;
 import com.gescom.backend.tenancy.TenantViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.MessageSource;
@@ -191,6 +193,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleOwnershipViolation(OwnershipViolationException ex, HttpServletRequest request) {
         log.warn("Périmètre caissier enfreint sur {} : {}", request.getRequestURI(), ex.getMessage());
         return build(HttpStatus.FORBIDDEN, localize(ex), request);
+    }
+
+    // --- 429 Too Many Requests -----------------------------------------------
+
+    /**
+     * Tentatives de connexion epuisees pour un couple identifiant/adresse.
+     *
+     * 429 et non 401 : l'appelant ne s'est pas trompe de mot de passe cette fois-ci, on refuse
+     * de lui repondre. L'en-tete {@code Retry-After} porte le delai en secondes, ce qui permet
+     * a un client correct d'attendre plutot que de reessayer en boucle.
+     */
+    @ExceptionHandler(TooManyAttemptsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyAttempts(TooManyAttemptsException ex, HttpServletRequest request) {
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                localize(ex),
+                request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(body);
     }
 
     // --- 404 Not Found -------------------------------------------------------

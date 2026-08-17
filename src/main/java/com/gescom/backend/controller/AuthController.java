@@ -5,6 +5,7 @@ import com.gescom.backend.dto.auth.LoginResponse;
 import com.gescom.backend.entity.ActivityLog;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.security.JwtUtils;
+import com.gescom.backend.security.LoginAttemptService;
 import com.gescom.backend.service.ActivityLogService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,12 +32,15 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtUtils jwtUtils;
     private final ActivityLogService activityLogService;
+    private final LoginAttemptService loginAttemptService;
 
     public AuthController(AuthenticationManager authenticationManager, JwtUtils jwtUtils,
-                          ActivityLogService activityLogService) {
+                          ActivityLogService activityLogService,
+                          LoginAttemptService loginAttemptService) {
         this.authenticationManager = authenticationManager;
         this.jwtUtils = jwtUtils;
         this.activityLogService = activityLogService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     private String getClientIp(HttpServletRequest request) {
@@ -49,12 +54,31 @@ public class AuthController {
     // Les échecs d'authentification (BadCredentials, DisabledException…) ne sont pas rattrapés
     // ici : ils remontent au GlobalExceptionHandler qui produit un ErrorResponse homogène (401),
     // identique au reste de l'API — le frontend n'a donc qu'un seul format d'erreur à traiter.
+    //
+    // Seul le décompte des tentatives justifie un try/catch : il faut enregistrer l'échec avant
+    // de laisser l'exception poursuivre sa route, sans changer ce que reçoit l'appelant.
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
                                                           HttpServletRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        String clientIp = getClientIp(request);
 
+        // Avant toute vérification du mot de passe : contrôler après reviendrait à offrir à
+        // l'attaquant le calcul BCrypt qu'on cherche justement à lui refuser.
+        loginAttemptService.checkAllowed(loginRequest.getUsername(), clientIp);
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        } catch (AuthenticationException e) {
+            // Compte tout refus, y compris un compte désactivé : un attaquant qui découvrirait
+            // qu'un identifiant existe mais est suspendu apprendrait déjà quelque chose, et
+            // rien ne justifie de lui laisser un nombre d'essais illimité pour le confirmer.
+            loginAttemptService.recordFailure(loginRequest.getUsername(), clientIp);
+            throw e;
+        }
+
+        loginAttemptService.recordSuccess(loginRequest.getUsername(), clientIp);
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
 
