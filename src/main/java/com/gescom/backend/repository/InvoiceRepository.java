@@ -123,11 +123,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
            SELECT COUNT(i) AS total,
                   COALESCE(SUM(CASE WHEN i.status <> :canceled THEN i.paidAmount ELSE 0 END), 0) AS collected,
                   COALESCE(SUM(CASE WHEN i.status <> :canceled THEN i.totalAmount - i.paidAmount ELSE 0 END), 0) AS pending,
-                  SUM(CASE WHEN i.dueDate < :today AND i.status <> :paid AND i.status <> :canceled THEN 1 ELSE 0 END) AS overdue,
-                  SUM(CASE WHEN i.status = :unpaid THEN 1 ELSE 0 END) AS unpaid,
-                  SUM(CASE WHEN i.status = :partial THEN 1 ELSE 0 END) AS partial,
-                  SUM(CASE WHEN i.status = :paid THEN 1 ELSE 0 END) AS paid,
-                  SUM(CASE WHEN i.status = :canceled THEN 1 ELSE 0 END) AS canceled
+                  COALESCE(SUM(CASE WHEN i.dueDate < :today AND i.status <> :paid AND i.status <> :canceled THEN 1 ELSE 0 END), 0) AS overdue,
+                  COALESCE(SUM(CASE WHEN i.status = :unpaid THEN 1 ELSE 0 END), 0) AS unpaid,
+                  COALESCE(SUM(CASE WHEN i.status = :partial THEN 1 ELSE 0 END), 0) AS partial,
+                  COALESCE(SUM(CASE WHEN i.status = :paid THEN 1 ELSE 0 END), 0) AS paid,
+                  COALESCE(SUM(CASE WHEN i.status = :canceled THEN 1 ELSE 0 END), 0) AS canceled
            FROM Invoice i
            LEFT JOIN i.order o LEFT JOIN o.createdBy u
            WHERE (:createdById IS NULL OR u.id = :createdById)

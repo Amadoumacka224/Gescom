@@ -26,6 +26,9 @@ public interface ClientRepository extends JpaRepository<Client, Long>, JpaSpecif
     // Variante pour la mise à jour : vrai si un AUTRE client (id différent) utilise déjà cet email.
     Boolean existsByEmailAndIdNot(String email, Long id);
 
+    /** Clients actifs — indicateur du tableau de bord, compte en base plutot que sur une liste. */
+    long countByActiveTrue();
+
     /**
      * Compteurs d'en-tête, agrégés en base.
      *
@@ -35,9 +38,9 @@ public interface ClientRepository extends JpaRepository<Client, Long>, JpaSpecif
      */
     @Query("""
            SELECT COUNT(c) AS total,
-                  SUM(CASE WHEN c.active = true THEN 1 ELSE 0 END) AS active,
-                  SUM(CASE WHEN c.type = :individual THEN 1 ELSE 0 END) AS individuals,
-                  SUM(CASE WHEN c.type = :companyType THEN 1 ELSE 0 END) AS companies
+                  COALESCE(SUM(CASE WHEN c.active = true THEN 1 ELSE 0 END), 0) AS active,
+                  COALESCE(SUM(CASE WHEN c.type = :individual THEN 1 ELSE 0 END), 0) AS individuals,
+                  COALESCE(SUM(CASE WHEN c.type = :companyType THEN 1 ELSE 0 END), 0) AS companies
            FROM Client c
            """)
     ClientSummaryView summary(@Param("individual") Client.ClientType individual,

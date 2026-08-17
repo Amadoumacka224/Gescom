@@ -76,9 +76,9 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
      */
     @Query("""
            SELECT COUNT(d) AS total,
-                  SUM(CASE WHEN d.status = :pending THEN 1 ELSE 0 END) AS pending,
-                  SUM(CASE WHEN d.status = :delivered THEN 1 ELSE 0 END) AS delivered,
-                  SUM(CASE WHEN d.status = :pending AND d.scheduledDate < :startOfToday THEN 1 ELSE 0 END) AS late
+                  COALESCE(SUM(CASE WHEN d.status = :pending THEN 1 ELSE 0 END), 0) AS pending,
+                  COALESCE(SUM(CASE WHEN d.status = :delivered THEN 1 ELSE 0 END), 0) AS delivered,
+                  COALESCE(SUM(CASE WHEN d.status = :pending AND d.scheduledDate < :startOfToday THEN 1 ELSE 0 END), 0) AS late
            FROM Delivery d
            LEFT JOIN d.order o LEFT JOIN o.createdBy u
            WHERE (:createdById IS NULL OR u.id = :createdById)

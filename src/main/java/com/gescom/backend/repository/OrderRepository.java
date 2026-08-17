@@ -2,6 +2,7 @@ package com.gescom.backend.repository;
 
 import com.gescom.backend.entity.Order;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -149,11 +151,11 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     // échouer le démarrage sur « Could not interpret path expression ».
     @Query("""
            SELECT COUNT(o) AS total,
-                  SUM(CASE WHEN o.status = :pending THEN 1 ELSE 0 END) AS pending,
-                  SUM(CASE WHEN o.status = :confirmed THEN 1 ELSE 0 END) AS confirmed,
-                  SUM(CASE WHEN o.status = :invoiced THEN 1 ELSE 0 END) AS invoiced,
-                  SUM(CASE WHEN o.status = :delivered THEN 1 ELSE 0 END) AS delivered,
-                  SUM(CASE WHEN o.status = :canceled THEN 1 ELSE 0 END) AS canceled
+                  COALESCE(SUM(CASE WHEN o.status = :pending THEN 1 ELSE 0 END), 0) AS pending,
+                  COALESCE(SUM(CASE WHEN o.status = :confirmed THEN 1 ELSE 0 END), 0) AS confirmed,
+                  COALESCE(SUM(CASE WHEN o.status = :invoiced THEN 1 ELSE 0 END), 0) AS invoiced,
+                  COALESCE(SUM(CASE WHEN o.status = :delivered THEN 1 ELSE 0 END), 0) AS delivered,
+                  COALESCE(SUM(CASE WHEN o.status = :canceled THEN 1 ELSE 0 END), 0) AS canceled
            FROM Order o
            LEFT JOIN o.createdBy u
            WHERE (:createdById IS NULL OR u.id = :createdById)
@@ -224,6 +226,34 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             + "ORDER BY o.createdAt DESC")
     List<Order> findDeliverable(@Param("invoiced") Order.OrderStatus invoiced,
                                 @Param("createdById") Long createdById);
+
+    /**
+     * Chiffre d'affaires commandé, agrégé en base.
+     *
+     * Les commandes ANNULÉES en sont exclues : elles n'ont jamais été honorées. C'est le même
+     * périmètre que le décompte « N commandes honorées » affiché juste à côté — les deux
+     * doivent parler du même ensemble, sans quoi le tableau de bord se contredit lui-même.
+     *
+     * COALESCE sur la somme : SUM rend NULL et non 0 sur un ensemble vide, et un montant nul
+     * hérité faisait tomber tout l'aperçu en 500.
+     */
+    @Query("SELECT COALESCE(SUM(o.finalAmount), 0) FROM Order o WHERE o.status <> :canceled")
+    BigDecimal sumHonoredSales(@Param("canceled") Order.OrderStatus canceled);
+
+    /**
+     * Commandes facturées restant à planifier : le reste à faire du magasin.
+     *
+     * Compté sur la jointure réelle, et non déduit de « facturées − livraisons en attente » :
+     * une livraison en attente peut survivre à l'annulation de sa facture puis de sa commande,
+     * auquel cas la soustraction sous-compte — voire passe sous zéro.
+     */
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :invoiced "
+            + "AND NOT EXISTS (SELECT 1 FROM Delivery d WHERE d.order = o)")
+    long countToSchedule(@Param("invoiced") Order.OrderStatus invoiced);
+
+    /** Dernières ventes saisies, lignes et client déjà chargés pour le mapping du tableau de bord. */
+    @Query(WITH_DETAILS + "ORDER BY o.createdAt DESC")
+    List<Order> findRecent(Pageable pageable);
 
     /** Volume de commandes d'une entreprise — indicateur d'usage du back-office propriétaire. */
     long countByOwnerCompanyId(Long companyId);

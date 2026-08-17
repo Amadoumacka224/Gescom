@@ -3,6 +3,7 @@ package com.gescom.backend.repository;
 import com.gescom.backend.entity.Category;
 import com.gescom.backend.entity.Product;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -56,16 +57,31 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
      * pour les quatre, plutôt que quatre COUNT : ils décrivent le même ensemble et doivent être
      * cohérents entre eux, ce que quatre requêtes séparées ne garantissent pas.
      *
-     * COALESCE sur la valeur de stock : SUM ne rend pas 0 mais NULL sur un catalogue vide.
+     * COALESCE partout : sur un catalogue VIDE, SUM rend NULL et non 0 — la projection declare
+     * des long primitifs, et Spring Data echouait alors sur « Null return value from advice ».
+     * Le cas se produit chez toute entreprise nouvellement creee.
      */
     @Query("""
            SELECT COUNT(p) AS total,
-                  SUM(CASE WHEN p.stockQuantity = 0 THEN 1 ELSE 0 END) AS outOfStock,
-                  SUM(CASE WHEN p.stockQuantity > 0 AND p.stockQuantity < p.minStockAlert THEN 1 ELSE 0 END) AS lowStock,
+                  COALESCE(SUM(CASE WHEN p.stockQuantity = 0 THEN 1 ELSE 0 END), 0) AS outOfStock,
+                  COALESCE(SUM(CASE WHEN p.stockQuantity > 0 AND p.stockQuantity < p.minStockAlert THEN 1 ELSE 0 END), 0) AS lowStock,
                   COALESCE(SUM(p.stockQuantity * p.purchasePrice), 0) AS stockValue
            FROM Product p
            """)
     CatalogSummaryView catalogSummary();
+
+    /**
+     * Produits les mieux approvisionnes, pour le tableau de bord.
+     *
+     * Ce n'est PAS un classement des meilleures ventes — pour cela il faudrait agreger les
+     * OrderItem. Le nom le dit, l'ecran aussi.
+     */
+    @Query("SELECT p FROM Product p WHERE p.stockQuantity > 0 ORDER BY p.stockQuantity DESC")
+    List<Product> findTopStocked(Pageable pageable);
+
+    /** Produits sous leur seuil d'alerte, du plus critique au moins critique. */
+    @Query("SELECT p FROM Product p WHERE p.stockQuantity < p.minStockAlert ORDER BY p.stockQuantity ASC")
+    List<Product> findMostDepleted(Pageable pageable);
 
     /**
      * Projection par interface plutôt qu'expression constructeur : les types rendus par un

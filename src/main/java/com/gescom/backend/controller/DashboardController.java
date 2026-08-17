@@ -1,9 +1,11 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.dashboard.DashboardOverview;
 import com.gescom.backend.dto.user.UserResponse;
 import com.gescom.backend.entity.*;
 import com.gescom.backend.service.ActivityLogService;
 import com.gescom.backend.service.ClientService;
+import com.gescom.backend.service.DashboardService;
 import com.gescom.backend.service.InvoiceService;
 import com.gescom.backend.service.DeliveryService;
 import com.gescom.backend.service.OrderService;
@@ -30,23 +32,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")
 public class DashboardController {
 
+    private final DashboardService dashboardService;
     private final OrderService orderService;
-    private final ClientService clientService;
-    private final ProductService productService;
     private final InvoiceService invoiceService;
-    private final DeliveryService deliveryService;
     private final ActivityLogService activityLogService;
     private final UserService userService;
 
-    public DashboardController(OrderService orderService, ClientService clientService,
-                               ProductService productService, InvoiceService invoiceService,
-                               DeliveryService deliveryService, ActivityLogService activityLogService,
+    public DashboardController(DashboardService dashboardService, OrderService orderService,
+                               InvoiceService invoiceService, ActivityLogService activityLogService,
                                UserService userService) {
+        this.dashboardService = dashboardService;
         this.orderService = orderService;
-        this.clientService = clientService;
-        this.productService = productService;
         this.invoiceService = invoiceService;
-        this.deliveryService = deliveryService;
         this.activityLogService = activityLogService;
         this.userService = userService;
     }
@@ -63,212 +60,22 @@ public class DashboardController {
         }
     }
 
-    @GetMapping("/stats")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> getDashboardStats() {
-        Map<String, Object> stats = new HashMap<>();
-
-        List<Order> allOrders = orderService.getAllOrders();
-        BigDecimal totalSales = allOrders.stream()
-                .map(Order::getFinalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        stats.put("totalSales", totalSales);
-        stats.put("totalOrders", allOrders.size());
-        stats.put("totalClients", clientService.getActiveClients().size());
-        stats.put("lowStock", productService.getLowStockProducts().size());
-
-        return ResponseEntity.ok(stats);
-    }
-
-    @GetMapping("/recent-orders")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Map<String, Object>>> getRecentOrders() {
-        List<Order> orders = orderService.getAllOrders().stream()
-                .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
-                .limit(5)
-                .collect(Collectors.toList());
-
-        List<Map<String, Object>> result = orders.stream().map(this::mapOrder).collect(Collectors.toList());
-        return ResponseEntity.ok(result);
-    }
-
-    @GetMapping("/top-products")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Map<String, Object>>> getTopProducts() {
-        List<Product> products = productService.getAllProducts().stream()
-                .filter(p -> p.getStockQuantity() > 0)
-                .sorted((p1, p2) -> Integer.compare(p2.getStockQuantity(), p1.getStockQuantity()))
-                .limit(4)
-                .collect(Collectors.toList());
-
-        List<Map<String, Object>> result = products.stream().map(product -> {
-            Map<String, Object> productData = new HashMap<>();
-            productData.put("id", product.getId());
-            productData.put("name", product.getName());
-            productData.put("stock", product.getStockQuantity());
-            return productData;
-        }).collect(Collectors.toList());
-
-        return ResponseEntity.ok(result);
-    }
-
+    /**
+     * Aperçu du tableau de bord.
+     *
+     * Le contrôleur redevient fin : les agrégats sont dans {@link com.gescom.backend.service.DashboardService},
+     * calculés en base. Ils occupaient auparavant plus de cent cinquante lignes ici, et
+     * chargeaient en mémoire toutes les commandes, factures, livraisons et produits du
+     * locataire à chaque affichage.
+     *
+     * Trois points d'entrée ont disparu au passage — /stats, /recent-orders et /top-products —
+     * qu'aucun écran n'appelait et dont l'aperçu renvoyait déjà le contenu.
+     */
     @GetMapping("/overview")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> getDashboardOverview() {
+    public ResponseEntity<DashboardOverview> getDashboardOverview() {
         logView("Consultation du tableau de bord");
-        Map<String, Object> overview = new HashMap<>();
-
-        // --- Orders ---
-        List<Order> allOrders = orderService.getAllOrders();
-
-        // Bug fix : exclure les commandes annulées du CA (elles n'ont jamais été honorées).
-        // Même périmètre que `honoredOrders` (vues caisse) et que le sous-titre « N commandes
-        // honorées » du tableau de bord : les trois doivent parler du même ensemble.
-        // Montants nuls filtrés comme dans buildDayMetrics : un `null` hérité faisait tomber
-        // tout l'aperçu en 500, donc affichait un tableau de bord vide plutôt qu'un total.
-        BigDecimal totalSales = allOrders.stream()
-                .filter(o -> o.getStatus() != Order.OrderStatus.CANCELED)
-                .map(Order::getFinalAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        long pendingOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.PENDING).count();
-        long confirmedOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.CONFIRMED).count();
-        long invoicedOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.INVOICED).count();
-        long deliveredOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.DELIVERED).count();
-        long canceledOrders = allOrders.stream().filter(o -> o.getStatus() == Order.OrderStatus.CANCELED).count();
-
-        overview.put("totalSales", totalSales);
-        overview.put("totalOrders", allOrders.size());
-        overview.put("pendingOrders", pendingOrders);
-        overview.put("confirmedOrders", confirmedOrders);
-        overview.put("invoicedOrders", invoicedOrders);
-        overview.put("deliveredOrders", deliveredOrders);
-        overview.put("canceledOrders", canceledOrders);
-        overview.put("totalClients", clientService.getActiveClients().size());
-        overview.put("lowStock", productService.getLowStockProducts().size());
-
-        // --- Invoices ---
-        //
-        // Les trois montants exposés décrivent UN SEUL ensemble : les factures non annulées.
-        // Une facture annulée sort des livres — compter ses encaissements sans compter son
-        // reliquat (ou l'inverse) donnerait un « encaissé sur facturé » qui n'est le total
-        // d'aucun périmètre, et un taux d'encaissement faux.
-        //
-        // L'identité pendingAmount = invoicedAmount − totalRevenue est garantie ici, par
-        // construction : le tableau de bord affiche les trois chiffres côte à côte (anneau,
-        // légende, « reste à encaisser ») et ils doivent tomber juste à l'euro près.
-        List<Invoice> allInvoices = invoiceService.getAllInvoices();
-        List<Invoice> liveInvoices = allInvoices.stream()
-                .filter(inv -> inv.getStatus() != Invoice.InvoiceStatus.CANCELED)
-                .collect(Collectors.toList());
-
-        BigDecimal invoicedAmount = liveInvoices.stream()
-                .map(Invoice::getTotalAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalRevenue = liveInvoices.stream()
-                .map(Invoice::getPaidAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal pendingAmount = invoicedAmount.subtract(totalRevenue);
-
-        long unpaidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.UNPAID).count();
-        long partiallyPaidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.PARTIALLY_PAID).count();
-        long paidInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.PAID).count();
-        long canceledInvoices = allInvoices.stream().filter(i -> i.getStatus() == Invoice.InvoiceStatus.CANCELED).count();
-
-        overview.put("totalInvoices", allInvoices.size());
-        overview.put("totalRevenue", totalRevenue);
-        overview.put("invoicedAmount", invoicedAmount);
-        overview.put("pendingAmount", pendingAmount);
-        // Les quatre statuts sont exposés au complet : le tableau de bord en fait une
-        // répartition dont les parts doivent totaliser 100 % (payées + partielles + non
-        // payées + annulées = totalInvoices). Il manquait PARTIALLY_PAID et CANCELED.
-        overview.put("unpaidInvoices", unpaidInvoices);
-        overview.put("partiallyPaidInvoices", partiallyPaidInvoices);
-        overview.put("paidInvoices", paidInvoices);
-        overview.put("canceledInvoices", canceledInvoices);
-
-        // --- Deliveries ---
-        List<Delivery> allDeliveries = deliveryService.getAllDeliveries();
-        long pendingDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.PENDING).count();
-        long deliveredDeliveries = allDeliveries.stream().filter(d -> d.getStatus() == Delivery.DeliveryStatus.DELIVERED).count();
-
-        // Commandes facturées pour lesquelles aucune livraison n'existe encore : le reste à
-        // planifier. Compté sur la jointure réelle, et non déduit de
-        // « invoicedOrders − pendingDeliveries » : une livraison en attente peut survivre à
-        // l'annulation de sa facture puis de sa commande (cancelInvoice ne vérifie pas les
-        // livraisons), auquel cas la soustraction sous-compte — voire passe sous zéro.
-        Set<Long> orderIdsWithDelivery = allDeliveries.stream()
-                .map(Delivery::getOrder)
-                .filter(Objects::nonNull)
-                .map(Order::getId)
-                .collect(Collectors.toSet());
-        long ordersToSchedule = allOrders.stream()
-                .filter(o -> o.getStatus() == Order.OrderStatus.INVOICED)
-                .filter(o -> !orderIdsWithDelivery.contains(o.getId()))
-                .count();
-
-        overview.put("totalDeliveries", allDeliveries.size());
-        overview.put("pendingDeliveries", pendingDeliveries);
-        overview.put("deliveredDeliveries", deliveredDeliveries);
-        overview.put("ordersToSchedule", ordersToSchedule);
-
-        // --- Recent orders (avec statut de facturation pour l'affichage « Payée ») ---
-        List<Order> recentOrders = allOrders.stream()
-                .sorted((o1, o2) -> o2.getCreatedAt().compareTo(o1.getCreatedAt()))
-                .limit(5)
-                .collect(Collectors.toList());
-
-        Map<Long, Invoice.InvoiceStatus> recentInvoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
-                recentOrders.stream().map(Order::getId).collect(Collectors.toList()));
-
-        overview.put("recentOrders", recentOrders.stream()
-                .map(o -> {
-                    Map<String, Object> data = mapOrder(o);
-                    data.put("invoiceStatus", recentInvoiceStatuses.get(o.getId()));
-                    return data;
-                })
-                .collect(Collectors.toList()));
-
-        // --- Produits avec le plus de stock (tri par stock DESC) ---
-        // NB : ce n'est PAS un classement des meilleures ventes — pour cela il faudrait
-        // agréger les OrderItem. Champ renommé pour ne pas induire l'UI en erreur.
-        List<Product> topStockProducts = productService.getAllProducts().stream()
-                .filter(p -> p.getStockQuantity() > 0)
-                .sorted((p1, p2) -> Integer.compare(p2.getStockQuantity(), p1.getStockQuantity()))
-                .limit(5)
-                .collect(Collectors.toList());
-
-        List<Map<String, Object>> productsList = topStockProducts.stream().map(product -> {
-            Map<String, Object> productData = new HashMap<>();
-            productData.put("id", product.getId());
-            productData.put("name", product.getName());
-            productData.put("stock", product.getStockQuantity());
-            return productData;
-        }).collect(Collectors.toList());
-
-        overview.put("topStockProducts", productsList);
-
-        // --- Low stock products ---
-        List<Product> lowStockProducts = productService.getLowStockProducts().stream()
-                .sorted(Comparator.comparingInt(Product::getStockQuantity))
-                .limit(5)
-                .collect(Collectors.toList());
-
-        List<Map<String, Object>> lowStockList = lowStockProducts.stream().map(product -> {
-            Map<String, Object> productData = new HashMap<>();
-            productData.put("id", product.getId());
-            productData.put("name", product.getName());
-            productData.put("stock", product.getStockQuantity());
-            return productData;
-        }).collect(Collectors.toList());
-
-        overview.put("lowStockProducts", lowStockList);
-
-        return ResponseEntity.ok(overview);
+        return ResponseEntity.ok(dashboardService.getOverview());
     }
 
     private Map<String, Object> mapOrder(Order order) {
