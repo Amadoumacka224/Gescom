@@ -122,7 +122,10 @@ public class CompanyService {
             }
         }
 
-        notificationService.record("COMPANY_PROVISIONED", PlatformNotification.Severity.INFO,
+        // Apres commit, et non pendant : l'entreprise vient d'etre creee dans cette
+        // transaction, une notification ecrite depuis une autre connexion ne la verrait pas
+        // encore et buterait sur la cle etrangere — faisant echouer l'ouverture du compte.
+        notificationService.recordAfterCommit("COMPANY_PROVISIONED", PlatformNotification.Severity.INFO,
                 "Nouveau client : " + company.getName(),
                 "Compte ouvert avec l'administrateur " + owner.getUsername(),
                 company, "Company", company.getId());

@@ -9,8 +9,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 
@@ -34,8 +39,22 @@ public class PlatformNotificationService {
 
     private final PlatformNotificationRepository notificationRepository;
 
-    public PlatformNotificationService(PlatformNotificationRepository notificationRepository) {
+    /**
+     * Transaction neuve pour les ecritures differees apres commit.
+     *
+     * Indispensable, et pas seulement par symetrie avec le {@code REQUIRES_NEW} de
+     * {@link #record} : dans un {@code afterCommit}, les ressources transactionnelles sont
+     * encore liees au thread alors que la transaction est deja validee. Un {@code save} y
+     * rejoint une transaction close et n'est jamais ecrit — sans la moindre erreur.
+     */
+    private final TransactionTemplate afterCommitTransaction;
+
+    public PlatformNotificationService(PlatformNotificationRepository notificationRepository,
+                                       PlatformTransactionManager transactionManager) {
         this.notificationRepository = notificationRepository;
+        this.afterCommitTransaction = new TransactionTemplate(transactionManager);
+        this.afterCommitTransaction.setPropagationBehavior(
+                TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     // ── Lectures ─────────────────────────────────────────────────────────────
@@ -76,6 +95,50 @@ public class PlatformNotificationService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(String type, PlatformNotification.Severity severity, String title,
+                       String message, Company company, String entity, Long entityId) {
+        write(type, severity, title, message, company, entity, entityId);
+    }
+
+    /**
+     * Consigne un evenement une fois la transaction appelante validee.
+     *
+     * A reserver au cas ou l'evenement porte sur une entite creee dans cette meme
+     * transaction. {@link #record} s'execute en {@code REQUIRES_NEW}, donc sur une autre
+     * connexion : la ligne n'y est pas encore visible, l'insertion viole la cle etrangere, et
+     * l'echec du commit interne remonte en {@code UnexpectedRollbackException} jusqu'a faire
+     * echouer l'operation metier — precisement ce que le catch devait empecher.
+     *
+     * Differer l'ecriture apres le commit resout les deux : la ligne existe, et plus aucune
+     * transaction appelante ne peut etre entrainee par un echec de la notification. Sans
+     * transaction en cours, l'appel se comporte comme {@link #record}.
+     */
+    public void recordAfterCommit(String type, PlatformNotification.Severity severity, String title,
+                                  String message, Company company, String entity, Long entityId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            write(type, severity, title, message, company, entity, entityId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // Le catch de write() ne suffit pas ici : il couvre l'insertion, pas le commit
+                // de cette transaction-ci, qui a lieu apres le retour de la lambda. Or Spring
+                // n'avale pas ce qu'une synchronisation leve — l'exception remonterait au
+                // commit de l'appelant et ferait echouer en 500 une operation pourtant deja
+                // validee en base, l'entreprise etant creee et le nouvel essai butant alors
+                // sur un doublon d'email.
+                try {
+                    afterCommitTransaction.executeWithoutResult(status ->
+                            write(type, severity, title, message, company, entity, entityId));
+                } catch (Exception e) {
+                    log.warn("Notification « {} » non enregistree apres commit : {}", type, e.getMessage());
+                }
+            }
+        });
+    }
+
+    /** Ecriture proprement dite. Ne leve jamais : une trace perdue vaut mieux qu'une operation perdue. */
+    private void write(String type, PlatformNotification.Severity severity, String title,
                        String message, Company company, String entity, Long entityId) {
         try {
             PlatformNotification notification = new PlatformNotification();
