@@ -1,5 +1,7 @@
 package com.gescom.backend.controller;
 
+import com.gescom.backend.dto.common.PageResponse;
+import com.gescom.backend.dto.product.ProductCatalogSummary;
 import com.gescom.backend.dto.product.ProductRequest;
 import com.gescom.backend.dto.product.ProductResponse;
 import com.gescom.backend.dto.product.StockUpdateRequest;
@@ -10,6 +12,8 @@ import com.gescom.backend.service.CsvExportService;
 import com.gescom.backend.service.CsvImportService;
 import com.gescom.backend.service.ProductService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -44,10 +48,41 @@ public class ProductController {
         this.referenceMapper = referenceMapper;
     }
 
+    /**
+     * Catalogue intégral, sans pagination.
+     *
+     * Conservé parce que plusieurs écrans s'en servent comme d'un référentiel à charger une
+     * fois — la caisse, l'ajustement de stock, le décompte par catégorie — et non comme d'un
+     * tableau à parcourir. Le tableau de l'écran Produits, lui, passe par {@link #searchProducts}.
+     */
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getAllProducts() {
         return ResponseEntity.ok(productService.getAllProducts().stream()
                 .map(referenceMapper::toResponse).toList());
+    }
+
+    /**
+     * Page du catalogue, filtrée et triée en base.
+     *
+     * Le tri vient du {@code Pageable} (?sort=name,asc) : les colonnes triables de l'écran sont
+     * des champs de l'entité, il n'y a rien à traduire. Défaut sur le nom, ordre alphabétique,
+     * qui est l'attendu d'un catalogue.
+     */
+    @GetMapping("/search")
+    public ResponseEntity<PageResponse<ProductResponse>> searchProducts(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Boolean active,
+            @PageableDefault(size = 50, sort = "name") Pageable pageable) {
+        return ResponseEntity.ok(PageResponse.of(
+                productService.searchProducts(search, categoryId, active, pageable),
+                referenceMapper::toResponse));
+    }
+
+    /** Compteurs d'en-tête : ils portent sur le catalogue entier, pas sur la page affichée. */
+    @GetMapping("/summary")
+    public ResponseEntity<ProductCatalogSummary> getCatalogSummary() {
+        return ResponseEntity.ok(productService.getCatalogSummary());
     }
 
     @GetMapping("/active")

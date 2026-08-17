@@ -384,7 +384,9 @@
     "columnStatus": "Statut",
     "createdAtLabel": "Créé",
     "updatedAtLabel": "Modifié",
-    "exportFilename": "produits"
+    "exportFilename": "produits",
+    "loadError": "Erreur lors du chargement des produits",
+    "exportError": "Erreur lors de l'export des produits"
   },
   "categories": {
     "title": "Catégories",

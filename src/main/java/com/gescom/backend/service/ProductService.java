@@ -5,14 +5,21 @@ import com.gescom.backend.entity.Product;
 import com.gescom.backend.entity.User;
 import com.gescom.backend.exception.DuplicateResourceException;
 import com.gescom.backend.exception.ResourceNotFoundException;
+import com.gescom.backend.dto.product.ProductCatalogSummary;
 import com.gescom.backend.repository.ProductRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,6 +70,60 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<Product> getAllProducts() {
         return productRepository.findAll();
+    }
+
+    /**
+     * Page du catalogue, filtrée et triée en base.
+     *
+     * L'écran Produits rapatriait tout le catalogue puis filtrait, triait et découpait dans le
+     * navigateur. Sur un fond de commerce réel, cela transfère des mégaoctets pour en afficher
+     * cinquante lignes. Surtout, filtrer une liste déjà tronquée ne chercherait que dans la
+     * page reçue : dès lors que la pagination passe au serveur, la recherche et le tri doivent
+     * suivre, sans quoi l'écran ment sur ce qu'il montre.
+     *
+     * Tous les critères sont facultatifs et se combinent.
+     */
+    @Transactional(readOnly = true)
+    public Page<Product> searchProducts(String search, Long categoryId, Boolean active, Pageable pageable) {
+        return productRepository.findAll(buildFilter(search, categoryId, active), pageable);
+    }
+
+    /** Compteurs d'en-tête, agrégés en base sur le catalogue entier — voir {@link ProductCatalogSummary}. */
+    @Transactional(readOnly = true)
+    public ProductCatalogSummary getCatalogSummary() {
+        ProductRepository.CatalogSummaryView view = productRepository.catalogSummary();
+        return new ProductCatalogSummary(
+                view.getTotal(),
+                view.getOutOfStock(),
+                view.getLowStock(),
+                view.getStockValue() != null ? view.getStockValue() : BigDecimal.ZERO);
+    }
+
+    private Specification<Product> buildFilter(String search, Long categoryId, Boolean active) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (search != null && !search.isBlank()) {
+                // Mêmes champs que l'ancienne recherche du navigateur — nom, code, code-barres
+                // et libellé de catégorie —, pour que le passage au serveur ne change rien à ce
+                // que l'utilisateur trouve. LOWER des deux côtés : la casse ne doit pas compter,
+                // et le collationnement de la base ne le garantit pas.
+                String pattern = "%" + search.toLowerCase().trim() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), pattern),
+                        cb.like(cb.lower(root.get("code")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("barcode"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(root.get("category").get("name"), "")), pattern)));
+            }
+            if (categoryId != null) {
+                predicates.add(cb.equal(root.get("category").get("id"), categoryId));
+            }
+            if (active != null) {
+                predicates.add(cb.equal(root.get("active"), active));
+            }
+
+            return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     @Transactional(readOnly = true)

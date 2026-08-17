@@ -384,7 +384,9 @@
     "columnStatus": "Status",
     "createdAtLabel": "Created",
     "updatedAtLabel": "Updated",
-    "exportFilename": "products"
+    "exportFilename": "products",
+    "loadError": "Failed to load products",
+    "exportError": "Failed to export products"
   },
   "categories": {
     "title": "Categories",

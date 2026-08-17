@@ -384,7 +384,9 @@
     "columnStatus": "Status",
     "createdAtLabel": "Aangemaakt",
     "updatedAtLabel": "Gewijzigd",
-    "exportFilename": "producten"
+    "exportFilename": "producten",
+    "loadError": "Fout bij het laden van de producten",
+    "exportError": "Fout bij het exporteren van de producten"
   },
   "categories": {
     "title": "Categorieën",

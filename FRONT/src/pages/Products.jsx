@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, Euro, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
@@ -37,6 +37,23 @@ const FORM_KEYS = Object.keys(EMPTY_FORM);
 
 /** Longueurs maximales reprises des contraintes `@Size` de `ProductRequest`. */
 const MAX_LENGTHS = { name: 200, barcode: 50 };
+
+/**
+ * Colonnes triables, traduites en chemins d'entité pour le `sort` de Spring Data.
+ *
+ * Seule `category` diffère du nom de la colonne : le tableau affiche le libellé de la famille,
+ * là où l'entité porte une association. Les autres se nomment pareil des deux côtés et ne
+ * figurent ici que pour rendre la liste des tris autorisés explicite — un `sort` sur un champ
+ * inexistant fait répondre 500 au serveur.
+ */
+const SORT_FIELDS = {
+  name: 'name',
+  category: 'category.name',
+  sellingPrice: 'sellingPrice',
+  stockQuantity: 'stockQuantity',
+  active: 'active',
+  code: 'code',
+};
 
 /** Ordre visuel des champs : décide lequel reçoit le focus quand plusieurs sont en erreur. */
 const FIELD_ORDER = [
@@ -135,11 +152,45 @@ const Products = () => {
   // Enregistrement distinct du chargement de la liste : `loading` pilote aussi le squelette
   // du tableau, qui n'a aucune raison de clignoter pendant une sauvegarde.
   const [saving, setSaving] = useState(false);
+  // Cardinalité de la recherche courante, renvoyée par le serveur : le nombre de lignes n'est
+  // plus déductible de `products`, qui ne porte plus que la page affichée.
+  const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
+  // Compteurs d'en-tête. Ils décrivent le catalogue ENTIER et proviennent d'un appel distinct :
+  // les déduire de la page afficherait « 3 ruptures » pour la seule page ouverte.
+  const [summary, setSummary] = useState({ total: 0, outOfStock: 0, lowStock: 0, stockValue: 0 });
+
+  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête. 300 ms est le
+  // seuil au-delà duquel l'utilisateur perçoit une latence — en deçà, la frappe est fluide.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Critères envoyés au serveur. `page` passe de la numérotation de l'interface (à partir de 1)
+  // à celle de Spring Data (à partir de 0).
+  const queryParams = useMemo(() => {
+    const params = { page: currentPage - 1, size: itemsPerPage };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (sortConfig.key) params.sort = `${SORT_FIELDS[sortConfig.key] ?? sortConfig.key},${sortConfig.direction}`;
+    return params;
+  }, [currentPage, itemsPerPage, debouncedSearch, sortConfig]);
+
+  useEffect(() => {
+    fetchCategories();
+    fetchSummary();
+  }, []);
 
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams]);
+
+  // Une recherche ou un tri qui change repart de la première page : rester en page 7 d'un
+  // résultat qui n'en compte plus que 2 afficherait un tableau vide.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, sortConfig, itemsPerPage]);
 
   const fetchCategories = async () => {
     try {
@@ -156,13 +207,34 @@ const Products = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const response = await productService.getAllProducts();
-      setProducts(response.data);
+      const { data } = await productService.searchProducts(queryParams);
+      setProducts(data.content || []);
+      setPageMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
     } catch (error) {
       console.error('Error fetching products:', error);
+      toast.error(t('products.loadError'));
+      setProducts([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Compteurs d'en-tête : à rafraîchir après toute écriture, une création changeant le total. */
+  const fetchSummary = async () => {
+    try {
+      const { data } = await productService.getCatalogSummary();
+      setSummary(data);
+    } catch (error) {
+      console.error('Error fetching product summary:', error);
+    }
+  };
+
+  /** Recharge la page courante ET les compteurs — à appeler après création, édition, suppression. */
+  const refresh = async () => {
+    await Promise.all([fetchProducts(), fetchSummary()]);
   };
 
   const handleInputChange = (e) => {
@@ -259,7 +331,7 @@ const Products = () => {
         toast.success(t('products.createdSuccess'));
       }
 
-      await fetchProducts();
+      await refresh();
       closeForm();
     } catch (error) {
       console.error('Error saving product:', error);
@@ -330,7 +402,7 @@ const Products = () => {
     if (window.confirm(t('products.confirmDelete'))) {
       try {
         await productService.deleteProduct(id);
-        await fetchProducts();
+        await refresh();
       } catch (error) {
         console.error('Error deleting product:', error);
         toast.error(t('products.deleteError'));
@@ -416,44 +488,41 @@ const Products = () => {
     setSortConfig({ key, direction });
   };
 
-  const handleExport = () => {
-    const csvContent = [
-      [
-        t('products.code'),
-        t('products.name'),
-        t('products.category'),
-        t('products.purchasePrice'),
-        t('products.sellingPrice'),
-        t('products.stock'),
-        t('products.columnStatus'),
-      ],
-      ...products.map(p => [
-        p.code,
-        p.name,
-        p.category || '',
-        p.purchasePrice,
-        p.sellingPrice,
-        p.stockQuantity,
-        p.active ? t('common.active') : t('common.inactive')
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${t('products.exportFilename')}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+  /**
+   * Export du catalogue, produit par le serveur.
+   *
+   * Le fichier était auparavant assemblé ici, par concaténation avec des virgules, à partir de
+   * la liste complète chargée dans le navigateur. Celle-ci ne l'étant plus, cet assemblage
+   * n'aurait livré que la page affichée — un fichier tronqué qui s'annonce pourtant comme
+   * l'export du catalogue.
+   *
+   * `GET /products/export` existait déjà et fait mieux : il voit tout le catalogue, et passe
+   * par CsvExportService, qui échappe les valeurs et pose le BOM attendu par Excel — deux
+   * choses que la concaténation d'ici ne faisait pas.
+   */
+  const handleExport = async () => {
+    try {
+      const response = await productService.exportProducts();
+      const url = window.URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${t('products.exportFilename')}_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting products:', error);
+      toast.error(t('products.exportError'));
+    }
   };
 
-  const filteredProducts = products.filter((product) =>
-    `${product.name} ${product.code} ${product.barcode || ''} ${product.category?.name || ''}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  );
-
   // Suggestions d'autocomplétion classées par pertinence (nom prioritaire sur
-  // code / code-barres / catégorie), distinctes du filtrage du tableau.
+  // code / code-barres / catégorie).
+  //
+  // Elles sont désormais tirées de la page reçue et non plus du catalogue entier, qui n'est
+  // plus rapatrié. Ce n'est pas une perte : la page EST le résultat de la recherche en cours,
+  // les suggestions portent donc sur les mêmes lignes qu'avant — simplement bornées à la
+  // page. Le champ cherche sur les mêmes colonnes côté serveur, la frappe suivante rend de
+  // toute façon les suggestions du nouveau résultat.
   const productSuggestions = rankSuggestions(
     products,
     searchTerm,
@@ -461,39 +530,12 @@ const Products = () => {
     8
   );
 
-  // Le tri passe par les en-têtes de colonne (`Table`), pas par un bouton dans chaque cellule :
-  // la valeur triée est parfois dérivée (nom de catégorie, prix en nombre), d'où l'accesseur.
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (!sortConfig.key) return 0;
-    const direction = sortConfig.direction === 'asc' ? 1 : -1;
-
-    const valueOf = (product) => {
-      switch (sortConfig.key) {
-        case 'name': return (product.name || '').toLowerCase();
-        case 'category': return (product.category?.name || '').toLowerCase();
-        case 'sellingPrice': return Number(product.sellingPrice) || 0;
-        case 'stockQuantity': return Number(product.stockQuantity) || 0;
-        case 'active': return product.active ? 1 : 0;
-        default: return (product[sortConfig.key] ?? '');
-      }
-    };
-
-    const left = valueOf(a);
-    const right = valueOf(b);
-    if (left < right) return -direction;
-    if (left > right) return direction;
-    return 0;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(sortedProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedProducts = sortedProducts.slice(startIndex, endIndex);
-
-  // On affiche le maximum de produits : la liste complète, triée et paginée (jusqu'à 100 par page),
-  // que l'on soit en navigation normale ou en recherche.
-  const displayedProducts = paginatedProducts;
+  // Le tri et la pagination sont faits en base : `products` porte déjà la page demandée, dans
+  // l'ordre demandé. Trier ou découper ici ne réordonnerait que les lignes reçues, ce qui
+  // donnerait un tableau qui prétend être trié sans l'être — le piège classique du passage à
+  // la pagination serveur.
+  const displayedProducts = products;
+  const totalPages = pageMeta.totalPages;
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -504,11 +546,13 @@ const Products = () => {
     setCurrentPage(1);
   };
 
-  // Calculate statistics
-  const totalProducts = products.length;
-  const outOfStockCount = products.filter(p => p.stockQuantity === 0).length;
-  const lowStockCount = products.filter(p => p.stockQuantity > 0 && p.stockQuantity < p.minStockAlert).length;
-  const stockValue = products.reduce((sum, p) => sum + (p.stockQuantity * p.purchasePrice), 0);
+  // Compteurs du catalogue entier, agrégés en base (cf. /api/products/summary). Ils étaient
+  // déduits de la liste complète chargée dans le navigateur ; celle-ci ne l'étant plus, les
+  // recalculer ici ne décrirait que la page affichée.
+  const totalProducts = summary.total;
+  const outOfStockCount = summary.outOfStock;
+  const lowStockCount = summary.lowStock;
+  const stockValue = Number(summary.stockValue) || 0;
 
   /* Colonnes du catalogue, réduites à ce qui se lit en balayant la liste : le produit, sa
    * famille, son prix, son stock, son état. Le reste est dans la fiche détaillée.
@@ -779,12 +823,12 @@ const Products = () => {
             )}
           />
 
-          {/* Pagination : affichée dès qu'il y a des produits (la liste complète est montrée). */}
-          {sortedProducts.length > 0 && (
+          {/* Pagination : le total vient du serveur, la page affichée n'en est qu'une tranche. */}
+          {pageMeta.totalElements > 0 && (
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
-              totalItems={sortedProducts.length}
+              totalItems={pageMeta.totalElements}
               itemsPerPage={itemsPerPage}
               onPageChange={handlePageChange}
               onItemsPerPageChange={handleItemsPerPageChange}
@@ -924,14 +968,14 @@ const Products = () => {
             ))
           )}
 
-          {/* Pagination : affichée dès qu'il y a des produits (la liste complète est montrée). */}
-          {sortedProducts.length > 0 && (
+          {/* Pagination : le total vient du serveur, la page affichée n'en est qu'une tranche. */}
+          {pageMeta.totalElements > 0 && (
             <div className="col-span-full mt-6">
               <div className="card">
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  totalItems={sortedProducts.length}
+                  totalItems={pageMeta.totalElements}
                   itemsPerPage={itemsPerPage}
                   onPageChange={handlePageChange}
                   onItemsPerPageChange={handleItemsPerPageChange}
