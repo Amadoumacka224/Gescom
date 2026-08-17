@@ -23,6 +23,8 @@ import { motion } from 'framer-motion';
 // Les quatre arguments de vente, dans l'ordre du flux métier : commande → stock →
 // facturation → pilotage. Les libellés vivent dans les catalogues i18n, seuls l'icône
 // et le ton restent ici.
+const REMEMBERED_USERNAME_KEY = 'rememberedUsername';
+
 const BENEFITS = [
   { key: 'sales', Icon: ShoppingCart, tone: 'panel-tone-info' },
   { key: 'stock', Icon: Boxes, tone: 'panel-tone-success' },
@@ -35,13 +37,20 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  // Seul l'identifiant est mémorisé, jamais le mot de passe : le stockage local est
+  // lisible par tout script de la page, un mot de passe y serait à découvert. Le
+  // retenir est le métier du gestionnaire du navigateur, à qui les attributs
+  // autoComplete des champs ci-dessous donnent ce qu'il attend.
+  const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY) || '';
+
   const [formData, setFormData] = useState({
-    username: '',
+    username: rememberedUsername,
     password: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(Boolean(rememberedUsername));
 
   const handleChange = (e) => {
     setFormData({
@@ -58,6 +67,13 @@ const Login = () => {
 
     try {
       await login(formData.username, formData.password);
+      // Écrit après coup : mémoriser un identifiant refusé le ferait réapparaître
+      // à chaque visite sans qu'il ait jamais ouvert de session.
+      if (rememberMe) {
+        localStorage.setItem(REMEMBERED_USERNAME_KEY, formData.username);
+      } else {
+        localStorage.removeItem(REMEMBERED_USERNAME_KEY);
+      }
       // Redirection confiée à HomeRedirect plutôt qu'écrite en dur ici : l'accueil dépend du
       // rôle, et une seule règle vaut mieux que deux à tenir d'accord. Viser /dashboard
       // fonctionnait par ricochet pour le caissier (AdminRoute le renvoyait sur sa caisse),
@@ -259,6 +275,24 @@ const Login = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Se souvenir de moi */}
+              <label
+                htmlFor="rememberMe"
+                className="flex items-center gap-2.5 cursor-pointer select-none w-fit"
+              >
+                <input
+                  id="rememberMe"
+                  type="checkbox"
+                  name="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                />
+                <span className="text-sm text-gray-700">
+                  {t('auth.rememberMe')}
+                </span>
+              </label>
 
               {/* Error Message */}
               {error && (
