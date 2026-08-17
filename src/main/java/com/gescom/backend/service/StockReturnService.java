@@ -85,13 +85,17 @@ public class StockReturnService {
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
 
+    /** Attribution des numeros de documents : suite par entreprise et par annee. */
+    private final DocumentNumberService documentNumberService;
+
     public StockReturnService(StockReturnRepository stockReturnRepository,
                               OrderRepository orderRepository,
                               InvoiceRepository invoiceRepository,
                               ProductRepository productRepository,
                               StockMovementRepository stockMovementRepository,
                               UserRepository userRepository,
-                              ActivityLogService activityLogService) {
+                              ActivityLogService activityLogService,
+                              DocumentNumberService documentNumberService) {
         this.stockReturnRepository = stockReturnRepository;
         this.orderRepository = orderRepository;
         this.invoiceRepository = invoiceRepository;
@@ -99,6 +103,7 @@ public class StockReturnService {
         this.stockMovementRepository = stockMovementRepository;
         this.userRepository = userRepository;
         this.activityLogService = activityLogService;
+        this.documentNumberService = documentNumberService;
     }
 
     /* ---------- Recherche de la vente ---------- */
@@ -335,6 +340,8 @@ public class StockReturnService {
 
         // Le numéro est généré à la persistance, or les mouvements de stock doivent le porter en
         // référence : on enregistre donc l'entête d'abord, les lignes ensuite.
+        stockReturn.setReturnNumber(documentNumberService.next(DocumentNumberService.DocumentType.RETURN));
+
         StockReturn saved = stockReturnRepository.save(stockReturn);
 
         // Même base de prix que l'écran de saisie : ce que le client a payé, remise globale de

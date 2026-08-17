@@ -59,6 +59,8 @@ class StockReturnServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private ActivityLogService activityLogService;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private StockReturnService service;
 
     private Product product;
@@ -66,7 +68,7 @@ class StockReturnServiceTest {
     @BeforeEach
     void setUp() {
         service = new StockReturnService(stockReturnRepository, orderRepository, invoiceRepository,
-                productRepository, stockMovementRepository, userRepository, activityLogService);
+                productRepository, stockMovementRepository, userRepository, activityLogService, documentNumberService);
 
         product = new Product();
         product.setId(7L);

@@ -24,6 +24,8 @@ import com.gescom.backend.security.OwnershipViolationException;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -72,10 +74,14 @@ public class OrderService {
     private final ActivityLogService activityLogService;
     private final CashierScope cashierScope;
 
+    /** Attribution des numeros de documents : suite par entreprise et par annee. */
+    private final DocumentNumberService documentNumberService;
+
     public OrderService(OrderRepository orderRepository, ProductRepository productRepository,
                         UserRepository userRepository, StockMovementRepository stockMovementRepository,
                         InvoiceRepository invoiceRepository, StockReturnRepository stockReturnRepository,
-                        ActivityLogService activityLogService, CashierScope cashierScope) {
+                        ActivityLogService activityLogService, CashierScope cashierScope,
+                              DocumentNumberService documentNumberService) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
@@ -84,6 +90,7 @@ public class OrderService {
         this.stockReturnRepository = stockReturnRepository;
         this.activityLogService = activityLogService;
         this.cashierScope = cashierScope;
+        this.documentNumberService = documentNumberService;
     }
 
     /**
@@ -484,8 +491,13 @@ public class OrderService {
             return;
         }
         String pattern = "%" + c.q().toLowerCase().trim() + "%";
-        Path<Object> client = root.get("client");
-        Path<Object> createdBy = root.get("createdBy");
+        // Jointures GAUCHES explicites, et c'est un correctif et non un détail de style :
+        // naviguer par root.get("client") produit une jointure INTERNE, qui écarte purement et
+        // simplement les commandes sans client. Or Order.client est nullable par conception —
+        // c'est la vente de passage. Une telle vente devenait introuvable par la recherche,
+        // constaté à l'exécution : CMD-2026-0035, sans client, ne remontait sur aucun terme.
+        Join<Object, Object> client = root.join("client", JoinType.LEFT);
+        Join<Object, Object> createdBy = root.join("createdBy", JoinType.LEFT);
 
         Predicate onOrder = cb.or(
                 like(cb, root.get("orderNumber"), pattern),
@@ -592,6 +604,10 @@ public class OrderService {
 
         order.setTotalAmount(totalAmount);
         applyGlobalDiscount(order, order.getDiscount());
+
+        // Numéro attribué DANS cette transaction : le verrou de sérialisation n'est relâché
+        // qu'au commit, donc après l'écriture de la vente — la suivante lira un maximum à jour.
+        order.setOrderNumber(documentNumberService.next(DocumentNumberService.DocumentType.ORDER));
 
         Order savedOrder = orderRepository.save(order);
 

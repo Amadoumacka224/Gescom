@@ -48,6 +48,8 @@ class PaymentServiceStripeTest {
     @Mock private OrderService orderService;
     @Mock private DeliveryRepository deliveryRepository;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private PaymentService paymentService;
     private Invoice invoice;
 
@@ -55,7 +57,7 @@ class PaymentServiceStripeTest {
     void setUp() {
         InvoiceService invoiceService = new InvoiceService(
                 invoiceRepository, orderRepository, activityLogService, orderService, new CashierScope(),
-                paymentRepository, deliveryRepository);
+                paymentRepository, deliveryRepository, documentNumberService);
 
         StripeProperties properties = new StripeProperties();
         properties.setMode("simulated");

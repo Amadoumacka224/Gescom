@@ -99,7 +99,6 @@ public class Delivery implements TenantOwned {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        generateDeliveryNumber();
     }
 
     @PreUpdate
@@ -107,11 +106,7 @@ public class Delivery implements TenantOwned {
         updatedAt = LocalDateTime.now();
     }
 
-    private void generateDeliveryNumber() {
-        if (deliveryNumber == null) {
-            deliveryNumber = "LIV-" + System.currentTimeMillis();
-        }
-    }
+    /* Numéro attribué par DocumentNumberService — voir le commentaire équivalent sur Order. */
 
     public enum DeliveryStatus {
         PENDING,    // Planifiée

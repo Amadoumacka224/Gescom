@@ -106,7 +106,6 @@ public class Invoice implements TenantOwned {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        generateInvoiceNumber();
         calculateRemainingAmount();
     }
 
@@ -116,11 +115,11 @@ public class Invoice implements TenantOwned {
         calculateRemainingAmount();
     }
 
-    private void generateInvoiceNumber() {
-        if (invoiceNumber == null) {
-            invoiceNumber = "FACT-" + System.currentTimeMillis();
-        }
-    }
+    /*
+     * Numéro attribué par DocumentNumberService — voir le commentaire équivalent sur Order.
+     * C'est ici que cela compte le plus : une facture doit porter un numéro séquentiel et
+     * continu, ce qu'un horodatage ne donne pas.
+     */
 
     private void calculateRemainingAmount() {
         remainingAmount = totalAmount.subtract(paidAmount);

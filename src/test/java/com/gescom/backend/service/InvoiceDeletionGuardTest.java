@@ -50,12 +50,14 @@ class InvoiceDeletionGuardTest {
     @Mock private ActivityLogService activityLogService;
     @Mock private OrderService orderService;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private InvoiceService invoiceService;
 
     @BeforeEach
     void setUp() {
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService,
-                orderService, new CashierScope(), paymentRepository, deliveryRepository);
+                orderService, new CashierScope(), paymentRepository, deliveryRepository, documentNumberService);
     }
 
     /**

@@ -37,12 +37,14 @@ class InvoiceServicePaymentTest {
     @Mock private ActivityLogService activityLogService;
     @Mock private OrderService orderService;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private InvoiceService invoiceService;
 
     @BeforeEach
     void setUp() {
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService,
-                new CashierScope(), paymentRepository, deliveryRepository);
+                new CashierScope(), paymentRepository, deliveryRepository, documentNumberService);
     }
 
     /** Facture de référence : total 100,00 €, encore due (statut UNPAID). */

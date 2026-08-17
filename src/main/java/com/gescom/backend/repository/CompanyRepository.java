@@ -1,12 +1,15 @@
 package com.gescom.backend.repository;
 
 import com.gescom.backend.entity.Company;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -26,6 +29,23 @@ import java.util.Optional;
 @Repository
 public interface CompanyRepository extends JpaRepository<Company, Long>,
         JpaSpecificationExecutor<Company> {
+
+    /**
+     * Lecture de l'entreprise avec verrou d'ecriture, utilisee comme point de serialisation de
+     * l'attribution des numeros de documents.
+     *
+     * Il ne s'agit pas de modifier l'entreprise : on emprunte sa ligne pour que deux ventes
+     * simultanees de la MEME entreprise ne puissent pas lire le meme « dernier numero ». La
+     * seconde attend que la premiere ait valide.
+     *
+     * Le prix a payer est assume : toutes les creations de documents d'une meme entreprise se
+     * suivent au lieu de se croiser. Sur un back-office ou quelques postes saisissent en
+     * parallele, cela ne se voit pas — et cela evite d'ajouter une table de compteurs.
+     * Les entreprises, elles, restent independantes : chacune a sa propre ligne.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Company c WHERE c.id = :id")
+    Optional<Company> findByIdForUpdate(@Param("id") Long id);
 
     Optional<Company> findBySlug(String slug);
 

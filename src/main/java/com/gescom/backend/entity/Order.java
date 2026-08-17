@@ -96,7 +96,6 @@ public class Order implements TenantOwned {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        generateOrderNumber();
     }
 
     @PreUpdate
@@ -104,11 +103,16 @@ public class Order implements TenantOwned {
         updatedAt = LocalDateTime.now();
     }
 
-    private void generateOrderNumber() {
-        if (orderNumber == null) {
-            orderNumber = "CMD-" + System.currentTimeMillis();
-        }
-    }
+    /*
+     * Le numéro n'est plus composé ici. Il est attribué par DocumentNumberService avant
+     * l'enregistrement, sous la forme CMD-2026-000042 : séquentiel, par entreprise, remis à zéro
+     * chaque année. Un @PrePersist ne peut pas s'en charger — il n'a accès à aucun repository, et
+     * ne pouvait donc qu'inventer un numéro à partir de l'horloge.
+     *
+     * Conséquence assumée : une commande insérée sans passer par le service n'a pas de numéro et
+     * viole la contrainte NOT NULL. C'est voulu — un échec franc vaut mieux qu'un numéro à
+     * l'horodatage réapparaissant discrètement au milieu de la suite.
+     */
 
     public enum OrderStatus {
 

@@ -15,6 +15,8 @@ import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.security.CashierScope;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,15 +58,20 @@ public class DeliveryService {
     private final ActivityLogService activityLogService;
     private final CashierScope cashierScope;
 
+    /** Attribution des numeros de documents : suite par entreprise et par annee. */
+    private final DocumentNumberService documentNumberService;
+
     public DeliveryService(DeliveryRepository deliveryRepository, OrderRepository orderRepository,
                            InvoiceRepository invoiceRepository, OrderService orderService,
-                           ActivityLogService activityLogService, CashierScope cashierScope) {
+                           ActivityLogService activityLogService, CashierScope cashierScope,
+                              DocumentNumberService documentNumberService) {
         this.deliveryRepository = deliveryRepository;
         this.orderRepository = orderRepository;
         this.invoiceRepository = invoiceRepository;
         this.orderService = orderService;
         this.activityLogService = activityLogService;
         this.cashierScope = cashierScope;
+        this.documentNumberService = documentNumberService;
     }
 
     private Long getCurrentUserId() {
@@ -193,14 +200,19 @@ public class DeliveryService {
             }
             if (c.search() != null && !c.search().isBlank()) {
                 String pattern = "%" + c.search().toLowerCase().trim() + "%";
+                // Jointure GAUCHE sur le client : Order.client est nullable — c'est la vente de
+                // passage. Naviguer par root.get(...) produirait une jointure interne, et la
+                // livraison d'une vente sans client deviendrait introuvable par la recherche.
+                Join<Object, Object> order = root.join("order", JoinType.LEFT);
+                Join<Object, Object> client = order.join("client", JoinType.LEFT);
                 predicates.add(cb.or(
                         like(cb, root.get("deliveryNumber"), pattern),
                         like(cb, root.get("contactName"), pattern),
                         like(cb, root.get("deliveryCity"), pattern),
-                        like(cb, root.get("order").get("orderNumber"), pattern),
-                        like(cb, root.get("order").get("client").get("firstName"), pattern),
-                        like(cb, root.get("order").get("client").get("lastName"), pattern),
-                        like(cb, root.get("order").get("client").get("company"), pattern)));
+                        like(cb, order.get("orderNumber"), pattern),
+                        like(cb, client.get("firstName"), pattern),
+                        like(cb, client.get("lastName"), pattern),
+                        like(cb, client.get("company"), pattern)));
             }
 
             return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
@@ -275,6 +287,8 @@ public class DeliveryService {
         delivery.setStatus(Delivery.DeliveryStatus.PENDING);
         delivery.setDeliveredDate(null);
         delivery.setDeliveredBy(null);
+
+        delivery.setDeliveryNumber(documentNumberService.next(DocumentNumberService.DocumentType.DELIVERY));
 
         Delivery savedDelivery = deliveryRepository.save(delivery);
 

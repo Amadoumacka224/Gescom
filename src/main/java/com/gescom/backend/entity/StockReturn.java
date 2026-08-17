@@ -87,8 +87,6 @@ public class StockReturn implements TenantOwned {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        if (returnNumber == null) {
-            returnNumber = "RET-" + System.currentTimeMillis();
-        }
+        // Numéro attribué par DocumentNumberService avant l'enregistrement — voir Order.
     }
 }

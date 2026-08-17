@@ -73,6 +73,8 @@ class CashierIsolationTest {
     private static final long ALICE_ID = 11L;
     private static final long BOB_ID = 22L;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private OrderService orderService;
     private InvoiceService invoiceService;
     private DeliveryService deliveryService;
@@ -86,11 +88,11 @@ class CashierIsolationTest {
         CashierScope cashierScope = new CashierScope();
         orderService = new OrderService(orderRepository, productRepository, userRepository,
                 stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
-                cashierScope);
+                cashierScope, documentNumberService);
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService,
-                orderService, cashierScope, paymentRepository, deliveryRepository);
+                orderService, cashierScope, paymentRepository, deliveryRepository, documentNumberService);
         deliveryService = new DeliveryService(deliveryRepository, orderRepository, invoiceRepository,
-                orderService, activityLogService, cashierScope);
+                orderService, activityLogService, cashierScope, documentNumberService);
 
         aliceOrder = new Order();
         aliceOrder.setId(500L);

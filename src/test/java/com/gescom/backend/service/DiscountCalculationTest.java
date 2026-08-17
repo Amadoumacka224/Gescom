@@ -55,6 +55,8 @@ class DiscountCalculationTest {
     @Mock private DeliveryRepository deliveryRepository;
     @Mock private ActivityLogService activityLogService;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private OrderService orderService;
     private InvoiceService invoiceService;
 
@@ -62,9 +64,9 @@ class DiscountCalculationTest {
     void setUp() {
         orderService = new OrderService(orderRepository, productRepository, userRepository,
                 stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
-                new CashierScope());
+                new CashierScope(), documentNumberService);
         invoiceService = new InvoiceService(invoiceRepository, orderRepository, activityLogService, orderService,
-                new CashierScope(), paymentRepository, deliveryRepository);
+                new CashierScope(), paymentRepository, deliveryRepository, documentNumberService);
 
         User caissier = new User();
         caissier.setId(1L);

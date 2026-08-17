@@ -284,6 +284,11 @@ class DashboardOverviewCoherenceTest {
 
     private void delivery(Order order, Delivery.DeliveryStatus status) {
         Delivery d = new Delivery();
+        // Numéro posé explicitement : ce test insère par le repository, sans passer par
+        // DeliveryService qui l'attribuerait. C'est la contrepartie assumée d'avoir retiré la
+        // génération de l'entité — une insertion directe échoue franchement plutôt que de
+        // fabriquer un numéro à l'horodatage.
+        d.setDeliveryNumber("LIV-TEST-001");
         d.setOrder(order);
         d.setStatus(status);
         d.setDeliveryAddress("Rue de Test 1");

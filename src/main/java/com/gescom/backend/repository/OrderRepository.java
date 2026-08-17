@@ -257,4 +257,21 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     /** Volume de commandes d'une entreprise — indicateur d'usage du back-office propriétaire. */
     long countByOwnerCompanyId(Long companyId);
+
+    /**
+     * Plus haut numero deja attribue pour ce prefixe et cette annee, ou null s'il n'y en a
+     * aucun.
+     *
+     * Un MAX sur la CHAINE, valide parce que le compteur est complete a largeur fixe :
+     * CMD-2026-0042 se compare bien avant CMD-2026-0100. Sans ce remplissage, l'ordre
+     * lexicographique placerait 9 apres 10 et la suite repartirait en arriere.
+     *
+     * Les numeros de l'ancien format (CMD- suivi d'un horodatage) ne matchent pas le motif :
+     * ils sont ignores, et les deux formes cohabitent sans se marcher dessus.
+     *
+     * Le cloisonnement par entreprise est assure par le filtre Hibernate, qui couvre les
+     * requetes JPQL : chaque entreprise ne voit donc que ses propres numeros.
+     */
+    @Query("SELECT MAX(o.orderNumber) FROM Order o WHERE o.orderNumber LIKE :pattern")
+    String findMaxNumber(@Param("pattern") String pattern);
 }

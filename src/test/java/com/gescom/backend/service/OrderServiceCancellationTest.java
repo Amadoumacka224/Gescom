@@ -51,6 +51,8 @@ class OrderServiceCancellationTest {
     @Mock private StockReturnRepository stockReturnRepository;
     @Mock private ActivityLogService activityLogService;
 
+    @Mock private DocumentNumberService documentNumberService;
+
     private OrderService service;
 
     private Product product;
@@ -60,7 +62,7 @@ class OrderServiceCancellationTest {
     void setUp() {
         service = new OrderService(orderRepository, productRepository, userRepository,
                 stockMovementRepository, invoiceRepository, stockReturnRepository, activityLogService,
-                new CashierScope());
+                new CashierScope(), documentNumberService);
 
         product = new Product();
         product.setId(7L);

@@ -13,6 +13,8 @@ import com.gescom.backend.repository.InvoiceRepository;
 import com.gescom.backend.repository.OrderRepository;
 import com.gescom.backend.repository.PaymentRepository;
 import com.gescom.backend.security.CashierScope;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,10 +62,14 @@ public class InvoiceService {
     private final PaymentRepository paymentRepository;
     private final DeliveryRepository deliveryRepository;
 
+    /** Attribution des numeros de documents : suite par entreprise et par annee. */
+    private final DocumentNumberService documentNumberService;
+
     public InvoiceService(InvoiceRepository invoiceRepository, OrderRepository orderRepository,
                           ActivityLogService activityLogService, OrderService orderService,
                           CashierScope cashierScope, PaymentRepository paymentRepository,
-                          DeliveryRepository deliveryRepository) {
+                          DeliveryRepository deliveryRepository,
+                              DocumentNumberService documentNumberService) {
         this.invoiceRepository = invoiceRepository;
         this.orderRepository = orderRepository;
         this.activityLogService = activityLogService;
@@ -71,6 +77,7 @@ public class InvoiceService {
         this.cashierScope = cashierScope;
         this.paymentRepository = paymentRepository;
         this.deliveryRepository = deliveryRepository;
+        this.documentNumberService = documentNumberService;
     }
 
     private Long getCurrentUserId() {
@@ -205,12 +212,17 @@ public class InvoiceService {
             }
             if (c.search() != null && !c.search().isBlank()) {
                 String pattern = "%" + c.search().toLowerCase().trim() + "%";
+                // Jointure GAUCHE sur le client : Order.client est nullable — c'est la vente de
+                // passage. Naviguer par root.get(...) produirait une jointure interne, et la
+                // facture d'une vente sans client deviendrait introuvable par la recherche.
+                Join<Object, Object> order = root.join("order", JoinType.LEFT);
+                Join<Object, Object> client = order.join("client", JoinType.LEFT);
                 predicates.add(cb.or(
                         cb.like(cb.lower(cb.coalesce(root.get("invoiceNumber"), "")), pattern),
-                        cb.like(cb.lower(cb.coalesce(root.get("order").get("orderNumber"), "")), pattern),
-                        cb.like(cb.lower(cb.coalesce(root.get("order").get("client").get("firstName"), "")), pattern),
-                        cb.like(cb.lower(cb.coalesce(root.get("order").get("client").get("lastName"), "")), pattern),
-                        cb.like(cb.lower(cb.coalesce(root.get("order").get("client").get("company"), "")), pattern)));
+                        cb.like(cb.lower(cb.coalesce(order.get("orderNumber"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(client.get("firstName"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(client.get("lastName"), "")), pattern),
+                        cb.like(cb.lower(cb.coalesce(client.get("company"), "")), pattern)));
             }
 
             return predicates.isEmpty() ? null : cb.and(predicates.toArray(new Predicate[0]));
@@ -376,6 +388,10 @@ public class InvoiceService {
         } else {
             invoice.setStatus(Invoice.InvoiceStatus.PARTIALLY_PAID);
         }
+
+        // Numéro attribué dans cette transaction : le verrou de sérialisation tient jusqu'au
+        // commit, donc au-delà de l'écriture de la facture.
+        invoice.setInvoiceNumber(documentNumberService.next(DocumentNumberService.DocumentType.INVOICE));
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
