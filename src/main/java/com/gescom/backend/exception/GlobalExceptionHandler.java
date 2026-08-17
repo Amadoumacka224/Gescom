@@ -22,6 +22,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -183,6 +184,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         return build(HttpStatus.NOT_FOUND, localize(ex), request);
+    }
+
+    /**
+     * URL qui ne correspond à aucun point d'entrée.
+     *
+     * Sans ce cas, l'exception tombait dans le handler générique et l'API répondait **500**
+     * sur une simple faute d'adresse — `/api/platform` au lieu de `/api/platform/dashboard`,
+     * par exemple. Une adresse inconnue est une erreur du client, pas une panne du serveur :
+     * la distinction est ce qui permet de ne s'alarmer que des vraies 500, et elle évite au
+     * frontend d'afficher « une erreur interne est survenue » quand il s'est trompé de route.
+     *
+     * Spring lève ici {@code NoResourceFoundException} parce que la requête, faute de
+     * contrôleur, finit chez le gestionnaire de ressources statiques ; le message renvoyé ne
+     * le mentionne pas, cette mécanique interne n'apprenant rien à l'appelant.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request) {
+        return build(HttpStatus.NOT_FOUND,
+                "Aucune ressource ne correspond à '" + request.getRequestURI() + "'", request);
     }
 
     // --- 405 Method Not Allowed ----------------------------------------------
