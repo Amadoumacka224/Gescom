@@ -233,7 +233,16 @@ const Deliveries = () => {
     fetchFilterOptions();
   }, []);
 
+  /**
+   * Page de livraisons.
+   *
+   * C'est ELLE qui porte l'indicateur de chargement, et non plus `refresh` : la page est
+   * désormais rechargée par un effet sur les critères, que `refresh` ne traverse pas. Laisser
+   * `loading` à `refresh` figeait l'écran sur son squelette au premier affichage — l'état
+   * initial vaut `true` et rien ne le rabaissait.
+   */
   const fetchDeliveries = async () => {
+    setLoading(true);
     try {
       const { data } = await api.get('/deliveries/search', { params: queryParams });
       setDeliveries(data.content || []);
@@ -247,6 +256,8 @@ const Deliveries = () => {
       toast.error(t('deliveries.loadError'));
       setDeliveries([]);
       return [];
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -295,12 +306,7 @@ const Deliveries = () => {
    * nouvelle dans le filtre.
    */
   const refresh = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([fetchDeliveries(), fetchOrders(), fetchSummary(), fetchFilterOptions()]);
-    } finally {
-      setLoading(false);
-    }
+    await Promise.all([fetchDeliveries(), fetchOrders(), fetchSummary(), fetchFilterOptions()]);
   };
 
   const buildClientDefaults = (client) => {
