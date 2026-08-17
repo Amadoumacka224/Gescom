@@ -594,14 +594,14 @@
    * La formule dit les deux bornes à la fois :
    *   - plancher 7,5 rem (120 px) par vignette — en dessous, ni le nom ni le prix ne se
    *     lisent, et la grille préfère retirer une colonne ;
-   *   - plafond de six colonnes, via la part `(100% - 5 gouttières) / 6` : au-delà les
+   *   - plafond de cinq colonnes, via la part `(100% - 4 gouttières) / 5` : au-delà les
    *     vignettes redeviennent trop petites pour être identifiées de loin, ce que
    *     `auto-fill` seul ne sait pas empêcher sur un large écran.
    * Le `max()` retient la plus contraignante, `auto-fill` remplit avec ce qui reste.
    */
   .catalog-grid {
     @apply grid gap-2.5;
-    grid-template-columns: repeat(auto-fill, minmax(max(7.5rem, (100% - 5 * 0.625rem) / 6), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(max(7.5rem, (100% - 4 * 0.625rem) / 5), 1fr));
   }
 
   /* Squelette de chargement réutilisable */

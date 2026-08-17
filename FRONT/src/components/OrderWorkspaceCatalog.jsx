@@ -370,7 +370,7 @@ const OrderWorkspaceCatalog = ({
               )}
             </div>
           ) : (
-            /* Six articles par ligne au plus, 120 px par vignette au moins : les deux bornes
+            /* Cinq articles par ligne au plus, 120 px par vignette au moins : les deux bornes
                sont portées par `.catalog-grid`, qui se règle sur la largeur de la grille et
                non sur celle de la fenêtre (cf. `index.css`). */
             <div className="catalog-grid">
