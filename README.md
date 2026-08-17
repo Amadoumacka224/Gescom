@@ -1,6 +1,10 @@
 # GESCOM - Backend API
 
+[![CI](https://github.com/Amadoumacka224/Gescom/actions/workflows/ci.yml/badge.svg)](https://github.com/Amadoumacka224/Gescom/actions/workflows/ci.yml)
+
 Application de gestion commerciale développée avec Spring Boot.
+
+Chaque poussée sur `main` déclenche l'intégration continue : `mvn clean install` pour l'API — compilation, 113 tests, rapport de couverture — puis lint, contrôle des traductions et build du SPA. Aucune base de données n'est nécessaire : les tests d'intégration tournent sur H2 en mémoire.
 
 ## Technologies
 

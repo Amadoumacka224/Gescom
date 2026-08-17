@@ -1,0 +1,102 @@
+# ==============================================================================
+# GESCOM — intégration continue
+#
+# Ce fichier existe d'abord pour rendre vraie une affirmation qui ne l'était pas :
+# le Dockerfile déclare que les tests « tournent au poste de développement et en
+# intégration continue (mvn clean install) », alors qu'aucune intégration
+# continue n'existait. La commande ci-dessous est donc littéralement celle citée.
+#
+# Deux tâches indépendantes, une par application du dépôt. Elles sont séparées
+# pour que l'échec de l'une n'empêche pas de connaître le sort de l'autre : voir
+# d'un coup d'œil que le backend passe et que le frontend casse, c'est la moitié
+# du diagnostic.
+#
+# AUCUNE BASE DE DONNÉES N'EST NÉCESSAIRE, et ce n'est pas un hasard : les tests
+# d'intégration (cloisonnement, cohérence du tableau de bord) tournent sur H2 en
+# mémoire. Le choix d'écarter Testcontainers se paie ici en simplicité — pas de
+# service PostgreSQL à démarrer, pas de démon Docker à supposer disponible.
+# ==============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Une série de poussées rapides n'a pas à faire tourner la CI sur chaque état
+# intermédiaire : seule la dernière compte. Les exécutions déjà lancées sur la
+# même branche sont annulées.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: API — tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 17, la version déclarée par le pom et employée par l'image d'exécution.
+      # `cache: maven` conserve le dépôt local entre deux exécutions : sans lui,
+      # chaque build retélécharge Spring Boot en entier.
+      - name: Installer le JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # Exactement la commande citée par le Dockerfile : compilation, tests, et
+      # production du jar. `-B` pour un journal lisible hors terminal interactif.
+      - name: Compiler et tester
+        run: mvn -B clean install
+
+      # Conservé même quand tout passe : le rapport JaCoCo est le seul endroit où
+      # la couverture se lit, et l'ouvrir après coup évite de rejouer le build.
+      - name: Publier le rapport de couverture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-jacoco
+          path: target/site/jacoco/
+          if-no-files-found: ignore
+
+  frontend:
+    name: SPA — lint, i18n et build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FRONT
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24 et non la version par défaut : @zxing/library, tiré par le scanner
+      # de codes-barres, déclare engines.node >= 24. Même version que le Dockerfile
+      # et que render.yaml — les trois doivent rester alignés.
+      - name: Installer Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: FRONT/package-lock.json
+
+      # `npm ci` et non `npm install` : l'installation suit strictement le
+      # package-lock.json, aucune dépendance n'est promue en cours de route.
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Le contrôle i18n mérite sa propre étape : une clé manquante dans une des
+      # trois langues casse l'écran pour ses seuls utilisateurs, ce qu'un build
+      # réussi ne révèle jamais.
+      - name: Vérifier les traductions
+        run: npm run check:i18n
+
+      - name: Construire le SPA
+        run: npm run build
