@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -230,7 +231,25 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public Page<Order> searchOrders(OrderSearchCriteria criteria, BigDecimal taxRate, Pageable pageable) {
-        Page<Order> idPage = orderRepository.findAll(buildFilter(criteria, taxRate), pageable);
+        return searchOrders(criteria, taxRate, pageable, null);
+    }
+
+    /**
+     * Variante triée sur le montant TTC affiché.
+     *
+     * Ce montant n'étant pas une colonne (voir la méthode ci-dessus), aucun {@code sort=} de
+     * Spring Data ne peut le désigner : il faut poser l'ORDER BY sur l'expression calculée
+     * elle-même. {@code payableDirection} porte le sens demandé ; le {@code pageable} reçu doit
+     * alors être NON trié, sans quoi Spring Data écraserait cet ordre par le sien.
+     *
+     * Trier sur {@code finalAmount} à la place aurait été plus simple et faux : dès qu'une
+     * facture existe, l'ordre obtenu contredirait les chiffres affichés dans la colonne.
+     */
+    @Transactional(readOnly = true)
+    public Page<Order> searchOrders(OrderSearchCriteria criteria, BigDecimal taxRate, Pageable pageable,
+                                    Sort.Direction payableDirection) {
+        Page<Order> idPage = orderRepository.findAll(
+                buildFilter(criteria, taxRate, payableDirection), pageable);
         List<Long> ids = idPage.getContent().stream().map(Order::getId).toList();
         if (ids.isEmpty()) {
             return idPage;
@@ -275,9 +294,22 @@ public class OrderService {
         return composed.isBlank() ? v.getUsername() : composed;
     }
 
-    private Specification<Order> buildFilter(OrderSearchCriteria c, BigDecimal taxRate) {
+    private Specification<Order> buildFilter(OrderSearchCriteria c, BigDecimal taxRate,
+                                             Sort.Direction payableDirection) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            // Tri sur le montant TTC calculé. Posé ici parce que l'expression n'existe que dans
+            // cette requête ; ignoré sur la requête de comptage, qui rend un Long et n'a que
+            // faire d'un ORDER BY — PostgreSQL le refuserait d'ailleurs sur un COUNT.
+            if (payableDirection != null && !isCountQuery(query)) {
+                Expression<BigDecimal> payable = payableAmount(root, query, cb, taxRate);
+                query.orderBy(payableDirection == Sort.Direction.ASC
+                                ? cb.asc(payable) : cb.desc(payable),
+                        // Départage stable : deux commandes du même montant garderaient sinon un
+                        // ordre libre, et sauteraient d'une page à l'autre au rafraîchissement.
+                        cb.desc(root.get("id")));
+            }
 
             // Cloisonnement caissier, posé ici comme dans findAllWithDetails : il doit être
             // évalué EN BASE, sinon la page renvoyée serait celle de toute l'entreprise, filtrée
@@ -390,6 +422,25 @@ public class OrderService {
         if (c.amountMin() == null && c.amountMax() == null) {
             return;
         }
+        Expression<BigDecimal> payable = payableAmount(root, query, cb, taxRate);
+        if (c.amountMin() != null) {
+            predicates.add(cb.greaterThanOrEqualTo(payable, c.amountMin()));
+        }
+        if (c.amountMax() != null) {
+            predicates.add(cb.lessThanOrEqualTo(payable, c.amountMax()));
+        }
+    }
+
+    /**
+     * Montant TTC affiché, reconstruit en SQL : total de la facture vivante s'il en existe une,
+     * sinon net HT majoré du taux des réglages.
+     *
+     * Une seule définition, partagée par la fourchette et par le tri. Deux copies auraient fini
+     * par diverger, et la divergence se serait vue au pire endroit : une ligne triée à une place
+     * que la fourchette exclut.
+     */
+    private Expression<BigDecimal> payableAmount(Root<Order> root, CriteriaQuery<?> query,
+                                                 CriteriaBuilder cb, BigDecimal taxRate) {
         Subquery<BigDecimal> billed = query.subquery(BigDecimal.class);
         Root<Invoice> invoice = billed.from(Invoice.class);
         billed.select(invoice.get("totalAmount"))
@@ -401,14 +452,13 @@ public class OrderService {
                 (taxRate == null ? BigDecimal.ZERO : taxRate).divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP));
         Expression<BigDecimal> estimated = cb.prod(
                 cb.coalesce(root.get("finalAmount"), BigDecimal.ZERO), multiplier);
-        Expression<BigDecimal> payable = cb.coalesce(billed, estimated);
+        return cb.coalesce(billed, estimated);
+    }
 
-        if (c.amountMin() != null) {
-            predicates.add(cb.greaterThanOrEqualTo(payable, c.amountMin()));
-        }
-        if (c.amountMax() != null) {
-            predicates.add(cb.lessThanOrEqualTo(payable, c.amountMax()));
-        }
+    /** La requête de comptage que Spring Data dérive de la spécification rend un {@code Long}. */
+    private boolean isCountQuery(CriteriaQuery<?> query) {
+        Class<?> type = query.getResultType();
+        return Long.class.equals(type) || long.class.equals(type);
     }
 
     /**

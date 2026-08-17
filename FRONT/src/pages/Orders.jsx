@@ -216,6 +216,27 @@ const RECENT_COUNT = 5;
  *
  * `aria-sort` porte au lecteur d'écran la même information que l'icône.
  */
+/**
+ * Colonnes triables, traduites en clé de tri pour le serveur.
+ *
+ * Deux colonnes ont perdu leur tri, et c'est délibéré : « Articles » est une somme des
+ * quantités des lignes, « Avancement » se déduit du statut ET de celui de la facture. Ni l'un
+ * ni l'autre n'est une colonne que la base sait ordonner, et les trier au sein de la seule page
+ * affichée produirait un tableau qui se prétend trié sans l'être — le piège même que la
+ * pagination serveur est censée fermer. Mieux vaut retirer l'affordance que mentir.
+ *
+ * `payableAmount` n'est pas non plus un champ : c'est le montant TTC reconstruit en SQL, que le
+ * serveur sait ordonner parce qu'il pose l'ORDER BY sur l'expression elle-même. Le tri suit
+ * donc exactement les chiffres de la colonne, y compris quand une facture change la donne.
+ */
+const SORT_FIELDS = {
+  orderNumber: 'orderNumber',
+  createdAt: 'createdAt',
+  client: 'client.lastName',
+  totalAmount: 'payableAmount',
+  status: 'status',
+};
+
 const SortHeader = ({ label, sortKey, sort, onSort, align = 'left' }) => {
   const active = sort.key === sortKey;
   const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
@@ -287,6 +308,17 @@ const Orders = () => {
   // Vue par défaut : seules les dernières commandes créées sont mises en avant. La liste
   // complète s'obtient par la bascule d'affichage — ou d'office dès qu'un filtre est actif.
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
+  // Cardinalité du résultat courant, renvoyée par le serveur : elle n'est plus déductible de
+  // `orders`, qui ne porte que la page affichée.
+  const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
+  // Décompte par statut des tuiles. Il décrit tout le périmètre de l'utilisateur, jamais la
+  // page : les tuiles servent justement à filtrer, donc à changer de page.
+  const [summary, setSummary] = useState({
+    total: 0, pending: 0, confirmed: 0, invoiced: 0, delivered: 0, canceled: 0,
+  });
+  // Opérateurs et villes des listes déroulantes. Ils doivent rester exhaustifs : un opérateur
+  // qui n'apparaît qu'en page 3 doit être proposé depuis la page 1.
+  const [filterOptions, setFilterOptions] = useState({ operators: [], cities: [] });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -357,15 +389,19 @@ const Orders = () => {
 
   // Après une action du panier, la liste et le stock des produits ont bougé.
   const refreshAfterWorkspaceAction = () => {
-    fetchOrders();
+    refreshOrders();
     fetchProducts();
   };
 
+  // Référentiels et agrégats : chargés une fois, ils ne dépendent pas de la page affichée.
+  // Le chargement de la page elle-même est déclaré plus bas, après `queryParams` dont il
+  // dépend — le référencer ici le lirait avant son initialisation.
   useEffect(() => {
-    fetchOrders();
     fetchProducts();
     fetchClients();
     fetchCategories();
+    fetchSummary();
+    fetchFilterOptions();
   }, []);
 
   useEffect(() => {
@@ -449,8 +485,12 @@ const Orders = () => {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/orders');
-      setOrders(response.data);
+      const { data } = await api.get('/orders/search', { params: queryParams });
+      setOrders(data.content || []);
+      setPageMeta({
+        totalElements: data.totalElements ?? 0,
+        totalPages: Math.max(1, data.totalPages ?? 1),
+      });
     } catch (error) {
       // Un échec de chargement laisse la liste vide et le signale. L'écran retombait
       // auparavant sur un jeu de commandes fictives, que rien ne distinguait de vraies
@@ -461,6 +501,31 @@ const Orders = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Décompte des tuiles : à rafraîchir après toute écriture, un changement de statut le déplaçant. */
+  const fetchSummary = async () => {
+    try {
+      const { data } = await api.get('/orders/summary');
+      setSummary(data);
+    } catch (error) {
+      console.error('Error fetching order summary:', error);
+    }
+  };
+
+  /** Options des filtres. Endpoint dédié : /users est réservé à l'ADMIN, pas ce périmètre-ci. */
+  const fetchFilterOptions = async () => {
+    try {
+      const { data } = await api.get('/orders/filter-options');
+      setFilterOptions(data);
+    } catch (error) {
+      console.error('Error fetching order filter options:', error);
+    }
+  };
+
+  /** Recharge page, tuiles et options — à appeler après toute écriture sur une commande. */
+  const refreshOrders = async () => {
+    await Promise.all([fetchOrders(), fetchSummary(), fetchFilterOptions()]);
   };
 
   const handleViewDetails = (order) => {
@@ -532,7 +597,7 @@ const Orders = () => {
       await api.put(`/orders/${selectedOrder.id}`, updateData);
       toast.success(t('orders.page.updateSuccess'));
       setShowEditModal(false);
-      fetchOrders();
+      refreshOrders();
     } catch (error) {
       console.error('Error updating order:', error);
       if (error.response?.status === 401) {
@@ -547,7 +612,7 @@ const Orders = () => {
     try {
       await api.post(`/orders/${order.id}/confirm`);
       toast.success(t('orders.workspace.orderConfirmed'));
-      fetchOrders();
+      refreshOrders();
     } catch (error) {
       console.error('Error confirming order:', error);
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
@@ -561,7 +626,7 @@ const Orders = () => {
     try {
       await api.patch(`/orders/${order.id}/cancel`);
       toast.success(t('orders.workspace.orderCanceled'));
-      fetchOrders();
+      refreshOrders();
     } catch (error) {
       console.error('Error canceling order:', error);
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
@@ -606,7 +671,7 @@ const Orders = () => {
       });
       toast.success(t('orders.page.invoiceCreated'));
       setShowInvoiceModal(false);
-      fetchOrders();
+      refreshOrders();
     } catch (error) {
       console.error('Error creating invoice:', error);
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
@@ -807,7 +872,7 @@ const Orders = () => {
       toast.success(t('orders.page.paymentRecorded'));
       setShowPaymentModal(false);
       setPaymentInvoice(null);
-      fetchOrders();
+      refreshOrders();
     } catch (error) {
       console.error('Error recording payment:', error);
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
@@ -878,7 +943,7 @@ const Orders = () => {
       try {
         await api.delete(`/orders/${order.id}`);
         toast.success(t('orders.deleteSuccess'));
-        fetchOrders();
+        refreshOrders();
       } catch (error) {
         console.error('Error deleting order:', error);
         // Le refus est motivé côté serveur (retour client rattaché, par exemple) : afficher le
@@ -1101,135 +1166,21 @@ const Orders = () => {
   // ---------------------------------------------------------------------------------------
   // Recherche, tri, pagination
   //
-  // Tout est appliqué côté client : l'API /orders renvoie la liste complète et il n'existe
-  // pas d'endpoint de recherche paginé. C'est tenable à l'échelle de cet outil interne, mais
-  // c'est LA limite à connaître avant d'ajouter un critère — au-delà de quelques milliers de
-  // commandes, il faudra porter ce filtrage dans OrderRepository plutôt que l'étendre ici.
+  // Tout est appliqué EN BASE, par GET /orders/search : cet écran ne reçoit qu'une page.
+  // Les critères sont donc traduits en paramètres de requête (voir `queryParams` plus bas) et
+  // non plus évalués sur une liste chargée en entier.
+  //
+  // Ajouter un critère se fait désormais des deux côtés : son champ dans `OrderFilters`, sa
+  // clé dans `EMPTY_ORDER_FILTERS`, son paramètre dans `queryParams`, et sa condition dans
+  // `OrderService.buildFilter`. L'évaluer ici ne porterait que sur la page reçue.
   // ---------------------------------------------------------------------------------------
 
-  const norm = (v) => (v ?? '').toString().toLowerCase();
-
-  // Listes d'options déduites des commandes elles-mêmes plutôt que d'appels dédiés : le
-  // caissier n'a pas le droit de lister les utilisateurs (/users est réservé à l'ADMIN), et
-  // n'afficher que les valeurs réellement présentes évite les filtres qui ne rendent rien.
-  const orderUsers = useMemo(() => {
-    const byId = new Map();
-    orders.forEach((o) => {
-      if (!o.createdBy?.id) return;
-      const label = [o.createdBy.firstName, o.createdBy.lastName].filter(Boolean).join(' ')
-        || o.createdBy.username;
-      byId.set(o.createdBy.id, { id: o.createdBy.id, label });
-    });
-    return [...byId.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [orders]);
-
-  const orderCities = useMemo(() => {
-    const set = new Set();
-    orders.forEach((o) => { if (o.client?.city) set.add(o.client.city); });
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [orders]);
-
-  const filteredOrders = useMemo(() => {
-    const q = norm(filters.q).trim();
-    const notesQuery = norm(filters.notes).trim();
-    const min = filters.amountMin === '' ? null : parseFloat(filters.amountMin);
-    const max = filters.amountMax === '' ? null : parseFloat(filters.amountMax);
-
-    return orders.filter((order) => {
-      // Recherche plein texte : un seul champ interroge le numéro, le client sous toutes ses
-      // formes, les produits commandés et les notes. C'est ce qui permet de retrouver une
-      // commande à partir de ce dont on se souvient, sans savoir dans quel champ chercher.
-      if (q) {
-        const haystack = [
-          order.orderNumber,
-          order.client?.firstName, order.client?.lastName, order.client?.email,
-          order.client?.phone, order.client?.company, order.client?.city,
-          order.createdBy?.username, order.createdBy?.firstName, order.createdBy?.lastName,
-          order.notes,
-          ...(order.items || []).flatMap((i) => [i.product?.name, i.product?.code, i.product?.barcode]),
-        ].map(norm).join(' ');
-        if (!haystack.includes(q)) return false;
-      }
-
-      if (filters.status !== 'ALL' && order.status !== filters.status) return false;
-
-      // « Pas encore facturée » est l'absence de facture liée, pas un statut de facture.
-      if (filters.payment === 'NONE') {
-        if (order.invoiceStatus) return false;
-      } else if (filters.payment !== 'ALL' && order.invoiceStatus !== filters.payment) {
-        return false;
-      }
-
-      if (filters.clientId && String(order.client?.id) !== String(filters.clientId)) return false;
-      if (filters.clientType !== 'ALL' && order.client?.type !== filters.clientType) return false;
-      if (filters.city && order.client?.city !== filters.city) return false;
-
-      if (filters.productId
-        && !(order.items || []).some((i) => String(i.product?.id) === String(filters.productId))) {
-        return false;
-      }
-      if (filters.categoryId
-        && !(order.items || []).some((i) => String(i.product?.category?.id) === String(filters.categoryId))) {
-        return false;
-      }
-
-      if (filters.createdById && String(order.createdBy?.id) !== String(filters.createdById)) return false;
-
-      // Bornes de date inclusives. On compare sur la partie `yyyy-MM-dd` de l'horodatage :
-      // comparer des Date entières exclurait les commandes du jour de fin passé minuit.
-      if (filters.dateFrom || filters.dateTo) {
-        const day = (order.createdAt || '').slice(0, 10);
-        if (!day) return false;
-        if (filters.dateFrom && day < filters.dateFrom) return false;
-        if (filters.dateTo && day > filters.dateTo) return false;
-      }
-
-      // Le filtre porte sur le montant affiché (TTC) : une fourchette qui exclut une ligne dont
-      // le chiffre est pourtant dans l'intervalle se lit comme une panne.
-      const amount = orderPayableAmount(order, listTaxRate).amount;
-      if (min !== null && !Number.isNaN(min) && amount < min) return false;
-      if (max !== null && !Number.isNaN(max) && amount > max) return false;
-
-      if (notesQuery && !norm(order.notes).includes(notesQuery)) return false;
-      if (filters.onlyDiscounted && !((parseFloat(order.discount) || 0) > 0)) return false;
-
-      return true;
-    });
-  }, [orders, filters, listTaxRate]);
-
-  const sortedOrders = useMemo(() => {
-    const value = (order) => {
-      switch (sort.key) {
-        case 'orderNumber': return norm(order.orderNumber);
-        case 'client': return norm(order.client ? `${order.client.lastName} ${order.client.firstName}` : '');
-        case 'items': return (order.items || []).reduce((n, i) => n + (parseInt(i.quantity) || 0), 0);
-        // Même montant que celui affiché dans la colonne, sinon l'ordre obtenu contredit les
-        // chiffres qu'on a sous les yeux dès qu'une remise ou la TVA entre en jeu.
-        case 'totalAmount': return orderPayableAmount(order, listTaxRate).amount;
-        case 'status': return norm(order.status);
-        // Tri par avancement réel dans le cycle, et non par ordre alphabétique du statut :
-        // c'est ce qui remonte en tête les commandes les plus en retard. Les annulées
-        // (index -1) se regroupent naturellement à une extrémité.
-        case 'progress': return lifecycleIndexFor(order.status, { status: order.invoiceStatus });
-        case 'createdAt':
-        default: return order.createdAt || '';
-      }
-    };
-    const dir = sort.dir === 'asc' ? 1 : -1;
-    return [...filteredOrders].sort((a, b) => {
-      const va = value(a);
-      const vb = value(b);
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
-  }, [filteredOrders, sort, listTaxRate]);
-
-  const totalPages = Math.max(1, Math.ceil(sortedOrders.length / perPage));
-  // La page demandée est bornée au nombre réel de pages : un filtre qui réduit la liste
-  // pendant qu'on est en page 5 doit ramener du contenu, pas un tableau vide.
-  const currentPage = Math.min(page, totalPages);
-  const pagedOrders = sortedOrders.slice((currentPage - 1) * perPage, currentPage * perPage);
+  // Options des filtres, servies par /orders/filter-options. Les déduire de `orders` ne
+  // proposerait plus que les valeurs de la page affichée, et un critère disparaîtrait de la
+  // liste dès qu'on change de page. L'endpoint reste dans le périmètre des commandes : lister
+  // les utilisateurs par /users est réservé à l'ADMIN, alors que ce filtre sert aussi au caissier.
+  const orderUsers = filterOptions.operators;
+  const orderCities = filterOptions.cities;
 
   // Un critère actif force la liste complète : filtrer pour n'en voir que six premières
   // n'aurait aucun sens — et les tuiles d'indicateurs sont elles-mêmes des filtres de statut.
@@ -1239,14 +1190,72 @@ const Orders = () => {
   );
   const showFullList = hasActiveFilters || viewMode === 'all';
 
-  // Les dernières commandes créées. À défaut de date exploitable, on retombe sur l'id décroissant.
-  const recentOrders = useMemo(() => (
-    [...orders]
-      .sort((a, b) => (new Date(b.createdAt || 0) - new Date(a.createdAt || 0)) || (b.id - a.id))
-      .slice(0, RECENT_COUNT)
-  ), [orders]);
+  // Frappe temporisée sur les deux champs libres : sans cela, chaque caractère partirait au
+  // serveur. Les autres critères sont des listes ou des dates, choisis d'un coup.
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [debouncedNotes, setDebouncedNotes] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQ(filters.q.trim());
+      setDebouncedNotes(filters.notes.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.q, filters.notes]);
 
-  const displayedOrders = showFullList ? pagedOrders : recentOrders;
+  /**
+   * Critères envoyés au serveur.
+   *
+   * La vue « dernières commandes » n'est plus un découpage de la liste chargée mais une requête
+   * à part entière : la première page triée par date décroissante. La même chose, exprimée là
+   * où sont les données.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'createdAt,desc' };
+    }
+    const params = {
+      page: page - 1,
+      size: perPage,
+      sort: `${SORT_FIELDS[sort.key] ?? 'createdAt'},${sort.dir}`,
+    };
+    if (debouncedQ) params.q = debouncedQ;
+    if (debouncedNotes) params.notes = debouncedNotes;
+    if (filters.status !== 'ALL') params.status = filters.status;
+    // « Pas encore facturée » est l'ABSENCE de facture vivante, pas un statut de facture.
+    if (filters.payment === 'NONE') params.notInvoiced = true;
+    else if (filters.payment !== 'ALL') params.payment = filters.payment;
+    if (filters.clientId) params.clientId = filters.clientId;
+    if (filters.clientType !== 'ALL') params.clientType = filters.clientType;
+    if (filters.city) params.city = filters.city;
+    if (filters.productId) params.productId = filters.productId;
+    if (filters.categoryId) params.categoryId = filters.categoryId;
+    if (filters.createdById) params.createdById = filters.createdById;
+    if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+    if (filters.dateTo) params.dateTo = filters.dateTo;
+    if (filters.amountMin !== '') params.amountMin = filters.amountMin;
+    if (filters.amountMax !== '') params.amountMax = filters.amountMax;
+    if (filters.onlyDiscounted) params.onlyDiscounted = true;
+    return params;
+  }, [showFullList, page, perPage, sort, debouncedQ, debouncedNotes, filters]);
+
+  // Le filtrage, le tri et la pagination sont faits en base : `orders` porte déjà la page
+  // demandée, dans l'ordre demandé. Refiltrer ou retrier ici ne porterait que sur les lignes
+  // reçues, et donnerait un tableau qui se prétend trié sans l'être.
+  const displayedOrders = orders;
+  const totalPages = pageMeta.totalPages;
+  const currentPage = page;
+
+  // Rechargement de la page à chaque changement de critère, de tri ou de numéro de page.
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams]);
+
+  // Toute modification du périmètre ramène à la première page : rester en page 5 d'un résultat
+  // qui n'en compte plus que 2 afficherait un tableau vide.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, debouncedNotes, filters, sort, perPage, viewMode]);
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
@@ -1264,14 +1273,11 @@ const Orders = () => {
   };
 
   // Stats
-  const stats = {
-    total: orders.length,
-    pending: orders.filter(o => o.status === 'PENDING').length,
-    confirmed: orders.filter(o => o.status === 'CONFIRMED').length,
-    invoiced: orders.filter(o => o.status === 'INVOICED').length,
-    delivered: orders.filter(o => o.status === 'DELIVERED').length,
-    canceled: orders.filter(o => o.status === 'CANCELED').length
-  };
+  // Décompte du périmètre entier, agrégé en base (cf. /api/orders/summary). Le recalculer sur
+  // `orders` ne décrirait que la page — et ces tuiles sont elles-mêmes des filtres de statut :
+  // annoncer « 3 en attente » d'après la page ouverte, puis en afficher douze après un clic,
+  // ferait douter de l'un comme de l'autre.
+  const stats = summary;
 
   // Cartes KPI cliquables (chacune filtre la liste sur son statut).
   // Chaque carte reprend le jeton du statut qu'elle filtre (cf. ORDER_STATUS_TONE).
@@ -1411,10 +1417,17 @@ const Orders = () => {
                 <SortHeader label={t('orders.orderNumber')} sortKey="orderNumber" sort={sort} onSort={toggleSort} />
                 <SortHeader label={t('orders.page.columnDateTime')} sortKey="createdAt" sort={sort} onSort={toggleSort} />
                 <SortHeader label={t('orders.client')} sortKey="client" sort={sort} onSort={toggleSort} />
-                <SortHeader label={t('orders.items')} sortKey="items" sort={sort} onSort={toggleSort} />
+                {/* Non triable : somme des quantités des lignes, que la base n'ordonne pas —
+                    voir SORT_FIELDS. */}
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  {t('orders.items')}
+                </th>
                 <SortHeader label={t('orders.page.columnAmount')} sortKey="totalAmount" sort={sort} onSort={toggleSort} />
                 <SortHeader label={t('orders.status')} sortKey="status" sort={sort} onSort={toggleSort} />
-                <SortHeader label={t('orders.page.columnProgress')} sortKey="progress" sort={sort} onSort={toggleSort} />
+                {/* Non triable : dérivé du statut ET de celui de la facture — voir SORT_FIELDS. */}
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  {t('orders.page.columnProgress')}
+                </th>
                 <th scope="col" className="table-th-right">{t('common.actions')}</th>
               </tr>
             </thead>
@@ -1469,11 +1482,11 @@ const Orders = () => {
 
         {/* Pagination : seulement en liste complète — la vue d'aperçu n'affiche que six lignes,
             un pied de pagination y serait trompeur. */}
-        {showFullList && !loading && sortedOrders.length > 0 && (
+        {showFullList && !loading && pageMeta.totalElements > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
-            totalItems={sortedOrders.length}
+            totalItems={pageMeta.totalElements}
             itemsPerPage={perPage}
             onPageChange={setPage}
             onItemsPerPageChange={(n) => { setPerPage(n); setPage(1); }}

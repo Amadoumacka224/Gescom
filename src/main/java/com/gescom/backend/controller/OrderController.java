@@ -20,6 +20,7 @@ import com.gescom.backend.service.OrderService;
 import com.gescom.backend.service.SettingsService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -44,6 +45,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/orders")
 @PreAuthorize("hasAnyRole('ADMIN', 'CAISSIER')")
 public class OrderController {
+
+    /**
+     * Clé de tri du montant TTC affiché. Ce n'est pas un champ de l'entité : le montant est
+     * reconstruit en SQL (facture vivante, sinon net HT majoré de la TVA), et c'est la seule
+     * façon d'obtenir un ordre conforme à ce que la colonne montre.
+     */
+    private static final String PAYABLE_SORT = "payableAmount";
 
     private final OrderService orderService;
     private final CsvExportService csvExportService;
@@ -119,7 +127,18 @@ public class OrderController {
                 settingsService.getSettings().getTaxRate() == null ? 0d
                         : settingsService.getSettings().getTaxRate());
 
-        Page<Order> page = orderService.searchOrders(criteria, taxRate, pageable);
+        // `payableAmount` ne désigne aucune colonne : laissé dans le Pageable, Spring Data
+        // tenterait de le résoudre en propriété de l'entité et répondrait 500. On l'en retire
+        // et on transmet le seul sens du tri, que la spécification posera sur l'expression
+        // calculée. Un Pageable NON trié est indispensable ici : sinon Spring Data réécrirait
+        // l'ORDER BY de la spécification avec le sien.
+        Sort.Order payableOrder = pageable.getSort().getOrderFor(PAYABLE_SORT);
+        Pageable effectivePageable = payableOrder == null
+                ? pageable
+                : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+
+        Page<Order> page = orderService.searchOrders(criteria, taxRate, effectivePageable,
+                payableOrder == null ? null : payableOrder.getDirection());
         // Même enrichissement que la liste complète : la facture liée porte le « Payée » de la
         // ligne et le montant TTC. Une seule requête groupée, sur la page seulement.
         Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
