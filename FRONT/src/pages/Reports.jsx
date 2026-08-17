@@ -610,16 +610,23 @@ const Reports = () => {
     toast.success(t('reports.exportDone'));
   };
 
-  const handleExportPdf = () => {
-    exportToPdf({
-      filename: 'rapport-ventes',
-      title: t('reports.title'),
-      subtitle: t('reports.exportScope', { period: periodLabel, count: sortedOrders.length }),
-      summary: exportSummary,
-      columns: exportColumns,
-      rows: sortedOrders,
-    });
-    toast.success(t('reports.exportDone'));
+  // Voir Caisses.jsx : jspdf est chargé au premier appel, la confirmation suit le document,
+  // et l'échec de ce chargement doit se voir.
+  const handleExportPdf = async () => {
+    try {
+      await exportToPdf({
+        filename: 'rapport-ventes',
+        title: t('reports.title'),
+        subtitle: t('reports.exportScope', { period: periodLabel, count: sortedOrders.length }),
+        summary: exportSummary,
+        columns: exportColumns,
+        rows: sortedOrders,
+      });
+      toast.success(t('reports.exportDone'));
+    } catch (error) {
+      console.error('Error exporting sales report PDF:', error);
+      toast.error(t('reports.exportPdfError'));
+    }
   };
 
   const openOrder = (orderId) => navigate(`/orders?orderId=${orderId}`);

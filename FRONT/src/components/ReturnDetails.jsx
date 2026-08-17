@@ -30,11 +30,11 @@ const ReturnDetails = ({ stockReturn, loading }) => {
    * reprend de la marchandise sans mouvement financier, il n'y a alors rien à créditer. */
   const refundable = Number(stockReturn?.refundAmount) > 0;
 
-  const handleCreditNote = () => {
+  const handleCreditNote = async () => {
     try {
       // Les coordonnées de l'entreprise viennent des Réglages ; leur absence ne bloque pas
       // l'édition, le générateur applique ses propres valeurs par défaut.
-      generateCreditNotePDF(stockReturn, settings || {});
+      await generateCreditNotePDF(stockReturn, settings || {});
     } catch (error) {
       console.error('Error generating credit note:', error);
       toast.error(t('stock.returns.creditNoteError'));

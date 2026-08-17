@@ -190,21 +190,29 @@ const Caisses = () => {
     toast.success(t('caisse.exportDone'));
   };
 
-  const handleExportPdf = () => {
-    exportToPdf({
-      filename: `supervision-caisses-${selectedDate}`,
-      title: t('caisse.supervisionTitle'),
-      subtitle: exportSubtitle,
-      summary: [
-        { label: t('caisse.collected'), value: formatCurrency(data.dayCollected) },
-        { label: t('caisse.sales'), value: formatCurrency(data.daySales) },
-        { label: t('caisse.orders'), value: String(data.dayOrdersCount) },
-        { label: t('caisse.averageBasket'), value: formatCurrency(data.averageBasket) },
-      ],
-      columns: exportColumns,
-      rows: visibleCashiers,
-    });
-    toast.success(t('caisse.exportDone'));
+  // `exportToPdf` charge jspdf au premier appel : la confirmation attend que le document soit
+  // réellement produit. Le try/catch n'est pas décoratif — le chargement passe par le réseau
+  // et peut échouer, là où la bibliothèque était auparavant déjà en mémoire.
+  const handleExportPdf = async () => {
+    try {
+      await exportToPdf({
+        filename: `supervision-caisses-${selectedDate}`,
+        title: t('caisse.supervisionTitle'),
+        subtitle: exportSubtitle,
+        summary: [
+          { label: t('caisse.collected'), value: formatCurrency(data.dayCollected) },
+          { label: t('caisse.sales'), value: formatCurrency(data.daySales) },
+          { label: t('caisse.orders'), value: String(data.dayOrdersCount) },
+          { label: t('caisse.averageBasket'), value: formatCurrency(data.averageBasket) },
+        ],
+        columns: exportColumns,
+        rows: visibleCashiers,
+      });
+      toast.success(t('caisse.exportDone'));
+    } catch (error) {
+      console.error('Error exporting cashier supervision PDF:', error);
+      toast.error(t('caisse.exportPdfError'));
+    }
   };
 
   const openOrder = (orderId) => navigate(`/orders?orderId=${orderId}`);

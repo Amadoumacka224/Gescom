@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,6 @@ import Modal from './Modal';
 import Button from './Button';
 import ClientFormFields from './ClientFormFields';
 import ConfirmModal from './ConfirmModal';
-import BarcodeScannerModal from './BarcodeScannerModal';
 import StripeTerminalModal from './StripeTerminalModal';
 import OrderWorkspaceCatalog from './OrderWorkspaceCatalog';
 import OrderWorkspaceCart from './OrderWorkspaceCart';
@@ -25,6 +24,16 @@ import {
 import { extractErrorMessage } from '../utils/apiError';
 import { formatCurrency } from '../utils/format';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
+
+/*
+ * Le scanner tire @zxing (plus de 450 ko) pour une modale qu'on n'ouvre qu'en caisse, et
+ * seulement pour scanner. Importé statiquement, il partait dans le paquet d'entrée et se
+ * téléchargeait sur toutes les pages, scanner ou non. `lazy` le charge à l'ouverture.
+ *
+ * La modale est déjà montée à la demande (`showScanner &&` plus bas) : rien d'autre à changer
+ * qu'une frontière `Suspense` autour d'elle.
+ */
+const BarcodeScannerModal = lazy(() => import('./BarcodeScannerModal'));
 
 /**
  * Panier de traitement d'une commande — poste de travail unique du cycle de vie.
@@ -482,7 +491,7 @@ const OrderWorkspace = ({
     try {
       // La facture chargée porte déjà la commande, son client et ses lignes : c'est tout ce
       // dont le générateur a besoin, aucun aller-retour supplémentaire.
-      generateInvoicePDF(invoice, settings || {});
+      await generateInvoicePDF(invoice, settings || {});
     } catch (error) {
       console.error('Error generating invoice PDF:', error);
       toast.error(t('orders.workspace.pdfError'));
@@ -679,12 +688,14 @@ const OrderWorkspace = ({
 
       {/* Scanner caméra, monté à la demande pour repartir d'un état propre à chaque ouverture. */}
       {showScanner && (
-        <BarcodeScannerModal
-          isOpen
-          onClose={() => setShowScanner(false)}
-          resolveProduct={resolveScannedProduct}
-          onConfirm={handleScannerConfirm}
-        />
+        <Suspense fallback={null}>
+          <BarcodeScannerModal
+            isOpen
+            onClose={() => setShowScanner(false)}
+            resolveProduct={resolveScannedProduct}
+            onConfirm={handleScannerConfirm}
+          />
+        </Suspense>
       )}
 
       {/* Terminal carte : même facture et même montant que l'encaissement manuel, seul le canal

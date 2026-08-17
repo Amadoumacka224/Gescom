@@ -390,7 +390,7 @@ const Invoices = () => {
       // Coordonnées de l'entreprise (en-tête + mentions légales belges), déjà chargées par
       // `useSettings`. Leur indisponibilité ne bloque pas l'édition : le générateur applique
       // ses propres valeurs par défaut.
-      generateInvoicePDF(response.data, settings || {});
+      await generateInvoicePDF(response.data, settings || {});
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error(t('invoices.pdfGenerationError'));

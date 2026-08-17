@@ -419,7 +419,7 @@ const History = () => {
     try {
       const rows = await collectRowsToExport();
       if (rows.length === 0) return;
-      exportToPdf({
+      await exportToPdf({
         filename: t('history.exportFilename'),
         title: t('history.exportTitle'),
         subtitle: exportScope,

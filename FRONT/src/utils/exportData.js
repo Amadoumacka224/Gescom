@@ -16,10 +16,33 @@
  * Une colonne est décrite par `{ header, value, align }`, `value` recevant la ligne courante.
  */
 
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
 import i18n from '../i18n';
+
+/*
+ * jspdf n'est chargé qu'au premier export PDF — voir le commentaire de `pdfGenerator.js`, qui
+ * applique la même mécanique pour les mêmes raisons.
+ *
+ * `exportToCsv` reste volontairement synchrone : il n'écrit que du texte et ne dépend d'aucune
+ * bibliothèque. Le rattacher au chargement différé lui ferait attendre 400 ko sans motif.
+ */
+let jsPDF;
+let autoTable;
+let pdfLibsPromise;
+
+const loadPdfLibs = () => {
+  if (!pdfLibsPromise) {
+    pdfLibsPromise = Promise.all([import('jspdf'), import('jspdf-autotable')])
+      .then(([pdfModule, tableModule]) => {
+        jsPDF = pdfModule.default;
+        autoTable = tableModule.default;
+      })
+      .catch((error) => {
+        pdfLibsPromise = undefined;
+        throw error;
+      });
+  }
+  return pdfLibsPromise;
+};
 
 /** Séparateur attendu par Excel en locale francophone. */
 const CSV_SEPARATOR = ';';
@@ -95,7 +118,8 @@ const MUTED_COLOR = [100, 118, 151]; // #647697 — gray-500
  * @param {Array<{header: string, value: Function, align?: string}>} options.columns
  * @param {Array<object>} options.rows
  */
-export const exportToPdf = ({ filename, title, subtitle, summary = [], columns, rows }) => {
+export const exportToPdf = async ({ filename, title, subtitle, summary = [], columns, rows }) => {
+  await loadPdfLibs();
   // Paysage : ces rapports comptent 6 à 7 colonnes, illisibles en portrait.
   const doc = new jsPDF({ orientation: 'landscape' });
   const pageWidth = doc.internal.pageSize.getWidth();

@@ -1676,6 +1676,7 @@
     "exportCsv": "CSV exporteren",
     "exportPdf": "PDF exporteren",
     "exportDone": "Export gegenereerd",
+    "exportPdfError": "Fout bij het genereren van de PDF",
     "exportScope": "Dag van {{date}} — {{count}} kassier(s)"
   },
   "reports": {
@@ -1738,6 +1739,7 @@
     "exportCsv": "CSV exporteren",
     "exportPdf": "PDF exporteren",
     "exportDone": "Export gegenereerd",
+    "exportPdfError": "Fout bij het genereren van de PDF",
     "exportScope": "{{period}} — {{count}} bestelling(en)",
     "columns": {
       "date": "Datum",

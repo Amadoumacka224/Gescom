@@ -724,7 +724,7 @@ const Orders = () => {
       // Coordonnées de l'entreprise (en-tête + mentions légales), déjà chargées par
       // `useSettings` : leur indisponibilité ne bloque pas l'édition du document, le
       // générateur applique ses propres valeurs par défaut.
-      generateInvoicePDF(fullInvoice, settings || {});
+      await generateInvoicePDF(fullInvoice, settings || {});
     } catch (error) {
       console.error('Error generating invoice PDF:', error);
       toast.error(error.response?.status === 404

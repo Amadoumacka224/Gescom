@@ -1,6 +1,3 @@
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
 import i18n from '../i18n';
 import { paymentMethodLabelKey } from '../constants/paymentMethods';
 import { formatDate } from './format';
@@ -9,6 +6,40 @@ import { formatDate } from './format';
 // l'interface, celle dans laquelle l'utilisateur travaille au moment de l'émission.
 const t = (key, values) => i18n.t(key, values);
 import { DEFAULT_TAX_RATE } from '../constants/billing';
+
+/*
+ * jspdf et jspdf-autotable pèsent à eux deux plus de 400 ko, pour deux boutons — éditer une
+ * facture et éditer un avoir. Importés en tête de module, ils partaient dans le paquet
+ * d'entrée et se téléchargeaient à l'ouverture de la page de connexion, où personne n'édite
+ * quoi que ce soit. Ils sont désormais chargés au premier appel, puis conservés : rouvrir une
+ * facture ne les retélécharge pas.
+ *
+ * Les deux bibliothèques sont liées à des variables de module plutôt que passées en argument :
+ * `autoTable` est utilisé par les fonctions de dessin plus bas, qui restent ainsi inchangées.
+ * Elles ne sont appelées que depuis les deux générateurs exportés, lesquels attendent le
+ * chargement avant toute chose — la liaison est donc toujours faite au moment de leur usage.
+ */
+let jsPDF;
+let autoTable;
+let pdfLibsPromise;
+
+const loadPdfLibs = () => {
+  if (!pdfLibsPromise) {
+    pdfLibsPromise = Promise.all([import('jspdf'), import('jspdf-autotable')])
+      .then(([pdfModule, tableModule]) => {
+        jsPDF = pdfModule.default;
+        autoTable = tableModule.default;
+      })
+      .catch((error) => {
+        // Sans cette remise à zéro, un échec réseau ponctuel condamnerait l'édition de PDF
+        // pour toute la durée de la session : la promesse rejetée serait réutilisée telle
+        // quelle à chaque tentative suivante.
+        pdfLibsPromise = undefined;
+        throw error;
+      });
+  }
+  return pdfLibsPromise;
+};
 
 // Configuration des couleurs — reprise de la charte (cf. `tailwind.config.js`)
 const primaryColor = [31, 119, 180]; // #1F77B4 — bleu acier (primary-600)
@@ -99,7 +130,8 @@ const drawBankDetails = (doc, company, y) => {
   doc.text(bankParts.join('   •   '), 15, y + 6);
 };
 
-export const generateInvoicePDF = (invoice, settings = {}) => {
+export const generateInvoicePDF = async (invoice, settings = {}) => {
+  await loadPdfLibs();
   const doc = new jsPDF();
   const company = companyFrom(settings);
 
@@ -383,7 +415,8 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
  * différent de celui inscrit au registre. La TVA est celle de la facture d'origine, à défaut
  * celle des Réglages — les lignes de vente sont stockées hors taxe.
  */
-export const generateCreditNotePDF = (stockReturn, settings = {}) => {
+export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
+  await loadPdfLibs();
   const doc = new jsPDF();
   const company = companyFrom(settings);
 
