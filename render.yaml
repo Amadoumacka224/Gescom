@@ -1,9 +1,9 @@
 # ==============================================================================
 # GESCOM — plan d'infrastructure Render
 #
-# Décrit les deux services — l'API et le SPA — et la base. Render lit ce fichier
-# à la création du blueprint puis à chaque modification poussée sur la branche
-# suivie.
+# Décrit les deux services — l'API et le SPA. La base, elle, est extérieure au
+# blueprint : voir la note en fin de fichier. Render lit ce fichier à la création
+# du blueprint puis à chaque modification poussée sur la branche suivie.
 #
 # Ce déploiement est une alternative à docker-compose.yml, pas un complément :
 # l'un met l'application chez un hébergeur managé qui fournit le certificat et
@@ -36,8 +36,27 @@ services:
     # laquelle l'API est écrite en dernier dans le Dockerfile — voir le
     # commentaire d'en-tête de celui-ci avant d'en réordonner les étapes.
 
-    region: oregon
-    plan: starter
+    # Francfort plutôt qu'Oregon : l'application et ses utilisateurs sont en
+    # Belgique, et la base Neon est elle aussi en Europe (voir DB_URL). Un
+    # aller-retour transatlantique par requête SQL se voit à l'usage.
+    region: frankfurt
+
+    # Offre gratuite : 512 Mio de mémoire et un processeur bridé. Deux
+    # conséquences à connaître avant de s'en étonner en démonstration.
+    #
+    # L'instance est mise en veille après quinze minutes sans trafic, et le
+    # démarrage à froid qui suit demande une à trois minutes — le temps que la
+    # JVM démarre et que Flyway vérifie le schéma. La première requête après une
+    # période creuse semble donc bloquée alors qu'elle attend simplement le
+    # réveil du conteneur.
+    #
+    # Le quota est de 750 heures d'instance par mois, soit exactement un service
+    # allumé en permanence : un ping de maintien en éveil est tenable ici, mais
+    # il consomme tout le budget et n'en laisse aucun à un second service.
+    #
+    # Le -XX:MaxRAMPercentage=75 du Dockerfile cale déjà le tas sur la mémoire
+    # réellement allouée : rien à ajuster pour tenir dans les 512 Mio.
+    plan: free
 
     # L'application écoute sur $PORT, injecté par Render (voir le profil render).
     # Le service n'est mis en rotation qu'une fois cette sonde satisfaite : elle
@@ -51,32 +70,36 @@ services:
         value: render
 
       # ------------------------------------------------------------------------
-      # Base de données
+      # Base de données — hébergée chez Neon, pas chez Render
       #
-      # DB_URL n'est pas dérivable de la base : `fromDatabase` n'expose que
-      # connectionString, connectionPoolString, user, password et database — ni
-      # hôte ni port — et connectionString est une URL de connexion PostgreSQL
-      # (postgresql://…), que le pilote JDBC rejette.
+      # La base managée de Render n'est gratuite qu'un mois : passé ce délai
+      # elle est supprimée, sans sauvegarde conservée. Inacceptable pour une
+      # installation qui doit rester consultable, d'où une base externe dont
+      # l'offre gratuite n'a pas de date de péremption.
       #
-      # `sync: false` fait donc demander la valeur à la création du blueprint,
-      # sans la faire figurer dans le dépôt. La composer à partir de l'onglet
-      # Connect de la base, en reprenant l'hôte interne :
+      # Les trois valeurs sont donc en `sync: false` et demandées à la création
+      # du blueprint : aucune ne peut plus venir de `fromDatabase`, qui ne sait
+      # lire qu'une base Render, et aucune n'a à figurer dans le dépôt.
       #
-      #   jdbc:postgresql://<hôte-interne>:5432/gescom_k7fn?sslmode=require
+      # DB_URL est une URL JDBC, pas l'URL de connexion PostgreSQL que Neon
+      # affiche par défaut (postgresql://…), que le pilote rejette. La composer
+      # depuis l'onglet Connection Details, en prenant l'hôte *avec* le suffixe
+      # -pooler — le pool de Neon encaisse les connexions du conteneur bien
+      # mieux que l'accès direct, lequel est à réserver aux restaurations de
+      # dump :
       #
-      # L'identifiant et le mot de passe, eux, viennent bien de la base : ils
-      # suivent automatiquement une rotation côté Render.
+      #   jdbc:postgresql://<hôte>-pooler.<région>.aws.neon.tech/<base>?sslmode=require
+      #
+      # Le nom de base doit être celui réellement créé chez Neon — `neondb` par
+      # défaut. Le pilote refuse la connexion en clair, sslmode=require n'est
+      # pas facultatif.
       # ------------------------------------------------------------------------
       - key: DB_URL
         sync: false
       - key: DB_USERNAME
-        fromDatabase:
-          name: gescom-db
-          property: user
+        sync: false
       - key: DB_PASSWORD
-        fromDatabase:
-          name: gescom-db
-          property: password
+        sync: false
 
       # Secret de signature des jetons, tiré une fois par Render et conservé
       # d'un déploiement à l'autre. Le régénérer invaliderait toutes les
@@ -101,6 +124,10 @@ services:
       # mot de passe engendré par la plateforme resterait illisible pour son
       # titulaire, et ces identifiants ouvrent le back-office SaaS complet.
       # Les omettre est un choix valable — aucun compte n'est alors créé.
+      #
+      # Elles ne servent à rien si la base a été peuplée depuis un dump qui
+      # contient déjà un SUPER_ADMIN : le bootstrap ne réécrit pas un compte
+      # existant, et c'est le mot de passe du dump qui reste en vigueur.
       # ------------------------------------------------------------------------
       - key: PLATFORM_ADMIN_USERNAME
         sync: false
@@ -170,15 +197,15 @@ services:
         destination: /index.html
 
 # ------------------------------------------------------------------------------
-# Base PostgreSQL managée.
+# Pas de section `databases:` — c'est délibéré.
 #
-# L'offre `free` est supprimée par Render au bout d'un mois, sans sauvegarde
-# conservée. Elle convient à une démonstration, pas à une installation qui doit
-# garder ses données : passer à `starter` avant toute mise en service réelle.
+# La base vit chez Neon et non chez Render, parce que l'offre gratuite de Render
+# est détruite au bout d'un mois. Elle n'est donc pas décrite ici : Render ne
+# provisionne rien, il reçoit seulement les trois variables DB_* renseignées à la
+# création du blueprint (voir plus haut).
+#
+# Conséquence à ne pas perdre de vue : la base n'est plus dans le cycle de vie du
+# blueprint. Supprimer les services ne la supprime pas, et les sauvegardes sont à
+# la charge de Neon et de son offre — vérifier la fenêtre de restauration avant
+# de considérer les données comme protégées.
 # ------------------------------------------------------------------------------
-databases:
-  - name: gescom-db
-    databaseName: gescom_k7fn
-    user: gescom_k7fn_user
-    region: oregon
-    plan: free
