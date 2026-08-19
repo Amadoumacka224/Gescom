@@ -30,21 +30,14 @@
     "copyright": "© {{year}} GESCOM. All rights reserved."
   },
   "landing": {
-    "badge": "Commercial management solution",
-    "headline": "Sales, stock and invoicing brought together in one tool",
     "benefits": {
       "salesTitle": "From order to delivery",
-      "salesDescription": "A signposted path: confirmation, invoicing, delivery.",
       "stockTitle": "Stock you can trust",
-      "stockDescription": "Quantities updated on every order and return, with a full history.",
       "billingTitle": "Invoicing and payments",
-      "billingDescription": "Invoices, till payments and settlements in the same customer file.",
-      "insightsTitle": "Decisions backed by figures",
-      "insightsDescription": "Revenue, margins and items to reorder, at a glance."
+      "insightsTitle": "Decisions backed by figures"
     },
     "contact": {
       "title": "A question about the solution?",
-      "description": "Our team will get back to you and arrange a demo.",
       "emailLabel": "Email",
       "email": "contact@gescom.com",
       "phoneLabel": "Phone",
@@ -1998,6 +1991,7 @@
     "invoiceNumberLabel": "Invoice no.:",
     "dateLabel": "Date:",
     "dueDateLabel": "Due date:",
+    "orderLabel": "Order no.:",
     "billedTo": "BILLED TO:",
     "reference": "Reference",
     "subtotalLabel": "Subtotal excl. VAT:",
@@ -2010,6 +2004,8 @@
     "notesLabel": "Notes:",
     "vatLine": "VAT / company no.: {{vat}}",
     "defaultCountry": "Belgium",
+    "pageLine": "Page {{page}} / {{pageCount}}",
+    "walkInClient": "Walk-in customer",
     "fileNamePrefix": "Invoice",
     "creditNote": {
       "heading": "CREDIT NOTE",
@@ -2017,7 +2013,6 @@
       "invoiceLabel": "Invoice:",
       "orderLabel": "Order:",
       "creditedTo": "CREDITED TO:",
-      "walkInClient": "Walk-in customer",
       "reasonColumn": "Reason",
       "treatmentColumn": "Treatment",
       "refundTotalLabel": "TO REFUND:",

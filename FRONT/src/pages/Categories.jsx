@@ -790,7 +790,7 @@ const Categories = () => {
               <span>#{selectedCategory.id}</span>
             </p>
 
-            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+            <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
               {isAdmin && (
                 <>
                   {/* Une catégorie encore rattachée à des produits ne peut pas être supprimée

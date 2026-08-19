@@ -6,12 +6,17 @@
  * soit — et un clic suffit là où un `<select>` en demande deux.
  *
  * `aria-pressed` porte l'état sélectionné : la couleur ne le dit pas seule.
+ *
+ * `flex-wrap` : à quatre filtres chiffrés (« Tous 160 · Disponible 160 · Stock faible 0 ·
+ * Rupture 0 »), le groupe réclame 416 px. Sur un téléphone il ne les avait pas, et la carte qui
+ * l'entoure étant en `overflow-hidden`, le dernier filtre était coupé sans que rien ne permette
+ * d'y accéder. Il passe désormais à la ligne.
  */
 const SegmentedFilter = ({ label, value, options, onChange, className = '' }) => (
   <div
     role="group"
     aria-label={label}
-    className={`inline-flex items-center gap-1 p-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 ${className}`}
+    className={`inline-flex flex-wrap items-center gap-1 p-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 ${className}`}
   >
     {options.map((option) => {
       const selected = option.value === value;

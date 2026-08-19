@@ -1214,7 +1214,7 @@ const Invoices = () => {
 
             {/* Actions collées au bas de la modale : le détail d'une facture dépasse la hauteur
                 d'écran dès qu'elle compte quelques lignes, l'encaissement doit rester à portée. */}
-            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+            <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
               <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
                 {t('common.close')}
               </Button>

@@ -1300,7 +1300,7 @@ const Products = () => {
 
           {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
               défile mais l'enregistrement reste sous la main. */}
-          <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
+          <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {editingProduct && !isDirty ? t('products.noChanges') : t('clients.requiredHint')}
             </p>

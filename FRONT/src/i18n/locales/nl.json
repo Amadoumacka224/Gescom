@@ -30,21 +30,14 @@
     "copyright": "© {{year}} GESCOM. Alle rechten voorbehouden."
   },
   "landing": {
-    "badge": "Oplossing voor commercieel beheer",
-    "headline": "Verkoop, voorraad en facturatie samen in één tool",
     "benefits": {
       "salesTitle": "Van bestelling tot levering",
-      "salesDescription": "Een vast traject: bevestiging, facturatie, levering.",
       "stockTitle": "Voorraad die altijd klopt",
-      "stockDescription": "Hoeveelheden bijgewerkt bij elke bestelling en retour, met volledige historiek.",
       "billingTitle": "Facturatie en inning",
-      "billingDescription": "Facturen, kassabetalingen en betalingen in hetzelfde klantendossier.",
-      "insightsTitle": "Beslissingen op basis van cijfers",
-      "insightsDescription": "Omzet, marges en bij te bestellen artikelen in één oogopslag."
+      "insightsTitle": "Beslissingen op basis van cijfers"
     },
     "contact": {
       "title": "Een vraag over de oplossing?",
-      "description": "Ons team antwoordt u en plant een demo.",
       "emailLabel": "E-mail",
       "email": "contact@gescom.com",
       "phoneLabel": "Telefoon",
@@ -1998,6 +1991,7 @@
     "invoiceNumberLabel": "Factuurnr.:",
     "dateLabel": "Datum:",
     "dueDateLabel": "Vervaldag:",
+    "orderLabel": "Bestelnr.:",
     "billedTo": "GEFACTUREERD AAN:",
     "reference": "Referentie",
     "subtotalLabel": "Subtotaal excl. btw:",
@@ -2010,6 +2004,8 @@
     "notesLabel": "Notities:",
     "vatLine": "Btw-nr. / KBO: {{vat}}",
     "defaultCountry": "België",
+    "pageLine": "Pagina {{page}} / {{pageCount}}",
+    "walkInClient": "Passantklant",
     "fileNamePrefix": "Factuur",
     "creditNote": {
       "heading": "CREDITNOTA",
@@ -2017,7 +2013,6 @@
       "invoiceLabel": "Factuur:",
       "orderLabel": "Bestelling:",
       "creditedTo": "GECREDITEERD AAN:",
-      "walkInClient": "Passantklant",
       "reasonColumn": "Reden",
       "treatmentColumn": "Verwerking",
       "refundTotalLabel": "TERUG TE BETALEN:",

@@ -109,7 +109,10 @@ const Login = () => {
       <button
         onClick={toggleLanguage}
         title={t('common.changeLanguage')}
-        className="absolute top-6 right-6 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-soft ring-1 ring-gray-900/5 hover:shadow-card-hover transition-all duration-200"
+        // `z-20` : la grille de connexion ci-dessous porte aussi `z-10` et, plus bas dans le
+        // document, passait devant ce bouton dès que sa largeur atteignait le haut de l'écran —
+        // sous 1280 px, le sélecteur restait visible mais le clic ne l'atteignait plus.
+        className="absolute top-6 right-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-soft ring-1 ring-gray-900/5 hover:shadow-card-hover transition-all duration-200"
       >
         <Globe className="w-4 h-4 text-primary-600" />
         <span className="text-sm font-medium text-gray-700 uppercase">
@@ -139,40 +142,24 @@ const Login = () => {
             </div>
           </div>
 
-          <span className="inline-flex items-center px-3 py-1 mb-5 rounded-full bg-primary-100 text-primary-800 text-xs font-semibold uppercase tracking-wide">
-            {t('landing.badge')}
-          </span>
-
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight mb-8">
-            {t('landing.headline')}
-          </h2>
-
-          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-7 mb-10">
+          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-5 mb-10">
             {BENEFITS.map(({ key, Icon, tone }) => (
-              <li key={key} className="flex gap-3">
+              <li key={key} className="flex items-center gap-3">
                 <span className={`panel-icon ${tone} shrink-0`}>
                   <Icon />
                 </span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                    {t(`landing.benefits.${key}Title`)}
-                  </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    {t(`landing.benefits.${key}Description`)}
-                  </p>
-                </div>
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {t(`landing.benefits.${key}Title`)}
+                </h3>
               </li>
             ))}
           </ul>
 
           {/* Contact — coordonnées de l'éditeur, reprises des paramètres de la société */}
           <div className="rounded-2xl bg-white/70 backdrop-blur-sm ring-1 ring-gray-900/5 p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">
               {t('landing.contact.title')}
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              {t('landing.contact.description')}
-            </p>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
               <a
                 href={`mailto:${t('landing.contact.email')}`}

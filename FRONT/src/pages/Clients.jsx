@@ -1234,7 +1234,7 @@ const Clients = () => {
               <span>{t('clients.updatedAtLabel')} {formatDateTime(selectedClient.updatedAt)}</span>
             </p>
 
-            <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+            <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
               {isAdmin && (
                 <Button variant="danger" icon={Trash2} onClick={() => setClientToDelete(selectedClient)}>
                   {t('common.delete')}
@@ -1274,7 +1274,7 @@ const Clients = () => {
 
           {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
               défile mais l'enregistrement reste sous la main, sans avoir à chercher le bas. */}
-          <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
+          <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {editingClient && !isDirty ? t('clients.noChanges') : t('clients.requiredHint')}
             </p>

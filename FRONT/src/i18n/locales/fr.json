@@ -30,21 +30,14 @@
     "copyright": "© {{year}} GESCOM. Tous droits réservés."
   },
   "landing": {
-    "badge": "Solution de gestion commerciale",
-    "headline": "Ventes, stocks et facturation réunis dans un seul outil",
     "benefits": {
       "salesTitle": "De la commande à la livraison",
-      "salesDescription": "Un parcours balisé : confirmation, facturation, livraison.",
       "stockTitle": "Stock toujours juste",
-      "stockDescription": "Quantités mises à jour à chaque commande et retour, avec historique complet.",
       "billingTitle": "Facturation et encaissements",
-      "billingDescription": "Factures, paiements en caisse et règlements dans un même dossier client.",
-      "insightsTitle": "Décisions appuyées sur des chiffres",
-      "insightsDescription": "Chiffre d'affaires, marges et réapprovisionnements en un coup d'œil."
+      "insightsTitle": "Décisions appuyées sur des chiffres"
     },
     "contact": {
       "title": "Une question sur la solution ?",
-      "description": "Notre équipe vous répond et organise une démonstration.",
       "emailLabel": "Email",
       "email": "contact@gescom.com",
       "phoneLabel": "Téléphone",
@@ -1998,6 +1991,7 @@
     "invoiceNumberLabel": "N° Facture :",
     "dateLabel": "Date :",
     "dueDateLabel": "Échéance :",
+    "orderLabel": "N° Commande :",
     "billedTo": "FACTURÉ À :",
     "reference": "Référence",
     "subtotalLabel": "Sous-total HT :",
@@ -2010,6 +2004,8 @@
     "notesLabel": "Notes :",
     "vatLine": "N° TVA / BCE : {{vat}}",
     "defaultCountry": "Belgique",
+    "pageLine": "Page {{page}} / {{pageCount}}",
+    "walkInClient": "Client de passage",
     "fileNamePrefix": "Facture",
     "creditNote": {
       "heading": "AVOIR",
@@ -2017,7 +2013,6 @@
       "invoiceLabel": "Facture :",
       "orderLabel": "Commande :",
       "creditedTo": "CRÉDITÉ À :",
-      "walkInClient": "Client de passage",
       "reasonColumn": "Motif",
       "treatmentColumn": "Traitement",
       "refundTotalLabel": "À REMBOURSER :",

@@ -40,8 +40,14 @@ const Pagination = ({
         />
       </div>
 
-      {/* Pagination controls */}
-      <div className="flex items-center gap-2">
+      {/*
+        Commandes repliables — la rangée tenait sur une seule ligne quelle que soit la largeur.
+        Elle mesure de 338 à 577 px selon la page (le sélecteur « par page », quatre flèches et
+        jusqu'à cinq numéros), pour un conteneur de 332 px sur un téléphone de 390 px : la carte
+        parente étant en `overflow-hidden`, les boutons « page suivante » et « dernière page »
+        étaient purement et simplement coupés, donc hors d'atteinte.
+      */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
         {/* Items per page */}
         <div className="flex items-center gap-2 mr-4">
           <label htmlFor="itemsPerPage" className="text-sm text-gray-500 dark:text-gray-400">

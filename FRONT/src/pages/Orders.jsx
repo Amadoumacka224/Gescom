@@ -96,7 +96,9 @@ const lifecycleIndexFor = (status, invoice) => {
  * celui de sa facture — le paiement n'est pas porté par la commande. Dans la liste, cette
  * facture se résume à `order.invoiceStatus`.
  */
-const OrderProgress = ({ order }) => {
+// `compact` : la même barre en 96 px au lieu de 128, pour tenir sous le badge de statut quand
+// la colonne « Progression » n'est pas affichée.
+const OrderProgress = ({ order, compact = false }) => {
   const { t } = useTranslation();
   const index = lifecycleIndexFor(order.status, { status: order.invoiceStatus });
   const canceled = index < 0;
@@ -130,7 +132,7 @@ const OrderProgress = ({ order }) => {
       });
 
   return (
-    <div className="w-32" role="img" aria-label={t('orders.progress.regionAria', { detail: ariaLabel })}>
+    <div className={compact ? 'w-24' : 'w-32'} role="img" aria-label={t('orders.progress.regionAria', { detail: ariaLabel })}>
       <div className="flex items-center gap-1" aria-hidden="true">
         {LIFECYCLE_STEPS.map((step, i) => {
           // Trois états par segment : franchi (dense), en cours (médian), à venir (piste).
@@ -237,14 +239,17 @@ const SORT_FIELDS = {
   status: 'status',
 };
 
-const SortHeader = ({ label, sortKey, sort, onSort, align = 'left' }) => {
+const SortHeader = ({ label, sortKey, sort, onSort, align = 'left', className = '' }) => {
   const active = sort.key === sortKey;
   const Icon = !active ? ChevronsUpDown : sort.dir === 'asc' ? ChevronUp : ChevronDown;
   return (
     <th
       scope="col"
       aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={align === 'right' ? 'table-th-right' : 'table-th'}
+      // `px-4` resserre le rembourrage de `.table-th` (px-6) : la couche `utilities` de Tailwind
+      // passe après `components`, l'utilitaire l'emporte donc sans `!`. Huit colonnes à px-6
+      // suffisaient à pousser la colonne « Actions » hors de l'écran.
+      className={`${align === 'right' ? 'table-th-right' : 'table-th'} px-4 ${className}`}
     >
       <button
         type="button"
@@ -1003,30 +1008,33 @@ const Orders = () => {
             : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
         }`}
       >
-        <td className="px-6 py-4 whitespace-nowrap">
+        <td className="px-4 py-3 whitespace-nowrap">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-4 h-4 text-gray-400 shrink-0" />
             <span className="font-medium text-gray-900 dark:text-gray-100">{order.orderNumber}</span>
           </div>
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
+        <td className="hidden 2xl:table-cell px-4 py-3 whitespace-nowrap">
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
             <span>{formatDate(order.createdAt)}</span>
           </div>
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
+        {/* Le client se replie sur deux lignes plutôt que de réclamer 266 px d'un seul tenant :
+            c'est la colonne la plus large du tableau, et la seule dont le contenu accepte d'être
+            plié sans perte de lecture. */}
+        <td className="max-w-[11rem] px-4 py-3">
           {order.client ? (
             /* Société affichée sous le nom quand elle existe : c'est souvent elle qu'on cherche
                dans une liste B2B, et elle départage les homonymes. */
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400 shrink-0" />
               <div className="min-w-0">
-                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                <p className="font-medium text-gray-900 dark:text-gray-100 break-words">
                   {order.client.firstName} {order.client.lastName}
                 </p>
                 {order.client.company && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{order.client.company}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 break-words">{order.client.company}</p>
                 )}
               </div>
             </div>
@@ -1036,7 +1044,7 @@ const Orders = () => {
             </span>
           )}
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
+        <td className="hidden min-[1720px]:table-cell px-4 py-3 whitespace-nowrap">
           {/* Nombre d'articles = somme des quantités, pas nombre de lignes : c'est ce qui est
               réellement sorti du stock. */}
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -1046,7 +1054,7 @@ const Orders = () => {
             </span>
           </div>
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
+        <td className="px-4 py-3 whitespace-nowrap">
           {/* Total TTC, le montant réellement réclamé — celui de la facture dès qu'elle existe,
               donc le même chiffre que sur l'écran Factures. C'est le sous-total HT *avant*
               remise globale qui figurait ici : il ne correspondait ni à la facture, ni même à
@@ -1079,22 +1087,28 @@ const Orders = () => {
             );
           })()}
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
+        <td className="px-4 py-3 whitespace-nowrap">
           {/* La liste /orders porte le statut de la facture liée : une commande facturée puis
               réglée s'affiche « Payée » — et « Acompte versé » si le règlement est partiel. */}
           {getStatusBadge(resolveOrderStatusKey(order))}
+          {/* Sous le badge tant que la colonne « Progression » n'a pas la place d'exister :
+              la barre reste lisible à toutes les largeurs sans coûter une colonne de 160 px,
+              et le badge qu'elle complète est juste au-dessus. */}
+          <div className="mt-2 min-[1720px]:hidden">
+            <OrderProgress order={order} compact />
+          </div>
         </td>
-        <td className="px-6 py-4 whitespace-nowrap">
+        <td className="hidden min-[1720px]:table-cell px-4 py-3 whitespace-nowrap">
           {/* Complémentaire du badge, pas redondant : le badge nomme l'état courant, la barre
               situe la commande dans le cycle et montre ce qu'il reste à faire. */}
           <OrderProgress order={order} />
         </td>
-        <td className="px-6 py-4 whitespace-nowrap text-sm">
+        <td className="px-3 py-3 whitespace-nowrap text-sm">
           {/* Barre d'actions : bouton principal (prochaine étape du cycle
               PENDING→Confirmer→Facturer→Livrer) + paiement, puis actions
               secondaires en icônes (détail, modification, annulation, suppression),
               séparées par un trait fin pour une lecture plus claire. */}
-          <div className="flex items-center justify-end gap-1.5">
+          <div className="flex items-center justify-end gap-1">
             {(() => {
               const primary = getPrimaryAction(order);
               if (!primary) return null;
@@ -1102,7 +1116,7 @@ const Orders = () => {
               return (
                 <button
                   onClick={(e) => { e.stopPropagation(); primary.onClick(); }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow transition-all ${primary.className}`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow transition-all ${primary.className}`}
                   title={primary.label}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -1117,7 +1131,7 @@ const Orders = () => {
             {canRecordPayment(order) && getPrimaryAction(order)?.key !== 'PAY' && (
               <button
                 onClick={(e) => { e.stopPropagation(); handleOpenPayment(order); }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-green-700 bg-green-50 hover:bg-green-100 text-xs font-semibold rounded-lg border border-green-200 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-green-700 bg-green-50 hover:bg-green-100 text-xs font-semibold rounded-lg border border-green-200 transition-colors"
                 title={order.invoiceStatus === 'PARTIALLY_PAID'
                   ? t('orders.page.settleBalance')
                   : t('orders.page.recordPayment')}
@@ -1413,22 +1427,40 @@ const Orders = () => {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
+              {/*
+                Dévoilement progressif des colonnes — le tableau porte huit colonnes et faisait
+                1643 px de large, quelle que soit la fenêtre. La zone visible valant la largeur
+                d'écran moins la barre latérale (1126 px à 1440, 1052 px à 1366), la colonne
+                « Actions » tombait hors champ sur tout écran de moins de 1957 px : elle n'était
+                atteignable qu'en faisant défiler le tableau latéralement, sans rien qui le
+                laisse deviner.
+
+                Le secondaire s'efface donc au fur et à mesure, comme le fait déjà `Table.jsx` :
+                « Articles » et « Progression » ne reprennent leur colonne qu'à partir de
+                1720 px, « Date & heure » à partir de 1536 px. En dessous, les cinq colonnes qui
+                portent la décision — numéro, client, montant, statut, actions — tiennent dans
+                l'écran.
+
+                La barre de progression, elle, ne disparaît jamais : quand sa colonne s'efface,
+                elle se replie sous le badge de statut (voir la cellule « Statut »), qu'elle
+                complète de toute façon. Ce n'est que sa colonne qui cède la place, pas elle.
+              */}
               <tr>
                 <SortHeader label={t('orders.orderNumber')} sortKey="orderNumber" sort={sort} onSort={toggleSort} />
-                <SortHeader label={t('orders.page.columnDateTime')} sortKey="createdAt" sort={sort} onSort={toggleSort} />
+                <SortHeader label={t('orders.page.columnDateTime')} sortKey="createdAt" sort={sort} onSort={toggleSort} className="hidden 2xl:table-cell" />
                 <SortHeader label={t('orders.client')} sortKey="client" sort={sort} onSort={toggleSort} />
                 {/* Non triable : somme des quantités des lignes, que la base n'ordonne pas —
                     voir SORT_FIELDS. */}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="hidden min-[1720px]:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {t('orders.items')}
                 </th>
                 <SortHeader label={t('orders.page.columnAmount')} sortKey="totalAmount" sort={sort} onSort={toggleSort} />
                 <SortHeader label={t('orders.status')} sortKey="status" sort={sort} onSort={toggleSort} />
                 {/* Non triable : dérivé du statut ET de celui de la facture — voir SORT_FIELDS. */}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="hidden min-[1720px]:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {t('orders.page.columnProgress')}
                 </th>
-                <th scope="col" className="table-th-right">{t('common.actions')}</th>
+                <th scope="col" className="table-th-right px-3">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1838,7 +1870,7 @@ const Orders = () => {
               {/* ---- Actions, collées au bas de la modale : le détail dépasse la hauteur d'écran
                    dès quelques lignes d'articles, et l'étape suivante doit rester sous la main.
                    Ordre de lecture : sortie, puis pièces jointes, puis ce qui fait avancer. ---- */}
-              <div className="sticky bottom-0 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
+              <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
                 <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
                   {t('common.close')}
                 </Button>
