@@ -12,6 +12,14 @@ target/
 FRONT/node_modules/
 FRONT/dist/
 
+# Historique et outillage local
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+.mvn/
+
 # Environnement et secrets : ne doivent jamais entrer dans une image
 .env
 .env.*

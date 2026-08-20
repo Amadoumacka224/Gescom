@@ -398,17 +398,21 @@ BACK/
 │   ├── repository/    # Accès aux données (Spring Data JPA)
 │   ├── entity/        # Entités JPA
 │   ├── dto/           # DTOs, un sous-package par domaine (+ common/, auth/)
+│   ├── tenancy/       # Cloisonnement multi-entreprises (filtre, contexte, garde)
 │   ├── exception/     # Exceptions métier et handler global
 │   ├── security/      # Filtres et configuration JWT
 │   └── config/        # Configuration Spring
 ├── src/main/resources/
 │   ├── application.properties
+│   ├── db/migration/  # Scripts Flyway, joués au démarrage
 │   └── i18n/          # Messages serveur (fr / en / nl)
 ├── src/test/java/     # Tests JUnit
 ├── FRONT/             # Client React + Vite + Tailwind (voir FRONT/README.md)
+├── .github/workflows/ # Intégration continue (tests API, lint et build du SPA)
 ├── Dockerfile         # Build des deux applications, cibles `api` et `web`
-├── docker-compose.yml # Déploiement : web (Caddy) + api + db
+├── docker-compose.yml # Déploiement autonome : web (Caddy) + api + db
 ├── Caddyfile          # TLS, service du SPA, relais /api
+├── render.yaml        # Déploiement géré : API, SPA et base PostgreSQL
 ├── .env.example       # Modèle de configuration ; le .env réel n'est pas versionné
 └── pom.xml
 ```
