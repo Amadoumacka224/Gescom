@@ -41,14 +41,16 @@ Le schéma est construit par Flyway au démarrage, à partir des migrations de `
 
 Une base qui porte déjà le schéma — celles en service avant le passage à Flyway — n'a pas à être vidée : `baseline-on-migrate` la marque au niveau `baseline-version=14.2`, c'est-à-dire « à jour », et aucun script n'est rejoué. **Ne recréez jamais une base d'exploitation pour faire démarrer l'application** : les migrations n'amorcent que les données de référence (clients, produits, catégories, comptes), pas les commandes, factures, livraisons ni paiements, qui seraient perdus.
 
-Les migrations chargent aussi un jeu de données de départ (110 clients, 180 produits, 12 catégories) et deux comptes :
+Les migrations chargent aussi un jeu de données de départ (110 clients, 180 produits, 12 catégories) et quatre comptes de démonstration :
 
-| Compte | Mot de passe | Rôle |
-|---|---|---|
-| `admin` | `admin123` | `ADMIN` |
-| `caissier1` | `caissier123` | `CAISSIER` |
+| Compte | Rôle |
+|---|---|
+| `admin` | `ADMIN` |
+| `cbernard`, `mdubois`, `speeters` | `CAISSIER` |
 
-> ⚠️ Ces comptes ne servent qu'à amorcer une base de développement. **Changez leurs mots de passe dès la première connexion**, et créez les comptes suivants via l'API.
+Leurs mots de passe ne sont pas publiés ici. Ce sont des valeurs de développement, versionnées sous forme d'empreinte bcrypt dans `V1_2__insert_users_table.sql` : elles n'ont de sens que sur une base locale jetable, et doivent être considérées comme connues de quiconque a accès au dépôt.
+
+> ⚠️ **Une installation en service ne doit jamais conserver ces comptes en l'état.** Changez leur mot de passe dès la première connexion (`POST /api/users/me/change-password`), ou supprimez-les une fois vos propres comptes créés. Tant que ce n'est pas fait, l'application est ouverte à qui a lu le dépôt.
 
 Toute évolution du schéma passe par un nouveau fichier `V15__....sql` : Flyway vérifie la somme de contrôle des scripts déjà joués, en modifier un fait échouer le démarrage suivant.
 
@@ -181,8 +183,9 @@ sont fournies par le fichier `.env`, décrit dans `.env.example`. Deux rappels :
 Le déploiement ne couvre pas ces deux points, qui relèvent de l'exploitation :
 
 1. **Changer les mots de passe des comptes amorcés.** Sur une base vierge, les migrations créent
-   `admin/admin123` et `caissier1/caissier123` (voir la section Base de données). Tant que ce
-   n'est pas fait, l'application est ouverte à qui a lu ce fichier.
+   le compte `admin` et trois comptes caissier, dont les mots de passe de développement sont
+   déductibles du dépôt (voir la section Base de données). Tant que ce n'est pas fait,
+   l'application est ouverte à qui a cloné le projet.
 2. **Mettre en place les sauvegardes.** Aucune n'est automatique. Par exemple, en tâche cron :
 
    ```bash
