@@ -100,55 +100,41 @@ const Login = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex items-center justify-center p-4 overflow-hidden">
-      {/* Halos décoratifs en arrière-plan */}
-      <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 bg-primary-300/30 rounded-full blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 bg-secondary-300/30 rounded-full blur-3xl" />
+    // Deux panneaux pleine hauteur plutôt qu'une grille centrée : la vitrine tient la
+    // moitié gauche en aplat bleu, la connexion la moitié droite sur fond clair. Sous
+    // `lg` les deux s'empilent — la vitrine reste affichée, simplement plus compacte.
+    <div className="min-h-screen lg:grid lg:grid-cols-2">
+      {/* ---- Vitrine ---- */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-800 px-8 py-14 sm:px-12 lg:flex lg:flex-col lg:justify-center lg:px-16 lg:py-20">
+        {/* Halos décoratifs en arrière-plan */}
+        <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 bg-primary-400/25 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 -right-24 w-[28rem] h-[28rem] bg-secondary-500/30 rounded-full blur-3xl" />
 
-      {/* Language Toggle */}
-      <button
-        onClick={toggleLanguage}
-        title={t('common.changeLanguage')}
-        // `z-20` : la grille de connexion ci-dessous porte aussi `z-10` et, plus bas dans le
-        // document, passait devant ce bouton dès que sa largeur atteignait le haut de l'écran —
-        // sous 1280 px, le sélecteur restait visible mais le clic ne l'atteignait plus.
-        className="absolute top-6 right-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-lg shadow-soft ring-1 ring-gray-900/5 hover:shadow-card-hover transition-all duration-200"
-      >
-        <Globe className="w-4 h-4 text-primary-600" />
-        <span className="text-sm font-medium text-gray-700 uppercase">
-          {i18n.language}
-        </span>
-      </button>
-
-      {/* Colonnes asymétriques : la vitrine porte plus de contenu que le formulaire,
-          qui reste calé sur la largeur de lecture confortable d'une carte de connexion. */}
-      <div className="relative z-10 w-full max-w-5xl grid lg:grid-cols-[minmax(0,1fr)_26rem] gap-10 lg:gap-14 items-center py-10">
-        {/* Présentation de la solution */}
-        <motion.section
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-xl mx-auto lg:mx-0 lg:max-w-none"
+          className="relative z-10 w-full max-w-xl mx-auto lg:mx-0"
         >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl shadow-lg shrink-0">
-              <LogIn className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 leading-tight">
-                {t('app.name')}
-              </h1>
-              <p className="text-sm text-gray-600">{t('app.tagline')}</p>
-            </div>
-          </div>
+          <h1 className="text-4xl sm:text-5xl font-bold text-white leading-tight">
+            {t('app.name')}
+          </h1>
+          <p className="mt-4 max-w-md text-lg text-primary-100">
+            {t('app.tagline')}
+          </p>
 
-          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-5 mb-10">
+          <ul className="mt-10 space-y-5">
             {BENEFITS.map(({ key, Icon, tone }) => (
-              <li key={key} className="flex items-center gap-3">
-                <span className={`panel-icon ${tone} shrink-0`}>
+              <li key={key} className="flex items-center gap-4">
+                {/* Médaillon posé sur l'aplat bleu : le jeton de domaine garde sa place dans
+                    la classe, mais fond et icône repassent en blanc — les nuances -500/-700
+                    de la charte disparaîtraient sur un fond de la même famille. */}
+                <span
+                  className={`panel-icon ${tone} shrink-0 !bg-white/15 !text-white ring-1 ring-white/25`}
+                >
                   <Icon />
                 </span>
-                <h3 className="text-sm font-semibold text-gray-900">
+                <h3 className="text-base font-semibold text-white">
                   {t(`landing.benefits.${key}Title`)}
                 </h3>
               </li>
@@ -156,46 +142,71 @@ const Login = () => {
           </ul>
 
           {/* Contact — coordonnées de l'éditeur, reprises des paramètres de la société */}
-          <div className="rounded-2xl bg-white/70 backdrop-blur-sm ring-1 ring-gray-900/5 p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">
+          <div className="mt-12 rounded-2xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20 p-5">
+            <h3 className="text-sm font-semibold text-white mb-4">
               {t('landing.contact.title')}
             </h3>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
               <a
                 href={`mailto:${t('landing.contact.email')}`}
-                className="flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-primary-100 hover:text-white transition-colors"
               >
                 <Mail className="w-4 h-4 shrink-0" />
                 {t('landing.contact.email')}
               </a>
               <a
                 href={`tel:${t('landing.contact.phone').replace(/\s/g, '')}`}
-                className="flex items-center gap-2 text-sm font-medium text-primary-700 hover:text-primary-900 transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-primary-100 hover:text-white transition-colors"
               >
                 <Phone className="w-4 h-4 shrink-0" />
                 {t('landing.contact.phone')}
               </a>
             </div>
           </div>
-        </motion.section>
+        </motion.div>
+      </section>
 
-        {/* Espace de connexion */}
-        <div className="w-full max-w-md mx-auto lg:mx-0 lg:max-w-none">
+      {/* ---- Espace de connexion ---- */}
+      <section className="relative flex flex-col justify-center bg-gray-50 px-6 py-14 sm:px-10 lg:px-16">
+        {/* Language Toggle */}
+        <button
+          onClick={toggleLanguage}
+          title={t('common.changeLanguage')}
+          className="absolute top-6 right-6 z-20 flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-soft ring-1 ring-gray-900/5 hover:shadow-card-hover transition-all duration-200"
+        >
+          <Globe className="w-4 h-4 text-primary-600" />
+          <span className="text-sm font-medium text-gray-700 uppercase">
+            {i18n.language}
+          </span>
+        </button>
+
+        <div className="w-full max-w-md mx-auto">
+          {/* Marque, au-dessus de la carte : le médaillon reprend le bleu de l'aplat de gauche */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl shadow-lg">
+              <LogIn className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="mt-5 text-3xl font-bold text-gray-900 leading-tight">
+              {t('app.name')}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">{t('app.tagline')}</p>
+          </div>
+
           {/* Login Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
-            className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-elevated ring-1 ring-gray-900/5 p-8"
+            className="bg-white rounded-2xl shadow-elevated ring-1 ring-gray-900/5 p-8"
           >
-            <div className="mb-7">
+            <div className="text-center mb-7">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-700 mb-3">
                 <ShieldCheck className="w-4 h-4" />
                 {t('auth.secureAccess')}
               </span>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">
+              <h3 className="text-2xl font-bold text-gray-900 mb-1">
                 {t('auth.welcomeBack')}
-              </h2>
+              </h3>
               <p className="text-gray-600 text-sm">{t('auth.signInMessage')}</p>
             </div>
 
@@ -204,8 +215,9 @@ const Login = () => {
               <div>
                 <label
                   htmlFor="username"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2"
                 >
+                  <User className="w-4 h-4 text-primary-600" />
                   {t('auth.username')}
                 </label>
                 <div className="relative">
@@ -229,8 +241,9 @@ const Login = () => {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2"
                 >
+                  <Lock className="w-4 h-4 text-primary-600" />
                   {t('auth.password')}
                 </label>
                 <div className="relative">
@@ -322,7 +335,7 @@ const Login = () => {
             {t('auth.copyright', { year: new Date().getFullYear() })}
           </p>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
