@@ -30,8 +30,7 @@ const Button = ({
     lg: 'px-6 py-3 text-lg',
   };
 
-  // Le spinner prend la couleur du texte pour rester visible
-  // sur les variantes claires (secondary / outline).
+  // Spinner de la couleur du texte sur les boutons clairs, pour qu'il reste visible.
   const spinnerColor =
     variant === 'secondary' || variant === 'outline'
       ? 'border-current border-t-transparent'
