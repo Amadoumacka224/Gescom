@@ -17,31 +17,31 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Acces au parc d'entreprises clientes.
+ * Acces aux entreprises clientes.
  *
- * {@link Company} n'est pas cloisonnee : elle est le cloisonnement. Ce repository n'est donc
- * jamais filtre, et son usage est reserve a l'espace plateforme, ou {@code @PreAuthorize}
- * tient lieu de controle d'acces.
+ * {@link Company} n'est pas filtree par entreprise : c'est elle qui sert a filtrer. Ce
+ * repository n'est donc jamais filtre, et il n'est utilise que dans l'espace plateforme,
+ * ou c'est {@code @PreAuthorize} qui controle l'acces.
  *
- * Les comptages sont agreges en base plutot que derives d'un {@code findAll} en memoire :
- * le tableau de bord proprietaire decrit la totalite du parc, pas une page.
+ * Les comptages sont faits en base plutot qu'avec un {@code findAll} en memoire : le tableau
+ * de bord du super admin porte sur toutes les entreprises, pas sur une page.
  */
 @Repository
 public interface CompanyRepository extends JpaRepository<Company, Long>,
         JpaSpecificationExecutor<Company> {
 
     /**
-     * Lecture de l'entreprise avec verrou d'ecriture, utilisee comme point de serialisation de
-     * l'attribution des numeros de documents.
+     * Lit l'entreprise avec un verrou en ecriture, pour que la generation des numeros de
+     * documents se fasse l'une apres l'autre.
      *
-     * Il ne s'agit pas de modifier l'entreprise : on emprunte sa ligne pour que deux ventes
-     * simultanees de la MEME entreprise ne puissent pas lire le meme « dernier numero ». La
-     * seconde attend que la premiere ait valide.
+     * On ne modifie pas l'entreprise : on verrouille juste sa ligne pour que deux ventes en
+     * meme temps dans la MEME entreprise ne lisent pas le meme « dernier numero ». La deuxieme
+     * attend que la premiere ait fini.
      *
-     * Le prix a payer est assume : toutes les creations de documents d'une meme entreprise se
-     * suivent au lieu de se croiser. Sur un back-office ou quelques postes saisissent en
-     * parallele, cela ne se voit pas — et cela evite d'ajouter une table de compteurs.
-     * Les entreprises, elles, restent independantes : chacune a sa propre ligne.
+     * L'inconvenient : toutes les creations de documents d'une entreprise passent l'une apres
+     * l'autre. Sur un back-office avec quelques postes, ca ne se voit pas, et ca evite une
+     * table de compteurs en plus. Les entreprises entre elles ne se bloquent pas : chacune a
+     * sa ligne.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Company c WHERE c.id = :id")
@@ -59,15 +59,15 @@ public interface CompanyRepository extends JpaRepository<Company, Long>,
 
     long countByCreatedAtGreaterThanEqual(LocalDateTime start);
 
-    /** Repartition du parc par statut, en une passe — alimente les compteurs du tableau de bord. */
+    /** Nombre d'entreprises par statut en une requete, pour les compteurs du tableau de bord. */
     @Query("SELECT c.status, COUNT(c) FROM Company c GROUP BY c.status")
     List<Object[]> countGroupedByStatus();
 
     /**
-     * Essais arrivant a echeance, pour l'ecran d'alertes.
+     * Essais qui arrivent a leur fin, pour l'ecran des alertes.
      *
-     * Le statut est passe en parametre plutot qu'ecrit en dur : JPQL n'admet pas la notation
-     * pointee d'un enum imbrique, et le lier evite d'avoir a le qualifier completement.
+     * Le statut est passe en parametre et pas ecrit en dur : JPQL n'accepte pas la notation
+     * avec des points pour un enum imbrique, et en parametre on n'a pas a ecrire le nom complet.
      */
     @Query("""
            SELECT c FROM Company c
@@ -78,7 +78,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long>,
            """)
     List<Company> findTrialsEndingBefore(Company.CompanyStatus status, LocalDateTime deadline);
 
-    /** Derniers comptes crees — flux « nouveaux clients » du tableau de bord. */
+    /** Derniers comptes crees, pour le bloc « nouveaux clients » du tableau de bord. */
     Page<Company> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     @Override

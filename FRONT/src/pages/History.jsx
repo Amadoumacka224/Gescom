@@ -36,21 +36,21 @@ import { ACTIVITY_TONE, badgeClass } from '../constants/statusBadges';
 import { ACTION_TYPES, actionLabelKey } from '../constants/activityActions';
 
 /**
- * Journal d'audit. Écran de consultation pure : aucune écriture n'est possible depuis
- * l'application (cf. ActivityLogController, qui n'expose pas de création).
+ * Journal d'activité, en lecture seule : on ne peut rien y ajouter depuis l'appli
+ * (ActivityLogController n'a pas d'endpoint de création).
  *
- * Il reprend le gabarit des autres tableaux de bord — en-tête, rangée d'indicateurs, barre de
- * recherche `AdvancedFilters`, tableau `Table` — au lieu des champs et du tableau écrits à la
- * main qu'il portait : le mode sombre, les squelettes de chargement, le tri et les pastilles de
- * filtres actifs viennent alors de ces composants plutôt que d'être réécrits ici.
+ * Il utilise la même structure que les autres écrans (en-tête, cartes de stats,
+ * `AdvancedFilters`, `Table`) au lieu des champs et du tableau faits à la main qu'il avait
+ * avant. Le mode sombre, les squelettes, le tri et les pastilles de filtres viennent donc de
+ * ces composants.
  */
 
-/** Entités traçables, dans l'ordre du flux métier plutôt qu'alphabétique. */
+/** Entités suivies, dans l'ordre du métier et pas par ordre alphabétique. */
 const ENTITIES = ['Client', 'Product', 'Category', 'Order', 'Invoice', 'Delivery', 'Stock', 'User', 'Settings'];
 
 /**
- * Critères de filtrage à l'état neutre : valeur initiale, cible de « Réinitialiser » et
- * référence permettant de savoir quels critères sont réellement actifs.
+ * Filtres avec leurs valeurs vides : état initial, cible de « Réinitialiser » et référence
+ * pour savoir quels filtres sont actifs.
  */
 const EMPTY_FILTERS = {
   userId: '',
@@ -62,14 +62,14 @@ const EMPTY_FILTERS = {
 
 const pad = (n) => String(n).padStart(2, '0');
 
-/** Date locale au format attendu par `<input type="date">`. */
+/** Date locale au format de `<input type="date">`. */
 const toDateInput = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
 /**
- * Jour d'un horodatage backend, comparable en chaîne (« 2026-07-29 »).
- * Le backend renvoie un LocalDateTime sans fuseau : on découpe la chaîne au lieu de la passer
- * par `new Date()`, qui interprétait « 2026-07-29 » en UTC et écartait à tort les activités
- * de la première tranche horaire du jour de début.
+ * Juste le jour d'une date du backend, comparable en texte (« 2026-07-29 »).
+ * Le backend renvoie un LocalDateTime sans fuseau : on coupe la chaîne au lieu de passer par
+ * `new Date()`, qui lisait « 2026-07-29 » en UTC et excluait par erreur les activités du
+ * début de la première journée.
  */
 const dayOf = (isoDateTime) => (isoDateTime ? String(isoDateTime).slice(0, 10) : '');
 
@@ -81,10 +81,9 @@ const shiftedDay = (days) => {
 };
 
 /**
- * Raccourcis de période, placés au premier niveau de la barre d'outils : sur un journal
- * d'audit, restreindre la fenêtre de temps est le geste le plus fréquent, il ne doit pas
- * demander d'ouvrir un panneau. Ils écrivent dans les mêmes champs `from`/`to` que la saisie
- * manuelle — un raccourci reste donc ajustable à la main, et la période n'a qu'un seul état.
+ * Raccourcis de période, affichés directement dans la barre : sur un journal, on filtre
+ * très souvent par date, donc pas besoin d'ouvrir un panneau. Ils remplissent les mêmes
+ * champs `from`/`to` que la saisie manuelle, on peut donc les ajuster à la main ensuite.
  */
 const PERIODS = [
   { value: 'ALL', labelKey: 'history.periods.all' },
@@ -109,9 +108,9 @@ const formatClock = (iso) =>
     : '—';
 
 /**
- * Jour lisible : « Aujourd'hui » / « Hier » pour les deux jours qui portent l'essentiel des
- * consultations, date complète au-delà. Repère plus vite qu'un « 29/07/2026 » répété, sans
- * l'inconvénient d'un « il y a 5 min » qui devient faux sans rechargement.
+ * Jour affiché : « Aujourd'hui » / « Hier » pour les deux jours les plus consultés, sinon la
+ * date complète. Plus facile à lire qu'un « 29/07/2026 » répété, et contrairement à « il y a
+ * 5 min » ça ne devient pas faux si on ne recharge pas la page.
  */
 const formatDayLabel = (iso) => {
   const day = dayOf(iso);
@@ -127,7 +126,7 @@ const userFullName = (activity) => {
   return `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || null;
 };
 
-/** Auteur d'une activité, « Système » à défaut : une action sans auteur reste tracée. */
+/** Auteur de l'activité, ou « Système » s'il n'y en a pas (l'action est quand même enregistrée). */
 const userLabel = (activity) => userFullName(activity) || i18n.t('history.systemUser');
 
 const initialsOf = (activity) => {
@@ -137,8 +136,8 @@ const initialsOf = (activity) => {
   return initials || user.username?.charAt(0)?.toUpperCase() || '—';
 };
 
-/* Colonnes de l'export, communes au CSV et au PDF : ce qui est exporté est par construction
- * ce qui est affiché, et l'échappement / le BOM / le séparateur sont gérés par `exportData`. */
+/* Colonnes de l'export, les mêmes pour le CSV et le PDF : on exporte exactement ce qui est
+ * affiché. L'échappement, le BOM et le séparateur sont gérés par `exportData`. */
 const exportColumns = (t) => [
   { header: t('history.columns.timestamp'), value: (a) => formatDateTime(a.createdAt) },
   { header: t('history.columns.user'), value: (a) => userLabel(a) },
@@ -150,8 +149,8 @@ const exportColumns = (t) => [
   { header: t('history.columns.ipAddress'), value: (a) => a.ipAddress || '—' },
 ];
 
-// Correspondance entre les colonnes triables et les champs triés en base. Le tri est délégué
-// au serveur : trier les lignes reçues ne réordonnerait que la page affichée.
+// Lien entre les colonnes triables et les champs en base. Le tri est fait par le serveur :
+// trier les lignes reçues ne trierait que la page affichée.
 const SORT_FIELDS = {
   createdAt: 'createdAt',
   actionType: 'actionType',
@@ -161,7 +160,7 @@ const SORT_FIELDS = {
 
 const History = () => {
   const { t } = useTranslation();
-  // `activities` ne contient que la page courante — le journal entier n'est jamais chargé.
+  // `activities` ne contient que la page en cours, on ne charge jamais tout le journal.
   const [activities, setActivities] = useState([]);
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
   const [summary, setSummary] = useState(null);
@@ -180,7 +179,7 @@ const History = () => {
 
   const today = toDateInput(shiftedDay(0));
 
-  // La recherche part au serveur : on attend une frappe stabilisée plutôt qu'une requête
+  // La recherche est faite par le serveur : debounce pour ne pas envoyer une requête
   // par caractère.
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
@@ -189,13 +188,13 @@ const History = () => {
 
   /* ---- Paramètres de requête ---- */
 
-  // Critères seuls, sans pagination ni tri : c'est le périmètre que l'export doit reprendre.
+  // Seulement les filtres, sans pagination ni tri : c'est ce que l'export doit reprendre.
   const filterParams = useMemo(() => {
     const params = {};
     if (filters.userId) params.userId = filters.userId;
     if (filters.actionType) params.actionType = filters.actionType;
     if (filters.entity) params.entity = filters.entity;
-    // Bornes inclusives sur le jour entier.
+    // Bornes incluses, sur toute la journée.
     if (filters.from) params.start = `${filters.from}T00:00:00`;
     if (filters.to) params.end = `${filters.to}T23:59:59`;
     if (debouncedSearch) params.search = debouncedSearch;
@@ -219,7 +218,7 @@ const History = () => {
     fetchPage();
   }, [queryParams]);
 
-  // Utilisateurs (options de filtre) et indicateurs : indépendants de la page affichée.
+  // Utilisateurs (pour le filtre) et stats : ne dépendent pas de la page affichée.
   const fetchReference = async () => {
     try {
       const [usersRes, summaryRes] = await Promise.all([
@@ -274,7 +273,7 @@ const History = () => {
         && filters.from === toDateInput(shiftedDay(period.days))
         && filters.to === today
     );
-    // Une plage saisie à la main n'est aucun des raccourcis : aucun n'apparaît alors enfoncé.
+    // Une période tapée à la main ne correspond à aucun raccourci : aucun n'est sélectionné.
     return match?.value ?? 'CUSTOM';
   }, [filters.from, filters.to, today]);
 
@@ -289,8 +288,8 @@ const History = () => {
 
   /* ---- Indicateurs ---- */
 
-  // Agrégés par le serveur sur tout le journal : les compter sur les lignes reçues ne
-  // donnerait que le volume de la page affichée.
+  // Calculés par le serveur sur tout le journal : les compter sur les lignes reçues ne
+  // donnerait que ceux de la page affichée.
   const stats = useMemo(() => ({
     total: summary?.total ?? 0,
     today: summary?.today ?? 0,
@@ -301,8 +300,8 @@ const History = () => {
 
   /* ---- Filtrage ---- */
 
-  // Listes déduites du journal lui-même : un critère qui ne rend aucun résultat n'est pas
-  // proposé. Elles viennent du résumé, et non de la page, pour rester exhaustives.
+  // Listes tirées du journal : on ne propose pas un filtre qui ne donnerait rien. Elles
+  // viennent du résumé et pas de la page, pour être complètes.
   const actionOptions = useMemo(() => {
     const present = new Set(summary?.actionTypes ?? []);
     return ACTION_TYPES
@@ -346,8 +345,8 @@ const History = () => {
     { key: 'to', label: t('history.toLabel'), type: 'date' },
   ], [users, actionOptions, entityOptions, t]);
 
-  // Filtrage, tri et découpage sont faits en base (cf. `queryParams`) : `activities` est
-  // déjà la page à afficher. Les suggestions, elles, restent tirées des lignes visibles.
+  // Le filtrage, le tri et la pagination sont faits en base (voir `queryParams`) :
+  // `activities` est déjà la page à afficher. Les suggestions viennent des lignes visibles.
   const suggestions = rankSuggestions(
     activities,
     searchTerm,
@@ -358,7 +357,7 @@ const History = () => {
   const hasFieldFilters = Object.keys(EMPTY_FILTERS).some((key) => filters[key] !== EMPTY_FILTERS[key]);
   const hasActiveFilters = searchTerm.trim() !== '' || hasFieldFilters;
 
-  // Nombre de lignes répondant aux critères, toutes pages confondues.
+  // Nombre de lignes qui correspondent aux filtres, toutes pages comprises.
   const matchingCount = pageMeta.totalElements;
   const totalPages = pageMeta.totalPages;
   const safePage = Math.min(currentPage, totalPages);
@@ -371,23 +370,22 @@ const History = () => {
     setSortConfig((prev) => (
       prev.key === key
         ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
-        // Une colonne de date s'ouvre du plus récent au plus ancien, le texte de A à Z.
+        // Une date se trie de la plus récente à la plus ancienne, un texte de A à Z.
         : { key, direction: key === 'createdAt' ? 'desc' : 'asc' }
     ));
   };
 
   /* ---- Exports ---- */
 
-  // Le périmètre exporté est le résultat filtré complet, pas la page affichée : sans ce
-  // rappel, un export filtré passe pour complet.
+  // On exporte tout le résultat filtré, pas seulement la page affichée. On l'indique pour
+  // qu'un export filtré ne soit pas pris pour un export complet.
   const exportScope = hasActiveFilters
     ? t('history.scopeFiltered', { shown: matchingCount, total: stats.total })
     : t('history.scopeAll', { count: stats.total });
 
   /**
-   * Récupère toutes les lignes du résultat filtré, page après page. L'écran n'en charge
-   * jamais qu'une : exporter `activities` n'emporterait que les lignes visibles tout en
-   * affichant le total filtré en sous-titre.
+   * Récupère toutes les lignes du résultat filtré, page par page. L'écran n'en charge qu'une
+   * à la fois : exporter `activities` ne donnerait que les lignes visibles.
    */
   const collectRowsToExport = async () => {
     const rows = await activityService.fetchAllMatching({ ...filterParams, sort: sortParam });
@@ -442,9 +440,9 @@ const History = () => {
   };
 
   /* ---- Colonnes ----
-   * Ordonnées comme se lit une ligne d'audit : quand, qui, quoi, sur quel objet, dans quel
-   * détail. La description et l'adresse IP se retirent sur écran étroit plutôt que d'imposer
-   * un défilement horizontal ; elles restent intégralement lisibles dans la fiche. */
+   * Dans l'ordre où on lit une ligne du journal : quand, qui, quoi, sur quoi, et le détail.
+   * La description et l'IP sont cachées sur petit écran pour éviter un scroll horizontal ;
+   * on les retrouve en entier dans la fiche. */
   const columns = [
     {
       key: 'createdAt',
@@ -490,8 +488,8 @@ const History = () => {
     },
     {
       key: 'actionType',
-      // « Type d'action » et non « Action » : la colonne de boutons du tableau s'intitule
-      // « Actions », et les deux en-têtes se confondaient.
+      // « Type d'action » et pas « Action » : la colonne des boutons s'appelle déjà
+      // « Actions », on confondait les deux.
       label: t('history.actionTypeLabel'),
       sortable: true,
       render: (activity) => (
@@ -601,9 +599,9 @@ const History = () => {
       </div>
 
       {/* ---- Indicateurs ----
-       * Quatre compteurs qui décrivent le journal, pas la liste affichée : le nombre de
-       * résultats filtrés est déjà donné par l'en-tête de la liste et par la pagination.
-       * La dernière tuile isole les suppressions, seule action irréversible du journal. */}
+       * Quatre compteurs sur tout le journal, pas sur la liste affichée (le nombre de résultats
+       * filtrés est déjà indiqué au-dessus de la liste et dans la pagination). La dernière
+       * carte montre les suppressions, la seule action qu'on ne peut pas annuler. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('history.statTotalTitle')}
@@ -710,7 +708,7 @@ const History = () => {
           onRowClick={setSelectedActivity}
           skeletonRows={8}
           actions={(activity) => (
-            // Doublonne le clic sur la ligne, qui n'est pas atteignable au clavier.
+            // Fait la même chose que le clic sur la ligne, qui n'est pas accessible au clavier.
             <button
               onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); }}
               className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -735,8 +733,8 @@ const History = () => {
       </div>
 
       {/* ---- Fiche d'activité ----
-       * Seul endroit où la description longue et le champ `details` sont lisibles en entier ;
-       * le tableau les tronque pour garder ses lignes à hauteur constante. */}
+       * C'est le seul endroit où on peut lire la description longue et `details` en entier :
+       * dans le tableau ils sont coupés pour garder des lignes de même hauteur. */}
       <Modal
         isOpen={!!selectedActivity}
         onClose={() => setSelectedActivity(null)}

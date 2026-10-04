@@ -30,14 +30,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Conditions de suppression d'une facture.
+ * Conditions pour supprimer une facture.
  *
- * La suppression effaçait la ligne sans rien vérifier : une facture encaissée, porteuse de
- * paiements par carte ou dont la commande était déjà livrée partait sans un mot. Ces cas sont
- * désormais refusés, et le seul autorisé — une facture annulée à laquelle rien ne se rattache
- * — l'est toujours.
+ * Avant, la suppression effaçait la ligne sans rien vérifier : une facture payée, avec des
+ * paiements carte ou dont la commande était déjà livrée était supprimée sans rien dire.
+ * Maintenant ces cas sont refusés, et le seul cas autorisé (une facture annulée sans rien de
+ * lié) l'est toujours.
  *
- * Test unitaire pur (Mockito) : aucune base ni contexte Spring.
+ * Test unitaire simple (Mockito) : pas de base ni de contexte Spring.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -61,9 +61,9 @@ class InvoiceDeletionGuardTest {
     }
 
     /**
-     * Facture annulée, sans encaissement, sans paiement carte, sans livraison : le seul cas
-     * supprimable. Chaque test dégrade UNE de ces conditions, pour qu'un échec désigne le
-     * garde-fou fautif sans ambiguïté.
+     * Facture annulée, sans paiement, sans paiement carte, sans livraison : le seul cas qu'on
+     * peut supprimer. Chaque test change UNE seule de ces conditions, pour que si un test
+     * échoue, on sache tout de suite quelle vérification pose problème.
      */
     private Invoice deletableInvoice() {
         Order order = new Order();
@@ -96,8 +96,8 @@ class InvoiceDeletionGuardTest {
     @Test
     void refuse_de_supprimer_une_facture_encaissee() {
         Invoice invoice = deletableInvoice();
-        // Partiellement payée PUIS annulée : cancelInvoice ne refuse que les factures soldées,
-        // ce cas est donc atteignable et porte de l'argent réellement reçu.
+        // Payée en partie PUIS annulée : cancelInvoice ne refuse que les factures payées en
+        // entier, donc ce cas peut arriver, et il y a de l'argent vraiment reçu.
         invoice.setPaidAmount(new BigDecimal("40.00"));
 
         assertThatThrownBy(() -> invoiceService.deleteInvoice(1L))
@@ -111,8 +111,8 @@ class InvoiceDeletionGuardTest {
     @Test
     void refuse_de_supprimer_une_facture_portant_un_paiement_carte() {
         deletableInvoice();
-        // Intention créée puis jamais confirmée : aucun euro crédité, mais une ligne existe et
-        // la clé étrangère ferait échouer la suppression en 409 technique.
+        // Intention créée puis jamais confirmée : aucun euro payé, mais une ligne existe et la
+        // clé étrangère ferait échouer la suppression avec une 409 technique.
         Payment pending = new Payment();
         pending.setId(5L);
         pending.setStatus(Payment.PaymentStatus.REQUIRES_CONFIRMATION);
@@ -150,8 +150,8 @@ class InvoiceDeletionGuardTest {
     }
 
     /**
-     * L'encaissement prime sur le statut : une facture à la fois payée et non annulée doit se
-     * voir refuser pour la raison la plus grave des deux, celle qui parle d'argent.
+     * Le paiement passe avant le statut : une facture payée et pas annulée doit être refusée
+     * pour la raison la plus grave des deux, celle qui concerne l'argent.
      */
     @Test
     void signale_l_encaissement_avant_le_defaut_d_annulation() {
@@ -164,7 +164,7 @@ class InvoiceDeletionGuardTest {
                 .hasMessageContaining("100.00");
     }
 
-    /** Le garde-fou ne doit pas dépendre d'un paidAmount renseigné. */
+    /** La vérification ne doit pas dépendre d'un paidAmount rempli. */
     @Test
     void tolere_un_montant_encaisse_absent() {
         Invoice invoice = deletableInvoice();

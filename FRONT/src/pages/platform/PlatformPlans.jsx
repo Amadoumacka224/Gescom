@@ -13,15 +13,14 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Catalogue commercial.
+ * Liste des formules (offres).
  *
- * Point à ne pas perdre de vue en modifiant un tarif : **les contrats en cours ne bougent
- * pas**. Le montant est figé à la souscription, une révision du catalogue ne vaut donc que
- * pour les souscriptions à venir — sans quoi changer un prix réécrirait le MRR passé.
- * L'écran le rappelle explicitement dans le formulaire.
+ * À savoir quand on change un prix : **les abonnements en cours ne changent pas**. Le montant
+ * est fixé au moment de la souscription, donc un nouveau prix ne vaut que pour les prochaines
+ * souscriptions (sinon on modifierait le MRR passé). C'est rappelé dans le formulaire.
  *
- * Retirer une formule se fait en la désactivant. La suppression n'est proposée que sur une
- * formule que personne n'a jamais souscrite, l'historique des contrats y faisant référence.
+ * Pour retirer une formule, on la désactive. La suppression n'est possible que pour une
+ * formule que personne n'a jamais prise, car les anciens contrats y font référence.
  */
 
 const EMPTY_FORM = {
@@ -98,7 +97,7 @@ const PlatformPlans = () => {
         description: form.description || null,
         monthlyPrice: Number(form.monthlyPrice),
         yearlyPrice: Number(form.yearlyPrice),
-        // Vide vaut « illimité » : le serveur attend null, pas zéro.
+        // Vide = illimité : le serveur attend null, pas zéro.
         maxUsers: form.maxUsers === '' ? null : Number(form.maxUsers),
         maxProducts: form.maxProducts === '' ? null : Number(form.maxProducts),
         trialDays: Number(form.trialDays),
@@ -230,8 +229,8 @@ const PlatformPlans = () => {
       >
         {plan.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>
-      {/* Supprimer n'est proposé que sur une formule jamais souscrite : le serveur le refuse
-          de toute façon, mais afficher un bouton condamné serait trompeur. */}
+      {/* Supprimer seulement pour une formule jamais souscrite : le serveur refuserait de
+          toute façon, mais afficher un bouton qui ne marchera pas serait trompeur. */}
       {plan.subscriptionCount === 0 && (
         <button
           onClick={() =>
@@ -364,7 +363,7 @@ const PlatformPlans = () => {
             onChange={setField('sortOrder')}
           />
 
-          {/* Avertissement affiché uniquement en modification : c'est là que le piège existe. */}
+          {/* Avertissement seulement en modification, c'est là que le problème peut arriver. */}
           {editing && editing.subscriptionCount > 0 && (
             <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
               {t('platform.plans.priceChangeWarning', { count: editing.subscriptionCount })}

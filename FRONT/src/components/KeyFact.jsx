@@ -1,12 +1,11 @@
 /**
- * Repère chiffré ou daté d'un en-tête de fiche : échéance d'une facture, nombre de produits
- * rattachés à une catégorie, mode de règlement…
+ * Petite info mise en avant en haut d'une fiche : échéance d'une facture, nombre de produits
+ * d'une catégorie, mode de paiement…
  *
- * Quatre repères alignés se balaient d'un regard, là où quatre lignes libellé/valeur empilées
- * demandent quatre allers-retours. À réserver aux valeurs courtes : la valeur est tronquée
- * plutôt que de casser l'alignement de la rangée.
+ * Plusieurs infos côte à côte se lisent plus vite qu'une liste. À garder pour des valeurs
+ * courtes : une valeur trop longue est coupée.
  *
- * S'utilise dans un `<dl>` — le composant émet le couple `<dt>` / `<dd>`.
+ * À utiliser dans un `<dl>` (le composant génère `<dt>` / `<dd>`).
  */
 const KeyFact = ({ icon: Icon, label, value, hint }) => (
   <div className="rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">

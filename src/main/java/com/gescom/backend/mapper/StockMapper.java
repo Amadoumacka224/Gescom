@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Conversions du stock : mouvements du registre et retours clients.
+ * Conversions pour le stock : mouvements et retours clients.
  *
- * Les deux vues décrivent le même flux — un retour produit des mouvements — et partagent les
- * mêmes référentiels (produit, utilisateur, client), d'où un seul mapper.
+ * Les deux concernent la même chose (un retour crée des mouvements) et utilisent les mêmes
+ * données (produit, utilisateur, client), d'où un seul mapper.
  */
 @Component
 public class StockMapper {
@@ -47,12 +47,12 @@ public class StockMapper {
 
     // ---------------------------------------------------------------- Retours
 
-    /** Réponse d'entête, sans les lignes : format des listes paginées, qui ne les chargent pas. */
+    /** En-tête seulement, sans les lignes : c'est le format des listes paginées. */
     public StockReturnResponse toReturnSummary(StockReturn stockReturn) {
         return toReturnResponse(stockReturn, null);
     }
 
-    /** Réponse complète, lignes comprises. */
+    /** Réponse complète, avec les lignes. */
     public StockReturnResponse toReturnResponse(StockReturn stockReturn) {
         if (stockReturn == null) return null;
         return toReturnResponse(stockReturn,

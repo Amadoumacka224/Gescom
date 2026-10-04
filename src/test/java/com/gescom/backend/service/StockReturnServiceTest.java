@@ -41,11 +41,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Règles métier des retours clients : ce qui borne les quantités rendues et ce que chaque
+ * Règles des retours clients : ce qui limite les quantités rendues et ce que chaque
  * traitement fait au stock.
  *
- * Test unitaire pur (Mockito) : ni base ni contexte Spring. Aucun utilisateur n'étant
- * authentifié, le log d'activité et l'auteur des mouvements restent silencieux.
+ * Test unitaire simple (Mockito) : pas de base ni de contexte Spring. Comme aucun
+ * utilisateur n'est connecté, le journal d'activité et l'auteur des mouvements sont vides.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -90,7 +90,7 @@ class StockReturnServiceTest {
         when(stockReturnRepository.sumReturnedQuantitiesByOrder(anyLong())).thenReturn(List.of());
     }
 
-    /** Commande facturée de 5 claviers à 12,00 € net l'unité (total de ligne 60,00 €). */
+    /** Commande facturée de 5 claviers à 12,00 € net pièce (total de la ligne 60,00 €). */
     private Order invoicedOrderOf5() {
         Order order = new Order();
         order.setId(3L);
@@ -107,8 +107,8 @@ class StockReturnServiceTest {
         item.setOrder(order);
         order.setItems(new java.util.ArrayList<>(List.of(item)));
 
-        // L'enregistrement relit la commande sous verrou pessimiste, la recherche non : la
-        // consultation n'a rien à sérialiser.
+        // L'enregistrement relit la commande avec un verrou, la recherche non : une simple
+        // lecture n'a pas besoin d'attendre.
         when(orderRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(order));
         when(orderRepository.findByOrderNumberWithDetails("CMD-TEST")).thenReturn(Optional.of(order));
         return order;
@@ -120,7 +120,7 @@ class StockReturnServiceTest {
                 7L, quantity, StockReturnItem.ReturnReason.DEFECTIVE, treatment, replacementProductId)), null);
     }
 
-    /** Mouvements de stock écrits, dans l'ordre où le service les a produits. */
+    /** Mouvements de stock écrits, dans l'ordre où le service les a créés. */
     private List<StockMovement> capturedMovements() {
         ArgumentCaptor<StockMovement> captor = ArgumentCaptor.forClass(StockMovement.class);
         verify(stockMovementRepository, atLeastOnce()).save(captor.capture());
@@ -137,7 +137,7 @@ class StockReturnServiceTest {
         assertThat(response.items()).hasSize(1);
         assertThat(response.items().get(0).quantitySold()).isEqualTo(5);
         assertThat(response.items().get(0).quantityReturnable()).isEqualTo(5);
-        // Prix unitaire net = total de ligne / quantité, pas le tarif courant du produit.
+        // Prix unitaire net = total de la ligne / quantité, pas le prix actuel du produit.
         assertThat(response.items().get(0).unitPrice()).isEqualByComparingTo("12.00");
     }
 
@@ -178,18 +178,18 @@ class StockReturnServiceTest {
         assertThat(movements.get(0).getType()).isEqualTo(StockMovement.MovementType.RETURN);
         assertThat(movements.get(0).getPreviousStock()).isEqualTo(10);
         assertThat(movements.get(0).getNewStock()).isEqualTo(12);
-        // Le mouvement porte le numéro du retour : c'est le lien entre le grand livre et le document.
+        // Le mouvement a le numéro du retour : c'est ce qui relie le mouvement au document.
         assertThat(movements.get(0).getReference()).isEqualTo("RET-TEST");
     }
 
     /**
-     * Remise globale de la vente : elle n'est pas portée par les lignes mais par la commande,
-     * en montant. Le retournable doit être proratisé, sinon on rembourse plus que l'encaissé.
+     * Remise globale de la vente : elle n'est pas sur les lignes mais sur la commande, en
+     * euros. Il faut la répartir sur ce qu'on rembourse, sinon on rend plus que ce qui a été payé.
      */
     @Test
     void globalDiscount_isProratedOverTheReturnedLines() {
         Order order = invoicedOrderOf5();
-        // 60,00 € de lignes, 6,00 € de remise globale : le client a payé 54,00 €, soit 10,80 €
+        // 60,00 € de lignes, 6,00 € de remise globale : le client a payé 54,00 €, donc 10,80 €
         // le clavier au lieu de 12,00 €.
         order.setDiscount(new BigDecimal("6.00"));
         order.setFinalAmount(new BigDecimal("54.00"));
@@ -202,8 +202,8 @@ class StockReturnServiceTest {
     }
 
     /**
-     * Une fois la vente facturée, c'est la remise de la facture qui fait foi : elle cumule
-     * celle de la commande et celle consentie à la facturation (cf. InvoiceService.createInvoice).
+     * Une fois la vente facturée, c'est la remise de la facture qui compte : elle contient
+     * celle de la commande et celle donnée à la facturation (voir InvoiceService.createInvoice).
      */
     @Test
     void invoiceDiscount_prevailsOverTheOrderDiscount() {
@@ -225,9 +225,9 @@ class StockReturnServiceTest {
     }
 
     /**
-     * Ligne indivisible : 10,00 € pour 3 unités, soit 3,33 € l'unité une fois arrondi. Le
-     * remboursement se calcule sur le total, pas sur ce prix unitaire — sans quoi un retour
-     * intégral rendrait 9,99 € et le client perdrait un centime au passage.
+     * Ligne qui ne se divise pas juste : 10,00 € pour 3 unités, donc 3,33 € l'unité une fois
+     * arrondi. Le remboursement est calculé sur le total, pas sur ce prix unitaire, sinon un
+     * retour complet rendrait 9,99 € et le client perdrait un centime.
      */
     @Test
     void fullReturn_refundsExactlyWhatWasPaid_evenWhenTheLineDoesNotDivideEvenly() {
@@ -244,7 +244,7 @@ class StockReturnServiceTest {
         assertThat(result.getRefundAmount()).isEqualByComparingTo("10.00");
     }
 
-    /** Et deux retours partiels qui épuisent la ligne se recomposent en son total. */
+    /** Et deux retours partiels qui vident la ligne retombent bien sur son total. */
     @Test
     void partialReturns_ofAnIndivisibleLine_addUpToTheLineTotal() {
         Order order = invoicedOrderOf5();
@@ -279,7 +279,7 @@ class StockReturnServiceTest {
 
         service.createReturn(requestOf(2, StockReturnItem.ReturnTreatment.EXCHANGE, null));
 
-        // L'article rendu entre, son remplaçant identique ressort : solde net nul.
+        // L'article rendu revient, le même article sort en remplacement : au final, rien ne change.
         assertThat(product.getStockQuantity()).isEqualTo(10);
 
         List<StockMovement> movements = capturedMovements();
@@ -338,12 +338,12 @@ class StockReturnServiceTest {
         when(stockReturnRepository.sumReturnedQuantitiesByOrder(3L))
                 .thenReturn(List.<Object[]>of(new Object[] { 7L, 4L }));
 
-        // 4 déjà rendus sur 5 vendus : la deuxième unité est de trop.
+        // 4 déjà rendus sur 5 vendus : la deuxième unité est en trop.
         assertThatThrownBy(() -> service.createReturn(
                 requestOf(2, StockReturnItem.ReturnTreatment.RESTOCK, null)))
                 .isInstanceOf(BusinessException.class);
 
-        // Une seule reste possible.
+        // On ne peut en rendre qu'une.
         service.createReturn(requestOf(1, StockReturnItem.ReturnTreatment.RESTOCK, null));
         assertThat(product.getStockQuantity()).isEqualTo(11);
     }
@@ -357,16 +357,17 @@ class StockReturnServiceTest {
                 new StockReturnItemRequest(7L, 3, StockReturnItem.ReturnReason.NOT_SATISFIED,
                         StockReturnItem.ReturnTreatment.REFUND, null)), null);
 
-        // Chaque ligne tient dans les 5 vendus, mais leur somme (6) non.
+        // Chaque ligne seule reste sous les 5 vendus, mais ensemble (6) non.
         assertThatThrownBy(() -> service.createReturn(request))
                 .isInstanceOf(BusinessException.class);
         verify(stockMovementRepository, never()).save(any(StockMovement.class));
     }
 
     /**
-     * Le contrôle « vendu − déjà rendu » porte sur le cumul des retours de la vente : verrouiller
-     * les produits ne suffit pas, deux retours simultanés liraient le même cumul avant de le
-     * faire. La commande doit donc être relue sous verrou, pas par un findById ordinaire.
+     * Le contrôle « vendu − déjà rendu » se fait sur le total des retours de la vente :
+     * verrouiller les produits ne suffit pas, deux retours en même temps liraient le même total
+     * avant de le modifier. Il faut donc relire la commande avec un verrou, pas avec un
+     * simple findById.
      */
     @Test
     void createReturn_readsTheSaleUnderPessimisticLock() {

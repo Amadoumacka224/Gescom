@@ -13,20 +13,19 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Trace d'une transaction carte passée par le terminal de paiement (Stripe, mode test).
+ * Historique d'une transaction carte passée par le terminal de paiement (Stripe, mode test).
  *
- * Le parcours Stripe se déroule en deux temps — création de l'intention puis confirmation —
- * séparés par un aller-retour côté terminal. Cette entité est ce qui relie les deux : elle
- * mémorise l'identifiant d'intention renvoyé par Stripe ({@code pi_...}), le montant engagé
- * et la facture visée, pour que la confirmation retrouve son contexte sans faire confiance
- * au client.
+ * Avec Stripe, ça se passe en deux étapes (création de l'intention puis confirmation), avec
+ * un aller-retour par le terminal entre les deux. Cette entité fait le lien : elle garde
+ * l'id d'intention renvoyé par Stripe ({@code pi_...}), le montant et la facture, pour que
+ * la confirmation retrouve tout sans faire confiance au client.
  *
- * Elle ne remplace pas l'encaissement : quand la transaction aboutit, c'est
- * {@code InvoiceService.recordPayment} qui met la facture à jour. Ce que l'on garde ici,
- * c'est le journal de ce qu'a répondu le prestataire, échecs compris.
+ * Ce n'est pas elle qui enregistre le paiement : quand la transaction réussit, c'est
+ * {@code InvoiceService.recordPayment} qui met la facture à jour. Ici on garde juste ce que
+ * Stripe a répondu, y compris les échecs.
  *
- * Aucun secret n'est persisté : le {@code client_secret} n'existe que dans la réponse HTTP
- * de création, le temps de la session du terminal.
+ * Aucun secret n'est enregistré : le {@code client_secret} n'existe que dans la réponse HTTP
+ * de création, pendant la session du terminal.
  */
 @Entity
 @Table(name = "payments")
@@ -42,11 +41,11 @@ public class Payment implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
@@ -57,7 +56,7 @@ public class Payment implements TenantOwned {
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
 
-    /** Prestataire ; une seule valeur aujourd'hui, le champ documente la provenance de l'id. */
+    /** Prestataire ; une seule valeur pour l'instant, ça indique d'où vient l'id. */
     @Column(nullable = false, length = 20)
     private String provider = "STRIPE";
 
@@ -81,11 +80,11 @@ public class Payment implements TenantOwned {
     @Column(length = 4)
     private String cardLast4;
 
-    /** Motif de refus tel que renvoyé par Stripe, conservé pour le journal et l'affichage. */
+    /** Raison du refus renvoyée par Stripe, gardée pour l'historique et l'affichage. */
     @Column(length = 255)
     private String failureMessage;
 
-    /** Vrai si la transaction a été jouée par la passerelle simulée (aucun appel à Stripe). */
+    /** Vrai si la transaction est passée par la passerelle simulée (pas d'appel à Stripe). */
     @Column(nullable = false)
     private boolean simulated;
 
@@ -96,9 +95,8 @@ public class Payment implements TenantOwned {
     private LocalDateTime confirmedAt;
 
     /**
-     * Secret d'usage unique renvoyé par Stripe à la création. Explicitement @Transient : il
-     * n'accompagne la transaction que le temps de la réponse HTTP qui ouvre la session du
-     * terminal, et n'a aucune raison de survivre en base.
+     * Secret à usage unique renvoyé par Stripe à la création. En @Transient exprès : il ne sert
+     * que dans la réponse HTTP qui ouvre la session du terminal, pas besoin de le garder en base.
      */
     @Transient
     private String clientSecret;
@@ -109,11 +107,11 @@ public class Payment implements TenantOwned {
     }
 
     /**
-     * Cycle de vie d'une transaction, restreint à ce que le terminal sait traiter.
+     * États d'une transaction, limités à ce que le terminal sait gérer.
      *
-     * Les états intermédiaires de Stripe ({@code requires_action}, {@code processing}) ne sont
-     * pas modélisés : un terminal encaisse ou refuse. Une intention qui réclamerait une
-     * authentification 3-D Secure est donc classée FAILED, avec le motif renvoyé par Stripe.
+     * On ne gère pas les états intermédiaires de Stripe ({@code requires_action},
+     * {@code processing}) : un terminal accepte ou refuse. Une intention qui demanderait une
+     * validation 3-D Secure est donc mise en FAILED, avec la raison donnée par Stripe.
      */
     public enum PaymentStatus {
         REQUIRES_CONFIRMATION,  // Intention créée, en attente de confirmation par le terminal

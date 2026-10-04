@@ -11,8 +11,8 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 
 /**
- * Journal des evenements de la plateforme. Table non cloisonnee, reservee a l'espace
- * proprietaire.
+ * Historique des evenements de la plateforme. Pas filtre par entreprise, reserve a
+ * l'espace super admin.
  */
 @Repository
 public interface PlatformNotificationRepository extends JpaRepository<PlatformNotification, Long> {
@@ -21,14 +21,14 @@ public interface PlatformNotificationRepository extends JpaRepository<PlatformNo
 
     Page<PlatformNotification> findByReadAtIsNullOrderByCreatedAtDesc(Pageable pageable);
 
-    /** Compteur du badge : sert l'index partiel pose sur les seules non-lues. */
+    /** Nombre du badge : utilise l'index partiel sur les non lues. */
     long countByReadAtIsNull();
 
     /**
-     * Marque tout comme lu en une requete.
+     * Marque tout comme lu en une seule requete.
      *
-     * Charger puis sauver ligne par ligne ferait autant d'UPDATE que de notifications, sur
-     * une action qui vise justement a solder un arriere de plusieurs dizaines d'entrees.
+     * Charger puis sauvegarder ligne par ligne ferait un UPDATE par notification, alors que
+     * cette action sert justement a vider plusieurs dizaines de notifications d'un coup.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE PlatformNotification n SET n.readAt = :now WHERE n.readAt IS NULL")

@@ -7,21 +7,21 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Limitation des tentatives de connexion.
+ * Limite des tentatives de connexion.
  *
- * Le point sensible n'est pas « ca bloque au bout de cinq », qui va de soi, mais le choix de la
- * cle : le compteur porte sur le couple identifiant + adresse. Deux tests s'y consacrent, parce
- * que se tromper de cle transforme la protection en deni de service contre l'utilisateur
- * legitime.
+ * Le plus important n'est pas « ca bloque au bout de cinq », c'est evident, mais le choix de
+ * la cle : le compteur porte sur le couple identifiant + adresse. Deux tests sont la pour ca,
+ * parce qu'avec la mauvaise cle, la protection empecherait le vrai utilisateur de se connecter.
  *
- * Test unitaire pur : aucun contexte Spring, le composant est instancie avec ses reglages.
+ * Test unitaire simple : pas de contexte Spring, le composant est cree directement avec ses
+ * reglages.
  */
 class LoginAttemptServiceTest {
 
     private static final String IP = "10.0.0.1";
     private static final String OTHER_IP = "10.0.0.2";
 
-    /** Trois essais, verrou d'une heure : les valeurs exactes n'importent pas, leur effet si. */
+    /** Trois essais, blocage d'une heure : les valeurs exactes ne comptent pas, c'est l'effet qu'on teste. */
     private LoginAttemptService service(int maxAttempts, long lockSeconds) {
         return new LoginAttemptService(maxAttempts, lockSeconds);
     }
@@ -52,8 +52,8 @@ class LoginAttemptServiceTest {
     }
 
     /**
-     * Le coeur du choix de conception : un attaquant qui martele le compte « admin » depuis sa
-     * machine ne doit pas en fermer l'acces a son titulaire, qui se connecte d'ailleurs.
+     * Le point principal : un attaquant qui insiste sur le compte « admin » depuis sa machine
+     * ne doit pas bloquer le vrai utilisateur, qui se connecte depuis un autre poste.
      */
     @Test
     void ne_verrouille_pas_le_meme_compte_depuis_une_autre_adresse() {
@@ -67,8 +67,8 @@ class LoginAttemptServiceTest {
     }
 
     /**
-     * Symetrique du precedent : plusieurs postes derriere une meme sortie internet — le cas
-     * ordinaire d'un commerce — ne partagent pas leur quota compte par compte.
+     * L'inverse du test precedent : plusieurs postes derriere la meme connexion internet (le
+     * cas normal dans un magasin) ne partagent pas le meme compteur pour chaque compte.
      */
     @Test
     void ne_verrouille_pas_un_autre_compte_depuis_la_meme_adresse() {
@@ -89,11 +89,11 @@ class LoginAttemptServiceTest {
         service.recordSuccess("admin", IP);
         fail(service, "admin", IP, 2);
 
-        // Sans la remise a zero, ces quatre echecs cumules auraient depasse le seuil de trois.
+        // Sans la remise a zero, ces quatre echecs a la suite auraient depasse la limite de trois.
         assertThatCode(() -> service.checkAllowed("admin", IP)).doesNotThrowAnyException();
     }
 
-    /** Verrou de zero seconde : expire immediatement, ce qui teste la levee sans attendre. */
+    /** Blocage de zero seconde : il expire tout de suite, ce qui permet de tester la fin du blocage sans attendre. */
     @Test
     void le_verrou_expire_de_lui_meme() {
         LoginAttemptService service = service(3, 0);
@@ -104,8 +104,8 @@ class LoginAttemptServiceTest {
     }
 
     /**
-     * Apres expiration, le compteur doit repartir de zero. S'il restait au maximum, le tout
-     * premier essai suivant reverrouillerait aussitot — l'utilisateur serait puni sans faute.
+     * Apres l'expiration, le compteur doit repartir de zero. S'il restait au max, le premier
+     * essai suivant rebloquerait tout de suite, et l'utilisateur serait puni pour rien.
      */
     @Test
     void le_compteur_repart_de_zero_apres_le_verrou() {
@@ -142,7 +142,7 @@ class LoginAttemptServiceTest {
                 });
     }
 
-    /** Un identifiant inconnu ou vide ne doit pas faire echouer le comptage. */
+    /** Un identifiant inconnu ou vide ne doit pas faire planter le comptage. */
     @Test
     void tolere_un_identifiant_ou_une_adresse_absents() {
         LoginAttemptService service = service(2, 3600);

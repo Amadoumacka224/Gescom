@@ -7,8 +7,8 @@ import jakarta.validation.constraints.NotNull;
 /**
  * Seuils du tableau de bord.
  *
- * Les bornes reprennent celles des CHECK en base : la validation echoue ici avec un message
- * lisible plutot que plus loin avec une violation d'integrite.
+ * Les limites sont les memes que les CHECK en base : comme ca la validation echoue ici avec
+ * un message clair plutot que plus tard avec une erreur de contrainte.
  */
 public record PlatformSettingsRequest(
         @NotNull(message = "La fenetre de renouvellement est obligatoire")

@@ -12,11 +12,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Registre des encaissements d'abonnement — la source des revenus affiches au proprietaire.
+ * Paiements des abonnements, c'est de la que viennent les revenus affiches au super admin.
  *
- * Les echecs y sont conserves au meme titre que les succes : c'est ce qui rend le taux de
- * reussite calculable. Toutes les sommes ne retiennent donc que le statut SUCCEEDED, et
- * jamais l'ensemble des lignes.
+ * On garde les echecs comme les succes, c'est ce qui permet de calculer le taux de reussite.
+ * Toutes les sommes ne prennent donc que le statut SUCCEEDED, jamais toutes les lignes.
  */
 @Repository
 public interface SaasPaymentRepository extends JpaRepository<SaasPayment, Long> {
@@ -36,7 +35,7 @@ public interface SaasPaymentRepository extends JpaRepository<SaasPayment, Long> 
 
     boolean existsByReference(String reference);
 
-    /** Revenu encaisse sur une periode. Seuls les paiements aboutis comptent. */
+    /** Revenu encaisse sur une periode. Seuls les paiements reussis comptent. */
     @Query("""
            SELECT COALESCE(SUM(p.amount), 0) FROM SaasPayment p
            WHERE p.status = :status
@@ -45,14 +44,14 @@ public interface SaasPaymentRepository extends JpaRepository<SaasPayment, Long> 
     BigDecimal sumAmountByStatusAndPaidAtBetween(SaasPayment.SaasPaymentStatus status,
                                                  LocalDateTime start, LocalDateTime end);
 
-    /** Revenu total encaisse depuis l'origine. */
+    /** Revenu total encaisse depuis le debut. */
     @Query("SELECT COALESCE(SUM(p.amount), 0) FROM SaasPayment p WHERE p.status = :status")
     BigDecimal sumAmountByStatus(SaasPayment.SaasPaymentStatus status);
 
     /**
      * Revenu encaisse mois par mois, pour la courbe du tableau de bord.
-     * L'agregation est faite en base : rapatrier le journal complet pour le regrouper en
-     * memoire ne tiendrait pas a l'echelle de plusieurs annees d'exploitation.
+     * Le regroupement est fait en base : charger tout l'historique pour le regrouper en
+     * memoire ne tiendrait pas apres quelques annees.
      */
     @Query("""
            SELECT YEAR(p.paidAt), MONTH(p.paidAt), COALESCE(SUM(p.amount), 0), COUNT(p)
@@ -63,6 +62,6 @@ public interface SaasPaymentRepository extends JpaRepository<SaasPayment, Long> 
            """)
     List<Object[]> monthlyRevenueSince(SaasPayment.SaasPaymentStatus status, LocalDateTime since);
 
-    /** Derniers echecs — bloc d'alertes du tableau de bord. */
+    /** Derniers echecs, pour le bloc d'alertes du tableau de bord. */
     List<SaasPayment> findTop5ByStatusOrderByCreatedAtDesc(SaasPayment.SaasPaymentStatus status);
 }

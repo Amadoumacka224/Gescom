@@ -10,15 +10,15 @@ const TYPE_OPTIONS = [
 ];
 
 /**
- * Champs d'un client, partagés par l'écran Clients et la création à la volée du panier.
+ * Champs du formulaire client, utilisés par l'écran Clients et par la création rapide
+ * depuis le panier.
  *
- * Le composant ne porte aucun état : `values`, `errors` et les gestionnaires viennent de
- * l'appelant, qui reste maître de son enregistrement (confirmation, garde-fou de fermeture,
- * enchaînement sur la vente en cours…). Seule la saisie est mutualisée — c'est elle qui
- * divergeait, le panier ne demandant ni ville, ni code postal, ni pays.
+ * Pas d'état ici : `values`, `errors` et les handlers viennent du parent, qui gère lui-même
+ * l'enregistrement. On partage seulement les champs, parce que le panier avait sa propre
+ * version sans ville, code postal ni pays.
  *
- * `showStatus` : l'interrupteur actif/inactif n'a de sens qu'en gestion du répertoire. Un
- * client créé pendant une vente est actif par construction, on ne pose pas la question.
+ * `showStatus` : le switch actif/inactif ne sert que dans l'écran Clients. Un client créé
+ * pendant une vente est forcément actif.
  */
 const ClientFormFields = ({
   values,
@@ -39,7 +39,7 @@ const ClientFormFields = ({
     else document.getElementById(field)?.focus();
   };
 
-  /** Props communes à tous les champs texte : câblage identique, seul le contenu change. */
+  /** Props communes à tous les champs texte. */
   const fieldProps = (name) => ({
     name,
     value: values[name],
@@ -51,9 +51,8 @@ const ClientFormFields = ({
 
   return (
     <>
-      {/* Récapitulatif des champs à corriger. Sur un formulaire de cette hauteur, le champ
-          fautif peut se trouver hors écran au moment où l'on clique sur « Enregistrer » :
-          chaque entrée y ramène directement le focus. */}
+      {/* Liste des champs à corriger. Le formulaire est long, le champ en erreur peut être
+          hors de l'écran : cliquer sur une entrée remet le focus dessus. */}
       {showErrorSummary && invalidFields.length > 0 && (
         <div
           role="alert"
@@ -81,17 +80,15 @@ const ClientFormFields = ({
         </div>
       )}
 
-      {/* Le formulaire suit l'ordre de lecture de la fiche : de quel type de client s'agit-il,
-          qui est-ce, comment le joindre, où le facturer, et sous quel statut l'enregistrer. */}
+      {/* Ordre du formulaire : type de client, identité, contact, adresse, puis statut. */}
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
         <FormSection
           icon={UserCheck}
           title={t('clients.typeLabel')}
           description={t('clients.sectionTypeHint')}
         >
-          {/* Deux choix seulement, et ils commandent le reste du formulaire (raison sociale
-              exigée pour une entreprise) : des cartes lisibles d'un coup d'œil valent mieux
-              qu'une liste déroulante qu'il faut ouvrir pour connaître les options. */}
+          {/* Seulement deux choix, et ils changent le reste du formulaire (raison sociale
+              obligatoire pour une entreprise). Des cartes se lisent plus vite qu'un select. */}
           <div role="radiogroup" aria-label={t('clients.typeLabel')} className="grid gap-3 sm:grid-cols-2">
             {TYPE_OPTIONS.map((option) => {
               const OptionIcon = option.icon;
@@ -113,8 +110,7 @@ const ClientFormFields = ({
                     onChange={onChange}
                     className="peer sr-only"
                   />
-                  {/* L'anneau de focus est porté par ce calque : l'input est masqué (`sr-only`)
-                      et ne peut donc pas montrer lui-même qu'il a le focus clavier. */}
+                  {/* Le focus est affiché sur ce div car l'input est caché (`sr-only`). */}
                   <span className="pointer-events-none absolute inset-0 rounded-xl peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-2 dark:peer-focus-visible:ring-offset-gray-800" />
                   <OptionIcon
                     className={`h-5 w-5 flex-shrink-0 ${selected ? 'text-primary-600 dark:text-primary-300' : 'text-gray-400'}`}
@@ -209,8 +205,7 @@ const ClientFormFields = ({
             autoComplete="street-address"
             icon={MapPin}
           />
-          {/* Code postal et ville se lisent comme sur une enveloppe : le premier, court,
-              ne mérite pas la même largeur que la seconde. */}
+          {/* Code postal plus étroit que la ville, comme sur une adresse classique. */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <FormInput
               label={t('clients.postalCode')}
@@ -242,8 +237,8 @@ const ClientFormFields = ({
             title={t('clients.sectionStatus')}
             description={t('clients.sectionStatusHint')}
           >
-            {/* Interrupteur plutôt qu'une case à cocher : l'effet du réglage est écrit à côté,
-                un client inactif restant invisible dans les sélecteurs de commande. */}
+            {/* Switch plutôt que checkbox, avec l'effet écrit à côté : un client inactif
+                n'apparaît plus dans la sélection des commandes. */}
             <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
               <div className="min-w-0">
                 <label htmlFor="active" className="cursor-pointer font-medium text-gray-900 dark:text-gray-100">

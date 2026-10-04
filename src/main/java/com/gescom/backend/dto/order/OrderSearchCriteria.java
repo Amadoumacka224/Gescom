@@ -8,27 +8,27 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Critères de recherche de l'écran Commandes. Tous facultatifs, tous combinables.
+ * Filtres de l'écran Commandes. Tous facultatifs et combinables.
  *
- * @param q             recherche libre : numéro de commande, client sous toutes ses formes,
- *                      opérateur, notes, et libellé/code/code-barres des articles commandés
+ * @param q             recherche libre : numéro de commande, client (nom, société…),
+ *                      utilisateur, notes, et nom/code/code-barres des articles
  * @param status        statut de la commande
- * @param payment       statut de la facture liée ; {@code notInvoiced} traite le cas
- *                      « pas encore facturée », qui est une ABSENCE de facture et non un statut
- * @param notInvoiced   vrai pour ne garder que les commandes sans facture vivante
- * @param clientId      client précis
+ * @param payment       statut de la facture liée ; {@code notInvoiced} gère le cas
+ *                      « pas encore facturée », qui veut dire PAS de facture, ce n'est pas un statut
+ * @param notInvoiced   vrai pour garder seulement les commandes sans facture active
+ * @param clientId      un client précis
  * @param clientType    PARTICULIER ou ENTREPRISE
  * @param city          ville du client, valeur exacte
- * @param productId     commandes comportant cet article
- * @param categoryId    commandes comportant un article de cette famille
- * @param createdById   opérateur ayant saisi la vente
- * @param dateFrom      borne basse de création, incluse
- * @param dateTo        borne haute de création, incluse — la journée entière est prise
- * @param amountMin     montant TTC minimum — voir {@code OrderService.searchOrders} pour la
- *                      définition exacte de ce montant, qui n'est pas une colonne
+ * @param productId     commandes qui contiennent cet article
+ * @param categoryId    commandes qui contiennent un article de cette catégorie
+ * @param createdById   utilisateur qui a saisi la vente
+ * @param dateFrom      date de création minimum, incluse
+ * @param dateTo        date de création maximum, incluse (toute la journée)
+ * @param amountMin     montant TTC minimum (voir {@code OrderService.searchOrders} pour savoir
+ *                      comment ce montant est calculé, ce n'est pas une colonne)
  * @param amountMax     montant TTC maximum
- * @param notes         fragment recherché dans les notes seules
- * @param onlyDiscounted ne garder que les ventes portant une remise
+ * @param notes         texte cherché seulement dans les notes
+ * @param onlyDiscounted garder seulement les ventes avec une remise
  */
 public record OrderSearchCriteria(
         String q,

@@ -47,9 +47,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class OrderController {
 
     /**
-     * Clé de tri du montant TTC affiché. Ce n'est pas un champ de l'entité : le montant est
-     * reconstruit en SQL (facture vivante, sinon net HT majoré de la TVA), et c'est la seule
-     * façon d'obtenir un ordre conforme à ce que la colonne montre.
+     * Clé de tri pour le montant TTC affiché. Ce n'est pas un champ de l'entité : le montant
+     * est calculé en SQL (facture active, sinon net HT + TVA), et c'est le seul moyen d'avoir
+     * un tri qui correspond à ce qu'affiche la colonne.
      */
     private static final String PAYABLE_SORT = "payableAmount";
 
@@ -57,8 +57,8 @@ public class OrderController {
     private final CsvExportService csvExportService;
     private final SalesMapper salesMapper;
     private final InvoiceService invoiceService;
-    // Uniquement pour le taux de TVA du filtre par montant : la fourchette porte sur un TTC
-    // que la base ne stocke pas, et que le serveur doit donc reconstruire comme l'écran.
+    // Seulement pour le taux de TVA du filtre par montant : le filtre porte sur un TTC qui
+    // n'est pas stocké en base, donc le serveur doit le recalculer comme l'écran.
     private final SettingsService settingsService;
 
     public OrderController(OrderService orderService,
@@ -74,17 +74,17 @@ public class OrderController {
     }
 
     /**
-     * Toutes les commandes du périmètre, sans pagination.
+     * Toutes les commandes, sans pagination.
      *
-     * Conservé pour les écrans qui s'en servent de référentiel — la préparation d'une livraison
-     * a besoin des commandes facturées, le module de retour part d'une vente existante. Le
-     * tableau de l'écran Commandes, lui, passe par {@link #searchOrders}.
+     * Gardé pour les écrans qui ont besoin de toute la liste : la préparation d'une livraison
+     * a besoin des commandes facturées, et les retours partent d'une vente existante. Le
+     * tableau de l'écran Commandes utilise {@link #searchOrders}.
      */
     @GetMapping
     public ResponseEntity<List<OrderResponse>> getAllOrders() {
         List<Order> orders = orderService.getAllOrders();
-        // Facture liée à chaque commande (1 requête groupée) : son statut pour afficher « Payée »
-        // dans la liste, son total pour y afficher le montant TTC réellement réclamé.
+        // Facture de chaque commande (une seule requête pour toutes) : son statut pour afficher
+        // « Payée » dans la liste, et son total pour afficher le vrai montant TTC.
         Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 orders.stream().map(Order::getId).toList());
         return ResponseEntity.ok(orders.stream()
@@ -92,12 +92,11 @@ public class OrderController {
     }
 
     /**
-     * Page de commandes, filtrée et triée en base.
+     * Une page de commandes, filtrée et triée en base.
      *
-     * Le taux de TVA vient des réglages et non de l'appelant : il sert à reconstruire le montant
-     * TTC sur lequel porte la fourchette (voir {@code OrderService.searchOrders}). Le laisser
-     * choisir au client permettrait de faire dire à la fourchette autre chose que ce que
-     * l'écran affiche.
+     * Le taux de TVA vient des paramètres et pas de l'appelant : il sert à recalculer le TTC
+     * sur lequel porte le filtre par montant (voir {@code OrderService.searchOrders}). Si le
+     * client pouvait le choisir, le filtre ne correspondrait plus à ce qu'affiche l'écran.
      */
     @GetMapping("/search")
     public ResponseEntity<PageResponse<OrderResponse>> searchOrders(
@@ -127,11 +126,10 @@ public class OrderController {
                 settingsService.getSettings().getTaxRate() == null ? 0d
                         : settingsService.getSettings().getTaxRate());
 
-        // `payableAmount` ne désigne aucune colonne : laissé dans le Pageable, Spring Data
-        // tenterait de le résoudre en propriété de l'entité et répondrait 500. On l'en retire
-        // et on transmet le seul sens du tri, que la spécification posera sur l'expression
-        // calculée. Un Pageable NON trié est indispensable ici : sinon Spring Data réécrirait
-        // l'ORDER BY de la spécification avec le sien.
+        // `payableAmount` n'est pas une colonne : si on le laisse dans le Pageable, Spring Data
+        // essaie de le trouver dans l'entité et renvoie une 500. On l'enlève donc et on passe
+        // juste le sens du tri, que la spécification applique sur le calcul. Il faut un Pageable
+        // NON trié ici, sinon Spring Data remplacerait l'ORDER BY de la spécification par le sien.
         Sort.Order payableOrder = pageable.getSort().getOrderFor(PAYABLE_SORT);
         Pageable effectivePageable = payableOrder == null
                 ? pageable
@@ -139,8 +137,8 @@ public class OrderController {
 
         Page<Order> page = orderService.searchOrders(criteria, taxRate, effectivePageable,
                 payableOrder == null ? null : payableOrder.getDirection());
-        // Même enrichissement que la liste complète : la facture liée porte le « Payée » de la
-        // ligne et le montant TTC. Une seule requête groupée, sur la page seulement.
+        // Même chose que pour la liste complète : la facture donne le « Payée » et le montant
+        // TTC. Une seule requête, seulement pour les commandes de la page.
         Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 page.getContent().stream().map(Order::getId).toList());
 
@@ -149,10 +147,10 @@ public class OrderController {
     }
 
     /**
-     * Commandes prêtes à être livrées : facturées et sans livraison déjà enregistrée.
+     * Commandes prêtes à livrer : facturées et sans livraison.
      *
-     * Sert le sélecteur du formulaire de livraison. Sans pagination : c'est une file de travail,
-     * bornée par nature — une commande en sort dès qu'elle est livrée.
+     * Utilisé par la liste déroulante du formulaire de livraison. Pas de pagination : c'est
+     * une liste de travail qui reste petite, une commande en sort dès qu'elle est livrée.
      */
     @GetMapping("/deliverable")
     public ResponseEntity<List<OrderResponse>> getDeliverableOrders() {
@@ -163,13 +161,13 @@ public class OrderController {
                 .map(o -> salesMapper.toResponse(o, invoices.get(o.getId()))).toList());
     }
 
-    /** Décompte par statut des tuiles : il porte sur tout le périmètre, pas sur la page. */
+    /** Nombre de commandes par statut pour les cartes : sur toutes les commandes, pas sur la page. */
     @GetMapping("/summary")
     public ResponseEntity<OrderSummary> getSummary() {
         return ResponseEntity.ok(orderService.getSummary());
     }
 
-    /** Opérateurs et villes proposés par les filtres — voir {@link OrderFilterOptions}. */
+    /** Utilisateurs et villes proposés dans les filtres (voir {@link OrderFilterOptions}). */
     @GetMapping("/filter-options")
     public ResponseEntity<OrderFilterOptions> getFilterOptions() {
         return ResponseEntity.ok(orderService.getFilterOptions());
@@ -194,7 +192,7 @@ public class OrderController {
     @GetMapping("/client/{clientId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByClient(@PathVariable Long clientId) {
         List<Order> orders = orderService.getOrdersByClient(clientId);
-        // Même résolution que la liste générale : sans la facture, une commande réglée s'afficherait
+        // Même calcul que pour la liste : sans la facture, une commande payée afficherait
         // « Facturée » sur la fiche client et « Payée » dans la liste des commandes.
         Map<Long, Invoice> invoices = invoiceService.getInvoicesByOrderIds(
                 orders.stream().map(Order::getId).toList());
@@ -203,9 +201,9 @@ public class OrderController {
     }
 
     /**
-     * Ventes d'un opérateur. Un caissier n'a le droit d'interroger que son propre identifiant :
-     * c'est la seule route qui désigne explicitement un utilisateur, et donc la porte la plus
-     * évidente pour aller lire les ventes d'un collègue depuis l'API.
+     * Ventes d'un utilisateur. Un caissier ne peut demander que les siennes : c'est la seule
+     * route où on passe un id d'utilisateur, donc le moyen le plus simple d'aller voir les
+     * ventes d'un collègue via l'API.
      */
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasRole('ADMIN') or @userSecurity.isCurrentUser(#userId)")
@@ -253,7 +251,7 @@ public class OrderController {
         return ResponseEntity.ok(salesMapper.toResponse(orderService.updateOrderStatus(id, status)));
     }
 
-    /** Convertit la valeur reçue en statut, en renvoyant une erreur métier 400 claire si invalide. */
+    /** Convertit la valeur reçue en statut, avec une erreur 400 claire si elle n'est pas valide. */
     private Order.OrderStatus parseStatus(String raw) {
         if (raw == null || raw.isBlank()) {
             throw BusinessException.of("status.target.required", "Le statut cible est obligatoire");

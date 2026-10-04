@@ -5,8 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 /**
- * Reglages de la plateforme. Table de reference non cloisonnee : le controle d'acces repose
- * sur le {@code @PreAuthorize} de l'espace plateforme.
+ * Parametres de la plateforme. Pas filtres par entreprise : l'acces est controle par le
+ * {@code @PreAuthorize} de l'espace plateforme.
  */
 @Repository
 public interface PlatformSettingsRepository extends JpaRepository<PlatformSettings, Long> {

@@ -9,12 +9,12 @@ import java.time.LocalDateTime;
 /**
  * État d'une transaction du terminal.
  *
- * La facture complète est embarquée (et avec elle la commande) : après une confirmation,
- * le terminal doit pouvoir afficher le nouveau statut de règlement sans second appel.
+ * On renvoie toute la facture (et donc la commande) : après une confirmation, le terminal
+ * peut afficher le nouveau statut de paiement sans refaire d'appel.
  *
- * {@code clientSecret} n'est renseigné qu'à la création de l'intention ; {@code simulated}
- * dit à l'interface si elle parle à Stripe ou à la passerelle locale, pour l'annoncer
- * franchement plutôt que de laisser croire à un vrai débit.
+ * {@code clientSecret} n'est rempli qu'à la création de l'intention ; {@code simulated}
+ * indique au front s'il parle à Stripe ou à la passerelle locale, pour l'afficher clairement
+ * et ne pas faire croire à un vrai paiement.
  */
 public record PaymentResponse(
         Long id,

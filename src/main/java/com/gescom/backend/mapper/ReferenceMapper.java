@@ -24,14 +24,14 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Conversions des référentiels : utilisateur, catégorie, client, produit et journal d'activité.
+ * Conversions des données de base : utilisateur, catégorie, client, produit et journal d'activité.
  *
- * Ce sont les entités que les autres mappers citent sans jamais être citées par elles ;
- * les regrouper ici supprime les injections croisées entre mappers et pose une couche basse
- * dont {@link SalesMapper} et {@link StockMapper} dépendent, sans cycle possible.
+ * Ce sont des entités que les autres mappers utilisent, mais qui n'ont pas besoin d'eux.
+ * Les mettre ici évite que les mappers s'injectent entre eux : c'est la couche du bas, dont
+ * {@link SalesMapper} et {@link StockMapper} dépendent, sans risque de cycle.
  *
- * Les méthodes sont surchargées sur le type d'entité : le compilateur choisit la conversion,
- * il n'y a donc qu'un nom à retenir par sens de conversion.
+ * Les méthodes sont surchargées selon le type d'entité : c'est le compilateur qui choisit,
+ * on n'a qu'un seul nom de méthode à retenir par type de conversion.
  */
 @Component
 public class ReferenceMapper {
@@ -129,7 +129,7 @@ public class ReferenceMapper {
         );
     }
 
-    /** Assemble la réponse à une demande d'accès RGPD : le client et son historique de commandes. */
+    /** Construit la réponse à une demande d'accès RGPD : le client et ses commandes. */
     public ClientDataExport toDataExport(Client client, List<Order> orders) {
         return new ClientDataExport(
                 LocalDateTime.now(),
@@ -165,7 +165,7 @@ public class ReferenceMapper {
         return target;
     }
 
-    // Concatène prénom et nom en un nom complet propre (gère les valeurs manquantes).
+    // Met prénom et nom ensemble (en gérant les valeurs manquantes).
     private String buildFullName(Client client) {
         return Stream.of(client.getFirstName(), client.getLastName())
                 .filter(part -> part != null && !part.isBlank())
@@ -174,8 +174,8 @@ public class ReferenceMapper {
     }
 
     /**
-     * Libellé du client d'une vente. Null pour une vente de passage — le client n'est pas
-     * obligatoire sur une commande, et l'écran affiche alors un tiret plutôt qu'un nom vide.
+     * Nom du client d'une vente. Null pour une vente sans client : le client n'est pas
+     * obligatoire sur une commande, et l'écran affiche alors un tiret au lieu d'un nom vide.
      */
     public static String clientName(Client client) {
         if (client == null) return null;

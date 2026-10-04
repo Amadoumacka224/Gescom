@@ -18,9 +18,9 @@ import java.util.Set;
 
 
 /**
- * Entité livraison (bon de livraison), liée à une commande en relation 1-1.
- * Porte l'adresse et le contact de livraison, la date planifiée vs. effective, et une
- * machine à états simple (PENDING → DELIVERED) garantissant des transitions cohérentes.
+ * Livraison (bon de livraison), liée à une commande (relation 1-1).
+ * Contient l'adresse et le contact de livraison, la date prévue et la date réelle, et une
+ * machine à états simple (PENDING → DELIVERED) pour éviter des changements incohérents.
  */
 @Entity
 @Table(name = "deliveries", uniqueConstraints = @UniqueConstraint(name = "uq_deliveries_company_number", columnNames = {"company_id", "delivery_number"}))
@@ -37,11 +37,11 @@ public class Delivery implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
@@ -106,7 +106,7 @@ public class Delivery implements TenantOwned {
         updatedAt = LocalDateTime.now();
     }
 
-    /* Numéro attribué par DocumentNumberService — voir le commentaire équivalent sur Order. */
+    /* Numéro donné par DocumentNumberService (voir le commentaire du même genre dans Order). */
 
     public enum DeliveryStatus {
         PENDING,    // Planifiée

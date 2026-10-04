@@ -3,14 +3,14 @@ package com.gescom.backend.dto.platform;
 import java.time.LocalDateTime;
 
 /**
- * Utilisateur vu depuis le back-office proprietaire.
+ * Utilisateur vu depuis le back-office plateforme.
  *
- * Distinct d'{@code UserResponse} sur deux points qui font tout l'interet de l'ecran :
- * l'entreprise d'appartenance — sans elle, une liste consolidee est illisible — et la
- * derniere connexion, qui repond a la question du support (« ce compte sert-il encore ? »).
+ * Deux differences avec {@code UserResponse}, qui font tout l'interet de l'ecran :
+ * l'entreprise (sans elle, une liste globale est illisible) et la derniere connexion, qui
+ * repond a la question du support (« est-ce que ce compte sert encore ? »).
  *
- * Ni telephone ni aucune donnee personnelle superflue : l'exploitant de la plateforme
- * supervise des comptes, il n'a pas a recevoir la fiche des employes de ses clients.
+ * Pas de telephone ni d'autre donnee perso inutile : le super admin gere des comptes, il n'a
+ * pas besoin de la fiche des employes de ses clients.
  */
 public record PlatformUserResponse(
         Long id,

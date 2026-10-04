@@ -25,19 +25,19 @@ import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatPercent, safeRatio } from '../utils/format';
 import { DELIVERY_STATUS_TONE, badgeClass } from '../constants/statusBadges';
 
-// Une livraison ne connaît que deux états : planifiée puis livrée. DELIVERED est terminal —
-// reprendre une marchandise livrée serait un retour, hors de ce flux.
+// Une livraison n'a que deux états : planifiée puis livrée. DELIVERED est final (reprendre
+// une marchandise livrée, c'est un retour, ça ne passe pas par ici).
 const TERMINAL_STATUSES = ['DELIVERED'];
 
-/** Mémorise le mode d'affichage entre deux visites, comme les autres tableaux de bord. */
+/** Garde le mode d'affichage d'une visite à l'autre, comme sur les autres écrans. */
 const VIEW_MODE_KEY = 'deliveriesViewMode';
 
-/** Nombre de livraisons mises en avant dans la vue d'aperçu (les dernières créées). */
+/** Nombre de livraisons affichées dans l'aperçu (les dernières créées). */
 const RECENT_COUNT = 5;
 
 /**
- * Colonnes triables, traduites en champs d'entité pour le `sort` de Spring Data.
- * `order` trie sur le nom du client, ce que faisait déjà l'accesseur remplacé.
+ * Colonnes triables, avec le champ de l'entité utilisé pour le `sort` de Spring Data.
+ * `order` trie sur le nom du client, comme avant.
  */
 const SORT_FIELDS = {
   deliveryNumber: 'deliveryNumber',
@@ -48,10 +48,10 @@ const SORT_FIELDS = {
 };
 
 /**
- * Critères de filtrage, à l'état neutre. Sert de valeur initiale, de cible du bouton
- * « Réinitialiser » et de référence pour savoir quels critères sont actifs.
- * Le statut y figure au même titre que les autres : il était porté par un bandeau segmenté
- * au-dessus de la liste, qui doublonnait avec les tuiles d'indicateurs.
+ * Filtres avec leurs valeurs vides. Sert pour l'état initial, pour le bouton « Réinitialiser »
+ * et pour savoir quels filtres sont actifs.
+ * Le statut est ici comme les autres : avant il était dans des boutons au-dessus de la liste,
+ * ce qui faisait doublon avec les cartes de stats.
  */
 const EMPTY_ADVANCED = {
   status: 'ALL',
@@ -79,8 +79,8 @@ const EMPTY_FORM = {
 const FORM_KEYS = Object.keys(EMPTY_FORM);
 
 /**
- * Longueurs maximales reprises des contraintes `@Size` de `DeliveryCreateRequest` /
- * `DeliveryUpdateRequest`. Servent d'attribut `maxLength` et de garde-fou à la validation.
+ * Longueurs max, les mêmes que les `@Size` de `DeliveryCreateRequest` /
+ * `DeliveryUpdateRequest`. Utilisées pour `maxLength` et pour la validation.
  */
 const MAX_LENGTHS = {
   deliveryAddress: 255,
@@ -92,21 +92,21 @@ const MAX_LENGTHS = {
   notes: 500,
 };
 
-/** Même expression que les autres formulaires de l'application. */
+/** Même regex que dans les autres formulaires. */
 const PHONE_PATTERN = /^[0-9+\- ]{6,20}$/;
 
-/** Ordre visuel des champs : décide lequel reçoit le focus quand plusieurs sont en erreur. */
+/** Ordre des champs à l'écran : sert à savoir lequel prend le focus s'il y a plusieurs erreurs. */
 const FIELD_ORDER = [
   'orderId', 'deliveryAddress', 'deliveryPostalCode', 'deliveryCity', 'deliveryCountry',
   'scheduledDate', 'contactName', 'contactPhone', 'notes',
 ];
 
 /**
- * Valide le formulaire en une passe et renvoie les messages par champ.
+ * Valide tout le formulaire et renvoie les erreurs par champ.
  *
- * Ville, code postal et pays sont facultatifs côté API mais exigés ici : une adresse sans
- * localité n'est pas livrable, et l'écran les réclamait déjà — la contrainte est simplement
- * devenue explicite au lieu de passer par la validation native du navigateur.
+ * Ville, code postal et pays sont facultatifs dans l'API mais obligatoires ici : sans ville,
+ * on ne peut pas livrer. L'écran les demandait déjà, maintenant c'est notre validation qui
+ * le gère au lieu de celle du navigateur.
  */
 const validateDelivery = (data, t, { isEdit, today }) => {
   const errors = {};
@@ -125,8 +125,8 @@ const validateDelivery = (data, t, { isEdit, today }) => {
   }
 
   if (!data.scheduledDate) errors.scheduledDate = t('deliveries.errorScheduledDateRequired');
-  // Planifier dans le passé n'a de sens que sur une livraison déjà enregistrée, dont la date
-  // peut légitimement être antérieure à aujourd'hui.
+  // Une date passée n'est acceptée que pour une livraison déjà enregistrée, qui peut
+  // normalement avoir une date avant aujourd'hui.
   else if (!isEdit && data.scheduledDate < today) {
     errors.scheduledDate = t('deliveries.errorScheduledDatePast');
   }
@@ -140,8 +140,8 @@ const validateDelivery = (data, t, { isEdit, today }) => {
   return errors;
 };
 
-// Le backend (LocalDateTime) renvoie "2025-12-01T10:00:00" ; l'input HTML type="date"
-// n'accepte que "YYYY-MM-DD". Ces deux helpers font le pont sans perdre la valeur.
+// Le backend (LocalDateTime) renvoie "2025-12-01T10:00:00" mais l'input type="date"
+// veut "YYYY-MM-DD". Ces deux fonctions font la conversion dans les deux sens.
 const toDateInputValue = (isoDateTime) => {
   if (!isoDateTime) return '';
   return String(isoDateTime).split('T')[0];
@@ -149,11 +149,11 @@ const toDateInputValue = (isoDateTime) => {
 
 const toLocalDateTime = (dateInputValue) => {
   if (!dateInputValue) return null;
-  // Pas de suffixe 'Z' : LocalDateTime côté backend rejette les offsets de timezone.
+  // Pas de 'Z' à la fin : LocalDateTime côté backend refuse les fuseaux horaires.
   return `${dateInputValue}T00:00:00`;
 };
 
-/** Jour seul d'un horodatage backend, comparable en chaîne (« 2026-07-28 »). */
+/** Juste le jour d'une date du backend, comparable en texte (« 2026-07-28 »). */
 const dayOf = (isoDateTime) => (isoDateTime ? String(isoDateTime).slice(0, 10) : '');
 
 const formatDay = (isoDateTime) => {
@@ -174,7 +174,7 @@ const clientNameOf = (delivery) => {
   return `${client.firstName || ''} ${client.lastName || ''}`.trim();
 };
 
-/** Une livraison est en retard tant qu'elle n'est pas effectuée et que sa date prévue est passée. */
+/** Une livraison est en retard si elle n'est pas faite et que la date prévue est passée. */
 const isLate = (delivery, today) =>
   delivery.status === 'PENDING' && !!dayOf(delivery.scheduledDate) && dayOf(delivery.scheduledDate) < today;
 
@@ -200,33 +200,33 @@ const Deliveries = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'scheduledDate', direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
-  // Cardinalité du résultat courant, renvoyée par le serveur.
+  // Nombre total de résultats, renvoyé par le serveur.
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
-  // Compteurs d'en-tête, agrégés en base. `late` désigne un sous-ensemble de `pending` et ne
-  // s'y ajoute pas : une livraison effectuée en retard n'est plus en retard, elle est faite.
+  // Compteurs en haut de page, calculés en base. `late` fait partie de `pending`, il ne
+  // s'ajoute pas : une livraison faite en retard n'est plus en retard, elle est faite.
   const [summary, setSummary] = useState({ total: 0, pending: 0, delivered: 0, late: 0 });
-  // Options des filtres, exhaustives : une ville qui n'apparaît qu'en page 3 doit être
-  // proposée depuis la page 1.
+  // Options des filtres, complètes : une ville qui n'apparaît qu'en page 3 doit être
+  // proposée dès la page 1.
   const [filterOptions, setFilterOptions] = useState({ clients: [], cities: [], countries: [] });
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
   const [formData, setFormData] = useState(EMPTY_FORM);
-  // Valeurs à l'ouverture : comparées à la saisie pour savoir si le formulaire a bougé
-  // (bouton d'enregistrement inutile à vide, garde-fou à la fermeture).
+  // Valeurs au moment de l'ouverture, pour savoir si le formulaire a été modifié
+  // (bouton enregistrer désactivé sinon, confirmation à la fermeture).
   const [initialForm, setInitialForm] = useState(EMPTY_FORM);
   const [touched, setTouched] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler) : conservées à part
-  // des erreurs locales, elles sont levées champ par champ dès que la valeur change.
+  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler). Gardées à part des
+  // erreurs locales, elles disparaissent dès que la valeur du champ change.
   const [serverErrors, setServerErrors] = useState({});
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // Jour courant, recalculé à chaque rendu de la page : sert de référence aux retards.
+  // Date du jour, recalculée à chaque rendu : sert à détecter les retards.
   const today = new Date().toISOString().slice(0, 10);
   const todayISO = today;
 
-  // Referentiels et agregats : charges une fois. La page, elle, est rechargee par l'effet
-  // declare plus bas, apres `queryParams` dont il depend.
+  // Données de référence et compteurs : chargés une fois. La page elle-même est rechargée
+  // par l'effet plus bas, après `queryParams` dont il dépend.
   useEffect(() => {
     fetchOrders();
     fetchSummary();
@@ -234,12 +234,12 @@ const Deliveries = () => {
   }, []);
 
   /**
-   * Page de livraisons.
+   * Charge une page de livraisons.
    *
-   * C'est ELLE qui porte l'indicateur de chargement, et non plus `refresh` : la page est
-   * désormais rechargée par un effet sur les critères, que `refresh` ne traverse pas. Laisser
-   * `loading` à `refresh` figeait l'écran sur son squelette au premier affichage — l'état
-   * initial vaut `true` et rien ne le rabaissait.
+   * C'est ici qu'on gère `loading`, et plus dans `refresh` : la page est maintenant rechargée
+   * par un effet sur les filtres, qui ne passe pas par `refresh`. Quand `loading` était géré
+   * dans `refresh`, l'écran restait bloqué sur le squelette au premier affichage (il démarre
+   * à `true` et rien ne le remettait à false).
    */
   const fetchDeliveries = async () => {
     setLoading(true);
@@ -261,7 +261,7 @@ const Deliveries = () => {
     }
   };
 
-  /** Compteurs d'en-tête : ils décrivent tout le périmètre, pas la page. */
+  /** Compteurs en haut de page : sur toutes les livraisons, pas juste la page. */
   const fetchSummary = async () => {
     try {
       const { data } = await api.get('/deliveries/summary');
@@ -271,7 +271,7 @@ const Deliveries = () => {
     }
   };
 
-  /** Clients, villes et pays proposés par les filtres. */
+  /** Clients, villes et pays proposés dans les filtres. */
   const fetchFilterOptions = async () => {
     try {
       const { data } = await api.get('/deliveries/filter-options');
@@ -283,12 +283,12 @@ const Deliveries = () => {
 
 
   /**
-   * Commandes proposables au formulaire : facturées et sans livraison.
+   * Commandes qu'on peut choisir dans le formulaire : facturées et sans livraison.
    *
-   * La liste était composée ici, en retranchant des commandes facturées celles qui
-   * apparaissaient parmi les livraisons chargées. Celles-ci n'étant plus rapatriées en entier,
-   * la soustraction ne verrait plus que la page affichée et proposerait de livrer une commande
-   * déjà livrée. Le serveur répond désormais à la question, où elle a une réponse complète.
+   * Avant, on calculait ça ici en enlevant des commandes facturées celles qui avaient déjà une
+   * livraison dans la liste chargée. Comme on ne charge plus toutes les livraisons, on ne
+   * verrait que la page affichée et on pourrait proposer une commande déjà livrée. C'est donc
+   * le serveur qui renvoie la bonne liste.
    */
   const fetchOrders = async () => {
     try {
@@ -301,9 +301,9 @@ const Deliveries = () => {
   };
 
   /**
-   * Rechargement après écriture. Les compteurs et les options en font partie : une livraison
-   * marquée effectuée déplace une tuile, une livraison créée peut introduire une ville
-   * nouvelle dans le filtre.
+   * Rechargement après une modif. On recharge aussi les compteurs et les options : une
+   * livraison marquée faite change une carte, et une nouvelle livraison peut ajouter une
+   * ville dans le filtre.
    */
   const refresh = async () => {
     await Promise.all([fetchDeliveries(), fetchOrders(), fetchSummary(), fetchFilterOptions()]);
@@ -323,16 +323,16 @@ const Deliveries = () => {
   };
 
   useEffect(() => {
-    // Arrivée depuis la page Commandes : ouvrir le formulaire de livraison avec la commande
-    // pré-sélectionnée (flux ordonné INVOICED → livrer). On attend que la liste des commandes
-    // livrables soit chargée pour pré-remplir les coordonnées du client.
+    // Si on vient de la page Commandes : on ouvre le formulaire avec la commande déjà choisie
+    // (INVOICED → livrer). On attend que la liste des commandes livrables soit chargée pour
+    // pouvoir remplir les coordonnées du client.
     if (location.state?.createForOrderId && orders.length > 0) {
       const id = location.state.createForOrderId;
       const selectedOrder = orders.find(o => o.id === parseInt(id));
       if (selectedOrder) {
-        // Le formulaire s'ouvre vierge puis reçoit la commande et les coordonnées du client :
-        // `initialForm` reste EMPTY_FORM, donc le pré-remplissage compte comme une saisie et
-        // la fermeture demandera confirmation, ce qui est le comportement voulu.
+        // Le formulaire s'ouvre vide puis on remplit la commande et les coordonnées du client.
+        // `initialForm` reste EMPTY_FORM, donc ce remplissage compte comme une saisie et la
+        // fermeture demandera confirmation. C'est voulu.
         const defaults = buildClientDefaults(selectedOrder.client);
         openForm(null);
         setFormData(prev => ({ ...prev, orderId: String(id), ...defaults }));
@@ -343,12 +343,12 @@ const Deliveries = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    // Le verdict du serveur portait sur l'ancienne valeur : il n'a plus de sens dès qu'elle change.
+    // L'erreur du serveur concernait l'ancienne valeur, on l'enlève dès que la valeur change.
     setServerErrors((prev) => (prev[name] === undefined ? prev : { ...prev, [name]: undefined }));
 
     if (name === 'orderId') {
-      // Pré-remplit les coordonnées de livraison à partir du client de la commande,
-      // mais uniquement pour les champs encore vides — l'édition utilisateur prime.
+      // Remplit l'adresse de livraison avec celle du client de la commande, mais seulement
+      // pour les champs encore vides (on n'écrase pas ce que l'utilisateur a tapé).
       const selectedOrder = value ? orders.find(o => o.id === parseInt(value)) : null;
       const defaults = selectedOrder ? buildClientDefaults(selectedOrder.client) : {};
       setFormData(prev => {
@@ -367,9 +367,9 @@ const Deliveries = () => {
   };
 
   const handleCopyFromClient = () => {
-    // En création, la commande est trouvée via le filtre `orders` ; en édition,
-    // la commande de la livraison n'est plus dans `orders` (filtre INVOICED) donc
-    // on retombe sur la commande attachée à la livraison en cours d'édition.
+    // En création, on trouve la commande dans `orders`. En modification, elle n'y est plus
+    // (`orders` ne contient que les INVOICED), donc on prend la commande liée à la
+    // livraison qu'on modifie.
     const selectedOrder = formData.orderId
       ? orders.find(o => o.id === parseInt(formData.orderId))
       : null;
@@ -381,8 +381,8 @@ const Deliveries = () => {
     setFormData(prev => ({ ...prev, ...buildClientDefaults(client) }));
   };
 
-  // Une erreur ne s'affiche qu'une fois le champ quitté, ou dès la première tentative
-  // d'enregistrement : la signaler à la première lettre tapée serait juste mais pénible.
+  // L'erreur s'affiche quand on quitte le champ, ou au premier essai d'enregistrement :
+  // l'afficher dès la première lettre serait pénible.
   const handleBlur = (e) => {
     const { name } = e.target;
     setTouched((prev) => (prev[name] ? prev : { ...prev, [name]: true }));
@@ -404,8 +404,8 @@ const Deliveries = () => {
     return shown;
   }, [formErrors, serverErrors, submitAttempted, touched]);
 
-  // Libellés tels qu'affichés à l'écran : le récapitulatif d'erreurs doit nommer les champs
-  // comme l'utilisateur les voit, pas comme le DTO les nomme.
+  // Noms des champs comme à l'écran : la liste des erreurs doit utiliser les mêmes noms que
+  // ceux que voit l'utilisateur, pas ceux du DTO.
   const fieldLabels = useMemo(() => ({
     orderId: t('deliveries.orderLabel'),
     deliveryAddress: t('deliveries.addressLabel'),
@@ -454,8 +454,8 @@ const Deliveries = () => {
         contactName: trim('contactName'),
         contactPhone: trim('contactPhone'),
         scheduledDate: toLocalDateTime(formData.scheduledDate),
-        // Le statut n'est envoyé qu'en modification : à la création, `DeliveryService` le force
-        // à PENDING et ignore ce qu'on lui transmet (le passage à DELIVERED est le fait de
+        // On envoie le statut seulement en modification : à la création, `DeliveryService` le
+        // met de toute façon à PENDING (le passage à DELIVERED se fait par
         // `markDeliveryAsDelivered`).
         ...(editingDelivery ? { status: formData.status } : {}),
         notes: trim('notes') || null,
@@ -476,8 +476,8 @@ const Deliveries = () => {
       const raw = error.response?.data;
       const message = typeof raw === 'string' ? raw : (raw?.message || raw?.error || t('deliveries.saveError'));
 
-      // Le refus du serveur est ramené sur le champ concerné plutôt que sur un simple toast :
-      // l'utilisateur voit quoi corriger sans relire tout le formulaire.
+      // L'erreur du serveur est affichée sur le champ concerné plutôt que dans un toast,
+      // comme ça on voit directement quoi corriger.
       const fieldErrors = typeof raw === 'object' && raw?.fieldErrors ? { ...raw.fieldErrors } : {};
       const flagged = FIELD_ORDER.filter((field) => fieldErrors[field]);
       if (flagged.length > 0) {
@@ -492,7 +492,7 @@ const Deliveries = () => {
     }
   };
 
-  /** Ouvre le formulaire sur des valeurs données, en repartant d'un état de validation vierge. */
+  /** Ouvre le formulaire avec des valeurs données et des erreurs remises à zéro. */
   const openForm = (delivery) => {
     const values = delivery
       ? {
@@ -572,9 +572,9 @@ const Deliveries = () => {
   };
 
   /**
-   * Fermeture demandée par l'utilisateur (bouton Annuler, croix, clic sur le fond).
-   * Le fond de la modale se ferme au moindre clic à côté : perdre une adresse de livraison
-   * saisie à cette occasion est un incident réel.
+   * Fermeture par l'utilisateur (bouton Annuler, croix, clic à côté).
+   * Un clic à côté suffit à fermer le modal, et perdre une adresse de livraison déjà tapée
+   * comme ça, c'est vraiment énervant.
    */
   const requestCloseForm = () => {
     if (isDirty) {
@@ -597,13 +597,12 @@ const Deliveries = () => {
     );
   };
 
-  // Compteurs du perimetre entier, agreges en base (cf. /api/deliveries/summary). Les
-  // recalculer ici ne decrirait que la page affichee.
+  // Compteurs sur toutes les livraisons, calculés en base (voir /api/deliveries/summary).
+  // Si on les calculait ici, ils ne porteraient que sur la page affichée.
   const stats = summary;
 
-  // Options servies par /deliveries/filter-options. Les déduire de `deliveries` ne
-  // proposerait plus que les valeurs de la page affichée, et un critère disparaîtrait de la
-  // liste dès qu'on change de page.
+  // Options renvoyées par /deliveries/filter-options. Si on les tirait de `deliveries`, on
+  // n'aurait que celles de la page affichée et un filtre disparaîtrait en changeant de page.
   const clientOptions = filterOptions.clients;
   const cityOptions = filterOptions.cities;
   const countryOptions = filterOptions.countries;
@@ -662,7 +661,7 @@ const Deliveries = () => {
   const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
   const showFullList = hasActiveFilters || viewMode === 'all';
 
-  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête.
+  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
@@ -670,12 +669,11 @@ const Deliveries = () => {
   }, [searchTerm]);
 
   /**
-   * Critères envoyés au serveur.
+   * Paramètres envoyés au serveur.
    *
-   * « En retard » n'est pas un statut mais une date prévue dépassée sur une livraison ENCORE
-   * EN ATTENTE : une livraison effectuée en retard n'est plus en retard, elle est faite.
-   * L'écran le propose dans la même liste que les statuts, le serveur en fait un paramètre à
-   * part.
+   * « En retard » n'est pas un statut : c'est une livraison ENCORE EN ATTENTE dont la date
+   * prévue est passée (une livraison faite en retard n'est plus en retard). À l'écran il est
+   * dans la même liste que les statuts, mais pour le serveur c'est un paramètre à part.
    */
   const queryParams = useMemo(() => {
     if (!showFullList) {
@@ -698,8 +696,8 @@ const Deliveries = () => {
     return params;
   }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
 
-  // Le filtrage, le tri et la pagination sont faits en base : `deliveries` porte déjà la page
-  // demandée, dans l'ordre demandé.
+  // Le filtrage, le tri et la pagination sont faits en base : `deliveries` contient déjà la
+  // bonne page dans le bon ordre.
   const displayedDeliveries = deliveries;
   const totalPages = pageMeta.totalPages;
 
@@ -734,16 +732,16 @@ const Deliveries = () => {
     setAdvanced((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Doit refléter Delivery.DeliveryStatus côté backend : toute autre valeur est rejetée à la
-  // désérialisation, avec un message que le caissier ne peut pas interpréter.
+  // Doit correspondre à Delivery.DeliveryStatus côté backend : une autre valeur serait refusée
+  // avec un message incompréhensible pour le caissier.
   const statusOptions = [
     { value: 'PENDING', label: t('deliveries.statusPending') },
     { value: 'DELIVERED', label: t('deliveries.statusDelivered') },
   ];
 
-  /* Colonnes ordonnées par importance : identité de la livraison, à qui elle va, où, quand.
-   * Le contact et la ville se retirent sur écran étroit plutôt que d'imposer un défilement
-   * horizontal qui rendrait la colonne d'actions inatteignable. */
+  /* Colonnes par ordre d'importance : la livraison, le client, le lieu, la date.
+   * Le contact et la ville sont cachés sur petit écran pour éviter un scroll horizontal
+   * qui rendrait la colonne d'actions inaccessible. */
   const columns = [
     {
       key: 'deliveryNumber',
@@ -841,7 +839,7 @@ const Deliveries = () => {
               <div className={`tabular-nums ${late ? 'font-semibold text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
                 {formatDay(delivery.scheduledDate)}
               </div>
-              {/* Le retard n'est pas porté par la seule couleur : il est aussi écrit. */}
+              {/* Le retard est aussi écrit en texte, pas seulement indiqué par la couleur. */}
               {late && (
                 <div className="text-xs font-medium text-red-600 dark:text-red-400">
                   {t('deliveries.lateBadge')}
@@ -911,8 +909,8 @@ const Deliveries = () => {
       </div>
 
       {/* ---- Indicateurs ----
-       * Trois compteurs de volume. Le retard n'a pas sa tuile : il reste accessible en un clic
-       * depuis le filtre de la barre d'outils, et se repère ligne par ligne sur la date prévue. */}
+       * Trois compteurs. Pas de carte pour les retards : on les retrouve en un clic avec le
+       * filtre, et ils se voient sur chaque ligne grâce à la date prévue. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         <StatCard
           title={t('deliveries.totalCount')}
@@ -1030,8 +1028,8 @@ const Deliveries = () => {
                 >
                   <Eye className="w-4 h-4" aria-hidden="true" />
                 </button>
-                {/* Une livraison effectuée est figée : les actions restent visibles mais inertes,
-                    avec l'explication en infobulle — les faire disparaître ferait croire à un bug. */}
+                {/* Une livraison faite ne se modifie plus : les boutons restent visibles mais
+                    désactivés, avec une infobulle. S'ils disparaissaient, on croirait à un bug. */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleEdit(delivery); }}
                   className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1173,11 +1171,11 @@ const Deliveries = () => {
         title={editingDelivery ? t('deliveries.editTitle') : t('deliveries.createTitle')}
         size="lg"
       >
-        {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont
-            les bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
+        {/* `noValidate` : on utilise notre propre validation, pas les bulles du navigateur
+            (pas au style de l'appli et dans la langue du navigateur). */}
         <form onSubmit={handleSubmit} noValidate>
-          {/* Récapitulatif des champs à corriger : sur un formulaire de cette hauteur, le champ
-              fautif peut se trouver hors écran au moment de l'enregistrement. */}
+          {/* Liste des champs à corriger : le formulaire est long, le champ en erreur peut
+              être hors de l'écran au moment d'enregistrer. */}
           {submitAttempted && invalidFields.length > 0 && (
             <div
               role="alert"
@@ -1205,7 +1203,7 @@ const Deliveries = () => {
             </div>
           )}
 
-          {/* Ordre de lecture : quelle commande, où livrer, qui contacter, puis le suivi. */}
+          {/* Ordre : la commande, l'adresse, le contact, puis le suivi. */}
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             <FormSection
               icon={ShoppingCart}
@@ -1213,8 +1211,8 @@ const Deliveries = () => {
               description={t('deliveries.sectionOrderHint')}
             >
               {editingDelivery ? (
-                /* La commande d'une livraison ne se change pas : `DeliveryUpdateRequest` ne la
-                   porte pas, et une livraison appartient à la commande qui l'a fait naître. */
+                /* On ne peut pas changer la commande d'une livraison : `DeliveryUpdateRequest`
+                   ne la contient pas, une livraison reste liée à sa commande. */
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
                   <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                     {t('deliveries.orderLabel')}
@@ -1263,7 +1261,7 @@ const Deliveries = () => {
                 required
                 icon={MapPin}
               />
-              {/* Code postal et ville se lisent comme sur une enveloppe. */}
+              {/* Code postal puis ville, comme sur une adresse classique. */}
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
                 <FormInput
                   label={t('deliveries.postalCodeLabel')}
@@ -1320,14 +1318,14 @@ const Deliveries = () => {
                 onChange={handleInputChange}
                 onBlur={handleBlur}
                 error={visibleErrors.scheduledDate}
-                // Une nouvelle livraison ne se planifie pas dans le passé ; une livraison déjà
-                // enregistrée peut légitimement porter une date antérieure.
+                // Pas de date passée pour une nouvelle livraison ; une livraison déjà
+                // enregistrée peut par contre avoir une date passée.
                 min={editingDelivery ? undefined : today}
                 required
                 icon={Calendar}
               />
-              {/* Le statut n'est proposé qu'en modification : à la création, le backend le force
-                  à « En attente » quoi qu'on envoie. Le choix n'était qu'apparent. */}
+              {/* Statut seulement en modification : à la création le backend met toujours
+                  « En attente », peu importe ce qu'on envoie. */}
               {editingDelivery && (
                 <FormSelect
                   label={t('deliveries.statusLabel')}
@@ -1407,8 +1405,8 @@ const Deliveries = () => {
             </FormSection>
           </div>
 
-          {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
-              défile mais l'enregistrement reste sous la main. */}
+          {/* Boutons collés en bas du modal : sur un petit écran le formulaire scrolle mais
+              le bouton enregistrer reste visible. */}
           <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {editingDelivery && !isDirty ? t('deliveries.noChanges') : t('clients.requiredHint')}

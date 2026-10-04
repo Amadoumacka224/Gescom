@@ -15,10 +15,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Grand livre des mouvements de stock : registre append-only, donc à croissance non bornée.
- * Ses lectures de liste sont paginées, et le produit (avec sa catégorie) comme l'auteur sont
- * chargés dans la même requête via {@link EntityGraph} — la réponse les imbrique tous les
- * trois, ce qui provoquerait sinon un N+1 par ligne de page.
+ * Mouvements de stock : on ne fait qu'en ajouter, donc la table grossit sans limite.
+ * Les listes sont paginées, et le produit (avec sa catégorie) et l'auteur sont chargés dans
+ * la même requête avec {@link EntityGraph} : la réponse contient les trois, sinon on aurait
+ * un N+1 par ligne.
  */
 @Repository
 public interface StockMovementRepository extends JpaRepository<StockMovement, Long>,
@@ -28,8 +28,8 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
     @EntityGraph(attributePaths = {"product", "product.category", "user"})
     Page<StockMovement> findAll(Pageable pageable);
 
-    // Filtrage combiné (type, produit, période, recherche libre) : en Specification, pour que
-    // les critères absents ne participent pas à la requête.
+    // Filtres combinés (type, produit, période, recherche) : avec une Specification, pour que
+    // les filtres absents n'apparaissent pas dans la requête.
     @Override
     @EntityGraph(attributePaths = {"product", "product.category", "user"})
     Page<StockMovement> findAll(Specification<StockMovement> spec, Pageable pageable);

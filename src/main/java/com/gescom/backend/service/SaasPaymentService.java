@@ -20,12 +20,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * Journal des encaissements d'abonnement.
+ * Historique des paiements d'abonnement.
  *
- * Les echecs sont enregistres comme les succes : c'est ce qui rend le taux de reussite et le
- * suivi des impayes calculables. Un paiement refuse fait de surcroit basculer l'abonnement en
- * PAST_DUE — le contrat reste vivant et continue de compter dans le MRR, mais l'anomalie
- * remonte au tableau de bord.
+ * On enregistre les echecs comme les succes : c'est ce qui permet de calculer le taux de
+ * reussite et de suivre les impayes. Un paiement refuse fait aussi passer l'abonnement en
+ * PAST_DUE : le contrat continue et compte toujours dans le MRR, mais le probleme apparait
+ * sur le tableau de bord.
  */
 @Service
 @Transactional
@@ -68,11 +68,11 @@ public class SaasPaymentService {
     }
 
     /**
-     * Enregistre un encaissement.
+     * Enregistre un paiement.
      *
-     * Un paiement abouti renouvelle la periode de l'abonnement rattache, et un echec le fait
-     * passer en impaye : le journal et l'etat du contrat restent ainsi coherents sans que
-     * l'operateur ait a faire les deux gestes.
+     * Un paiement reussi renouvelle la periode de l'abonnement, et un echec le met en impaye :
+     * comme ca l'historique et l'etat du contrat restent coherents sans que l'operateur ait
+     * a faire les deux.
      */
     public SaasPayment record(SaasPaymentRequest request) {
         Company company = companyRepository.findById(request.companyId())
@@ -135,11 +135,11 @@ public class SaasPaymentService {
     }
 
     /**
-     * Reference unique et lisible : SP-<periode>-<entreprise>-<compteur du mois>.
+     * Reference unique et lisible : SP-<periode>-<entreprise>-<numero dans le mois>.
      *
-     * Le compteur repart de 1 chaque mois pour chaque entreprise, ce qui donne une reference
-     * parlante en support (« SP-202608-0003-2 » se lit sans consulter la base). La boucle
-     * couvre le cas ou une reference serait deja prise, y compris apres suppression.
+     * Le numero repart de 1 chaque mois pour chaque entreprise, ce qui donne une reference
+     * facile a comprendre pour le support (« SP-202608-0003-2 » se lit sans regarder la base).
+     * La boucle gere le cas ou une reference serait deja prise, meme apres une suppression.
      */
     private String nextReference(Long companyId) {
         String prefix = "SP-" + LocalDateTime.now().format(PERIOD)

@@ -3,22 +3,21 @@ package com.gescom.backend.tenancy;
 import com.gescom.backend.entity.Company;
 
 /**
- * Marque une entite appartenant a une entreprise cliente.
+ * Indique qu'une entite appartient a une entreprise cliente.
  *
- * Volontairement une interface et non une {@code @MappedSuperclass} : les entites du
- * projet portent toutes {@code @Data}, et faire heriter Lombok d'une classe de base
- * imposerait de reprendre equals/hashCode sur chacune. Ici, le getter et le setter
- * generes par {@code @Data} satisfont le contrat sans une ligne de code supplementaire —
- * l'entite n'a qu'a declarer son champ {@code company} et {@code implements TenantOwned}.
+ * C'est une interface et pas une {@code @MappedSuperclass}, exprès : toutes les entites du
+ * projet ont {@code @Data}, et avec une classe parente il faudrait refaire equals/hashCode
+ * sur chacune a cause de Lombok. Ici, le getter et le setter generes par {@code @Data}
+ * suffisent : l'entite declare juste son champ {@code company} et {@code implements TenantOwned}.
  *
- * Ce marqueur est ce sur quoi s'appuient {@link TenantEntityListener} pour affecter
- * l'entreprise a la creation et {@link TenantAwareRepositoryImpl} pour verifier
- * l'appartenance sur les chargements par identifiant.
+ * C'est grace a cette interface que {@link TenantEntityListener} met l'entreprise a la
+ * creation et que {@link TenantAwareRepositoryImpl} verifie l'entreprise lors des
+ * chargements par id.
  *
- * Le champ s'appelle {@code ownerCompany} et non {@code company} pour une raison concrete :
- * {@code Client} porte deja un champ {@code company}, qui designe la raison sociale du
- * client du magasin. Deux notions distinctes, un seul nom disponible — et le prefixe
- * « owner » dit justement ce qui les separe : ici, le proprietaire de la ligne.
+ * Le champ s'appelle {@code ownerCompany} et pas {@code company} pour une raison simple :
+ * {@code Client} a deja un champ {@code company}, qui est la raison sociale du client du
+ * magasin. Deux choses differentes pour un seul nom, et « owner » dit justement la
+ * difference : ici, c'est l'entreprise a qui appartient la ligne.
  */
 public interface TenantOwned {
 

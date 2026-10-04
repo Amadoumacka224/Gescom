@@ -28,15 +28,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * La chaine d'abonnement : catalogue des formules, contrats souscrits et encaissements.
+ * Tout ce qui touche aux abonnements : formules, contrats et paiements.
  *
- * Les trois se suivent — on souscrit une formule, le contrat court, les versements le
- * renouvellent — et se lisent ensemble. Modifier un tarif au catalogue ne touche pas aux
- * contrats en cours ({@code Subscription.amount} est fige a la souscription) : la revision
- * ne vaut que pour les souscriptions a venir.
+ * Les trois vont ensemble : on souscrit une formule, le contrat tourne, et les paiements le
+ * renouvellent. Changer un prix ne change pas les contrats en cours
+ * ({@code Subscription.amount} est fixe a la souscription) : le nouveau prix ne vaut que
+ * pour les prochaines souscriptions.
  *
- * A ne pas confondre avec {@code PaymentController}, qui concerne le terminal de caisse
- * d'une entreprise : ici, ce sont les versements des entreprises a GESCOM.
+ * Rien a voir avec {@code PaymentController}, qui gere le terminal de caisse d'une
+ * entreprise : ici ce sont les paiements des entreprises a GESCOM.
  */
 @RestController
 @RequestMapping("/api/platform")
@@ -58,7 +58,7 @@ public class PlatformBillingController {
         this.platformMapper = platformMapper;
     }
 
-    // ---------------------------------------------------------------- Catalogue des formules
+    // ---------------------------------------------------------------- Formules
 
     @GetMapping("/plans")
     @Tag(name = "Plateforme - Formules", description = "Catalogue des formules d'abonnement")
@@ -157,7 +157,7 @@ public class PlatformBillingController {
         return ResponseEntity.ok(platformMapper.toResponse(subscriptionService.cancel(id, reason)));
     }
 
-    // ---------------------------------------------------------------- Encaissements
+    // ---------------------------------------------------------------- Paiements
 
     @GetMapping("/payments")
     @Tag(name = "Plateforme - Paiements", description = "Encaissements des abonnements SaaS")

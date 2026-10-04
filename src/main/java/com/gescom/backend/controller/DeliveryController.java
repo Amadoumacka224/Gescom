@@ -50,10 +50,10 @@ public class DeliveryController {
     }
 
     /**
-     * Toutes les livraisons du périmètre, sans pagination.
+     * Toutes les livraisons, sans pagination.
      *
-     * Conservé pour les écrans qui s'en servent de référentiel — le tableau de bord y puise ses
-     * agrégats. Le tableau de l'écran Livraisons, lui, passe par {@link #searchDeliveries}.
+     * Gardé pour les écrans qui ont besoin de toute la liste (le tableau de bord pour ses
+     * chiffres). Le tableau de l'écran Livraisons utilise {@link #searchDeliveries}.
      */
     @GetMapping
     public ResponseEntity<List<DeliveryResponse>> getAllDeliveries() {
@@ -62,11 +62,11 @@ public class DeliveryController {
     }
 
     /**
-     * Page de livraisons, filtrée et triée en base.
+     * Une page de livraisons, filtrée et triée en base.
      *
-     * {@code late} est un critère à part et non un statut : c'est une date prévue dépassée sur
-     * une livraison encore en attente. L'écran le propose pourtant dans la même liste que les
-     * statuts, d'où ce paramètre distinct.
+     * {@code late} n'est pas un statut : c'est une livraison encore en attente dont la date
+     * prévue est passée. L'écran l'affiche dans la même liste que les statuts, d'où ce
+     * paramètre à part.
      */
     @GetMapping("/search")
     public ResponseEntity<PageResponse<DeliveryResponse>> searchDeliveries(
@@ -88,13 +88,13 @@ public class DeliveryController {
                 deliveryService.searchDeliveries(criteria, pageable), salesMapper::toResponse));
     }
 
-    /** Compteurs d'en-tête : ils portent sur tout le périmètre, pas sur la page affichée. */
+    /** Compteurs en haut de page : sur toutes les livraisons, pas sur la page affichée. */
     @GetMapping("/summary")
     public ResponseEntity<DeliverySummary> getSummary() {
         return ResponseEntity.ok(deliveryService.getSummary());
     }
 
-    /** Clients, villes et pays proposés par les filtres. */
+    /** Clients, villes et pays proposés dans les filtres. */
     @GetMapping("/filter-options")
     public ResponseEntity<DeliverySummary.FilterOptions> getFilterOptions() {
         return ResponseEntity.ok(deliveryService.getFilterOptions());

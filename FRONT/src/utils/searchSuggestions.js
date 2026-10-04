@@ -1,46 +1,45 @@
 /**
- * Classe une liste d'éléments par pertinence vis-à-vis d'une requête, pour alimenter
- * les suggestions d'autocomplétion (composants SearchBox / SearchableSelect).
+ * Trie une liste d'éléments selon leur pertinence par rapport à la recherche, pour les
+ * suggestions d'autocomplétion (SearchBox / SearchableSelect).
  *
- * On ordonne du plus pertinent au moins pertinent et on ne garde qu'un petit nombre
- * de résultats.
+ * On trie du plus pertinent au moins pertinent et on ne garde que quelques résultats.
  *
- * Barème (le meilleur champ l'emporte) :
- *   - égalité exacte          : 100
+ * Points (c'est le meilleur champ qui compte) :
+ *   - identique               : 100
  *   - commence par la requête :  60
  *   - début d'un mot          :  40
- *   - sous-chaîne quelconque  :  20
- *   - proche (faute de frappe):  5 à 15  (distance de Levenshtein bornée)
- * Le 1er champ renvoyé par `getFields` est considéré comme principal (nom) et pèse
- * davantage (×1,5), afin qu'une correspondance dans le nom prime sur une
- * correspondance dans un champ secondaire (référence, code-barres, e-mail…).
+ *   - contient la requête     :  20
+ *   - proche (faute de frappe):  5 à 15  (distance de Levenshtein limitée)
+ * Le premier champ renvoyé par `getFields` est le champ principal (le nom) et compte plus
+ * (×1,5), pour qu'un résultat sur le nom passe avant un résultat sur un autre champ
+ * (référence, code-barres, e-mail…).
  *
- * Robustesse :
- *   - insensible à la casse ET aux accents (« Amelie » trouve « Amélie ») ;
- *   - tolérant aux fautes de frappe (« prodiut », « briqette »…) via une distance
- *     d'édition bornée, calculée uniquement en dernier recours (perf).
+ * En plus :
+ *   - on ignore les majuscules ET les accents (« Amelie » trouve « Amélie ») ;
+ *   - on accepte les fautes de frappe (« prodiut », « briqette »…) avec une distance
+ *     d'édition limitée, calculée seulement en dernier recours (performances).
  *
- * @param {Array}    items     éléments à classer
- * @param {string}   query     texte saisi par l'utilisateur
- * @param {Function} getFields (item) => string[] champs à comparer (nom en 1er)
- * @param {number}   limit     nombre maximum de suggestions retournées
- * @returns {Array} sous-ensemble de `items` trié par pertinence décroissante
+ * @param {Array}    items     éléments à trier
+ * @param {string}   query     texte tapé par l'utilisateur
+ * @param {Function} getFields (item) => string[] champs à comparer (le nom en premier)
+ * @param {number}   limit     nombre max de suggestions renvoyées
+ * @returns {Array} les éléments retenus, du plus pertinent au moins pertinent
  */
 
-// Minuscule + suppression des diacritiques (é → e, ç → c…) pour une recherche
-// insensible aux accents.
+// Met en minuscules et enlève les accents (é → e, ç → c…) pour une recherche
+// qui ne tient pas compte des accents.
 export const normalizeText = (s) =>
   String(s)
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '');
 
-// Alias interne court, utilisé dans tout ce module.
+// Petit alias utilisé dans tout le fichier.
 const normalize = normalizeText;
 
-// Distance de Levenshtein bornée : s'arrête dès que le minimum d'une ligne dépasse
-// `max` (retourne alors max + 1). Évite le coût du calcul complet quand les chaînes
-// sont manifestement trop éloignées.
+// Distance de Levenshtein limitée : on s'arrête dès que le minimum d'une ligne dépasse
+// `max` (on renvoie alors max + 1). Ça évite de tout calculer quand les deux chaînes
+// sont de toute façon trop différentes.
 const boundedLevenshtein = (a, b, max) => {
   const al = a.length;
   const bl = b.length;
@@ -68,9 +67,9 @@ const boundedLevenshtein = (a, b, max) => {
   return prev[bl];
 };
 
-// Tolérance aux fautes de frappe : compare la requête au champ entier et à chacun de
-// ses mots (ex. « briqette » ≈ « briquette » dans « Briquette lait »). Le seuil dépend
-// de la longueur de la requête (plus elle est courte, moins on tolère d'écart).
+// Fautes de frappe : on compare la requête au champ entier et à chacun de ses mots
+// (ex. « briqette » ≈ « briquette » dans « Briquette lait »). La tolérance dépend de la
+// longueur de la requête (plus elle est courte, moins on accepte d'erreurs).
 const fuzzyScore = (field, q) => {
   if (q.length < 3) return 0; // en dessous, une « faute » n'a pas de sens
   const maxDist = q.length <= 4 ? 1 : q.length <= 7 ? 2 : 3;
@@ -83,7 +82,7 @@ const fuzzyScore = (field, q) => {
     if (best === 1) break;
   }
   if (best > maxDist) return 0;
-  // Reste sous le palier « sous-chaîne » (20) : une vraie correspondance prime toujours.
+  // On reste sous le score « contient » (20) : une vraie correspondance passe toujours avant.
   return Math.max(5, 15 - (best - 1) * 5); // dist 1 → 15, dist 2 → 10, dist 3 → 5
 };
 

@@ -15,11 +15,11 @@ import java.util.List;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Terminal de paiement carte (Stripe, mode test).
+ * Terminal de paiement par carte (Stripe, mode test).
  *
- * Le parcours tient en deux appels — création puis confirmation — plus une porte de sortie
- * (annulation) pour la session abandonnée. Encaisser fait partie du métier du caissier :
- * l'accès suit celui de la facturation, ADMIN et CAISSIER.
+ * Deux appels (création puis confirmation), plus une annulation si on abandonne la session.
+ * Encaisser fait partie du travail du caissier : mêmes droits que pour la facturation,
+ * ADMIN et CAISSIER.
  */
 @Tag(name = "Paiements par carte", description = "Terminal Stripe, encaissement des factures")
 @RestController
@@ -35,14 +35,14 @@ public class PaymentController {
         this.salesMapper = salesMapper;
     }
 
-    /** 1. Ouvre l'intention de paiement et renvoie de quoi la confirmer. */
+    /** 1. Crée l'intention de paiement et renvoie ce qu'il faut pour la confirmer. */
     @PostMapping("/stripe/intents")
     public ResponseEntity<PaymentResponse> createIntent(@Valid @RequestBody PaymentIntentCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(salesMapper.toResponse(
                 paymentService.createIntent(request.invoiceId(), request.amount())));
     }
 
-    /** 2. Présente la carte : la facture est encaissée si le prestataire accepte. */
+    /** 2. Envoie la carte : la facture est payée si Stripe accepte. */
     @PostMapping("/stripe/intents/{id}/confirm")
     public ResponseEntity<PaymentResponse> confirmIntent(@PathVariable Long id,
                                                          @Valid @RequestBody PaymentConfirmRequest request) {
@@ -50,7 +50,7 @@ public class PaymentController {
                 paymentService.confirmIntent(id, request.paymentMethodId())));
     }
 
-    /** Abandon de la session avant confirmation. */
+    /** Annule la session avant la confirmation. */
     @PostMapping("/stripe/intents/{id}/cancel")
     public ResponseEntity<PaymentResponse> cancelIntent(@PathVariable Long id) {
         return ResponseEntity.ok(salesMapper.toResponse(paymentService.cancelIntent(id)));
@@ -61,7 +61,7 @@ public class PaymentController {
         return ResponseEntity.ok(salesMapper.toResponse(paymentService.getPayment(id)));
     }
 
-    /** Historique des tentatives d'une facture — les refus y figurent aussi. */
+    /** Historique des tentatives sur une facture (y compris les refus). */
     @GetMapping("/invoice/{invoiceId}")
     public ResponseEntity<List<PaymentResponse>> getPaymentsByInvoice(@PathVariable Long invoiceId) {
         return ResponseEntity.ok(paymentService.getPaymentsByInvoice(invoiceId).stream()

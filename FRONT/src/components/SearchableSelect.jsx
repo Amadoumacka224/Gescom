@@ -5,18 +5,18 @@ import { useTranslation } from 'react-i18next';
 import { rankSuggestions } from '../utils/searchSuggestions';
 
 /**
- * Combobox de recherche réutilisable (autocomplétion).
- * Remplace un <select> classique par un champ filtrable, accessible et
- * navigable au clavier (↑/↓ pour parcourir, Entrée pour choisir, Échap pour fermer).
+ * Combobox avec recherche, réutilisable.
+ * Remplace un <select> par un champ où on peut taper pour filtrer, accessible et utilisable
+ * au clavier (↑/↓ pour naviguer, Entrée pour choisir, Échap pour fermer).
  *
  * Props principales :
  *  - options : tableau d'objets
  *  - value : valeur sélectionnée (comparée via getOptionValue)
  *  - onChange(value) : appelé avec la valeur de l'option choisie ('' si effacé)
  *  - getOptionValue(option) : clé unique (défaut : option.id)
- *  - getOptionLabel(option) : libellé texte affiché et utilisé pour le filtrage
- *  - getOptionSearch(option) : texte additionnel pris en compte par la recherche
- *  - renderOption(option) : rendu enrichi d'une option dans la liste (optionnel)
+ *  - getOptionLabel(option) : texte affiché et utilisé pour la recherche
+ *  - getOptionSearch(option) : texte en plus pris en compte par la recherche
+ *  - renderOption(option) : affichage personnalisé d'une option (optionnel)
  */
 const SearchableSelect = ({
   options = [],
@@ -38,9 +38,9 @@ const SearchableSelect = ({
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
-  // Position de la liste, calculée par rapport au champ. La liste est rendue dans
-  // un portail (document.body) pour ne pas être rognée par un parent en overflow
-  // (ex. un modal scrollable).
+  // Position de la liste par rapport au champ. La liste est rendue dans un portal
+  // (document.body) pour ne pas être coupée par un parent en overflow
+  // (ex. un modal avec scroll).
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0, openUp: false });
 
   const containerRef = useRef(null);
@@ -68,10 +68,9 @@ const SearchableSelect = ({
   );
   const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : '';
 
-  // En mode "parcours" (minChars = 0, query vide ou égale au libellé choisi),
-  // on affiche toute la liste ; sinon on classe les options par pertinence vis-à-vis
-  // du texte saisi (libellé prioritaire sur le texte de recherche secondaire), de la
-  // plus pertinente à la moins pertinente — cf. rankSuggestions.
+  // En mode "parcours" (minChars = 0, recherche vide ou égale au libellé choisi), on affiche
+  // toute la liste. Sinon on trie les options de la plus pertinente à la moins pertinente
+  // (le libellé compte plus que le texte de recherche secondaire), voir rankSuggestions.
   const showAll = minChars === 0 && (!query || query === selectedLabel);
   const filtered = showAll
     ? options
@@ -82,20 +81,20 @@ const SearchableSelect = ({
         options.length
       );
 
-  // La liste n'est visible que si le seuil minChars est atteint. Avec minChars > 0,
-  // on n'affiche rien tant que l'utilisateur n'a pas saisi assez de caractères
-  // (et tant que le texte n'est que le libellé pré-rempli de la sélection courante).
+  // La liste ne s'affiche que si minChars est atteint. Avec minChars > 0, rien ne s'affiche
+  // tant que l'utilisateur n'a pas tapé assez de caractères (ou si le texte est juste le
+  // libellé de la sélection actuelle).
   const meetsMinChars = query.trim().length >= minChars;
   const showList =
     isOpen && (minChars === 0 ? true : meetsMinChars && query !== selectedLabel);
 
-  // Garde le champ synchronisé avec la sélection lorsque la liste est fermée
-  // (sélection externe, réinitialisation du formulaire, etc.).
+  // Remet le texte du champ à jour avec la sélection quand la liste est fermée
+  // (sélection venant de l'extérieur, reset du formulaire, etc.).
   useEffect(() => {
     if (!isOpen) setQuery(selectedLabel);
   }, [value, selectedLabel, isOpen]);
 
-  // Fermeture au clic en dehors du composant (le champ ou la liste portée).
+  // Ferme quand on clique en dehors (du champ ou de la liste).
   useEffect(() => {
     const handleClickOutside = (e) => {
       const inField = containerRef.current?.contains(e.target);
@@ -106,12 +105,10 @@ const SearchableSelect = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Recalcule la position de la liste dès qu'elle devient visible (showList), puis au
-  // défilement/redimensionnement (capture=true pour intercepter le scroll des conteneurs
-  // internes comme un modal). NB : on dépend de `showList` et non de `isOpen` — avec
-  // minChars>0, la liste n'apparaît qu'à la 1re lettre saisie, alors que `isOpen` est déjà
-  // vrai depuis le focus ; sans ça les coordonnées resteraient à 0 et la liste serait
-  // invisible (largeur 0, coin haut-gauche).
+  // Recalcule la position quand la liste s'affiche (showList), puis au scroll et au resize
+  // (capture=true pour attraper aussi le scroll d'un modal). On dépend de `showList` et pas
+  // de `isOpen` : avec minChars>0, `isOpen` est vrai dès le focus mais la liste n'apparaît
+  // qu'à la première lettre. Sans ça, la position resterait à 0 et la liste serait invisible.
   useLayoutEffect(() => {
     if (!showList) return;
     updateCoords();
@@ -124,7 +121,7 @@ const SearchableSelect = ({
     };
   }, [showList]);
 
-  // Maintient l'option survolée visible dans la liste défilante.
+  // Garde l'option sélectionnée visible quand on scrolle dans la liste.
   useEffect(() => {
     if (!isOpen || !listRef.current) return;
     const node = listRef.current.children[highlight];
@@ -208,10 +205,9 @@ const SearchableSelect = ({
           <X className="w-4 h-4" />
         </button>
       ) : minChars === 0 ? (
-        // L'indicateur « dérouler » n'a de sens qu'en mode parcours (minChars = 0) : un clic
-        // ouvre alors la liste complète. En mode recherche (minChars > 0), un clic n'affiche
-        // rien tant qu'aucun caractère n'est saisi ; on masque donc le chevron pour laisser
-        // une vraie barre de recherche (seule la loupe à gauche indique l'action).
+        // Le chevron ne sert qu'en mode parcours (minChars = 0), où un clic ouvre toute la
+        // liste. En mode recherche (minChars > 0), un clic n'affiche rien tant qu'on n'a rien
+        // tapé, donc on cache le chevron et on garde juste la loupe à gauche.
         <ChevronDown
           className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none transition-transform ${
             showList ? 'rotate-180' : ''

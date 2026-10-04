@@ -33,21 +33,21 @@ import { formatCurrency, formatDate, formatPercent, safeRatio } from '../utils/f
 
 const EMPTY_FORM = { name: '', code: '', description: '', active: true };
 
-/** Produits détaillés dans la fiche ; au-delà, un simple décompte du reste. */
+/** Nombre de produits affichés dans la fiche ; au-delà, on affiche juste combien il en reste. */
 const DETAIL_PRODUCTS_SHOWN = 8;
 
 const Categories = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  // Le backend restreint create/update/delete/toggle-status aux ADMIN
-  // (cf. CategoryController @PreAuthorize("hasRole('ADMIN')")). On masque les
-  // actions correspondantes côté UI pour éviter les 403 au CAISSIER.
+  // Côté backend, create/update/delete/toggle-status sont réservés aux ADMIN
+  // (voir CategoryController @PreAuthorize("hasRole('ADMIN')")). On cache donc ces
+  // boutons pour que le CAISSIER ne tombe pas sur des 403.
   const isAdmin = user?.role === 'ADMIN';
 
   const [categories, setCategories] = useState([]);
-  // Produits groupés par catégorie. `CategoryResponse` ne porte ni le total ni la liste :
-  // c'est ce regroupement qui dit si une catégorie est vide (donc supprimable) et qui
-  // alimente les produits rattachés de la fiche, sans requête supplémentaire à l'ouverture.
+  // Produits regroupés par catégorie. `CategoryResponse` ne contient ni le nombre ni la liste,
+  // donc c'est ce regroupement qui dit si une catégorie est vide (et peut être supprimée) et
+  // qui donne les produits pour la fiche, sans nouvel appel.
   const [productsByCategory, setProductsByCategory] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,26 +64,24 @@ const Categories = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
 
-  // La fiche retient un identifiant, pas l'objet : après une activation ou une modification,
-  // elle se relit depuis la liste rafraîchie au lieu d'afficher un état périmé. Et si la
-  // catégorie disparaît (suppression), la fiche se referme d'elle-même.
+  // On garde l'id et pas l'objet : après une modif, la fiche relit la liste à jour au lieu
+  // d'afficher l'ancien état. Et si la catégorie est supprimée, la fiche se ferme.
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Retour à la première page dès que le contenu de la liste change sous les pieds
-  // de l'utilisateur : rester en page 4 d'un résultat qui n'en compte plus qu'une
-  // affiche un tableau vide.
+  // Retour à la page 1 quand la liste change : rester en page 4 alors qu'il n'y a plus
+  // qu'une page afficherait un tableau vide.
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, itemsPerPage]);
 
   const fetchData = async () => {
     setLoading(true);
-    // Le décompte des produits est accessoire : son échec ne doit pas priver
-    // l'utilisateur de la liste des catégories.
+    // Le nombre de produits n'est pas indispensable : si ça échoue, on affiche quand même
+    // les catégories.
     const [categoriesResult, productsResult] = await Promise.allSettled([
       api.get('/categories'),
       api.get('/products'),
@@ -103,7 +101,7 @@ const Categories = () => {
         if (!categoryId) continue;
         (grouped[categoryId] ||= []).push(product);
       }
-      // Tri une fois pour toutes : la fiche affiche les produits par ordre alphabétique.
+      // Trié une fois ici : la fiche affiche les produits par ordre alphabétique.
       for (const list of Object.values(grouped)) {
         list.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr', { sensitivity: 'base' }));
       }
@@ -124,8 +122,8 @@ const Categories = () => {
     [categories, selectedCategoryId]
   );
 
-  /** Ce que la catégorie pèse au catalogue : c'est là-dessus qu'on décide de la compléter,
-   *  de la désactiver ou de la supprimer. */
+  /** Poids de la catégorie dans le catalogue : c'est ce qui aide à décider de la compléter,
+   *  la désactiver ou la supprimer. */
   const selectedStats = useMemo(() => {
     const products = productsFor(selectedCategory);
     return {
@@ -183,7 +181,7 @@ const Categories = () => {
       const left = valueOf(a);
       const right = valueOf(b);
       if (typeof left === 'string' || typeof right === 'string') {
-        // `localeCompare` pour que « Épicerie » se classe avec les E et non après les Z.
+        // `localeCompare` pour que « Épicerie » soit rangé avec les E et pas après les Z.
         return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base' }) * factor;
       }
       return (left - right) * factor;
@@ -245,8 +243,8 @@ const Categories = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      // Erreur posée sous le champ concerné plutôt qu'en notification : elle reste
-      // visible pendant la correction.
+      // L'erreur est affichée sous le champ plutôt qu'en notification, pour qu'elle reste
+      // visible pendant qu'on corrige.
       setFormError(t('categories.nameRequired'));
       return;
     }
@@ -278,14 +276,14 @@ const Categories = () => {
     }
   };
 
-  /* Une catégorie encore rattachée à des produits ne peut pas être supprimée : la clé
-   * étrangère `product.category_id` n'a ni cascade ni mise à null, la requête partirait
-   * pour revenir en erreur de contrainte. On l'annonce avant, avec la marche à suivre. */
+  /* Une catégorie qui a encore des produits ne peut pas être supprimée : la clé étrangère
+   * `product.category_id` n'a pas de cascade ni de mise à null, la requête finirait en erreur
+   * de contrainte. On prévient donc avant, en expliquant quoi faire. */
   const requestDelete = (category) => {
     const count = countFor(category);
     if (count > 0) {
-      // `total` et non `count` : i18next réserve `count` à la pluralisation et irait
-      // chercher une clé `deleteBlocked_one` / `_other` qui n'existe pas.
+      // `total` et pas `count` : i18next utilise `count` pour le pluriel et chercherait une
+      // clé `deleteBlocked_one` / `_other` qui n'existe pas.
       toast.error(t('categories.deleteBlocked', { name: category.name, total: count }));
       return;
     }
@@ -316,10 +314,10 @@ const Categories = () => {
     }
   };
 
-  /* Colonnes ordonnées par importance décroissante : identité, puis code, puis volume,
-   * puis état, puis contexte. Les colonnes secondaires disparaissent sur écran étroit
-   * (`hidden … table-cell`) plutôt que de pousser le tableau en défilement horizontal,
-   * où la colonne d'actions devient inatteignable. */
+  /* Colonnes de la plus importante à la moins importante : nom, code, nombre de produits,
+   * état, puis le reste. Les colonnes secondaires sont cachées sur petit écran
+   * (`hidden … table-cell`) pour éviter le scroll horizontal, qui rendait la colonne
+   * d'actions inaccessible. */
   const columns = [
     {
       key: 'name',
@@ -355,7 +353,7 @@ const Categories = () => {
       render: (category) => {
         if (!productsByCategory) return <span className="text-gray-400 dark:text-gray-500">—</span>;
         const count = countFor(category);
-        // Une catégorie vide est signalée : c'est elle qu'on peut supprimer ou compléter.
+        // On signale les catégories vides : ce sont celles qu'on peut supprimer ou compléter.
         return count === 0 ? (
           <span className="badge-warning">{t('categories.emptyBadge')}</span>
         ) : (
@@ -386,8 +384,8 @@ const Categories = () => {
     },
   ];
 
-  // Deux vides bien distincts : « la recherche ne donne rien » appelle un ajustement des
-  // filtres, « il n'y a rien » appelle une création.
+  // Deux messages différents : « aucun résultat » (il faut changer les filtres) et « aucune
+  // catégorie » (il faut en créer une).
   const emptyState = hasActiveFilters ? (
     <div className="flex flex-col items-center gap-3">
       <Tags className="empty-state-icon" aria-hidden="true" />
@@ -543,8 +541,8 @@ const Categories = () => {
           onSort={handleSort}
           onRowClick={(category) => setSelectedCategoryId(category.id)}
           actions={
-            /* La fiche est ouverte à tous les rôles : le caissier n'avait jusqu'ici aucun
-               moyen de consulter une catégorie, la colonne d'actions lui étant masquée. */
+            /* La fiche est accessible à tous les rôles : avant, le caissier ne pouvait pas
+               voir le détail d'une catégorie car la colonne d'actions lui était cachée. */
             (category) => (
               <>
                 <button
@@ -606,7 +604,7 @@ const Categories = () => {
         )}
       </div>
 
-      {/* ---- Fiche catégorie (lecture) ---- */}
+      {/* ---- Fiche catégorie (lecture seule) ---- */}
       <Modal
         isOpen={!!selectedCategory}
         onClose={() => setSelectedCategoryId(null)}
@@ -615,7 +613,7 @@ const Categories = () => {
       >
         {selectedCategory && (
           <div className="space-y-6">
-            {/* En-tête : ce que la catégorie est, et ce qu'elle pèse au catalogue. */}
+            {/* En-tête : nom de la catégorie et nombre de produits. */}
             <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
                 <div className="flex min-w-0 items-start gap-4">
@@ -651,7 +649,7 @@ const Categories = () => {
               </div>
             </header>
 
-            {/* Repères : les chiffres qui décident de compléter, désactiver ou supprimer. */}
+            {/* Chiffres utiles pour décider de compléter, désactiver ou supprimer. */}
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <KeyFact
                 icon={CheckCircle2}
@@ -702,8 +700,8 @@ const Categories = () => {
               )}
             </section>
 
-            {/* Éléments associés : les produits rattachés. Ils sont déjà chargés par la page
-                (le décompte de la liste en dépend), la fiche n'appelle donc pas l'API. */}
+            {/* Produits de la catégorie. Ils sont déjà chargés par la page (pour le nombre
+                affiché dans la liste), donc pas d'appel API ici. */}
             <section className="space-y-3">
               <h4 className="subsection-title flex items-center gap-2">
                 <PackageSearch className="h-4 w-4 text-gray-400" aria-hidden="true" />
@@ -793,9 +791,9 @@ const Categories = () => {
             <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
               {isAdmin && (
                 <>
-                  {/* Une catégorie encore rattachée à des produits ne peut pas être supprimée
-                      (la clé étrangère `product.category_id` n'a ni cascade ni mise à null) :
-                      le bouton reste visible mais inerte, avec la raison écrite à côté. */}
+                  {/* Une catégorie qui a encore des produits ne peut pas être supprimée
+                      (pas de cascade sur `product.category_id`). Le bouton reste affiché mais
+                      désactivé, avec la raison à côté. */}
                   <Button
                     variant="danger"
                     icon={Trash2}

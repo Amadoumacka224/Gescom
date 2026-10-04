@@ -25,15 +25,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Calcul des indicateurs du tableau de bord proprietaire.
+ * Calcul des chiffres du tableau de bord du super admin.
  *
- * Toutes les valeurs sont agregees en base a chaque appel. Rien n'est mis en cache ni
- * pre-calcule : un tableau de bord commercial dont les chiffres ne se retrouvent pas en SQL
- * n'est pas verifiable, et une valeur figee finit toujours par mentir.
+ * Tout est calcule en base a chaque appel. Rien en cache ni calcule a l'avance : un tableau
+ * de bord commercial dont on ne peut pas retrouver les chiffres en SQL n'est pas
+ * verifiable, et une valeur figee finit toujours par etre fausse.
  *
- * Les mesures de revenu somment en pleine precision et n'arrondissent qu'une fois, au
- * moment de construire la reponse — arrondir chaque contrat au centime derive de plusieurs
- * euros des que le parc atteint quelques centaines d'abonnes.
+ * Les revenus sont additionnes avec toute la precision et arrondis une seule fois, quand on
+ * construit la reponse : si on arrondissait chaque contrat au centime, on pourrait perdre
+ * plusieurs euros des quelques centaines d'abonnes.
  */
 @Service
 @Transactional(readOnly = true)
@@ -76,10 +76,9 @@ public class PlatformMetricsService {
         LocalDateTime monthStart = now.withDayOfMonth(1).toLocalDate().atStartOfDay();
         LocalDateTime lastMonthStart = monthStart.minusMonths(1);
 
-        // Les seuils sont lus une fois pour tout le tableau de bord : les relire dans chaque
-        // bloc multiplierait les requetes et, pire, exposerait a une modification concurrente
-        // en cours de calcul — deux indicateurs de la meme reponse ne reposeraient plus sur
-        // les memes reglages.
+        // On lit les seuils une seule fois pour tout le tableau de bord : les relire dans
+        // chaque bloc ferait plus de requetes, et surtout ils pourraient changer pendant le
+        // calcul, et deux chiffres de la meme reponse n'utiliseraient plus les memes reglages.
         PlatformSettings settings = platformSettingsService.getSettings();
 
         CompanyStats companies = companyStats(monthStart, lastMonthStart);
@@ -110,8 +109,8 @@ public class PlatformMetricsService {
         long total = byStatus.values().stream().mapToLong(Long::longValue).sum();
 
         long newThisMonth = companyRepository.countByCreatedAtGreaterThanEqual(monthStart);
-        // Le mois precedent se deduit par difference : « depuis le 1er du mois dernier »
-        // moins « depuis le 1er de ce mois-ci », ce qui evite une seconde requete bornee.
+        // Le mois d'avant se calcule par difference : « depuis le 1er du mois dernier » moins
+        // « depuis le 1er de ce mois », ce qui evite une deuxieme requete.
         long newSinceLastMonth = companyRepository.countByCreatedAtGreaterThanEqual(lastMonthStart);
         long newLastMonth = newSinceLastMonth - newThisMonth;
 
@@ -243,12 +242,12 @@ public class PlatformMetricsService {
         );
     }
 
-    // ── Activite du parc ─────────────────────────────────────────────────────
+    // ── Activite des entreprises ─────────────────────────────────────────────
 
     private ActivityStats activityStats(LocalDateTime now) {
         return new ActivityStats(
-                // Le propriétaire de la plateforme n'est l'utilisateur d'aucune entreprise :
-                // le compter parmi les utilisateurs fausserait l'indicateur.
+                // Le super admin n'appartient à aucune entreprise : le compter parmi les
+                // utilisateurs fausserait le chiffre.
                 userRepository.countByRoleNot(User.Role.SUPER_ADMIN),
                 userRepository.countByActiveTrueAndRoleNot(User.Role.SUPER_ADMIN),
                 orderRepository.count(),
@@ -261,10 +260,11 @@ public class PlatformMetricsService {
     // ── Alertes ──────────────────────────────────────────────────────────────
 
     /**
-     * Evenements appelant une action : impayes, essais qui expirent, prelevements refuses.
+     * Evenements qui demandent une action : impayes, essais qui se terminent, prelevements
+     * refuses.
      *
-     * Les plus graves d'abord, chacun rattache a son entreprise pour que l'operateur puisse
-     * y aller d'un clic depuis le tableau de bord.
+     * Les plus graves en premier, chacun avec son entreprise pour que l'operateur puisse y
+     * aller en un clic depuis le tableau de bord.
      */
     private List<PlatformAlert> alerts(LocalDateTime now, PlatformSettings settings) {
         List<PlatformAlert> alerts = new ArrayList<>();
@@ -320,11 +320,11 @@ public class PlatformMetricsService {
     // ── Sante ────────────────────────────────────────────────────────────────
 
     /**
-     * Score sur 100 : part des entreprises operationnelles dans le parc, diminuee d'une
-     * penalite par impaye et par echec de paiement du mois.
+     * Note sur 100 : pourcentage d'entreprises qui fonctionnent, moins une penalite par
+     * impaye et par echec de paiement du mois.
      *
-     * Deliberement simple et explicable. Un indicateur de synthese que l'on ne sait pas
-     * justifier devant un comite n'a pas sa place sur un tableau de bord de direction.
+     * Volontairement simple et facile a expliquer. Un indicateur qu'on ne sait pas justifier
+     * n'a rien a faire sur un tableau de bord.
      */
     private HealthStats health(CompanyStats companies, List<PlatformAlert> alerts,
                                LocalDateTime now, LocalDateTime monthStart,
@@ -337,7 +337,7 @@ public class PlatformMetricsService {
 
         int score;
         if (companies.total() == 0) {
-            // Parc vide : rien ne va mal, mais rien ne prouve que tout va bien non plus.
+            // Aucune entreprise : rien ne va mal, mais rien ne prouve non plus que tout va bien.
             score = 100;
         } else {
             long operational = companies.active() + companies.trial();
@@ -355,7 +355,7 @@ public class PlatformMetricsService {
         return new HealthStats(score, status, overdue, trialsEndingSoon, failedThisMonth);
     }
 
-    // ── Listes courtes ───────────────────────────────────────────────────────
+    // ── Petites listes ───────────────────────────────────────────────────────
 
     private List<com.gescom.backend.dto.platform.CompanyResponse> recentCompanies() {
         return companyRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 5))
@@ -370,13 +370,13 @@ public class PlatformMetricsService {
                 .toList();
     }
 
-    // ── Utilitaires de calcul ────────────────────────────────────────────────
+    // ── Outils de calcul ─────────────────────────────────────────────────────
 
     private static BigDecimal nz(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
     }
 
-    /** Part de {@code part} dans {@code total}, en pourcentage. Zero si le total est nul. */
+    /** Pourcentage de {@code part} dans {@code total}. Zero si le total est nul. */
     private static BigDecimal ratioAsPercent(long part, long total) {
         if (total <= 0) {
             return BigDecimal.ZERO;
@@ -387,10 +387,10 @@ public class PlatformMetricsService {
     }
 
     /**
-     * Variation entre deux periodes, en pourcentage.
+     * Evolution entre deux periodes, en pourcentage.
      *
-     * Partir de zero n'a pas de variation definie : on renvoie 100 % des qu'il y a du
-     * nouveau, plutot qu'une division par zero ou un zero trompeur.
+     * Quand on part de zero, l'evolution n'a pas de sens : on renvoie 100 % des qu'il y a
+     * quelque chose, plutot qu'une division par zero ou un zero qui ne veut rien dire.
      */
     private static BigDecimal percentChange(long previous, long current) {
         if (previous == 0) {

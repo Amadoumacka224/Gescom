@@ -20,9 +20,9 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Les quatre arguments de vente, dans l'ordre du flux métier : commande → stock →
-// facturation → pilotage. Les libellés vivent dans les catalogues i18n, seuls l'icône
-// et le ton restent ici.
+// Les quatre points forts mis en avant, dans l'ordre du métier : commande → stock →
+// facturation → pilotage. Les textes sont dans les fichiers i18n, ici on n'a que
+// l'icône et la couleur.
 const REMEMBERED_USERNAME_KEY = 'rememberedUsername';
 
 const BENEFITS = [
@@ -37,10 +37,9 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  // Seul l'identifiant est mémorisé, jamais le mot de passe : le stockage local est
-  // lisible par tout script de la page, un mot de passe y serait à découvert. Le
-  // retenir est le métier du gestionnaire du navigateur, à qui les attributs
-  // autoComplete des champs ci-dessous donnent ce qu'il attend.
+  // On ne retient que l'identifiant, jamais le mot de passe : le localStorage est lisible
+  // par n'importe quel script de la page. C'est au gestionnaire de mots de passe du
+  // navigateur de s'en occuper, grâce aux attributs autoComplete des champs.
   const rememberedUsername = localStorage.getItem(REMEMBERED_USERNAME_KEY) || '';
 
   const [formData, setFormData] = useState({
@@ -67,18 +66,17 @@ const Login = () => {
 
     try {
       await login(formData.username, formData.password);
-      // Écrit après coup : mémoriser un identifiant refusé le ferait réapparaître
-      // à chaque visite sans qu'il ait jamais ouvert de session.
+      // Enregistré seulement après la connexion réussie : sinon un identifiant refusé
+      // réapparaîtrait à chaque visite.
       if (rememberMe) {
         localStorage.setItem(REMEMBERED_USERNAME_KEY, formData.username);
       } else {
         localStorage.removeItem(REMEMBERED_USERNAME_KEY);
       }
-      // Redirection confiée à HomeRedirect plutôt qu'écrite en dur ici : l'accueil dépend du
-      // rôle, et une seule règle vaut mieux que deux à tenir d'accord. Viser /dashboard
-      // fonctionnait par ricochet pour le caissier (AdminRoute le renvoyait sur sa caisse),
-      // mais expédiait le propriétaire de la plateforme sur un écran de caisse dont l'API
-      // lui refuse chaque appel.
+      // La redirection est faite par HomeRedirect et pas en dur ici : la page d'accueil dépend
+      // du rôle, et on préfère avoir la règle à un seul endroit. Rediriger vers /dashboard
+      // marchait pour le caissier (AdminRoute le renvoyait vers sa caisse), mais envoyait le
+      // super admin sur un écran de caisse où toutes les requêtes lui sont refusées.
       navigate('/');
     } catch (err) {
       const message = err.response?.data?.message || t('auth.loginError');
@@ -88,8 +86,8 @@ const Login = () => {
     }
   };
 
-  // Même cycle que le sélecteur de l'en-tête : les trois langues sont traduites, un
-  // bascule fr/en enfermait le visiteur néerlandophone hors de sa langue.
+  // Même fonctionnement que le sélecteur de l'en-tête : les trois langues sont traduites,
+  // un simple bouton fr/en empêchait de passer en néerlandais.
   const toggleLanguage = () => {
     const languages = ['fr', 'en', 'nl'];
     const currentIndex = languages.indexOf(i18n.language);
@@ -100,11 +98,11 @@ const Login = () => {
   };
 
   return (
-    // Deux panneaux pleine hauteur plutôt qu'une grille centrée : la vitrine tient la
-    // moitié gauche en aplat bleu, la connexion la moitié droite sur fond clair. Sous
-    // `lg` les deux s'empilent — la vitrine reste affichée, simplement plus compacte.
+    // Deux panneaux sur toute la hauteur plutôt qu'une grille centrée : la présentation à
+    // gauche sur fond bleu, la connexion à droite sur fond clair. Sous `lg` ils s'empilent,
+    // la présentation reste affichée mais en plus compact.
     <div className="min-h-screen lg:grid lg:grid-cols-2">
-      {/* ---- Vitrine ---- */}
+      {/* ---- Présentation ---- */}
       <section className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-800 px-8 py-14 sm:px-12 lg:flex lg:flex-col lg:justify-center lg:px-16 lg:py-20">
         {/* Halos décoratifs en arrière-plan */}
         <div className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 bg-primary-400/25 rounded-full blur-3xl" />
@@ -126,9 +124,9 @@ const Login = () => {
           <ul className="mt-10 space-y-5">
             {BENEFITS.map(({ key, Icon, tone }) => (
               <li key={key} className="flex items-center gap-4">
-                {/* Médaillon posé sur l'aplat bleu : le jeton de domaine garde sa place dans
-                    la classe, mais fond et icône repassent en blanc — les nuances -500/-700
-                    de la charte disparaîtraient sur un fond de la même famille. */}
+                {/* Icône sur le fond bleu : on garde la classe de couleur, mais le fond et
+                    l'icône passent en blanc, sinon les nuances -500/-700 ne se verraient pas
+                    sur un fond bleu. */}
                 <span
                   className={`panel-icon ${tone} shrink-0 !bg-white/15 !text-white ring-1 ring-white/25`}
                 >
@@ -141,7 +139,7 @@ const Login = () => {
             ))}
           </ul>
 
-          {/* Contact — coordonnées de l'éditeur, reprises des paramètres de la société */}
+          {/* Contact : coordonnées de l'éditeur, prises dans les paramètres de la société */}
           <div className="mt-12 rounded-2xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20 p-5">
             <h3 className="text-sm font-semibold text-white mb-4">
               {t('landing.contact.title')}
@@ -166,7 +164,7 @@ const Login = () => {
         </motion.div>
       </section>
 
-      {/* ---- Espace de connexion ---- */}
+      {/* ---- Connexion ---- */}
       <section className="relative flex flex-col justify-center bg-gray-50 px-6 py-14 sm:px-10 lg:px-16">
         {/* Language Toggle */}
         <button
@@ -181,7 +179,7 @@ const Login = () => {
         </button>
 
         <div className="w-full max-w-md mx-auto">
-          {/* Marque, au-dessus de la carte : le médaillon reprend le bleu de l'aplat de gauche */}
+          {/* Logo au-dessus de la carte, dans le même bleu que le panneau de gauche */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl shadow-lg">
               <LogIn className="w-8 h-8 text-white" />
@@ -260,7 +258,7 @@ const Login = () => {
                     autoComplete="current-password"
                     required
                   />
-                  {/* Affichage du mot de passe : le champ reste maître, seul son type change */}
+                  {/* Afficher / masquer le mot de passe : on change juste le type du champ */}
                   <button
                     type="button"
                     onClick={() => setShowPassword((visible) => !visible)}

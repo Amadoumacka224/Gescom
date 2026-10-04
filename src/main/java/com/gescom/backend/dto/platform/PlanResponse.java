@@ -3,11 +3,11 @@ package com.gescom.backend.dto.platform;
 import java.math.BigDecimal;
 
 /**
- * Formule du catalogue.
+ * Une formule.
  *
- * {@code subscriptionCount} accompagne la fiche : c'est lui qui dit a l'interface si la
- * suppression est possible — une formule deja souscrite ne peut etre que desactivee, faute
- * de quoi l'historique des contrats pointerait dans le vide.
+ * On renvoie aussi {@code subscriptionCount} : c'est ce qui dit au front si on peut supprimer
+ * la formule. Une formule deja souscrite peut seulement etre desactivee, sinon les anciens
+ * contrats pointeraient vers rien.
  */
 public record PlanResponse(
         Long id,

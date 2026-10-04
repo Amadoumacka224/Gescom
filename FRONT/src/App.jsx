@@ -32,47 +32,45 @@ import History from './pages/History';
 import './i18n';
 
 /*
- * Les trois écrans à graphiques sont chargés à la demande.
+ * Les trois écrans avec graphiques sont chargés à la demande.
  *
- * Ce sont les seuls à utiliser recharts, qui pèse 340 ko avec la famille d3 qu'il tire
- * derrière lui. Importés statiquement, ils imposaient ce poids à toutes les pages, y compris
- * l'écran de connexion. Ils restent groupés dans le même paquet `charts` (voir
- * vite.config.js) : ouvrir l'un des trois charge la bibliothèque une seule fois, les deux
- * autres s'affichent ensuite sans attente.
+ * Ce sont les seuls qui utilisent recharts (340 ko avec d3). En import classique, toutes les
+ * pages payaient ce poids, même la page de connexion. Ils sont regroupés dans le paquet
+ * `charts` (voir vite.config.js) : la librairie n'est téléchargée qu'une fois, au premier
+ * des trois écrans ouverts.
  *
- * Seules ces trois pages le sont : découper les autres échangerait un gain nul — elles ne
- * portent aucune dépendance lourde — contre une attente à chaque navigation.
+ * Pas la peine de découper les autres pages, elles n'ont pas de grosse dépendance : on
+ * ajouterait juste un temps d'attente à chaque navigation.
  */
 const Reports = lazy(() => import('./pages/Reports'));
 const Caisse = lazy(() => import('./pages/Caisse'));
 const Caisses = lazy(() => import('./pages/Caisses'));
 
-// Redirige vers l'accueil adapté au rôle. Le propriétaire de la plateforme n'a pas d'accueil
-// métier : il n'appartient à aucune entreprise et atterrit sur son back-office.
+// Redirige vers la bonne page d'accueil selon le rôle. Le super admin n'a pas d'entreprise,
+// donc il arrive directement sur son back-office.
 const HomeRedirect = () => {
   const { user } = useAuth();
   if (user?.role === 'SUPER_ADMIN') return <Navigate to="/platform" replace />;
   return <Navigate to={user?.role === 'CAISSIER' ? '/caisse' : '/dashboard'} replace />;
 };
 
-// Garde les pages réservées à l'administrateur : tout autre rôle est renvoyé vers sa caisse.
+// Pages réservées à l'admin : les autres rôles sont renvoyés vers leur caisse.
 const AdminRoute = ({ children }) => {
   const { user } = useAuth();
   return user?.role === 'ADMIN' ? children : <Navigate to="/caisse" replace />;
 };
 
-/* Garde du back-office propriétaire.
+/* Protection du back-office plateforme.
  *
- * Le contrôle décisif reste côté serveur : /api/platform/** exige le rôle SUPER_ADMIN, et
- * aucune donnée du parc ne transite sans lui. Cette garde-ci ne fait qu'éviter d'afficher
- * une coquille vide à qui n'y a pas droit. */
+ * La vraie vérification se fait côté serveur (/api/platform/** demande SUPER_ADMIN).
+ * Ici on évite juste d'afficher une page vide à quelqu'un qui n'a pas le droit. */
 const PlatformRoute = ({ children }) => {
   const { user } = useAuth();
   return user?.role === 'SUPER_ADMIN' ? children : <Navigate to="/" replace />;
 };
 
-/* Attente d'un écran chargé à la demande. Une esquisse plutôt qu'un tourniquet : elle occupe
- * la place que prendra le contenu, ce qui évite le saut de mise en page à l'arrivée. */
+/* Affiché pendant le chargement d'un écran. On met un squelette plutôt qu'un spinner pour
+ * que la mise en page ne saute pas quand le contenu arrive. */
 const RouteFallback = () => (
   <div className="space-y-4 p-6" aria-busy="true">
     <div className="h-24 rounded-xl bg-gray-100 dark:bg-gray-700/40 animate-pulse" />
@@ -85,16 +83,15 @@ function App() {
     <AuthProvider>
       <Toaster position="top-right" />
       <Router>
-        {/* Frontière d'attente des routes chargées à la demande. Placée autour de <Routes>
-            et non dans chacune : la même esquisse sert les trois écrans concernés. */}
+        {/* Un seul Suspense autour de <Routes> : le même squelette sert pour les trois
+            écrans chargés à la demande. */}
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public Route */}
             <Route path="/login" element={<Login />} />
 
-            {/* Back-office du propriétaire de la plateforme.
-                Espace à part entière : sa propre coquille, sa propre navigation, aucun écran
-                métier. Déclaré avant /* pour que ces chemins ne tombent pas dans MainLayout. */}
+            {/* Back-office de la plateforme : layout et menu à part, aucun écran métier.
+                Déclaré avant /* pour que ces routes ne passent pas par MainLayout. */}
             <Route
               path="/platform"
               element={

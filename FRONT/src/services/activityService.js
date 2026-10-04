@@ -1,25 +1,25 @@
 import axios from './axios';
 
 /**
- * Journal d'activité — le seul registre de l'application qui croît sans borne, donc le seul
- * dont les listes sont paginées côté serveur. Les réponses de liste ont la forme
- * `{ content, page, size, totalElements, totalPages }` et non un tableau brut.
+ * Journal d'activité. C'est la seule table de l'appli qui grossit sans limite, donc la seule
+ * dont les listes sont paginées côté serveur. Les réponses ont la forme
+ * `{ content, page, size, totalElements, totalPages }` et pas un simple tableau.
  *
- * Corollaire : filtres, recherche et tri sont envoyés au serveur. Les appliquer sur les
+ * Du coup, les filtres, la recherche et le tri sont envoyés au serveur : les faire sur les
  * lignes reçues ne porterait que sur la page affichée.
  */
 
-// Taille de page maximale acceptée par le serveur (spring.data.web.pageable.max-page-size).
+// Taille de page max acceptée par le serveur (spring.data.web.pageable.max-page-size).
 const MAX_PAGE_SIZE = 200;
 
 const activityService = {
   /**
-   * Page du journal. `params` accepte page, size, sort et les critères de filtrage
-   * (userId, actionType, entity, start, end, search) — tous optionnels.
+   * Une page du journal. `params` accepte page, size, sort et les filtres
+   * (userId, actionType, entity, start, end, search), tous optionnels.
    */
   getActivities: (params = {}) => axios.get('/activities', { params }),
 
-  // Indicateurs sur l'ensemble du journal : la page affichée ne permet pas de les déduire.
+  // Stats sur tout le journal : on ne peut pas les calculer à partir de la page affichée.
   getSummary: () => axios.get('/activities/summary'),
 
   getActivityById: (id) => axios.get(`/activities/${id}`),
@@ -41,9 +41,9 @@ const activityService = {
   getCaissierActivities: (params = {}) => axios.get('/activities/caissiers', { params }),
 
   /**
-   * Toutes les lignes correspondant aux critères, page après page.
-   * Réservé à l'export : l'écran, lui, ne charge jamais qu'une page. Sans cela un export
-   * n'emporterait que les lignes visibles tout en s'annonçant comme le résultat filtré complet.
+   * Toutes les lignes qui correspondent aux filtres, page par page.
+   * Seulement pour l'export : l'écran ne charge qu'une page. Sinon l'export ne contiendrait
+   * que les lignes visibles.
    */
   fetchAllMatching: async (params = {}) => {
     const rows = [];

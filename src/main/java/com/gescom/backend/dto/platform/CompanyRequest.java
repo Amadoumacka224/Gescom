@@ -6,11 +6,11 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Creation ou modification d'une entreprise cliente depuis le back-office proprietaire.
+ * Creation ou modification d'une entreprise cliente depuis le back-office.
  *
- * Le slug n'y figure pas : il est derive du nom a la creation puis fige, un identifiant
- * stable n'ayant d'interet que s'il ne bouge pas. Le statut non plus — il se pilote par les
- * actions dediees (suspendre, reactiver, resilier), qui portent chacune leur regle metier.
+ * Pas de slug ici : il est genere a partir du nom a la creation puis ne change plus (un
+ * identifiant stable n'a d'interet que s'il ne bouge pas). Pas de statut non plus : il change
+ * via les actions prevues (suspendre, reactiver, resilier), qui ont chacune leurs regles.
  */
 public record CompanyRequest(
         @NotBlank(message = "Le nom de l'entreprise est obligatoire")

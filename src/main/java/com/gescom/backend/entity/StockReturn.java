@@ -15,14 +15,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Entête d'un retour client, toujours rattaché à la vente d'origine.
+ * En-tête d'un retour client, toujours lié à la vente d'origine.
  *
- * Un retour n'existe jamais « dans le vide » : il pointe la commande (et, si elle est facturée,
- * la facture) qui a fait sortir la marchandise du stock. C'est ce rattachement qui rend le
- * contrôle des quantités possible — on ne peut pas rendre plus que ce qui a été vendu — et qui
- * donne la piste d'audit complète : quelle vente, quel article, quel motif, quel traitement,
- * par qui et quand. Les mouvements de stock générés portent le {@code returnNumber} en
- * référence, ce qui relie le grand livre à ce document.
+ * Un retour pointe toujours vers la commande (et la facture si elle existe) qui a fait sortir
+ * la marchandise du stock. C'est ce lien qui permet de contrôler les quantités (on ne peut
+ * pas rendre plus que ce qui a été vendu) et de tout retracer : quelle vente, quel article,
+ * quel motif, quel traitement, qui et quand. Les mouvements de stock créés ont le
+ * {@code returnNumber} comme référence, c'est ce qui les relie à ce document.
  */
 @Entity
 @Table(name = "stock_returns", uniqueConstraints = @UniqueConstraint(name = "uq_stock_returns_company_number", columnNames = {"company_id", "return_number"}))
@@ -38,11 +37,11 @@ public class StockReturn implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
@@ -56,8 +55,8 @@ public class StockReturn implements TenantOwned {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    // Renseignée dès que la vente est facturée : c'est la pièce à laquelle se rattache un
-    // éventuel remboursement. Null pour une commande seulement confirmée.
+    // Remplie si la vente est facturée : c'est à cette facture qu'on rattache un
+    // remboursement. Null pour une commande juste confirmée.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "invoice_id")
     private Invoice invoice;
@@ -65,12 +64,12 @@ public class StockReturn implements TenantOwned {
     @OneToMany(mappedBy = "stockReturn", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StockReturnItem> items = new ArrayList<>();
 
-    // Quantité totale rendue, toutes lignes confondues.
+    // Quantité totale rendue, toutes lignes comprises.
     @Column(nullable = false)
     private Integer totalQuantity = 0;
 
-    // Somme des lignes traitées en remboursement, au prix effectivement payé (remises de ligne
-    // et globale déduites). Les lignes remises en stock ou échangées n'y contribuent pas.
+    // Total des lignes remboursées, au prix vraiment payé (remises de ligne et globale
+    // enlevées). Les lignes remises en stock ou échangées ne comptent pas.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal refundAmount = BigDecimal.ZERO;
 
@@ -87,6 +86,6 @@ public class StockReturn implements TenantOwned {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        // Numéro attribué par DocumentNumberService avant l'enregistrement — voir Order.
+        // Numéro donné par DocumentNumberService avant l'enregistrement (voir Order).
     }
 }

@@ -12,9 +12,9 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Entité de la piste d'audit : une ligne par action significative effectuée dans l'application.
- * Relie l'auteur (user), le type d'action, l'entité visée (nom + id) et une description lisible.
- * Le champ générique entity/entityId permet de tracer n'importe quel objet sans relation directe.
+ * Journal d'activité : une ligne par action importante faite dans l'application.
+ * On garde l'auteur (user), le type d'action, l'objet concerné (nom + id) et une description.
+ * Le couple entity/entityId permet de suivre n'importe quel objet sans relation directe.
  */
 @Entity
 @Table(name = "activity_logs")
@@ -30,15 +30,14 @@ public class ActivityLog implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      *
-     * Seule table cloisonnee ou la colonne reste facultative : les actions du proprietaire
-     * de la plateforme — a commencer par sa propre connexion — sont journalisees ici sans
-     * se rattacher a une entreprise cliente.
+     * C'est la seule table ou cette colonne peut etre vide : les actions du super admin
+     * (a commencer par sa connexion) sont enregistrees ici sans entreprise.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id")

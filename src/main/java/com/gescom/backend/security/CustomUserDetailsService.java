@@ -10,9 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Pont entre Spring Security et la base de données : charge un utilisateur par son
- * nom d'utilisateur. L'entité User implémente UserDetails, elle est donc retournée telle quelle.
- * Utilisé par le provider d'authentification (login) et par le filtre JWT (chaque requête).
+ * Fait le lien entre Spring Security et la base : charge un utilisateur à partir de son
+ * username. L'entité User implémente UserDetails, on la renvoie donc directement.
+ * Utilisé à la connexion (provider d'authentification) et à chaque requête (filtre JWT).
  */
 @Service
 public class CustomUserDetailsService implements UserDetailsService {

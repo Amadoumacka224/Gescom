@@ -1,8 +1,8 @@
 /**
- * Modes de règlement, alignés sur l'énumération `Invoice.PaymentMethod` du backend.
- * Toute valeur absente d'ici est refusée par la désérialisation côté serveur.
+ * Modes de paiement, les mêmes que l'enum `Invoice.PaymentMethod` du backend.
+ * Une valeur qui n'est pas dans cette liste sera refusée par le serveur.
  *
- * Seule la clé de traduction est portée ici : les libellés vivent sous `payment.methods.*`.
+ * On ne garde que la clé de traduction, les textes sont dans `payment.methods.*`.
  */
 export const PAYMENT_METHODS = [
   { value: 'CASH', labelKey: 'payment.methods.CASH' },
@@ -13,7 +13,7 @@ export const PAYMENT_METHODS = [
   { value: 'MOBILE_PAYMENT', labelKey: 'payment.methods.MOBILE_PAYMENT' },
 ];
 
-/** Clé de traduction d'un mode de règlement reçu du serveur. */
+/** Clé de traduction d'un mode de paiement reçu du serveur. */
 export const paymentMethodLabelKey = (method) =>
   PAYMENT_METHODS.some((m) => m.value === method)
     ? `payment.methods.${method}`

@@ -23,10 +23,10 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Entité utilisateur, qui sert aussi de principal Spring Security (implémente UserDetails).
- * Le mot de passe est exclu de la sérialisation JSON (jamais renvoyé au client) et les
- * autorisations sont dérivées du rôle (ADMIN / CAISSIER) sous la forme « ROLE_<rôle> ».
- * Le compte est considéré « activé » uniquement si le champ active est vrai (isEnabled()).
+ * Utilisateur, utilisé aussi comme principal par Spring Security (implémente UserDetails).
+ * Le mot de passe n'est jamais mis dans le JSON (jamais renvoyé au client) et les droits
+ * viennent du rôle (ADMIN / CAISSIER) sous la forme « ROLE_<rôle> ».
+ * Le compte n'est « activé » que si le champ active est vrai (isEnabled()).
  */
 @Entity
 @Table(name = "users")
@@ -43,14 +43,13 @@ public class User implements UserDetails, TenantOwned {
     private Long id;
 
     /**
-     * Entreprise d'appartenance — nulle pour le seul SUPER_ADMIN.
+     * Entreprise de l'utilisateur, null seulement pour le SUPER_ADMIN.
      *
-     * C'est l'unique champ facultatif de tout le cloisonnement, et il porte le modele a lui
-     * seul : le proprietaire de la plateforme n'appartient a aucune entreprise cliente, et
-     * c'est precisement cette absence de rattachement qui lui ouvre la vue globale (voir
-     * TenantContext). La coherence role / entreprise est verrouillee en base par la
-     * contrainte chk_users_company_scope, pour qu'un ADMIN ne puisse jamais se retrouver
-     * sans entreprise et heriter par accident de cette vue.
+     * C'est le seul champ facultatif de tout le filtrage par entreprise, et c'est lui qui fait
+     * tout fonctionner : le super admin n'appartient a aucune entreprise, et c'est justement
+     * ca qui lui donne la vue sur toutes les entreprises (voir TenantContext). La coherence
+     * role / entreprise est verifiee en base par la contrainte chk_users_company_scope, pour
+     * qu'un ADMIN ne se retrouve jamais sans entreprise et donc avec cette vue par erreur.
      */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "company_id")
@@ -111,8 +110,8 @@ public class User implements UserDetails, TenantOwned {
         updatedAt = LocalDateTime.now();
     }
 
-    // ── Implémentation de UserDetails (contrat Spring Security) ──────────────
-    // Convertit le rôle métier en autorité Spring Security (préfixe « ROLE_ » exigé par hasRole()).
+    // ── Implémentation de UserDetails (pour Spring Security) ─────────────────
+    // Transforme le rôle en autorité Spring Security (hasRole() demande le préfixe « ROLE_ »).
     @Override
     @JsonIgnore
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -149,13 +148,13 @@ public class User implements UserDetails, TenantOwned {
     }
 
     /**
-     * Un compte désactivé (active = false) ne peut pas se connecter — et, depuis la bascule
-     * multi-entreprises, un compte dont l'entreprise n'est plus opérationnelle non plus.
+     * Un compte désactivé (active = false) ne peut pas se connecter. Depuis le passage en
+     * multi-entreprises, un compte dont l'entreprise est bloquée non plus.
      *
-     * Porter la règle ici plutôt que dans le contrôleur d'authentification la rend
-     * inévitable : c'est le contrat {@code UserDetails} que Spring Security interroge, de
-     * sorte que suspendre une entreprise pour impayé coupe l'accès de tous ses utilisateurs
-     * d'un seul geste, sans toucher à leurs comptes ni à leurs données.
+     * Mettre la règle ici plutôt que dans le contrôleur d'authentification fait qu'on ne peut
+     * pas passer à côté : c'est {@code UserDetails} que Spring Security interroge. Du coup,
+     * suspendre une entreprise pour impayé bloque tous ses utilisateurs d'un coup, sans
+     * toucher à leurs comptes ni à leurs données.
      */
     @Override
     @JsonIgnore
@@ -164,10 +163,10 @@ public class User implements UserDetails, TenantOwned {
     }
 
     /**
-     * SUPER_ADMIN n'est pas un ADMIN plus puissant : c'est un rôle d'une autre nature.
-     * L'ADMIN administre son entreprise et ne voit qu'elle ; le SUPER_ADMIN exploite la
-     * plateforme, n'appartient à aucune entreprise et n'a accès à aucun écran métier —
-     * son périmètre est l'espace /api/platform, et rien d'autre.
+     * SUPER_ADMIN n'est pas un ADMIN avec plus de droits, c'est un rôle complètement différent.
+     * L'ADMIN gère son entreprise et ne voit qu'elle ; le SUPER_ADMIN gère la plateforme,
+     * n'appartient à aucune entreprise et n'a accès à aucun écran métier. Il n'a accès qu'à
+     * /api/platform.
      */
     public enum Role {
         ADMIN,       // Accès complet au sein de son entreprise
@@ -175,7 +174,7 @@ public class User implements UserDetails, TenantOwned {
         SUPER_ADMIN  // Propriétaire de la plateforme : vue globale du parc, aucun accès métier
     }
 
-    /** Vrai pour le propriétaire de la plateforme, seul compte non rattaché à une entreprise. */
+    /** Vrai pour le super admin, le seul compte sans entreprise. */
     @JsonIgnore
     public boolean isPlatformOwner() {
         return role == Role.SUPER_ADMIN;

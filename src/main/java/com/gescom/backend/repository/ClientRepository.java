@@ -11,11 +11,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * {@code JpaSpecificationExecutor} porte la recherche paginée du fichier clients : l'écran
- * combine huit critères facultatifs (recherche libre, type, état, ville, pays, société,
- * présence d'un e-mail, période de création), ce qu'aucune méthode dérivée par nom n'exprime.
- * Le cloisonnement par entreprise reste assuré — le filtre Hibernate couvre les requêtes par
- * critères comme les autres.
+ * {@code JpaSpecificationExecutor} sert pour la recherche paginée des clients : l'écran
+ * combine huit filtres facultatifs (recherche, type, état, ville, pays, société, avec e-mail,
+ * période de création), impossible à faire avec une méthode dérivée. Le filtrage par
+ * entreprise marche toujours, le filtre Hibernate s'applique aussi aux requêtes par critères.
  */
 @Repository
 public interface ClientRepository extends JpaRepository<Client, Long>, JpaSpecificationExecutor<Client> {
@@ -23,18 +22,18 @@ public interface ClientRepository extends JpaRepository<Client, Long>, JpaSpecif
     List<Client> findByActiveTrue();
     List<Client> findByType(Client.ClientType type);
     Boolean existsByEmail(String email);
-    // Variante pour la mise à jour : vrai si un AUTRE client (id différent) utilise déjà cet email.
+    // Version pour la modification : vrai si un AUTRE client (id différent) a déjà cet email.
     Boolean existsByEmailAndIdNot(String email, Long id);
 
-    /** Clients actifs — indicateur du tableau de bord, compte en base plutot que sur une liste. */
+    /** Clients actifs pour le tableau de bord, comptés en base plutôt que sur une liste. */
     long countByActiveTrue();
 
     /**
-     * Compteurs d'en-tête, agrégés en base.
+     * Compteurs en haut de page, calculés en base.
      *
-     * L'écran les déduisait du fichier complet chargé dans le navigateur ; celui-ci n'étant
-     * plus rapatrié, il faut les calculer là où sont les données. Une seule requête pour les
-     * quatre : ils décrivent le même ensemble et doivent rester cohérents entre eux.
+     * Avant, l'écran les calculait à partir de tous les clients chargés dans le navigateur.
+     * Comme on ne les charge plus, il faut les calculer en base. Une seule requête pour les
+     * quatre : ils portent sur les mêmes clients et doivent être cohérents entre eux.
      */
     @Query("""
            SELECT COUNT(c) AS total,
@@ -47,13 +46,13 @@ public interface ClientRepository extends JpaRepository<Client, Long>, JpaSpecif
                               @Param("companyType") Client.ClientType companyType);
 
     /**
-     * Valeurs réellement présentes dans le fichier, pour alimenter les listes déroulantes des
-     * filtres. Même principe que {@code ActivityLogRepository.findDistinctEntities} : un
-     * critère qui ne rend rien n'est pas proposé.
+     * Valeurs qui existent vraiment, pour remplir les listes des filtres. Même idée que
+     * {@code ActivityLogRepository.findDistinctEntities} : on ne propose pas un filtre qui ne
+     * donne rien.
      *
-     * Ces listes étaient dérivées du fichier complet côté navigateur. Elles doivent rester
-     * exhaustives — une ville présente en page 3 doit être proposée depuis la page 1 —, d'où
-     * une requête dédiée plutôt qu'une déduction sur la page affichée.
+     * Avant, ces listes étaient calculées côté navigateur avec tous les clients. Il faut la
+     * liste complète (une ville en page 3 doit être proposée dès la page 1), d'où une requête
+     * à part plutôt que de partir de la page affichée.
      */
     @Query("SELECT DISTINCT c.city FROM Client c WHERE c.city IS NOT NULL AND c.city <> '' ORDER BY c.city")
     List<String> findDistinctCities();
@@ -61,7 +60,7 @@ public interface ClientRepository extends JpaRepository<Client, Long>, JpaSpecif
     @Query("SELECT DISTINCT c.country FROM Client c WHERE c.country IS NOT NULL AND c.country <> '' ORDER BY c.country")
     List<String> findDistinctCountries();
 
-    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour le motif. */
+    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour la raison. */
     interface ClientSummaryView {
         long getTotal();
         long getActive();

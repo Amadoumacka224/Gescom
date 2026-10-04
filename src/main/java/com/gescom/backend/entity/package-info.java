@@ -1,17 +1,16 @@
 /**
- * Entites JPA du domaine.
+ * Entites JPA du projet.
  *
- * <p>Le filtre {@code tenantFilter} declare ici est le mecanisme central du cloisonnement
- * multi-entreprises : chaque entite portant {@code @Filter(name = "tenantFilter")} voit
- * toutes ses requetes completees d'un {@code AND company_id = :tenantCompanyId}. Il est
- * active par {@code TenantFilterActivator} avant chaque appel au package repository, et
- * laisse volontairement inactif pour le SUPER_ADMIN, dont la vue est globale.
+ * <p>Le filtre {@code tenantFilter} declare ici est la piece principale de la separation
+ * entre entreprises : chaque entite qui a {@code @Filter(name = "tenantFilter")} a toutes
+ * ses requetes completees par {@code AND company_id = :tenantCompanyId}. Il est active par
+ * {@code TenantFilterActivator} avant chaque appel aux repositories, et laisse inactif
+ * exprès pour le SUPER_ADMIN, qui voit tout.
  *
- * <p>Le filtre couvre les requetes (JPQL, methodes derivees, criteria) mais <em>pas</em>
- * les chargements directs par identifiant, que Hibernate sert depuis le cache de premier
- * niveau sans passer par le SQL filtre. Cette faille est fermee separement par
- * {@code TenantAwareRepositoryImpl} ; les deux dispositifs sont complementaires et aucun
- * ne se suffit a lui-meme.
+ * <p>Le filtre marche pour les requetes (JPQL, methodes derivees, criteria) mais <em>pas</em>
+ * pour les chargements par id, que Hibernate peut servir depuis son cache sans passer par
+ * le SQL filtre. Ce trou est bouche a part par {@code TenantAwareRepositoryImpl} ; il faut
+ * les deux, l'un sans l'autre ne suffit pas.
  */
 @FilterDef(
         name = TenantContext.FILTER_NAME,

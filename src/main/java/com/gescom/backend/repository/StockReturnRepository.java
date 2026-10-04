@@ -15,12 +15,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Registre des retours clients. Comme le grand livre des mouvements, il ne fait que croître :
- * ses listes sont donc paginées.
+ * Retours clients. Comme pour les mouvements de stock, on ne fait qu'en ajouter, donc les
+ * listes sont paginées.
  *
- * La page de liste ne charge délibérément pas les lignes de retour — un {@code JOIN FETCH} sur
- * une collection force Hibernate à paginer en mémoire. L'entête suffit au tableau ; le détail
- * est chargé ligne par ligne via {@link #findDetailedById(Long)} à l'ouverture d'un retour.
+ * La liste ne charge pas les lignes de retour exprès : un {@code JOIN FETCH} sur une
+ * collection oblige Hibernate à paginer en mémoire. L'en-tête suffit pour le tableau ; le
+ * détail est chargé avec {@link #findDetailedById(Long)} quand on ouvre un retour.
  */
 @Repository
 public interface StockReturnRepository extends JpaRepository<StockReturn, Long>,
@@ -42,9 +42,9 @@ public interface StockReturnRepository extends JpaRepository<StockReturn, Long>,
     Optional<StockReturn> findDetailedById(@Param("id") Long id);
 
     /**
-     * Quantités déjà rendues sur une vente, ventilées par produit : {@code [productId, quantité]}.
-     * C'est le garde-fou du module — la quantité retournable d'une ligne est ce qui a été vendu
-     * moins ce total, ce qui interdit de rendre deux fois le même article.
+     * Quantités déjà rendues sur une vente, par produit : {@code [productId, quantité]}.
+     * C'est la protection principale : ce qu'on peut encore retourner sur une ligne, c'est
+     * ce qui a été vendu moins ce total, donc on ne peut pas rendre deux fois le même article.
      */
     @Query("SELECT i.product.id, SUM(i.quantity) FROM StockReturnItem i "
             + "WHERE i.stockReturn.order.id = :orderId GROUP BY i.product.id")
@@ -53,18 +53,17 @@ public interface StockReturnRepository extends JpaRepository<StockReturn, Long>,
     long countByOrderId(Long orderId);
 
     /**
-     * Plus haut numero deja attribue pour ce prefixe et cette annee, ou null s'il n'y en a
-     * aucun.
+     * Plus grand numero deja utilise pour ce prefixe et cette annee, ou null s'il n'y en a pas.
      *
-     * Un MAX sur la CHAINE, valide parce que le compteur est complete a largeur fixe :
-     * RET-2026-0042 se compare bien avant RET-2026-0100. Sans ce remplissage, l'ordre
-     * lexicographique placerait 9 apres 10 et la suite repartirait en arriere.
+     * Un MAX sur la CHAINE, ce qui marche parce que le compteur a toujours la meme longueur
+     * (complete avec des zeros) : RET-2026-0042 est bien avant RET-2026-0100. Sans les zeros,
+     * l'ordre alphabetique mettrait 9 apres 10 et la numerotation repartirait en arriere.
      *
-     * Les numeros de l'ancien format (RET- suivi d'un horodatage) ne matchent pas le motif :
-     * ils sont ignores, et les deux formes cohabitent sans se marcher dessus.
+     * Les anciens numeros (RET- suivi d'un horodatage) ne correspondent pas au motif : ils
+     * sont ignores, et les deux formats peuvent exister ensemble sans probleme.
      *
-     * Le cloisonnement par entreprise est assure par le filtre Hibernate, qui couvre les
-     * requetes JPQL : chaque entreprise ne voit donc que ses propres numeros.
+     * Le filtrage par entreprise est fait par le filtre Hibernate, qui s'applique aux
+     * requetes JPQL : chaque entreprise ne voit que ses propres numeros.
      */
     @Query("SELECT MAX(r.returnNumber) FROM StockReturn r WHERE r.returnNumber LIKE :pattern")
     String findMaxNumber(@Param("pattern") String pattern);

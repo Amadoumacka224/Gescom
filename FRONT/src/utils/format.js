@@ -1,21 +1,21 @@
 /**
- * Formatage partagé des montants, dates et heures.
+ * Formatage des montants, dates et heures, commun à toute l'appli.
  *
- * Centralisé pour que toutes les vues affichent un même montant à l'identique : les pages
- * caisse utilisaient auparavant soit Intl.NumberFormat, soit un .toFixed(2) brut, ce qui
- * produisait « 1 234,50 € » ici et « 1234.50 € » là pour la même valeur.
+ * Tout est ici pour qu'un même montant s'affiche pareil partout : avant, les pages de caisse
+ * utilisaient soit Intl.NumberFormat, soit un .toFixed(2), ce qui donnait « 1 234,50 € » à
+ * un endroit et « 1234.50 € » à un autre.
  *
- * Le format suit la langue de l'interface : un utilisateur en anglais lit « 1,234.50 » et
- * « 29/07/2026 » selon sa convention, pas celle du français. Les formateurs Intl sont coûteux
- * à construire, on les garde en cache par locale.
+ * Le format dépend de la langue de l'interface : en anglais on a « 1,234.50 » et
+ * « 29/07/2026 », pas le format français. Créer un formateur Intl coûte cher, donc on les
+ * garde en cache par locale.
  */
 
 import i18n from '../i18n';
 
 /**
- * Locale de formatage pour une langue d'interface.
- * L'anglais est rendu en en-GB et non en-US : l'application est belge, la date s'y écrit
- * jour/mois comme dans les deux autres langues.
+ * Locale à utiliser pour une langue de l'interface.
+ * L'anglais utilise en-GB et pas en-US : l'appli est belge, la date s'écrit jour/mois comme
+ * dans les deux autres langues.
  */
 const LOCALES = {
   fr: 'fr-BE',
@@ -25,7 +25,7 @@ const LOCALES = {
 
 const currentLocale = () => LOCALES[i18n.language?.split('-')[0]] ?? LOCALES.fr;
 
-/** Formateurs mémorisés par locale : `new Intl.NumberFormat` à chaque montant est coûteux. */
+/** Formateurs gardés en cache par locale (un `new Intl.NumberFormat` par montant coûte cher). */
 const formatterCache = new Map();
 
 const formatter = (kind, options) => {
@@ -50,20 +50,20 @@ export const formatAmount = (amount) =>
 export const formatCurrency = (amount) =>
   formatter('currency', { style: 'currency', currency: 'EUR' }).format(Number(amount) || 0);
 
-/** Montant compacté pour les graduations d'axe : « 1,2 k ». Illisible en dessous. */
+/** Montant raccourci pour les axes des graphiques : « 1,2 k ». Pas lisible pour les petits montants. */
 export const formatCompactCurrency = (amount) =>
   formatter('compact', { notation: 'compact', maximumFractionDigits: 1 })
     .format(Number(amount) || 0);
 
 /**
- * Part exprimée en pourcentage à partir d'un ratio 0–1 : « 68 % ».
- * Arrondi à l'entier — au dixième près, un taux de tableau de bord donne une fausse
- * impression de précision et allonge inutilement le libellé.
+ * Pourcentage à partir d'un ratio entre 0 et 1 : « 68 % ».
+ * Arrondi à l'unité : avec une décimale, ça donne une impression de précision qui ne sert à
+ * rien et ça allonge le texte.
  */
 export const formatPercent = (ratio) =>
   formatter('percent', { style: 'percent', maximumFractionDigits: 0 }).format(Number(ratio) || 0);
 
-/** Ratio borné à [0, 1], 0 si le dénominateur est nul ou absent. */
+/** Ratio limité entre 0 et 1, 0 si le diviseur est nul ou absent. */
 export const safeRatio = (part, whole) => {
   const total = Number(whole) || 0;
   if (total <= 0) return 0;
@@ -75,7 +75,7 @@ export const formatTime = (iso) =>
 
 export const formatDate = (iso) => (iso ? formatter('date').format(new Date(iso)) : '—');
 
-/** Date du jour au format attendu par <input type="date"> (YYYY-MM-DD), en heure locale. */
+/** Date du jour au format de <input type="date"> (YYYY-MM-DD), en heure locale. */
 export const todayISO = () => {
   const now = new Date();
   const offsetMs = now.getTimezoneOffset() * 60 * 1000;
@@ -83,16 +83,16 @@ export const todayISO = () => {
 };
 
 /**
- * Nom d'affichage d'un produit : ce qui est entre parenthèses est retiré.
+ * Nom court d'un produit : on enlève ce qui est entre parenthèses.
  *
- * Les parenthèses portent des précisions de fiche technique — « Armoire 2 portes (chêne massif,
- * 90 × 45 cm) » — qui allongent le libellé sans aider à reconnaître l'article dans une liste.
- * Le nom entier reste affiché en infobulle et dans la fiche détaillée, et la recherche continue
- * de porter sur lui : on retrouve un article en tapant ce qui n'est plus affiché.
+ * Les parenthèses contiennent des détails techniques (« Armoire 2 portes (chêne massif,
+ * 90 × 45 cm) ») qui allongent le nom sans aider à reconnaître l'article dans une liste.
+ * Le nom complet reste dans l'infobulle et la fiche, et la recherche se fait toujours sur
+ * lui : on peut trouver un article en tapant une partie qui n'est plus affichée.
  *
- * La boucle traite les parenthèses imbriquées, que la seule expression `[^()]*` laisserait à
- * demi retirées. Le repli sur le nom d'origine couvre le nom entièrement parenthésé : il ne
- * resterait rien à lire, ce qui est pire que long.
+ * La boucle gère les parenthèses imbriquées, qu'une seule regex `[^()]*` n'enlèverait qu'à
+ * moitié. Si le nom est entièrement entre parenthèses, on garde le nom d'origine (mieux vaut
+ * un nom long qu'un nom vide).
  */
 export const productShortName = (name) => {
   const full = String(name ?? '');
@@ -105,5 +105,5 @@ export const productShortName = (name) => {
   return short.replace(/\s{2,}/g, ' ').trim() || full;
 };
 
-/** Les formateurs figent leur locale : un changement de langue doit les invalider. */
+/** Les formateurs gardent leur locale : il faut les vider quand la langue change. */
 i18n.on('languageChanged', () => formatterCache.clear());

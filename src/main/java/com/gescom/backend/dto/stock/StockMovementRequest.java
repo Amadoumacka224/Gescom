@@ -8,15 +8,15 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 /**
- * Corps des écritures de stock à quantité : entrée (/add), sortie (/remove) et casse (/damage).
+ * Body des opérations de stock avec une quantité : entrée (/add), sortie (/remove) et casse (/damage).
  *
- * Les trois décrivent le même geste — tant d'unités sur tel produit, avec un motif — et ne
- * différaient que par les champs facultatifs qu'elles acceptaient. Le sens de l'écriture est
- * porté par la route, pas par le corps ; {@code unitCost} n'est retenu qu'à l'entrée et
- * {@code reference} ne l'est pas sur la casse, sans qu'un envoi superflu soit refusé.
+ * Les trois font la même chose (tant d'unités sur tel produit, avec un motif) et ne
+ * changeaient que par leurs champs facultatifs. Le type d'opération vient de la route, pas
+ * du body ; {@code unitCost} n'est utilisé que pour une entrée et {@code reference} pas pour
+ * une casse, mais on ne refuse pas la requête si ces champs sont envoyés quand même.
  *
- * L'ajustement d'inventaire garde son propre DTO : il porte un stock cible
- * ({@link StockAdjustRequest#newQuantity()}), pas une quantité à ajouter ou à retirer.
+ * L'ajustement d'inventaire a son propre DTO : il donne un stock cible
+ * ({@link StockAdjustRequest#newQuantity()}), pas une quantité à ajouter ou enlever.
  */
 public record StockMovementRequest(
         @NotNull(message = "L'identifiant du produit est obligatoire")

@@ -3,14 +3,14 @@ package com.gescom.backend.service.stripe;
 import com.gescom.backend.entity.Payment;
 
 /**
- * Réponse du prestataire, normalisée : ce que les deux passerelles savent dire d'une intention.
+ * Réponse de Stripe, dans un format commun aux deux passerelles.
  *
- * @param id             identifiant d'intention ({@code pi_...})
- * @param clientSecret   secret d'usage unique, transmis au terminal et jamais persisté
- * @param status         statut traduit dans le vocabulaire du domaine
- * @param cardBrand      marque de la carte, connue seulement après confirmation
- * @param cardLast4      quatre derniers chiffres, idem
- * @param failureMessage motif de refus, renseigné uniquement si {@code status = FAILED}
+ * @param id             id de l'intention ({@code pi_...})
+ * @param clientSecret   secret à usage unique, envoyé au terminal et jamais enregistré
+ * @param status         statut converti dans nos propres valeurs
+ * @param cardBrand      marque de la carte, connue seulement après la confirmation
+ * @param cardLast4      quatre derniers chiffres, pareil
+ * @param failureMessage raison du refus, remplie seulement si {@code status = FAILED}
  */
 public record StripeIntent(
         String id,

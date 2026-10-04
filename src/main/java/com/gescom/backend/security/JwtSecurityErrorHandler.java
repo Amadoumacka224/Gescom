@@ -15,17 +15,16 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 
 /**
- * Réponses d'erreur de la chaîne de filtres de sécurité : 401 faute d'authentification,
- * 403 faute de droits.
+ * Réponses d'erreur des filtres de sécurité : 401 si pas authentifié, 403 si pas les droits.
  *
- * Ces deux refus sont prononcés en amont des contrôleurs : ils ne passent donc PAS par
- * {@link com.gescom.backend.exception.GlobalExceptionHandler}. Sans eux, Spring renvoie une
- * redirection HTML (inadaptée à une API REST) ou une 403 vide. Un seul composant les rend
- * tous les deux, au même format {@link ErrorResponse} que le reste de l'API — c'est la même
- * décision de présentation, elle n'a pas à être écrite à deux endroits.
+ * Ces deux refus arrivent avant les contrôleurs, donc ils ne passent PAS par
+ * {@link com.gescom.backend.exception.GlobalExceptionHandler}. Sans cette classe, Spring
+ * renvoie une redirection HTML (pas adaptée à une API REST) ou une 403 vide. Un seul
+ * composant gère les deux, avec le même format {@link ErrorResponse} que le reste de l'API :
+ * c'est la même logique, pas besoin de l'écrire deux fois.
  *
- * L'{@link ObjectMapper} géré par Spring est réutilisé (il sait sérialiser les types
- * date/heure et évite une instanciation à chaque requête).
+ * On réutilise l'{@link ObjectMapper} de Spring (il sait gérer les dates et évite d'en créer
+ * un à chaque requête).
  */
 @Component
 public class JwtSecurityErrorHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
@@ -36,7 +35,7 @@ public class JwtSecurityErrorHandler implements AuthenticationEntryPoint, Access
         this.objectMapper = objectMapper;
     }
 
-    /** Requête non authentifiée sur une ressource protégée. */
+    /** Requête sans authentification sur une ressource protégée. */
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
@@ -44,7 +43,7 @@ public class JwtSecurityErrorHandler implements AuthenticationEntryPoint, Access
                 "Authentification requise pour accéder à cette ressource.");
     }
 
-    /** Utilisateur authentifié mais dépourvu du rôle requis. */
+    /** Utilisateur connecté mais qui n'a pas le bon rôle. */
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {

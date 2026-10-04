@@ -38,23 +38,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Cloisonnement d'un caissier à ses propres ventes.
+ * Un caissier ne doit voir que ses propres ventes.
  *
- * Trois comportements y sont vérifiés, parce que ce sont les trois façons dont un caissier
- * pourrait atteindre le dossier d'un collègue en appelant l'API directement, sans passer par
- * l'interface qui ne le lui propose jamais :
+ * On vérifie trois choses, parce que ce sont les trois façons dont un caissier pourrait
+ * accéder à la vente d'un collègue en appelant l'API directement (l'interface ne le permet
+ * jamais) :
  * <ul>
- *   <li>les LISTES sont filtrées en base sur l'identifiant du caissier — et pas seulement à
+ *   <li>les LISTES sont filtrées en base avec l'id du caissier, et pas seulement à
  *       l'affichage ;</li>
- *   <li>les LECTURES unitaires d'une vente d'autrui se comportent comme une ressource absente,
- *       pour ne rien révéler de son existence ;</li>
- *   <li>les ÉCRITURES — modification, confirmation, annulation, encaissement — sont refusées
- *       franchement, y compris à travers les documents dérivés de la vente (facture, livraison,
- *       paiement carte).</li>
+ *   <li>LIRE une vente d'un autre se comporte comme si elle n'existait pas, pour ne rien
+ *       révéler ;</li>
+ *   <li>les MODIFICATIONS (modifier, confirmer, annuler, encaisser) sont refusées clairement,
+ *       y compris via les documents liés à la vente (facture, livraison, paiement carte).</li>
  * </ul>
  *
- * Le pendant de chacun est vérifié pour l'ADMIN, qui doit conserver la vue d'ensemble : un
- * cloisonnement qui aveuglerait aussi le responsable serait une régression, pas une sécurité.
+ * Pour chaque cas, on vérifie aussi que l'ADMIN voit toujours tout : si la restriction
+ * bloquait aussi le responsable, ce serait un bug, pas de la sécurité.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -79,7 +78,7 @@ class CashierIsolationTest {
     private InvoiceService invoiceService;
     private DeliveryService deliveryService;
 
-    /** Vente d'Alice — celle que Bob ne doit ni voir ni toucher. */
+    /** Vente d'Alice : celle que Bob ne doit ni voir ni modifier. */
     private Order aliceOrder;
     private Invoice aliceInvoice;
 
@@ -135,8 +134,8 @@ class CashierIsolationTest {
     }
 
     /**
-     * Authentifie l'utilisateur donné comme le fait {@code JwtAuthenticationFilter} : le
-     * principal est l'entité chargée en base, jamais un identifiant fourni par l'appelant.
+     * Connecte l'utilisateur comme le fait {@code JwtAuthenticationFilter} : le principal est
+     * l'entité chargée en base, jamais un id envoyé par l'appelant.
      */
     private void authenticate(User user) {
         SecurityContextHolder.getContext().setAuthentication(
@@ -151,7 +150,7 @@ class CashierIsolationTest {
         authenticate(userWithRole(99L, "patron", User.Role.ADMIN));
     }
 
-    // --- Listes : le filtre est appliqué en base ------------------------------
+    // --- Listes : le filtre est fait en base ----------------------------------
 
     @Test
     void listeDesCommandes_pourUnCaissier_estFiltreeSurSesPropresVentes() {
@@ -159,8 +158,8 @@ class CashierIsolationTest {
 
         orderService.getAllOrders();
 
-        // C'est l'identifiant de Bob qui part à la base : le filtrage n'est pas fait après coup,
-        // donc rien de ce qui appartient à Alice n'est même chargé en mémoire.
+        // C'est l'id de Bob qui est envoyé à la base : on ne filtre pas après coup, donc rien
+        // de ce qui appartient à Alice n'est chargé en mémoire.
         verify(orderRepository).findAllWithDetails(BOB_ID);
     }
 
@@ -170,7 +169,7 @@ class CashierIsolationTest {
 
         orderService.getAllOrders();
 
-        // null = aucune restriction : le responsable garde la vue sur toutes les caisses.
+        // null = pas de restriction : le responsable voit toujours toutes les caisses.
         verify(orderRepository).findAllWithDetails(null);
     }
 
@@ -185,14 +184,14 @@ class CashierIsolationTest {
         verify(deliveryRepository).findAllWithDetails(BOB_ID);
     }
 
-    // --- Lecture unitaire : la vente d'autrui est rendue absente --------------
+    // --- Lecture : la vente d'un autre « n'existe pas » -----------------------
 
     @Test
     void lectureDeLaVenteDunCollegue_seComporteCommeUneVenteInexistante() {
         loginAsBob();
 
-        // Absent plutôt que refusé : le contrôleur en tire un 404, indiscernable d'un
-        // identifiant qui n'existe pas.
+        // Absent plutôt que refusé : le contrôleur renvoie un 404, comme pour un id qui
+        // n'existe pas.
         assertThat(orderService.getOrderById(500L)).isEmpty();
         assertThat(orderService.getOrderByOrderNumber("CMD-500")).isEmpty();
         assertThat(invoiceService.getInvoiceById(900L)).isEmpty();
@@ -219,7 +218,7 @@ class CashierIsolationTest {
     void listeDesVentesDunAutreOperateur_estRefusee() {
         loginAsBob();
 
-        // La route la plus directe pour lire la caisse d'un collègue : demander son id.
+        // Le moyen le plus simple de voir la caisse d'un collègue : demander avec son id.
         assertThatThrownBy(() -> orderService.getOrdersByUser(ALICE_ID))
                 .isInstanceOf(OwnershipViolationException.class);
 
@@ -228,7 +227,7 @@ class CashierIsolationTest {
         verify(orderRepository, never()).findByCreatedById(ALICE_ID);
     }
 
-    // --- Écriture : refus franc, et aucun effet de bord -----------------------
+    // --- Modification : refus clair, et rien n'est modifié --------------------
 
     @Test
     void modificationDeLaVenteDunCollegue_estRefusee() {
@@ -240,7 +239,7 @@ class CashierIsolationTest {
         assertThatThrownBy(() -> orderService.updateOrder(500L, patch))
                 .isInstanceOf(OwnershipViolationException.class);
 
-        // Le refus tombe avant toute écriture : la commande d'Alice ressort intacte.
+        // Le refus arrive avant toute écriture : la commande d'Alice n'a pas changé.
         verify(orderRepository, never()).save(any(Order.class));
     }
 
@@ -251,7 +250,7 @@ class CashierIsolationTest {
         assertThatThrownBy(() -> orderService.confirmOrder(500L))
                 .isInstanceOf(OwnershipViolationException.class);
 
-        // Confirmer sort le stock : le refus doit précéder le moindre mouvement.
+        // Confirmer fait sortir le stock : le refus doit arriver avant le moindre mouvement.
         verify(productRepository, never()).findByIdForUpdate(any());
         verify(stockMovementRepository, never()).save(any());
     }
@@ -285,7 +284,7 @@ class CashierIsolationTest {
                 900L, new BigDecimal("50.00"), Invoice.PaymentMethod.CASH, LocalDate.now()))
                 .isInstanceOf(OwnershipViolationException.class);
 
-        // L'encaissement d'Alice ne doit pas être crédité à la caisse de Bob.
+        // Le paiement d'Alice ne doit pas être compté dans la caisse de Bob.
         assertThat(aliceInvoice.getPaidAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         verify(invoiceRepository, never()).save(any(Invoice.class));
     }
@@ -322,7 +321,7 @@ class CashierIsolationTest {
 
         orderService.cancelOrder(500L);
 
-        // Le responsable conserve la main sur les dossiers de toutes ses caisses.
+        // Le responsable peut toujours gérer les ventes de toutes ses caisses.
         assertThat(aliceOrder.getStatus()).isEqualTo(Order.OrderStatus.CANCELED);
     }
 }

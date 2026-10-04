@@ -17,14 +17,14 @@ import java.util.Optional;
 public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpecificationExecutor<Invoice> {
 
     /**
-     * Toutes les factures avec la commande associée (client, créateur, lignes, produits) chargée
-     * en une seule requête, pour éviter le N+1 au mapping — chaque InvoiceResponse embarque un
-     * OrderResponse complet. DISTINCT à cause du JOIN FETCH sur la collection de lignes.
+     * Toutes les factures avec leur commande (client, créateur, lignes, produits) chargées en
+     * une seule requête, pour éviter le N+1 au mapping (chaque InvoiceResponse contient un
+     * OrderResponse complet). DISTINCT à cause du JOIN FETCH sur les lignes.
      *
-     * {@code createdById} porte le cloisonnement caissier et s'entend du créateur de la VENTE,
-     * pas de celui de la facture : une facture appartient au caissier qui a saisi la commande,
-     * sans quoi il perdrait de vue la facture de sa propre vente dès qu'un collègue l'aurait
-     * éditée. Nul, il désactive le filtre (vue ADMIN).
+     * {@code createdById} limite un caissier à ses ventes, en se basant sur le créateur de la
+     * VENTE et pas de la facture : une facture appartient au caissier qui a saisi la commande,
+     * sinon il ne verrait plus la facture de sa propre vente dès qu'un collègue l'aurait
+     * créée. Si null, pas de filtre (vue ADMIN).
      */
     @Query("SELECT DISTINCT i FROM Invoice i " +
            "LEFT JOIN FETCH i.order o " +
@@ -39,9 +39,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
 
     /**
-     * Recherche d'une facture par son numéro, insensible à la casse et commande complète chargée.
-     * Pendant de {@code OrderRepository.findByOrderNumberWithDetails} pour la saisie d'un retour :
-     * le client donne indifféremment son numéro de commande ou celui de sa facture.
+     * Cherche une facture par son numéro (sans tenir compte de la casse), avec la commande
+     * complète. C'est l'équivalent de {@code OrderRepository.findByOrderNumberWithDetails} pour
+     * les retours : le client peut donner son numéro de commande ou celui de sa facture.
      */
     @Query("SELECT DISTINCT i FROM Invoice i " +
            "LEFT JOIN FETCH i.order o " +
@@ -54,8 +54,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     Optional<Invoice> findByInvoiceNumberWithDetails(@Param("invoiceNumber") String invoiceNumber);
     Optional<Invoice> findByOrderId(Long orderId);
     List<Invoice> findByOrderIdIn(Collection<Long> orderIds);
-    // Les trois listes filtrées portent le même `createdById` optionnel que findAllWithDetails :
-    // aucune liste de factures ne doit offrir de contournement au cloisonnement caissier.
+    // Les trois listes filtrées ont le même `createdById` optionnel que findAllWithDetails :
+    // aucune liste de factures ne doit permettre à un caissier de voir les ventes des autres.
     @Query("SELECT i FROM Invoice i WHERE i.status = :status "
             + "AND (:createdById IS NULL OR i.order.createdBy.id = :createdById)")
     List<Invoice> findByStatus(@Param("status") Invoice.InvoiceStatus status,
@@ -75,17 +75,18 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
 
     /**
      * Montant encaissé par un caissier à une date donnée.
-     * NB : seules les factures soldées portent une paymentDate (cf. InvoiceService.recordPayment),
-     * donc les paiements partiels — non datés dans le modèle actuel — ne sont pas comptés ici.
+     * Attention : seules les factures entièrement payées ont une paymentDate (voir
+     * InvoiceService.recordPayment), donc les paiements partiels (sans date pour l'instant)
+     * ne sont pas comptés ici.
      */
     @Query("SELECT COALESCE(SUM(i.paidAmount), 0) FROM Invoice i " +
            "WHERE i.order.createdBy.id = :userId AND i.paymentDate = :date")
     BigDecimal sumCollectedByCashierOnDate(@Param("userId") Long userId, @Param("date") LocalDate date);
 
     /**
-     * Montant encaissé à une date donnée, ventilé par caissier : [userId, montant].
-     * Même sémantique que {@link #sumCollectedByCashierOnDate} (seules les factures soldées
-     * portent une paymentDate), mais en une requête pour toute la supervision.
+     * Montant encaissé à une date donnée, par caissier : [userId, montant].
+     * Même règle que {@link #sumCollectedByCashierOnDate} (seules les factures payées ont une
+     * paymentDate), mais en une seule requête pour tout le suivi des caisses.
      */
     @Query("SELECT i.order.createdBy.id, COALESCE(SUM(i.paidAmount), 0) FROM Invoice i " +
            "WHERE i.paymentDate = :date AND i.order.createdBy IS NOT NULL " +
@@ -93,13 +94,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     List<Object[]> sumCollectedPerCashierOnDate(@Param("date") LocalDate date);
 
     /**
-     * Recharge en un coup, avec tout leur detail, des factures deja selectionnees.
+     * Recharge d'un coup, avec tout le detail, des factures deja choisies.
      *
-     * Second temps de la recherche paginee, meme mecanique que
-     * {@code OrderRepository.findAllWithDetailsByIds} et pour la meme raison : les requetes
-     * ci-dessus embarquent un JOIN FETCH sur les lignes de la commande, et une requete qui
-     * joint une collection ne peut pas etre paginee par la base — Hibernate rapatrierait tout
-     * pour decouper en memoire (HHH90003004).
+     * Deuxieme etape de la recherche paginee, comme
+     * {@code OrderRepository.findAllWithDetailsByIds} et pour la meme raison : les requetes du
+     * dessus ont un JOIN FETCH sur les lignes de la commande, et une requete avec une jointure
+     * sur une collection ne peut pas etre paginee en base. Hibernate chargerait tout et
+     * decouperait en memoire (HHH90003004).
      */
     @Query("SELECT DISTINCT i FROM Invoice i " +
            "LEFT JOIN FETCH i.order o " +
@@ -112,12 +113,12 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     List<Invoice> findAllWithDetailsByIds(@Param("ids") List<Long> ids);
 
     /**
-     * Compteurs d'en-tete, agreges en base.
+     * Compteurs en haut de page, calcules en base.
      *
-     * `collected` et `pending` excluent les factures annulees : elles sont sorties des livres,
-     * et compter leur encaissement sans compter leur reliquat donnerait un taux qui n'est celui
-     * d'aucun perimetre. `overdue` n'est pas un statut mais une echeance depassee sur une
-     * facture ni soldee ni annulee — d'ou le calcul plutot qu'un simple COUNT par statut.
+     * `collected` et `pending` ne comptent pas les factures annulees : elles ne comptent plus,
+     * et compter ce qui a ete paye dessus sans compter ce qui reste donnerait un taux qui ne
+     * veut rien dire. `overdue` n'est pas un statut mais une facture ni payee ni annulee dont
+     * l'echeance est passee, d'ou le calcul au lieu d'un simple COUNT par statut.
      */
     @Query("""
            SELECT COUNT(i) AS total,
@@ -139,7 +140,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
                                   @Param("paid") Invoice.InvoiceStatus paid,
                                   @Param("canceled") Invoice.InvoiceStatus canceled);
 
-    /** Clients ayant au moins une facture dans le perimetre de l'appelant. */
+    /** Clients qui ont au moins une facture visible par l'appelant. */
     @Query("""
            SELECT DISTINCT c.id AS id, c.firstName AS firstName, c.lastName AS lastName, c.company AS company
            FROM Invoice i JOIN i.order o JOIN o.client c LEFT JOIN o.createdBy u
@@ -155,7 +156,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
         String getCompany();
     }
 
-    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour le motif. */
+    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour la raison. */
     interface InvoiceSummaryView {
         long getTotal();
         BigDecimal getCollected();
@@ -168,18 +169,17 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long>, JpaSpec
     }
 
     /**
-     * Plus haut numero deja attribue pour ce prefixe et cette annee, ou null s'il n'y en a
-     * aucun.
+     * Plus grand numero deja utilise pour ce prefixe et cette annee, ou null s'il n'y en a pas.
      *
-     * Un MAX sur la CHAINE, valide parce que le compteur est complete a largeur fixe :
-     * FACT-2026-0042 se compare bien avant FACT-2026-0100. Sans ce remplissage, l'ordre
-     * lexicographique placerait 9 apres 10 et la suite repartirait en arriere.
+     * Un MAX sur la CHAINE, ce qui marche parce que le compteur a toujours la meme longueur
+     * (complete avec des zeros) : FACT-2026-0042 est bien avant FACT-2026-0100. Sans les zeros,
+     * l'ordre alphabetique mettrait 9 apres 10 et la numerotation repartirait en arriere.
      *
-     * Les numeros de l'ancien format (FACT- suivi d'un horodatage) ne matchent pas le motif :
-     * ils sont ignores, et les deux formes cohabitent sans se marcher dessus.
+     * Les anciens numeros (FACT- suivi d'un horodatage) ne correspondent pas au motif : ils
+     * sont ignores, et les deux formats peuvent exister ensemble sans probleme.
      *
-     * Le cloisonnement par entreprise est assure par le filtre Hibernate, qui couvre les
-     * requetes JPQL : chaque entreprise ne voit donc que ses propres numeros.
+     * Le filtrage par entreprise est fait par le filtre Hibernate, qui s'applique aux
+     * requetes JPQL : chaque entreprise ne voit que ses propres numeros.
      */
     @Query("SELECT MAX(i.invoiceNumber) FROM Invoice i WHERE i.invoiceNumber LIKE :pattern")
     String findMaxNumber(@Param("pattern") String pattern);

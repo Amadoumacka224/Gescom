@@ -13,10 +13,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Entité d'historique des mouvements de stock (traçabilité).
- * Chaque ligne fige un instantané : le type de mouvement, la quantité concernée, et surtout
- * le stock avant (previousStock) et après (newStock) — ce qui permet d'auditer et d'annuler
- * un mouvement sans recalculer toute la chaîne. Renseigne aussi l'auteur et le motif.
+ * Historique des mouvements de stock.
+ * Chaque ligne garde : le type de mouvement, la quantité, et surtout le stock avant
+ * (previousStock) et après (newStock). Ça permet de vérifier ou d'annuler un mouvement sans
+ * tout recalculer. On garde aussi l'auteur et le motif.
  */
 @Entity
 @Table(name = "stock_movements")
@@ -32,11 +32,11 @@ public class StockMovement implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)

@@ -3,11 +3,10 @@ import api from '../services/api';
 import { DEFAULT_PAYMENT_TERMS, DEFAULT_TAX_RATE } from '../constants/billing';
 
 /**
- * Les réglages sont un singleton persistant côté serveur et ne changent qu'à l'enregistrement
- * dans l'écran Réglages : on les garde en mémoire pour la durée de la session plutôt que de
- * les redemander à chaque écran. Deux consommateurs peuvent cohabiter sur une même page (le
- * tableau de bord des commandes et son atelier), d'où la promesse partagée : la requête n'est
- * émise qu'une fois même si les deux montent simultanément.
+ * Les paramètres sont stockés côté serveur et ne changent que quand on les enregistre dans
+ * l'écran Paramètres. On les garde donc en mémoire pendant la session au lieu de les
+ * redemander à chaque écran. Deux composants peuvent les demander en même temps sur une page
+ * (tableau des commandes et panier), d'où la promesse partagée : un seul appel est fait.
  */
 let cachedSettings = null;
 let pendingRequest = null;
@@ -25,21 +24,20 @@ const fetchSettings = () => {
   return pendingRequest;
 };
 
-/** À appeler après un enregistrement des réglages, sinon les écrans gardent l'ancien taux. */
+/** À appeler après avoir enregistré les paramètres, sinon les écrans gardent l'ancien taux. */
 export const invalidateSettingsCache = () => {
   cachedSettings = null;
 };
 
 /**
- * Réglages de l'entreprise (taux de TVA, délai de paiement, coordonnées du PDF).
+ * Paramètres de l'entreprise (TVA, délai de paiement, coordonnées pour le PDF).
  *
- * Trois écrans en avaient besoin et les récupéraient chacun de leur côté, deux d'entre eux
- * en se rabattant sur des constantes en dur : un taux modifié dans Réglages ne s'appliquait
- * alors qu'à une partie des factures. Le repli reste local à ce hook, seul endroit à connaître
- * les valeurs par défaut.
+ * Trois écrans en avaient besoin et les chargeaient chacun de leur côté, deux d'entre eux
+ * avec des valeurs en dur en secours. Du coup un taux changé dans les Paramètres ne
+ * s'appliquait pas partout. Les valeurs par défaut ne sont plus connues que par ce hook.
  *
- * L'indisponibilité des réglages ne bloque jamais l'écran appelant : on journalise et on rend
- * les valeurs par défaut.
+ * Si les paramètres ne se chargent pas, on log l'erreur et on renvoie les valeurs par défaut,
+ * l'écran continue de marcher.
  */
 const useSettings = () => {
   const [settings, setSettings] = useState(cachedSettings);
@@ -56,13 +54,13 @@ const useSettings = () => {
     return () => { canceled = true; };
   }, []);
 
-  /** Taux de TVA par défaut, formaté pour un champ de saisie (« 21.00 »). */
+  /** TVA par défaut, formatée pour un champ de saisie (« 21.00 »). */
   const defaultTaxRate = () => {
     const rate = Number(settings?.taxRate);
     return (Number.isFinite(rate) ? rate : DEFAULT_TAX_RATE).toFixed(2);
   };
 
-  /** Échéance par défaut au format ISO : date du jour + délai de paiement configuré. */
+  /** Échéance par défaut au format ISO : aujourd'hui + délai de paiement. */
   const defaultDueDate = () => {
     const terms = Number(settings?.paymentTerms);
     const days = Number.isFinite(terms) && terms > 0 ? terms : DEFAULT_PAYMENT_TERMS;

@@ -28,10 +28,10 @@ import { formatCurrency, formatDate, safeRatio } from '../utils/format';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { INVOICE_STATUS_TONE, badgeClass, metricBarClass } from '../constants/statusBadges';
 
-/** Mémorise le mode d'affichage entre deux visites, comme les autres tableaux de bord. */
+/** Garde le mode d'affichage d'une visite à l'autre, comme sur les autres écrans. */
 const VIEW_MODE_KEY = 'invoicesViewMode';
 
-/** Nombre de factures mises en avant dans la vue d'aperçu (les dernières émises). */
+/** Nombre de factures affichées dans l'aperçu (les dernières émises). */
 const RECENT_COUNT = 5;
 
 const PAYMENT_METHOD_KEYS = {
@@ -51,18 +51,17 @@ const STATUS_LABEL_KEYS = {
 };
 
 /**
- * Critères de filtrage, à l'état neutre. Sert de valeur initiale, de cible du bouton
- * « Réinitialiser » et de référence pour savoir quels critères sont actifs.
- * Le statut y figure au même titre que les autres : il était porté par un bandeau segmenté
- * au-dessus de la liste, qui doublonnait avec les tuiles d'indicateurs.
+ * Filtres avec leurs valeurs vides. Sert pour l'état initial, pour le bouton « Réinitialiser »
+ * et pour savoir quels filtres sont actifs.
+ * Le statut est ici comme les autres : avant il était dans des boutons au-dessus de la liste,
+ * ce qui faisait doublon avec les cartes de stats.
  */
 /**
- * Colonnes triables, traduites en champs d'entité pour le `sort` de Spring Data.
+ * Colonnes triables, avec le champ de l'entité utilisé pour le `sort` de Spring Data.
  *
- * « Règlement » n'y figure pas : c'est le rapport encaissé / total, une expression et non une
- * colonne. Le trier au sein de la seule page affichée donnerait un tableau qui se prétend trié
- * sans l'être — même arbitrage que sur l'écran Commandes. Le montant, lui, est bien une
- * colonne et reste triable.
+ * Pas de tri sur « Règlement » : c'est un calcul (encaissé / total), pas une colonne en base.
+ * Le trier seulement sur la page affichée donnerait un faux tri (comme sur l'écran
+ * Commandes). Le montant, lui, est une vraie colonne et reste triable.
  */
 const SORT_FIELDS = {
   invoiceNumber: 'invoiceNumber',
@@ -85,8 +84,8 @@ const EMPTY_ADVANCED = {
 };
 
 /**
- * Formulaire de facturation vierge. Le taux de TVA et l'échéance viennent des réglages de
- * l'entreprise (cf. `useSettings`) et non de constantes : c'est l'écran Réglages qui fait foi.
+ * Formulaire de facture vide. La TVA et l'échéance viennent des paramètres de l'entreprise
+ * (voir `useSettings`) et pas de constantes : ce sont les Paramètres qui comptent.
  */
 const emptyCreateForm = ({ taxRate, dueDate }) => ({
   orderId: '',
@@ -103,7 +102,7 @@ const clientNameOf = (invoice) =>
   invoice?.order?.client?.name
   || `${invoice?.order?.client?.firstName || ''} ${invoice?.order?.client?.lastName || ''}`.trim();
 
-/** Adresse du client sur une ligne, telle qu'elle figure sur la facture. */
+/** Adresse du client sur une ligne, comme sur la facture. */
 const clientAddressOf = (client) => [
   client?.address,
   [client?.postalCode, client?.city].filter(Boolean).join(' '),
@@ -133,22 +132,22 @@ const Invoices = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'invoiceDate', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  // Cardinalité du résultat courant, renvoyée par le serveur.
+  // Nombre total de résultats, renvoyé par le serveur.
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
-  // Compteurs d'en-tête, agrégés en base : `collected` et `pending` excluent les factures
-  // annulées, et leur somme vaut le facturé — l'écran affiche les deux côte à côte.
+  // Compteurs en haut de page, calculés en base. `collected` et `pending` ne comptent pas les
+  // factures annulées, et leur somme donne le total facturé (affichés côte à côte).
   const [summary, setSummary] = useState({
     total: 0, collected: 0, pending: 0, overdue: 0,
     unpaid: 0, partial: 0, paid: 0, canceled: 0,
   });
-  // Clients proposés par le filtre. Exhaustifs : un client qui n'apparaît qu'en page 3 doit
-  // être proposé depuis la page 1.
+  // Clients proposés dans le filtre. Liste complète : un client qui n'apparaît qu'en page 3
+  // doit être proposé dès la page 1.
   const [filterOptions, setFilterOptions] = useState({ clients: [] });
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
 
   const { settings, defaultTaxRate, defaultDueDate } = useSettings();
 
-  /** Formulaire vierge aux valeurs configurées, réévaluées à chaque ouverture du modal. */
+  /** Formulaire vide avec les valeurs des paramètres, recalculé à chaque ouverture du modal. */
   const blankCreateForm = () =>
     emptyCreateForm({ taxRate: defaultTaxRate(), dueDate: defaultDueDate() });
 
@@ -160,17 +159,17 @@ const Invoices = () => {
     paymentDate: new Date().toISOString().split('T')[0],
   });
   const [paymentLoading, setPaymentLoading] = useState(false);
-  // Terminal carte : le montant est figé à l'ouverture, l'encaissement se joue côté serveur.
+  // Terminal carte : le montant est fixé à l'ouverture, l'encaissement est fait côté serveur.
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalAmount, setTerminalAmount] = useState(0);
 
   const today = new Date().toISOString().slice(0, 10);
 
-  // Reste à payer d'une facture (même règle que le tableau de bord des commandes).
+  // Reste à payer d'une facture (même calcul que sur l'écran des commandes).
   const remainingOf = (invoice) =>
     num(invoice?.remainingAmount ?? (num(invoice?.totalAmount) - num(invoice?.paidAmount)));
 
-  /** Facture échue : date d'échéance passée alors qu'il reste à encaisser. */
+  /** Facture en retard : échéance passée et il reste quelque chose à payer. */
   const isOverdue = (invoice) =>
     !!invoice.dueDate
     && invoice.dueDate < today
@@ -178,9 +177,9 @@ const Invoices = () => {
     && invoice.status !== 'CANCELED';
 
   /**
-   * Position de la facture par rapport à son échéance, en jours.
-   * « Échue depuis 12 jours » se lit sans calcul mental, contrairement à une date d'échéance
-   * brute qu'il faut comparer à celle du jour. Rien à dire d'une facture soldée ou annulée.
+   * Nombre de jours avant / après l'échéance.
+   * « En retard de 12 jours » est plus parlant qu'une date qu'il faut comparer à celle du
+   * jour. Rien à afficher pour une facture payée ou annulée.
    */
   const dueStatus = (invoice) => {
     if (!invoice?.dueDate || invoice.status === 'PAID' || invoice.status === 'CANCELED') return null;
@@ -190,7 +189,7 @@ const Invoices = () => {
     return { overdue: false, days };
   };
 
-  /** Copie dans le presse-papiers, l'API n'étant disponible qu'en contexte sécurisé. */
+  /** Copie dans le presse-papiers (ne marche qu'en HTTPS / localhost). */
   const copyValue = async (value, message) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -201,15 +200,15 @@ const Invoices = () => {
     }
   };
 
-  // Compteurs et options : chargés une fois, ils ne dependent pas de la page affichee. Le
-  // chargement de la page elle-meme est declare plus bas, apres `queryParams` dont il depend.
+  // Compteurs et options : chargés une fois, ils ne dépendent pas de la page affichée. Le
+  // chargement de la page est plus bas, après `queryParams` dont il dépend.
   useEffect(() => {
     fetchSummary();
     fetchFilterOptions();
   }, []);
 
   useEffect(() => {
-    // Arrivée depuis une livraison : ouvrir directement le détail de la facture concernée.
+    // Si on vient d'une livraison : on ouvre directement le détail de sa facture.
     if (location.state?.invoiceId) {
       const invoice = invoices.find(inv => inv.id === location.state.invoiceId);
       if (invoice) {
@@ -220,8 +219,8 @@ const Invoices = () => {
   }, [location.state, invoices]);
 
   useEffect(() => {
-    // Arrivée depuis la page Commandes : ouvrir le formulaire de facturation avec la commande
-    // pré-sélectionnée (flux ordonné CONFIRMED → facturer).
+    // Si on vient de la page Commandes : on ouvre le formulaire de facture avec la commande
+    // déjà choisie (CONFIRMED → facturer).
     if (location.state?.createForOrderId) {
       const orderId = location.state.createForOrderId;
       handleOpenCreateModal();
@@ -248,7 +247,7 @@ const Invoices = () => {
     }
   };
 
-  /** Compteurs d'en-tête : ils décrivent tout le périmètre, pas la page. */
+  /** Compteurs en haut de page : sur toutes les factures, pas juste la page. */
   const fetchSummary = async () => {
     try {
       const { data } = await api.get('/invoices/summary');
@@ -258,7 +257,7 @@ const Invoices = () => {
     }
   };
 
-  /** Clients proposés par le filtre : ceux qui ont réellement une facture. */
+  /** Clients proposés dans le filtre : seulement ceux qui ont une facture. */
   const fetchFilterOptions = async () => {
     try {
       const { data } = await api.get('/invoices/filter-options');
@@ -268,7 +267,7 @@ const Invoices = () => {
     }
   };
 
-  /** Recharge page, compteurs et options — à appeler après toute écriture sur une facture. */
+  /** Recharge la page, les compteurs et les options. À appeler après chaque modif d'une facture. */
   const refreshInvoices = async () => {
     await Promise.all([fetchInvoices(), fetchSummary(), fetchFilterOptions()]);
   };
@@ -276,8 +275,8 @@ const Invoices = () => {
   const fetchOrders = async () => {
     try {
       const response = await api.get('/orders');
-      // La livraison ne peut être créée qu'après facturation : seules les commandes
-      // CONFIRMED (non encore facturées) sont éligibles à la facturation.
+      // On ne peut livrer qu'après avoir facturé : seules les commandes CONFIRMED (pas encore
+      // facturées) peuvent être facturées.
       const availableOrders = response.data.filter(order =>
         order.status === 'CONFIRMED' && !invoices.some(inv => inv.order?.id === order.id)
       );
@@ -289,8 +288,8 @@ const Invoices = () => {
 
   const handleOpenCreateModal = () => {
     fetchOrders();
-    // Les réglages arrivent après le premier rendu : on rebâtit le formulaire à l'ouverture
-    // pour que le taux proposé soit bien celui configuré, pas le repli.
+    // Les paramètres arrivent après le premier rendu : on recrée le formulaire à l'ouverture
+    // pour avoir le bon taux et pas la valeur de secours.
     setCreateForm(blankCreateForm());
     setShowCreateModal(true);
   };
@@ -309,7 +308,7 @@ const Invoices = () => {
     }
 
     try {
-      // Détail complet de la commande (client et lignes) pour l'aperçu de facturation.
+      // Détail de la commande (client et lignes) pour l'aperçu de la facture.
       const response = await api.get(`/orders/${orderId}`);
       setSelectedOrder(response.data);
     } catch (error) {
@@ -325,7 +324,7 @@ const Invoices = () => {
       toast.error(t('invoices.selectOrder'));
       return;
     }
-    // L'échéance ne peut pas précéder l'émission (même garde que la page Commandes).
+    // L'échéance ne peut pas être avant la date d'émission (même contrôle que dans Commandes).
     if (createForm.dueDate < createForm.invoiceDate) {
       toast.error("L'échéance ne peut pas être antérieure à la date de facture");
       return;
@@ -372,8 +371,8 @@ const Invoices = () => {
   };
 
   const handleOpenPaymentModal = (invoice) => {
-    // Gardes de statut (cohérentes avec le backend) : on n'encaisse ni une facture déjà soldée
-    // ni une facture annulée.
+    // Contrôles sur le statut (comme côté backend) : pas de paiement sur une facture déjà
+    // payée ou annulée.
     if (invoice.status === 'PAID') {
       toast('Cette facture est déjà entièrement réglée.', { icon: 'ℹ️' });
       return;
@@ -392,9 +391,9 @@ const Invoices = () => {
   };
 
   /**
-   * Montant saisi, validé contre le reste dû. Renvoie null (et signale l'erreur) si la saisie
-   * ne convient pas. Partagé par l'encaissement manuel et le terminal carte : les deux
-   * engagent la même somme, ils doivent la contrôler pareil.
+   * Vérifie le montant saisi par rapport au reste à payer. Renvoie null (et affiche l'erreur)
+   * si ce n'est pas bon. Utilisé pour le paiement manuel et pour le terminal carte, qui
+   * doivent faire le même contrôle.
    */
   const validatedPaymentAmount = () => {
     const amount = parseFloat(paymentData.amount);
@@ -403,7 +402,7 @@ const Invoices = () => {
       toast.error(t('orders.page.enterValidAmount'));
       return null;
     }
-    // Petite tolérance flottante pour autoriser le solde exact.
+    // Petite marge pour les arrondis des flottants, pour accepter le montant exact.
     if (amount > remaining + 0.001) {
       toast.error(t('orders.steps.amountExceeds', { amount: formatCurrency(remaining) }));
       return null;
@@ -411,7 +410,7 @@ const Invoices = () => {
     return amount;
   };
 
-  /** Bascule vers le terminal carte : le paiement part alors chez Stripe (mode test). */
+  /** Passe au terminal carte : le paiement passe alors par Stripe (mode test). */
   const handleOpenTerminal = () => {
     const amount = validatedPaymentAmount();
     if (amount === null) return;
@@ -449,8 +448,8 @@ const Invoices = () => {
     try {
       const response = await api.get(`/invoices/${invoice.id}`);
       // Coordonnées de l'entreprise (en-tête + mentions légales belges), déjà chargées par
-      // `useSettings`. Leur indisponibilité ne bloque pas l'édition : le générateur applique
-      // ses propres valeurs par défaut.
+      // `useSettings`. Si elles manquent, on génère quand même le PDF avec les valeurs par
+      // défaut.
       await generateInvoicePDF(response.data, settings || {});
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -470,17 +469,17 @@ const Invoices = () => {
   const paymentMethodText = (method) =>
     PAYMENT_METHOD_KEYS[method] ? t(PAYMENT_METHOD_KEYS[method]) : (method || '—');
 
-  // Compteurs du périmètre entier, agrégés en base (cf. /api/invoices/summary). Les recalculer
-  // ici ne décrirait que la page affichée.
+  // Compteurs sur toutes les factures, calculés en base (voir /api/invoices/summary). Si on
+  // les calculait ici, ils ne porteraient que sur la page affichée.
   //
-  // Le périmètre est celui du tableau de bord (`/dashboard/overview`) : « Revenus encaissés »
-  // et « En attente » excluent les factures annulées, sorties des livres. Sans cela les deux
-  // écrans afficheraient des chiffres différents pour les mêmes données, le reliquat d'une
-  // facture annulée passant pour une créance vivante.
+  // Même base que le tableau de bord (`/dashboard/overview`) : « Revenus encaissés » et
+  // « En attente » ne comptent pas les factures annulées. Sinon les deux écrans
+  // n'afficheraient pas les mêmes chiffres, et le reste d'une facture annulée serait compté
+  // comme à encaisser.
   const stats = summary;
 
-  // Clients servis par /invoices/filter-options : les déduire de la page n'en proposerait
-  // qu'une poignée, et le choix disparaîtrait dès qu'on change de page.
+  // Clients renvoyés par /invoices/filter-options : si on les tirait de la page, on n'en
+  // aurait que quelques-uns et le choix disparaîtrait en changeant de page.
   const clientOptions = filterOptions.clients;
 
   const advancedFields = useMemo(() => [
@@ -534,7 +533,7 @@ const Invoices = () => {
   const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
   const showFullList = hasActiveFilters || viewMode === 'all';
 
-  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête.
+  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
@@ -542,11 +541,11 @@ const Invoices = () => {
   }, [searchTerm]);
 
   /**
-   * Critères envoyés au serveur.
+   * Paramètres envoyés au serveur.
    *
-   * « En retard » n'est pas un statut mais une échéance dépassée sur une facture ni soldée ni
-   * annulée : l'écran le propose dans la même liste que les statuts, le serveur en fait un
-   * paramètre distinct.
+   * « En retard » n'est pas un statut : c'est une facture ni payée ni annulée dont l'échéance
+   * est passée. À l'écran il est dans la même liste que les statuts, mais pour le serveur
+   * c'est un paramètre à part.
    */
   const queryParams = useMemo(() => {
     if (!showFullList) {
@@ -570,8 +569,8 @@ const Invoices = () => {
     return params;
   }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
 
-  // Le filtrage, le tri et la pagination sont faits en base : `invoices` porte déjà la page
-  // demandée, dans l'ordre demandé.
+  // Le filtrage, le tri et la pagination sont faits en base : `invoices` contient déjà la
+  // bonne page dans le bon ordre.
   const displayedInvoices = invoices;
   const totalPages = pageMeta.totalPages;
 
@@ -589,7 +588,7 @@ const Invoices = () => {
       if (prev.key === key) {
         return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
       }
-      // Dates et montants s'ouvrent du plus grand au plus petit, les textes de A à Z.
+      // Dates et montants triés du plus grand au plus petit, les textes de A à Z.
       const descFirst = ['invoiceDate', 'dueDate', 'totalAmount'].includes(key);
       return { key, direction: descFirst ? 'desc' : 'asc' };
     });
@@ -609,10 +608,9 @@ const Invoices = () => {
     setAdvanced((prev) => ({ ...prev, [field]: value }));
   };
 
-  /* Colonnes : identité de la facture, à qui, combien, où en est le règlement, quand elle a été
-   * émise et quand elle est due.
-   * La progression du règlement est encodée deux fois — barre ET montants chiffrés — afin que
-   * l'information ne repose jamais sur la seule longueur d'une barre. */
+  /* Colonnes : numéro, client, montant, état du paiement, date d'émission et échéance.
+   * L'avancement du paiement est affiché deux fois (barre ET montants), pour ne pas
+   * dépendre uniquement de la longueur de la barre. */
   const columns = [
     {
       key: 'invoiceNumber',
@@ -690,8 +688,8 @@ const Invoices = () => {
       },
     },
     {
-      // Date d'émission. Dernière colonne à apparaître quand l'écran s'élargit (lg) : c'est la
-      // moins urgente à lire des deux dates — l'échéance, elle, signale les retards.
+      // Date d'émission. C'est la dernière colonne affichée quand l'écran s'agrandit (lg),
+      // car c'est la moins importante des deux dates (l'échéance montre les retards).
       key: 'invoiceDate',
       label: t('invoices.invoiceDate'),
       sortable: true,
@@ -716,7 +714,7 @@ const Invoices = () => {
               <div className={`tabular-nums ${overdue ? 'font-semibold text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
                 {formatDate(invoice.dueDate)}
               </div>
-              {/* Le retard est écrit, pas seulement coloré. */}
+              {/* Le retard est écrit en texte, pas seulement en couleur. */}
               {overdue && (
                 <div className="text-xs font-medium text-red-600 dark:text-red-400">{t('invoices.overdue')}</div>
               )}
@@ -758,7 +756,7 @@ const Invoices = () => {
     </div>
   );
 
-  // Aperçu chiffré du formulaire de création : la TVA s'applique au total de la commande.
+  // Aperçu des montants dans le formulaire de création : la TVA s'applique au total de la commande.
   const previewSubtotal = num(selectedOrder?.totalAmount);
   const previewTax = previewSubtotal * (parseFloat(createForm.taxRate) || 0) / 100;
 
@@ -786,8 +784,8 @@ const Invoices = () => {
       </div>
 
       {/* ---- Indicateurs ----
-       * Deux montants (encaissé, reste dû) puis deux compteurs (volume, échues) : les factures
-       * échues sont le seul chiffre qui appelle une action, elles ont donc leur propre tuile. */}
+       * Deux montants (encaissé, reste à payer) puis deux compteurs (nombre, en retard). Les
+       * factures en retard sont le seul chiffre qui demande une action, d'où leur carte. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('invoices.collectedRevenue')}
@@ -944,9 +942,9 @@ const Invoices = () => {
         title={t('invoices.detailsTitle')}
         size="lg"
       >
-        {/* Les chiffres dérivés sont calculés une fois en tête de bloc : le reste à payer sert
-            à l'en-tête, à la barre de progression et au récapitulatif, et un même montant ne
-            doit pas pouvoir diverger entre trois endroits de la même fiche. */}
+        {/* Les valeurs calculées sont faites une seule fois en haut : le reste à payer sert à
+            l'en-tête, à la barre et au récapitulatif, il doit être le même aux trois
+            endroits. */}
         {selectedInvoice && (() => {
           const remaining = remainingOf(selectedInvoice);
           const settled = remaining <= 0.001;
@@ -958,8 +956,8 @@ const Invoices = () => {
 
           return (
           <div className="space-y-6">
-            {/* En-tête : ce qu'on vient vérifier sur une facture, c'est ce qui reste dû et si
-                l'échéance est passée. Les deux sont désormais lisibles sans faire défiler. */}
+            {/* En-tête : ce qu'on veut savoir sur une facture, c'est ce qui reste à payer et
+                si l'échéance est passée. Les deux sont visibles sans scroller. */}
             <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
                 <div className="min-w-0">
@@ -1006,7 +1004,7 @@ const Invoices = () => {
                   </div>
                 </div>
 
-                {/* Le montant qui décide de l'action à mener, en tête de fiche. */}
+                {/* Le montant le plus important, en haut de la fiche. */}
                 <div className="lg:flex-shrink-0 lg:text-right">
                   <p className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
                     {canceledInvoice ? t('invoices.totalWithTax') : t('invoices.amountDue')}
@@ -1022,7 +1020,7 @@ const Invoices = () => {
                 </div>
               </div>
 
-              {/* Avancement du règlement : même lecture que la colonne « Règlement » de la liste. */}
+              {/* Avancement du paiement, comme la colonne « Règlement » de la liste. */}
               {!canceledInvoice && (
                 <div className="mt-5">
                   <div className="metric-track" role="img" aria-label={`${Math.round(ratio * 100)} %`}>
@@ -1043,7 +1041,7 @@ const Invoices = () => {
               )}
             </header>
 
-            {/* Repères de facturation : quatre dates et modalités, alignées et balayables. */}
+            {/* Infos de facturation : dates et conditions, alignées. */}
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <KeyFact
                 icon={Calendar}
@@ -1074,8 +1072,8 @@ const Invoices = () => {
                   <User className="h-4 w-4 text-gray-400" aria-hidden="true" />
                   {t('invoices.clientInfoTitle')}
                 </h4>
-                {/* Bloc compact : le destinataire de la facture se lit comme sur l'enveloppe,
-                    avec de quoi le joindre sans quitter l'écran. */}
+                {/* Bloc compact : le client comme sur une enveloppe, avec ses coordonnées
+                    pour le contacter sans quitter l'écran. */}
                 <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
                   <div className="min-w-0 space-y-1">
                     <p className="truncate font-semibold text-gray-900 dark:text-gray-100">
@@ -1120,9 +1118,9 @@ const Invoices = () => {
               </section>
             )}
 
-            {/* Articles : le total de ligne est celui calculé par le backend (`totalPrice`), net de
-                la remise de ligne — le recalculer en prix × quantité afficherait un brut qui ne
-                s'additionne pas au sous-total. */}
+            {/* Articles : le total de la ligne est celui du backend (`totalPrice`), remise de
+                ligne déduite. Si on recalculait prix × quantité, on aurait un brut qui ne
+                correspond pas au sous-total. */}
             {selectedInvoice.order?.items?.length > 0 && (
               <section className="space-y-3">
                 <h4 className="subsection-title flex items-center gap-2">
@@ -1163,8 +1161,8 @@ const Invoices = () => {
               </section>
             )}
 
-            {/* Totaux alignés à droite sous les lignes, comme sur une facture imprimée : la
-                colonne des montants se lit d'un seul fil, du sous-total au reste à payer. */}
+            {/* Totaux alignés à droite sous les lignes, comme sur une facture papier : on lit
+                les montants de haut en bas, du sous-total au reste à payer. */}
             <section className="space-y-3">
               <h4 className="subsection-title">{t('invoices.sectionSummary')}</h4>
               <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 sm:ml-auto sm:max-w-sm dark:divide-gray-700/60 dark:border-gray-700">
@@ -1212,8 +1210,8 @@ const Invoices = () => {
               </section>
             )}
 
-            {/* Actions collées au bas de la modale : le détail d'une facture dépasse la hauteur
-                d'écran dès qu'elle compte quelques lignes, l'encaissement doit rester à portée. */}
+            {/* Boutons collés en bas du modal : avec quelques lignes, le détail d'une facture
+                dépasse la hauteur de l'écran, et le bouton d'encaissement doit rester visible. */}
             <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
               <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
                 {t('common.close')}
@@ -1384,8 +1382,8 @@ const Invoices = () => {
       >
         {selectedInvoice && (
           <div className="space-y-6">
-            {/* Le reste à payer est le chiffre qui décide du montant saisi : il est posé en tête,
-                pas en note sous le champ. */}
+            {/* Le reste à payer est affiché en haut, c'est lui qui détermine le montant à
+                saisir. */}
             <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/60">
               <div className="flex justify-between px-4 py-2.5 text-sm">
                 <span className="text-gray-600 dark:text-gray-400">{t('invoices.totalWithTax')}</span>
@@ -1437,8 +1435,8 @@ const Invoices = () => {
               />
             </div>
 
-            {/* Paiement carte : le montant et la facture sont les mêmes, seul l'encaissement
-                passe par le prestataire au lieu d'être saisi de la main du caissier. */}
+            {/* Paiement par carte : même montant, même facture, mais le paiement passe par
+                Stripe au lieu d'être saisi par le caissier. */}
             <button
               type="button"
               onClick={handleOpenTerminal}
@@ -1468,8 +1466,8 @@ const Invoices = () => {
           onClose={() => setShowTerminal(false)}
           invoice={selectedInvoice}
           amount={terminalAmount}
-          // Appelé aussi bien après un encaissement qu'après une session close par le serveur :
-          // dans les deux cas la liste affichée n'est plus à jour.
+          // Appelé après un paiement mais aussi quand le serveur ferme la session : dans les
+          // deux cas la liste n'est plus à jour.
           onPaid={() => refreshInvoices()}
         />
       )}

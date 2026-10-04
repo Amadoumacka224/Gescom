@@ -15,21 +15,21 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Billetterie du support. Table non cloisonnee, reservee a l'espace proprietaire.
+ * Tickets de support. Pas filtres par entreprise, reserves a l'espace super admin.
  */
 @Repository
 public interface SupportTicketRepository extends JpaRepository<SupportTicket, Long>,
         JpaSpecificationExecutor<SupportTicket> {
 
     /**
-     * L'entreprise est jointe dans la meme requete : la liste l'affiche a chaque ligne, ce
-     * qui declencherait sinon un N+1 par page.
+     * L'entreprise est chargee dans la meme requete : la liste l'affiche sur chaque ligne,
+     * sinon on aurait un N+1 par page.
      */
     @Override
     @EntityGraph(attributePaths = "company")
     Page<SupportTicket> findAll(Specification<SupportTicket> spec, Pageable pageable);
 
-    /** Le fil est charge avec le ticket : l'ecran de detail les affiche ensemble. */
+    /** Les messages sont charges avec le ticket : l'ecran de detail affiche les deux. */
     @EntityGraph(attributePaths = {"company", "messages", "messages.author"})
     Optional<SupportTicket> findWithMessagesById(Long id);
 
@@ -40,7 +40,7 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, Lo
     @Query("SELECT t.status, COUNT(t) FROM SupportTicket t GROUP BY t.status")
     List<Object[]> countGroupedByStatus();
 
-    /** Tickets ouverts d'une entreprise — affiche sur sa fiche. */
+    /** Tickets ouverts d'une entreprise, affiches sur sa fiche. */
     List<SupportTicket> findByCompanyIdAndStatusInOrderByCreatedAtDesc(
             Long companyId, Collection<SupportTicket.TicketStatus> statuses);
 }

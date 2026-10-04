@@ -19,13 +19,13 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
 
     /**
-     * Plan de chargement commun à toutes les listes de commandes : client, créateur, lignes,
-     * produits et catégories en une seule requête. La catégorie fait partie du lot parce que
-     * `Product.category` est en EAGER — hors du fetch join, Hibernate la recharge séparément.
-     * DISTINCT car le LEFT JOIN FETCH sur la collection de lignes duplique les commandes.
+     * Chargement commun à toutes les listes de commandes : client, créateur, lignes, produits
+     * et catégories en une seule requête. On inclut la catégorie parce que `Product.category`
+     * est en EAGER : sans le fetch join, Hibernate la recharge à part.
+     * DISTINCT car le LEFT JOIN FETCH sur les lignes duplique les commandes.
      *
-     * Client et créateur sont aliasés pour que les filtres ci-dessous s'appuient sur la jointure
-     * déjà présente, au lieu d'en déclencher une seconde par navigation implicite (o.client.id).
+     * Client et créateur ont un alias pour que les filtres plus bas utilisent la jointure déjà
+     * faite, au lieu d'en refaire une avec o.client.id.
      */
     String WITH_DETAILS = "SELECT DISTINCT o FROM Order o "
             + "LEFT JOIN FETCH o.client c "
@@ -35,10 +35,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             + "LEFT JOIN FETCH p.category ";
 
     /**
-     * Toutes les commandes visibles par la requête. {@code createdById} porte le cloisonnement
-     * caissier : nul, il désactive le filtre (vue ADMIN) ; renseigné, il borne la liste aux
-     * ventes de cet opérateur. Le filtre est appliqué en base et non après coup, faute de quoi
-     * il ne tiendrait pas dès qu'une pagination ou une agrégation SQL viendrait s'y greffer.
+     * Toutes les commandes visibles. {@code createdById} limite un caissier à ses ventes :
+     * si null, pas de filtre (vue ADMIN) ; sinon, seulement les ventes de cet utilisateur. Le
+     * filtre est fait en base et pas après coup, sinon il ne marcherait plus dès qu'on
+     * ajouterait une pagination ou un calcul en SQL.
      */
     @Query(WITH_DETAILS + "WHERE (:createdById IS NULL OR u.id = :createdById) ORDER BY o.createdAt DESC")
     List<Order> findAllWithDetails(@Param("createdById") Long createdById);
@@ -46,17 +46,17 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     Optional<Order> findByOrderNumber(String orderNumber);
 
     /**
-     * Recherche d'une vente par son numéro, insensible à la casse et lignes déjà chargées.
-     * Sert la saisie d'un retour : l'utilisateur tape un numéro relevé sur un ticket, pas une
-     * clé exacte, et le module a besoin des lignes pour calculer les quantités retournables.
+     * Cherche une vente par son numéro (sans tenir compte de la casse), avec ses lignes.
+     * Utilisé pour les retours : l'utilisateur tape un numéro lu sur un ticket, et on a besoin
+     * des lignes pour calculer ce qui peut être retourné.
      */
     @Query(WITH_DETAILS + "WHERE UPPER(o.orderNumber) = UPPER(:orderNumber)")
     Optional<Order> findByOrderNumberWithDetails(@Param("orderNumber") String orderNumber);
 
-    // Les quatre listes filtrées reprennent le même plan de chargement : en requête dérivée,
-    // chaque commande rechargeait ses lignes puis ses produits, soit ~2 requêtes par commande.
-    // Elles portent toutes le même `createdById` optionnel que findAllWithDetails : aucune
-    // liste de commandes ne doit offrir de contournement au cloisonnement caissier.
+    // Les quatre listes filtrées utilisent le même chargement : avec une requête dérivée,
+    // chaque commande rechargeait ses lignes puis ses produits, environ 2 requêtes par commande.
+    // Elles ont toutes le même `createdById` optionnel que findAllWithDetails : aucune liste
+    // de commandes ne doit permettre à un caissier de voir les ventes des autres.
     @Query(WITH_DETAILS + "WHERE c.id = :clientId "
             + "AND (:createdById IS NULL OR u.id = :createdById) ORDER BY o.createdAt DESC")
     List<Order> findByClientId(@Param("clientId") Long clientId,
@@ -77,8 +77,8 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                                        @Param("createdById") Long createdById);
 
     /**
-     * Commandes d'un caissier sur une journée [start, end), lignes et client chargés
-     * en une seule requête (évite le N+1 lors de l'agrégation du tableau de bord caisse).
+     * Commandes d'un caissier sur une journée [start, end), avec lignes et client en une seule
+     * requête (évite le N+1 dans les calculs du tableau de bord caisse).
      */
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.items " +
@@ -91,10 +91,9 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                                         @Param("end") LocalDateTime end);
 
     /**
-     * Commandes de tous les caissiers sur une journée [start, end), lignes, client et créateur
-     * chargés en une seule requête. Pendant « supervision des caisses » de
-     * {@link #findDayOrdersForCashier} : évite de rapatrier toute la table pour n'en agréger
-     * qu'un jour.
+     * Commandes de tous les caissiers sur une journée [start, end), avec lignes, client et
+     * créateur en une seule requête. C'est la version « suivi des caisses » de
+     * {@link #findDayOrdersForCashier} : on évite de charger toute la table pour une journée.
      */
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.items " +
@@ -106,49 +105,48 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                               @Param("end") LocalDateTime end);
 
     /**
-     * Lecture de la commande avec verrou pessimiste, pendant de
-     * {@code ProductRepository.findByIdForUpdate} au niveau de la vente.
+     * Lit la commande avec un verrou pessimiste, comme
+     * {@code ProductRepository.findByIdForUpdate} mais pour la vente.
      *
-     * Sert les opérations dont le contrôle porte sur le cumul des lignes rattachées à la
-     * commande — le retour client, dont la quantité retournable est « vendu − déjà rendu ».
-     * Verrouiller les produits n'y suffit pas : deux retours simultanés liraient le même
-     * « déjà rendu » avant de verrouiller quoi que ce soit, et passeraient tous deux.
-     * Doit être appelé dans un contexte transactionnel.
+     * Sert quand on doit vérifier un total sur toutes les lignes de la commande : le retour
+     * client, où la quantité retournable est « vendu − déjà rendu ». Verrouiller les produits
+     * ne suffit pas : deux retours en même temps liraient le même « déjà rendu » avant de
+     * verrouiller quoi que ce soit, et passeraient tous les deux.
+     * À appeler dans une transaction.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM Order o WHERE o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
     /**
-     * Recharge en un coup, avec tout leur détail, des commandes déjà sélectionnées.
+     * Recharge d'un coup, avec tout le détail, des commandes déjà choisies.
      *
-     * Second temps de la recherche paginée. {@link #WITH_DETAILS} ne peut PAS être paginé
-     * directement : dès qu'une requête embarque un {@code JOIN FETCH} sur une collection,
-     * Hibernate ne sait plus traduire {@code LIMIT} en SQL — la jointure multiplie les lignes,
-     * et découper le résultat brut couperait une commande au milieu de ses articles. Il
-     * rapatrie alors TOUT et pagine en mémoire, en le signalant par l'avertissement
-     * {@code HHH90003004}. La pagination serait purement décorative, et le remède pire que le
-     * mal : même consommation qu'avant, plus le coût de la découpe.
+     * C'est la deuxième étape de la recherche paginée. On ne peut PAS paginer directement
+     * {@link #WITH_DETAILS} : dès qu'une requête a un {@code JOIN FETCH} sur une collection,
+     * Hibernate ne peut plus faire un {@code LIMIT} en SQL (la jointure multiplie les lignes,
+     * et couper le résultat couperait une commande au milieu de ses articles). Il charge alors
+     * TOUT et pagine en mémoire, avec le warning {@code HHH90003004}. La pagination ne
+     * servirait à rien, et ce serait même pire qu'avant : même consommation, plus le découpage.
      *
-     * D'où la sélection des identifiants d'abord, sans jointure de collection donc paginée
-     * pour de vrai par la base, puis ce chargement du détail sur ces seuls identifiants.
+     * Donc on sélectionne d'abord les ids, sans jointure sur la collection (donc vraiment
+     * paginé en base), puis on charge le détail seulement pour ces ids.
      *
-     * L'ordre du résultat n'est pas garanti et n'a pas à l'être : l'appelant réordonne selon la
-     * page qu'il a demandée.
+     * L'ordre du résultat n'est pas garanti, et pas besoin : l'appelant remet dans l'ordre de
+     * la page demandée.
      */
     @Query(WITH_DETAILS + "WHERE o.id IN :ids")
     List<Order> findAllWithDetailsByIds(@Param("ids") List<Long> ids);
 
     /**
-     * Décompte par statut, agrégé en base, pour les tuiles de l'écran.
+     * Nombre de commandes par statut, calculé en base, pour les cartes de l'écran.
      *
-     * {@code createdById} porte le cloisonnement caissier, comme dans {@link #findAllWithDetails} :
-     * les tuiles doivent décrire le même ensemble que la liste, sans quoi un caissier lirait le
-     * total de l'entreprise au-dessus de ses seules ventes.
+     * {@code createdById} limite un caissier à ses ventes, comme dans {@link #findAllWithDetails} :
+     * les cartes doivent porter sur les mêmes commandes que la liste, sinon un caissier verrait
+     * le total de toute l'entreprise au-dessus de ses propres ventes.
      */
-    // Statuts passés en paramètres plutôt qu'écrits en litéraux : un littéral énuméré qualifié
-    // (`com.gescom...Order.OrderStatus.PENDING`) n'est pas interprété par Hibernate 6 et fait
-    // échouer le démarrage sur « Could not interpret path expression ».
+    // Statuts passés en paramètres plutôt qu'écrits en dur : un enum écrit avec son nom complet
+    // (`com.gescom...Order.OrderStatus.PENDING`) n'est pas compris par Hibernate 6, et le
+    // démarrage plante avec « Could not interpret path expression ».
     @Query("""
            SELECT COUNT(o) AS total,
                   COALESCE(SUM(CASE WHEN o.status = :pending THEN 1 ELSE 0 END), 0) AS pending,
@@ -168,12 +166,12 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                                 @Param("canceled") Order.OrderStatus canceled);
 
     /**
-     * Opérateurs ayant réellement saisi une vente dans le périmètre de l'appelant.
+     * Utilisateurs qui ont vraiment saisi une vente, parmi ce que l'appelant peut voir.
      *
-     * Endpoint distinct de {@code /users}, et ce n'est pas un doublon : lister les utilisateurs
-     * est réservé à l'ADMIN, alors que le filtre « saisie par » doit rester utilisable par un
-     * caissier. Ici, {@code createdById} le ramène de toute façon à lui seul — le filtre lui
-     * proposera une seule valeur, la sienne, et l'écran le masque dans ce cas.
+     * Ce n'est pas un doublon de {@code /users} : lister les utilisateurs est réservé à
+     * l'ADMIN, alors que le filtre « saisie par » doit marcher pour un caissier. Ici,
+     * {@code createdById} le limite de toute façon à lui-même : il n'aura qu'une seule valeur,
+     * la sienne, et l'écran cache le filtre dans ce cas.
      */
     @Query("""
            SELECT DISTINCT u.id AS id, u.firstName AS firstName, u.lastName AS lastName, u.username AS username
@@ -183,7 +181,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
            """)
     List<OperatorView> findDistinctOperators(@Param("createdById") Long createdById);
 
-    /** Villes des clients ayant commandé, pour la liste déroulante du filtre. */
+    /** Villes des clients qui ont commandé, pour la liste du filtre. */
     @Query("""
            SELECT DISTINCT c.city
            FROM Order o JOIN o.client c LEFT JOIN o.createdBy u
@@ -200,7 +198,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
         String getUsername();
     }
 
-    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour le motif. */
+    /** Projection par interface : voir {@code ProductRepository.CatalogSummaryView} pour la raison. */
     interface OrderSummaryView {
         long getTotal();
         long getPending();
@@ -211,14 +209,14 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     }
 
     /**
-     * Commandes prêtes à être livrées : facturées, et sans livraison déjà enregistrée.
+     * Commandes prêtes à livrer : facturées et sans livraison.
      *
-     * L'écran Livraisons déduisait cette liste lui-même, en retranchant des commandes facturées
-     * celles qui apparaissaient dans la liste des livraisons. Cette liste n'étant plus chargée
-     * en entier, la soustraction ne verrait plus que la page affichée et proposerait de livrer
-     * une commande déjà livrée — refusée ensuite par {@code createDelivery}, mais proposée.
+     * Avant, l'écran Livraisons calculait cette liste lui-même, en enlevant des commandes
+     * facturées celles qui étaient dans la liste des livraisons. Comme cette liste n'est plus
+     * chargée en entier, on ne verrait que la page affichée et on proposerait de livrer une
+     * commande déjà livrée (refusée ensuite par {@code createDelivery}, mais proposée).
      *
-     * Le NOT EXISTS place la question là où elle a une réponse complète.
+     * Avec le NOT EXISTS, c'est la base qui répond, et elle a toutes les données.
      */
     @Query(WITH_DETAILS + "WHERE o.status = :invoiced "
             + "AND NOT EXISTS (SELECT 1 FROM Delivery d WHERE d.order = o) "
@@ -228,49 +226,48 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                                 @Param("createdById") Long createdById);
 
     /**
-     * Chiffre d'affaires commandé, agrégé en base.
+     * Montant total des commandes, calculé en base.
      *
-     * Les commandes ANNULÉES en sont exclues : elles n'ont jamais été honorées. C'est le même
-     * périmètre que le décompte « N commandes honorées » affiché juste à côté — les deux
-     * doivent parler du même ensemble, sans quoi le tableau de bord se contredit lui-même.
+     * Les commandes ANNULÉES ne sont pas comptées : elles n'ont jamais été honorées. Ce sont
+     * les mêmes commandes que le compteur « N commandes honorées » affiché juste à côté, sinon
+     * le tableau de bord se contredirait.
      *
-     * COALESCE sur la somme : SUM rend NULL et non 0 sur un ensemble vide, et un montant nul
-     * hérité faisait tomber tout l'aperçu en 500.
+     * COALESCE sur la somme : SUM renvoie NULL et pas 0 quand il n'y a rien, et ce null
+     * faisait planter tout le tableau de bord en 500.
      */
     @Query("SELECT COALESCE(SUM(o.finalAmount), 0) FROM Order o WHERE o.status <> :canceled")
     BigDecimal sumHonoredSales(@Param("canceled") Order.OrderStatus canceled);
 
     /**
-     * Commandes facturées restant à planifier : le reste à faire du magasin.
+     * Commandes facturées qui restent à planifier (ce qu'il reste à faire au magasin).
      *
-     * Compté sur la jointure réelle, et non déduit de « facturées − livraisons en attente » :
-     * une livraison en attente peut survivre à l'annulation de sa facture puis de sa commande,
-     * auquel cas la soustraction sous-compte — voire passe sous zéro.
+     * Compté avec une vraie jointure et pas calculé avec « facturées − livraisons en
+     * attente » : une livraison en attente peut rester après l'annulation de sa facture puis
+     * de sa commande, et la soustraction donnerait un chiffre trop petit, voire négatif.
      */
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :invoiced "
             + "AND NOT EXISTS (SELECT 1 FROM Delivery d WHERE d.order = o)")
     long countToSchedule(@Param("invoiced") Order.OrderStatus invoiced);
 
-    /** Dernières ventes saisies, lignes et client déjà chargés pour le mapping du tableau de bord. */
+    /** Dernières ventes, avec lignes et client déjà chargés pour le tableau de bord. */
     @Query(WITH_DETAILS + "ORDER BY o.createdAt DESC")
     List<Order> findRecent(Pageable pageable);
 
-    /** Volume de commandes d'une entreprise — indicateur d'usage du back-office propriétaire. */
+    /** Nombre de commandes d'une entreprise, pour le back-office du super admin. */
     long countByOwnerCompanyId(Long companyId);
 
     /**
-     * Plus haut numero deja attribue pour ce prefixe et cette annee, ou null s'il n'y en a
-     * aucun.
+     * Plus grand numero deja utilise pour ce prefixe et cette annee, ou null s'il n'y en a pas.
      *
-     * Un MAX sur la CHAINE, valide parce que le compteur est complete a largeur fixe :
-     * CMD-2026-0042 se compare bien avant CMD-2026-0100. Sans ce remplissage, l'ordre
-     * lexicographique placerait 9 apres 10 et la suite repartirait en arriere.
+     * Un MAX sur la CHAINE, ce qui marche parce que le compteur a toujours la meme longueur
+     * (complete avec des zeros) : CMD-2026-0042 est bien avant CMD-2026-0100. Sans les zeros,
+     * l'ordre alphabetique mettrait 9 apres 10 et la numerotation repartirait en arriere.
      *
-     * Les numeros de l'ancien format (CMD- suivi d'un horodatage) ne matchent pas le motif :
-     * ils sont ignores, et les deux formes cohabitent sans se marcher dessus.
+     * Les anciens numeros (CMD- suivi d'un horodatage) ne correspondent pas au motif : ils
+     * sont ignores, et les deux formats peuvent exister ensemble sans probleme.
      *
-     * Le cloisonnement par entreprise est assure par le filtre Hibernate, qui couvre les
-     * requetes JPQL : chaque entreprise ne voit donc que ses propres numeros.
+     * Le filtrage par entreprise est fait par le filtre Hibernate, qui s'applique aux
+     * requetes JPQL : chaque entreprise ne voit que ses propres numeros.
      */
     @Query("SELECT MAX(o.orderNumber) FROM Order o WHERE o.orderNumber LIKE :pattern")
     String findMaxNumber(@Param("pattern") String pattern);

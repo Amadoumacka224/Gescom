@@ -59,14 +59,14 @@ public class StockController {
         return null;
     }
 
-    // Le grand livre des mouvements est append-only : ses listes sont paginées, contrairement
-    // à /export qui doit rester exhaustif.
+    // On ne fait qu'ajouter des mouvements, jamais en modifier : les listes sont paginées,
+    // sauf /export qui doit tout contenir.
     //
-    // Sa consultation est réservée aux ADMIN, au même titre que les écritures plus bas. Un
-    // mouvement porte le numéro de la commande qui l'a produit en référence : ouvert au
-    // CAISSIER, le registre lui donnerait le détail des ventes de tous ses collègues, article
-    // par article — exactement ce que le cloisonnement des commandes interdit par ailleurs.
-    // C'est aussi ce que fait déjà le frontend, où /stock est un écran d'administrateur.
+    // La consultation est réservée aux ADMIN, comme les écritures plus bas. Un mouvement a
+    // comme référence le numéro de la commande qui l'a créé : si le CAISSIER y avait accès,
+    // il verrait le détail des ventes de tous ses collègues, article par article, ce que le
+    // filtrage des commandes interdit justement. C'est aussi déjà le cas côté front, où
+    // /stock est un écran admin.
     @GetMapping("/movements")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<StockMovementResponse>> getAllMovements(
@@ -118,9 +118,9 @@ public class StockController {
                 stockService.getMovementsByDateRange(start, end, pageable), stockMapper::toResponse));
     }
 
-    // Les opérations d'écriture de stock sont réservées aux ADMIN (cohérent avec
-    // la sidebar qui masque /stock pour CAISSIER). Avant, ces endpoints étaient
-    // ouverts à CAISSIER via la sécurité au niveau classe — défaut corrigé ici.
+    // Les écritures de stock sont réservées aux ADMIN (comme dans le menu, qui cache
+    // /stock au CAISSIER). Avant, ces endpoints étaient accessibles au CAISSIER à cause
+    // de la sécurité définie au niveau de la classe, c'est corrigé ici.
     @PostMapping("/add")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StockMovementResponse> addStock(@Valid @RequestBody StockMovementRequest request) {
@@ -155,8 +155,8 @@ public class StockController {
         return ResponseEntity.status(HttpStatus.CREATED).body(stockMapper.toResponse(movement));
     }
 
-    // Les retours clients ne sont plus une simple entrée de stock à saisir à la main : ils
-    // partent de la vente d'origine et vivent dans StockReturnController (/api/stock/returns).
+    // Les retours clients ne sont plus une simple entrée de stock tapée à la main : ils
+    // partent de la vente d'origine et sont gérés par StockReturnController (/api/stock/returns).
 
     @GetMapping("/low-stock")
     public ResponseEntity<List<ProductResponse>> getLowStockProducts() {

@@ -28,10 +28,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Service de gestion du stock et de sa traçabilité.
- * Chaque opération (entrée, sortie, ajustement, casse) modifie la quantité du produit ET
- * enregistre un StockMovement horodaté conservant l'état avant/après — ce qui rend tout
- * mouvement auditable et réversible (cf. deleteMovement, qui annule l'effet d'un mouvement).
+ * Service de gestion du stock et de son historique.
+ * Chaque opération (entrée, sortie, ajustement, casse) change la quantité du produit ET
+ * enregistre un StockMovement daté avec l'état avant/après. On peut donc vérifier et annuler
+ * n'importe quel mouvement (voir deleteMovement, qui annule l'effet d'un mouvement).
  */
 @Service
 @Transactional
@@ -57,7 +57,7 @@ public class StockService {
     }
 
     /**
-     * Page du grand livre, filtrée sur les critères fournis (tous optionnels).
+     * Une page des mouvements, filtrée avec les critères donnés (tous optionnels).
      * Le filtrage est fait en base : sur une liste paginée, filtrer les lignes reçues ne
      * chercherait que dans la page affichée.
      */
@@ -136,7 +136,7 @@ public class StockService {
         return stockMovementRepository.findByCreatedAtBetween(start, end);
     }
 
-    /** Entrée de stock (réapprovisionnement). Trace un mouvement STOCK_IN avant/après et met à jour le produit. */
+    /** Entrée de stock (réapprovisionnement). Enregistre un mouvement STOCK_IN avant/après et met à jour le produit. */
     public StockMovement addStock(Long productId, Integer quantity, BigDecimal unitCost, String reason, String reference, Long userId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("product", productId));
@@ -208,9 +208,9 @@ public class StockService {
     }
 
     /**
-     * Fixe le stock à une valeur absolue (ex : après un inventaire physique).
-     * Contrairement à add/removeStock qui raisonnent en delta, on enregistre ici la
-     * quantité finale constatée et la différence est calculée automatiquement.
+     * Met le stock à une valeur précise (ex : après un inventaire).
+     * Contrairement à add/removeStock qui ajoutent ou enlèvent une quantité, ici on donne la
+     * quantité comptée et la différence est calculée automatiquement.
      */
     public StockMovement adjustStock(Long productId, Integer newQuantity, String reason, Long userId) {
         Product product = productRepository.findById(productId)
@@ -244,8 +244,8 @@ public class StockService {
         return savedMovement;
     }
 
-    // Les retours clients (mouvements RETURN) sont produits par StockReturnService, à partir de
-    // la vente d'origine : ils ne se saisissent pas comme une entrée de stock isolée.
+    // Les retours clients (mouvements RETURN) sont créés par StockReturnService à partir de la
+    // vente d'origine : on ne les saisit pas comme une simple entrée de stock.
 
     public StockMovement recordDamage(Long productId, Integer quantity, String reason, Long userId) {
         Product product = productRepository.findById(productId)
@@ -294,8 +294,8 @@ public class StockService {
     }
 
     /**
-     * Agrège les indicateurs de stock pour le tableau de bord : nombre de produits,
-     * ruptures, alertes seuil bas, et valeur totale du stock (au prix d'achat).
+     * Calcule les stats de stock pour le tableau de bord : nombre de produits, ruptures,
+     * alertes stock bas, et valeur totale du stock (au prix d'achat).
      */
     @Transactional(readOnly = true)
     public Map<String, Object> getStockStatistics() {
@@ -326,13 +326,13 @@ public class StockService {
 
     /**
      * Supprime un mouvement de stock en annulant son effet sur la quantité du produit,
-     * afin que le stock reste cohérent avec l'historique restant.
+     * pour que le stock corresponde toujours à l'historique restant.
      */
     public void deleteMovement(Long id) {
         StockMovement movement = stockMovementRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("stockMovement", id));
 
-        // Inverser l'effet du mouvement sur le stock du produit
+        // Annule l'effet du mouvement sur le stock du produit
         Product product = movement.getProduct();
         if (product != null) {
             int currentStock = product.getStockQuantity();
@@ -340,12 +340,12 @@ public class StockService {
                 case STOCK_IN:
                 case RETURN:
                     // L'entrée (réapprovisionnement ou retour client) avait ajouté du stock,
-                    // on le retire.
+                    // on l'enlève.
                     product.setStockQuantity(currentStock - movement.getQuantity());
                     break;
                 case STOCK_OUT:
                 case DAMAGE:
-                    // La sortie (vente, casse) avait retiré du stock, on le restaure.
+                    // La sortie (vente, casse) avait enlevé du stock, on le remet.
                     product.setStockQuantity(currentStock + movement.getQuantity());
                     break;
                 case ADJUSTMENT:

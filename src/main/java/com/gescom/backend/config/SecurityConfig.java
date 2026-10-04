@@ -26,9 +26,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Configuration de la sécurité de l'application.
+ * Configuration de la sécurité.
  * - Active Spring Security et les annotations de sécurité sur les méthodes.
- * - Définit les beans nécessaires pour l'authentification JWT, CORS et l'encodage des mots de passe.
+ * - Déclare les beans pour l'authentification JWT, le CORS et l'encodage des mots de passe.
  */
 
 @Configuration
@@ -40,18 +40,18 @@ public class SecurityConfig {
     @Autowired
     private CustomUserDetailsService userDetailsService;
 
-    // Réponses JSON des refus de la chaîne de filtres : 401 (token absent ou invalide)
-    // et 403 (utilisateur authentifié mais rôle insuffisant).
+    // Réponses JSON quand la chaîne de filtres refuse : 401 (token absent ou invalide)
+    // et 403 (connecté mais pas le bon rôle).
     @Autowired
     private JwtSecurityErrorHandler securityErrorHandler;
 
-    // Origines autorisées pour les requêtes CORS, définies dans application.properties.
+    // Origines autorisées pour le CORS, définies dans application.properties.
     @Value("${cors.allowed-origins}")
     private String allowedOrigins;
 
     /**
-     * Bean pour le filtre d'authentification JWT.
-     * Intercepte les requêtes pour extraire et valider le token JWT.
+     * Filtre d'authentification JWT.
+     * Récupère et valide le token JWT de chaque requête.
      */
 
     @Bean
@@ -61,9 +61,9 @@ public class SecurityConfig {
     }
 
     /**
-     * Configure le provider d'authentification DAO.
-     * Utilise le CustomUserDetailsService pour charger les utilisateurs
-     * et le PasswordEncoder pour vérifier les mots de passe.
+     * Provider d'authentification DAO.
+     * Utilise CustomUserDetailsService pour charger l'utilisateur
+     * et le PasswordEncoder pour vérifier le mot de passe.
      */
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
@@ -74,8 +74,8 @@ public class SecurityConfig {
     }
 
     /**
-     * Expose l'AuthenticationManager afin de pouvoir l'injecter ailleurs (ex: contrôleur d'authentification).
-     * Récupéré depuis la configuration d'authentification fournie par Spring.
+     * Expose l'AuthenticationManager pour pouvoir l'injecter ailleurs (ex : contrôleur d'authentification).
+     * On le récupère depuis la configuration fournie par Spring.
      */
 
     @Bean
@@ -86,14 +86,13 @@ public class SecurityConfig {
 
 
     /**
-     * Bean pour l'encodage des mots de passe.
-     * BCrypt est utilisé ici — algorithme sécurisé recommandé pour les mots de passe.
+     * Encodeur des mots de passe (BCrypt).
      *
-     * Le coût est porté à 12 (le constructeur sans argument applique 10), soit quatre fois plus
-     * de travail par empreinte : quelques centaines de millisecondes à la connexion, mais autant
-     * de fois plus cher pour qui tenterait une attaque par force brute sur les empreintes volées.
-     * Le coût étant inscrit dans l'empreinte elle-même, les mots de passe déjà enregistrés en
-     * {@code $2a$10$} continuent de se vérifier ; ils passeront à 12 à leur prochaine modification.
+     * Coût à 12 (le constructeur par défaut met 10), donc quatre fois plus de calcul par hash :
+     * quelques centaines de millisecondes à la connexion, mais beaucoup plus long pour quelqu'un
+     * qui voudrait casser des hash volés par force brute. Comme le coût est stocké dans le hash,
+     * les anciens mots de passe en {@code $2a$10$} marchent toujours ; ils passeront à 12 la
+     * prochaine fois qu'ils seront modifiés.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -102,11 +101,11 @@ public class SecurityConfig {
 
     /**
      * Configuration principale de la sécurité HTTP.
-     * - Désactive CSRF (non nécessaire pour les API REST stateless).
-     * - Gère les exceptions d'authentification avec un point d'entrée personnalisé.
-     * - Définit la politique de session sur STATELESS (pas de sessions côté serveur).
-     * - Configure les règles d'autorisation des requêtes.
-     * - Active CORS avec une configuration personnalisée.
+     * - Désactive CSRF (pas utile pour une API REST sans session).
+     * - Gère les erreurs d'authentification avec un point d'entrée personnalisé.
+     * - Pas de session côté serveur (STATELESS).
+     * - Règles d'accès aux routes.
+     * - Active le CORS.
      */
 
     @Bean
@@ -118,36 +117,34 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
                 auth.requestMatchers("/api/auth/**").permitAll()
-                    // Sonde de l'hebergeur, interrogee sans jeton depuis le reseau interne de
-                    // la plateforme. Elle ne divulgue rien : show-details=never renvoie le seul
-                    // statut UP/DOWN, et aucun autre point de terminaison actuator n'est expose.
+                    // Health check de l'hebergeur, appele sans token depuis son reseau interne.
+                    // Ca ne donne aucune info : show-details=never renvoie juste UP/DOWN, et
+                    // aucun autre endpoint actuator n'est expose.
                     .requestMatchers("/actuator/health").permitAll()
-                    // Documentation OpenAPI. Ces chemins tombaient jusqu'ici sous le
-                    // anyRequest().authenticated() final : l'API étant sans session, un
-                    // navigateur n'a aucun moyen d'y joindre un jeton, et l'interface
-                    // annoncée par le README répondait 401 — donc inutilisable.
+                    // Documentation OpenAPI. Avant, ces routes tombaient dans le
+                    // anyRequest().authenticated() de la fin : comme l'API n'a pas de session,
+                    // le navigateur ne peut pas envoyer de token, et l'interface citée dans le
+                    // README répondait 401, donc inutilisable.
                     //
-                    // Les ouvrir ne divulgue que la forme de l'API, jamais de donnée : les
-                    // essais lancés depuis l'interface passent par les mêmes règles que
-                    // n'importe quel appel, et échouent sans jeton valide. Par prudence,
-                    // le profil `render` désactive tout de même springdoc — la surface
-                    // publiée d'une installation en service n'a pas à être documentée en
-                    // libre accès (voir application-render.properties).
+                    // Les ouvrir ne montre que la structure de l'API, aucune donnée : les tests
+                    // lancés depuis l'interface passent par les mêmes règles que les autres
+                    // appels et échouent sans token valide. Par sécurité, le profil `render`
+                    // désactive quand même springdoc, pas besoin de documenter publiquement
+                    // une installation en production (voir application-render.properties).
                     .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                    // Espace du propriétaire de la plateforme. La règle est doublée par un
-                    // @PreAuthorize au niveau de chaque contrôleur : ce filtrage par URL est
-                    // la barrière de périmètre, l'annotation la barrière de méthode. Un
-                    // contrôleur ajouté sous ce préfixe est ainsi protégé même si son auteur
-                    // oublie l'annotation.
+                    // Espace du super admin. Chaque contrôleur a aussi son @PreAuthorize :
+                    // la règle sur l'URL protège tout le préfixe, l'annotation protège la
+                    // méthode. Comme ça, un contrôleur ajouté sous ce préfixe est protégé
+                    // même si on oublie l'annotation.
                     .requestMatchers("/api/platform/**").hasRole("SUPER_ADMIN")
-                    // Symétriquement, le propriétaire de la plateforme n'a rien à faire dans
-                    // les écrans métier d'une entreprise : il n'appartient à aucune d'elles,
-                    // et son contexte de cloisonnement vide lui ferait traverser tout le parc.
+                    // Et inversement, le super admin n'a rien à faire dans les écrans métier :
+                    // il n'appartient à aucune entreprise, et avec un contexte d'entreprise
+                    // vide il verrait les données de toutes les entreprises.
                     .requestMatchers("/api/**").hasAnyRole("ADMIN", "CAISSIER")
                     .anyRequest().authenticated()
             )
             .cors(cors -> cors.configurationSource(corsConfigurationSource()));
-        // Enregistre le provider DAO (UserDetailsService + PasswordEncoder)
+        // Ajoute le provider DAO (UserDetailsService + PasswordEncoder)
         http.authenticationProvider(authenticationProvider());
         // Ajoute le filtre JWT avant le filtre d'authentification standard
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
@@ -156,10 +153,10 @@ public class SecurityConfig {
     }
 
     /**
-     * Configuration CORS centralisée.
-     * - Lit les origines autorisées depuis la propriété `cors.allowed-origins` (séparées par des virgules).
+     * Configuration CORS.
+     * - Origines autorisées lues dans `cors.allowed-origins` (séparées par des virgules).
      * - Autorise les méthodes HTTP courantes et tous les headers.
-     * - Autorise l'utilisation des credentials (cookies / autorisation) si nécessaire.
+     * - Autorise les credentials (cookies / Authorization) si besoin.
      */
 
     @Bean

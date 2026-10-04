@@ -21,12 +21,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Service d'import de produits depuis un fichier CSV.
- * Conçu pour être tolérant aux fichiers réels : détection automatique du séparateur
- * (; , ou tabulation), correspondance des colonnes par alias multilingues (ex : « name »,
- * « nom », « designation »), et valeurs par défaut quand une cellule est absente ou invalide.
- * L'import est ligne par ligne : une ligne en erreur stoppe l'analyse, mais un produit
- * impossible à sauvegarder (ex : code en doublon) est seulement ignoré et tracé.
+ * Import de produits depuis un fichier CSV.
+ * Fait pour accepter des vrais fichiers pas toujours propres : détection automatique du
+ * séparateur (; , ou tabulation), colonnes reconnues sous plusieurs noms et langues
+ * (ex : « name », « nom », « designation »), et valeurs par défaut si une cellule est vide
+ * ou invalide. L'import se fait ligne par ligne : une ligne en erreur arrête l'analyse,
+ * mais un produit qu'on ne peut pas enregistrer (ex : code en double) est juste ignoré et loggé.
  */
 @Service
 public class CsvImportService {
@@ -57,8 +57,8 @@ public class CsvImportService {
 
             log.debug("CSV Header: {}", headerLine);
 
-            // Détection du séparateur d'après la ligne d'en-tête : point-virgule (Excel FR),
-            // tabulation, ou virgule par défaut.
+            // Détection du séparateur à partir de l'en-tête : point-virgule (Excel FR),
+            // tabulation, sinon virgule.
             char delimiter = ';';
             if (headerLine.contains(";")) {
                 delimiter = ';';
@@ -69,8 +69,8 @@ public class CsvImportService {
             }
             log.debug("Detected delimiter: {}", delimiter);
 
-            // Indexe chaque nom de colonne (en minuscules) vers sa position, pour ensuite
-            // retrouver une valeur par son nom plutôt que par un numéro de colonne figé.
+            // Associe chaque nom de colonne (en minuscules) à sa position, pour retrouver une
+            // valeur par son nom et pas par un numéro de colonne fixe.
             String[] headers = parseCsvLine(headerLine, delimiter);
             Map<String, Integer> columnMap = new HashMap<>();
             for (int i = 0; i < headers.length; i++) {
@@ -173,8 +173,9 @@ public class CsvImportService {
     }
 
     /**
-     * Récupère la valeur d'une colonne en testant plusieurs alias possibles
-     * (ex : "name", "nom", "designation") — rend l'import indépendant de la langue de l'en-tête.
+     * Récupère la valeur d'une colonne en essayant plusieurs noms possibles
+     * (ex : "name", "nom", "designation"), comme ça l'import marche quelle que soit la langue
+     * de l'en-tête.
      */
     private String getColumnValue(String[] values, Map<String, Integer> columnMap, String... possibleNames) {
         for (String name : possibleNames) {
@@ -187,8 +188,8 @@ public class CsvImportService {
     }
 
     /**
-     * Découpe une ligne CSV en respectant les guillemets : un séparateur situé à l'intérieur
-     * d'une paire de guillemets fait partie de la valeur et ne coupe pas le champ.
+     * Découpe une ligne CSV en tenant compte des guillemets : un séparateur entre guillemets
+     * fait partie de la valeur et ne coupe pas le champ.
      */
     private String[] parseCsvLine(String line, char delimiter) {
         List<String> values = new ArrayList<>();

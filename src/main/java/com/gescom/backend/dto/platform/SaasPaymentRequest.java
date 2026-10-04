@@ -7,11 +7,11 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 /**
- * Enregistrement d'un encaissement d'abonnement.
+ * Enregistrement d'un paiement d'abonnement.
  *
- * Le montant est saisi plutot que deduit de l'abonnement : un versement peut etre partiel,
- * porter une regularisation ou un geste commercial. Le statut est saisi lui aussi, un echec
- * de prelevement devant pouvoir etre journalise au meme titre qu'un succes.
+ * Le montant est saisi et pas calcule a partir de l'abonnement : un paiement peut etre
+ * partiel, une regularisation ou un geste commercial. Le statut est saisi aussi, car on doit
+ * pouvoir enregistrer un prelevement rate comme un paiement reussi.
  */
 public record SaasPaymentRequest(
         @NotNull(message = "L'entreprise est obligatoire")

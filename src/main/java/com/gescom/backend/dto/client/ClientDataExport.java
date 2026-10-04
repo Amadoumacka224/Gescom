@@ -7,11 +7,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Réponse à une demande d'accès RGPD (art. 15) : l'ensemble des données détenues sur UN client,
- * ses coordonnées comme son historique d'achat.
+ * Réponse à une demande d'accès RGPD (art. 15) : toutes les données qu'on a sur UN client,
+ * ses coordonnées et son historique d'achats.
  *
- * Le détail des lignes de commande n'y figure volontairement pas : il porte sur des produits et
- * des prix, pas sur la personne, et le demandeur en dispose déjà via ses factures.
+ * Le détail des lignes de commande n'est pas inclus exprès : ça concerne des produits et des
+ * prix, pas la personne, et le client les a déjà sur ses factures.
  */
 public record ClientDataExport(
         LocalDateTime generatedAt,
@@ -19,7 +19,7 @@ public record ClientDataExport(
         List<OrderHistoryEntry> orders
 ) {
 
-    /** Une commande, réduite à ce qui concerne le client : quoi, quand, où en est-elle, combien. */
+    /** Une commande, avec seulement ce qui concerne le client : quoi, quand, statut, combien. */
     public record OrderHistoryEntry(
             String orderNumber,
             LocalDateTime createdAt,

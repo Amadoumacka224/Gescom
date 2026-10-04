@@ -4,10 +4,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Ticket expose au back-office.
+ * Ticket renvoye au back-office.
  *
- * {@code messages} est nul sur les listes et renseigne sur le detail : charger le fil de
- * chaque ligne d'une page n'aurait aucun usage et couterait une requete par ticket.
+ * {@code messages} est null dans les listes et rempli dans le detail : charger les messages
+ * de chaque ligne ne servirait a rien et ferait une requete par ticket.
  */
 public record SupportTicketResponse(
         Long id,

@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service métier des clients (CRUD).
- * Chaque opération est journalisée dans la piste d'audit et l'unicité des identifiants
- * (email / code client selon le cas) est contrôlée avant enregistrement.
+ * Service des clients (CRUD).
+ * Chaque opération est enregistrée dans le journal, et on vérifie que les identifiants
+ * (email / code client selon le cas) sont uniques avant d'enregistrer.
  */
 @Service
 @Transactional
@@ -68,19 +68,19 @@ public class ClientService {
     }
 
     /**
-     * Page du fichier clients, filtrée et triée en base.
+     * Une page de clients, filtrée et triée en base.
      *
-     * L'écran rapatriait tout le fichier puis filtrait, triait et découpait dans le navigateur.
-     * Dès lors que la pagination passe au serveur, les critères doivent suivre : filtrer une
-     * liste déjà tronquée ne chercherait que dans la page reçue, et l'écran mentirait sur ce
-     * qu'il montre.
+     * Avant, l'écran chargeait tous les clients puis filtrait, triait et découpait dans le
+     * navigateur. Maintenant que la pagination est faite par le serveur, les filtres doivent
+     * l'être aussi : filtrer une liste déjà coupée ne chercherait que dans la page reçue, et
+     * l'écran afficherait des résultats faux.
      */
     @Transactional(readOnly = true)
     public Page<Client> searchClients(ClientSearchCriteria criteria, Pageable pageable) {
         return clientRepository.findAll(buildFilter(criteria), pageable);
     }
 
-    /** Compteurs d'en-tête, agrégés en base sur le fichier entier — voir {@link ClientSummary}. */
+    /** Compteurs en haut de page, calculés en base sur tous les clients (voir {@link ClientSummary}). */
     @Transactional(readOnly = true)
     public ClientSummary getSummary() {
         ClientRepository.ClientSummaryView view = clientRepository.summary(
@@ -89,7 +89,7 @@ public class ClientService {
                 view.getTotal(), view.getActive(), view.getIndividuals(), view.getCompanies());
     }
 
-    /** Villes et pays réellement présents, pour les listes déroulantes des filtres. */
+    /** Villes et pays qui existent, pour les listes des filtres. */
     @Transactional(readOnly = true)
     public ClientFilterOptions getFilterOptions() {
         return new ClientFilterOptions(
@@ -102,11 +102,10 @@ public class ClientService {
             List<Predicate> predicates = new ArrayList<>();
 
             if (criteria.search() != null && !criteria.search().isBlank()) {
-                // Mêmes champs que l'ancienne recherche du navigateur — nom, prénom, société,
-                // e-mail, téléphone, ville —, pour que le passage au serveur ne change rien à
-                // ce que l'utilisateur trouve. Le nom complet y était cherché d'un bloc
-                // (« Jean Dupont ») : CONCAT le reconstitue, sans quoi une recherche sur deux
-                // mots ne ramènerait plus personne.
+                // Mêmes champs que l'ancienne recherche côté navigateur (nom, prénom, société,
+                // e-mail, téléphone, ville), pour que l'utilisateur trouve la même chose
+                // qu'avant. Le nom complet était cherché d'un bloc (« Jean Dupont ») : CONCAT
+                // le reconstruit, sinon une recherche avec deux mots ne trouverait plus personne.
                 String pattern = "%" + criteria.search().toLowerCase().trim() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(cb.concat(cb.concat(
@@ -134,8 +133,8 @@ public class ClientService {
                         "%" + criteria.company().toLowerCase().trim() + "%"));
             }
             if (criteria.withEmail() != null) {
-                // « Sans e-mail » couvre le nul ET la chaîne vide : les deux se saisissent depuis
-                // le formulaire et se ressemblent à l'écran.
+                // « Sans e-mail » prend le null ET la chaîne vide : les deux peuvent venir du
+                // formulaire et on ne voit pas la différence à l'écran.
                 Predicate hasEmail = cb.and(
                         cb.isNotNull(root.get("email")),
                         cb.notEqual(root.get("email"), ""));
@@ -146,8 +145,8 @@ public class ClientService {
                         root.get("createdAt"), criteria.createdFrom().atStartOfDay()));
             }
             if (criteria.createdTo() != null) {
-                // Borne haute EXCLUSIVE au lendemain minuit, et non « <= date » : createdAt est
-                // un horodatage, un client créé à 14 h le jour de fin serait sinon écarté.
+                // Borne de fin EXCLUE au lendemain minuit, et pas « <= date » : createdAt a une
+                // heure, donc un client créé à 14 h le dernier jour serait sinon exclu.
                 predicates.add(cb.lessThan(
                         root.get("createdAt"), criteria.createdTo().plusDays(1).atStartOfDay()));
             }
@@ -177,10 +176,10 @@ public class ClientService {
     }
 
     /**
-     * Charge un client en vue d'une demande d'accès RGPD (art. 15).
-     * L'export est lui-même journalisé : communiquer des données personnelles est une opération
-     * qui doit laisser une trace, au même titre qu'une modification — c'est elle qui atteste
-     * ensuite du respect du délai légal d'un mois.
+     * Charge un client pour une demande d'accès RGPD (art. 15).
+     * L'export est lui aussi enregistré dans le journal : donner des données personnelles doit
+     * laisser une trace, comme une modification. C'est ce qui prouve ensuite qu'on a répondu
+     * dans le délai légal d'un mois.
      */
     public Client getClientForExport(Long id) {
         Client client = clientRepository.findById(id)
@@ -210,7 +209,7 @@ public class ClientService {
         Client client = clientRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("client", id));
 
-        // Un email ne peut pas être repris par un autre client (l'enregistrement courant est exclu).
+        // Un email ne peut pas être utilisé par un autre client (on ignore le client modifié).
         if (clientDetails.getEmail() != null
                 && clientRepository.existsByEmailAndIdNot(clientDetails.getEmail(), id)) {
             throw new DuplicateResourceException("client", "email", clientDetails.getEmail());

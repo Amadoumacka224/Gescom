@@ -2,24 +2,24 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { formatPercent } from '../utils/format';
 
 /**
- * Anneau de progression : un taux, et un seul.
+ * Anneau de progression pour afficher un seul pourcentage.
  *
- * Ce n'est pas un camembert — il ne compare pas des parts entre elles, il situe UNE valeur
- * entre 0 et 100 %. La répartition par statut, elle, est affichée en barres libellées
- * (`StatusBreakdown`), là où un empilement de secteurs colorés serait illisible.
+ * Ce n'est pas un camembert : il ne compare pas des parts, il montre une valeur entre 0 et
+ * 100 %. La répartition par statut est affichée avec des barres (`StatusBreakdown`), plus
+ * lisibles.
  *
- * Le rayon 15,9155 donne un périmètre de 100 unités (2πr = 100) : le décalage du tiret vaut
- * donc directement « 100 − pourcentage », sans calcul de circonférence à la main.
+ * Avec un rayon de 15,9155 le périmètre vaut 100 (2πr = 100), donc le décalage du trait est
+ * simplement « 100 − pourcentage ».
  *
- * La teinte vient de `currentColor` : c'est le parent qui porte le jeton de domaine
- * (`panelToneClass`), la piste étant la même teinte à faible opacité (voir `.ring-*`
- * dans index.css). Le chiffre central reste en encre, jamais à la couleur de la donnée.
+ * La couleur vient de `currentColor`, donnée par le parent (`panelToneClass`). Le fond de
+ * l'anneau est la même couleur en transparent (voir `.ring-*` dans index.css). Le chiffre au
+ * centre reste dans la couleur du texte.
  */
 const RADIUS = 15.9155;
 
 const ProgressRing = ({ ratio = 0, ariaLabel, className = 'w-24 h-24' }) => {
-  // `useReducedMotion` : l'anneau se dessine d'un coup si l'utilisateur a demandé
-  // moins d'animations au niveau système.
+  // `useReducedMotion` : pas d'animation si l'utilisateur a réduit les animations
+  // dans son système.
   const reduceMotion = useReducedMotion();
   const value = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0;
   const percent = value * 100;
@@ -28,8 +28,8 @@ const ProgressRing = ({ ratio = 0, ariaLabel, className = 'w-24 h-24' }) => {
     <div className={`relative flex-shrink-0 ${className}`} role="img" aria-label={ariaLabel}>
       <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90" aria-hidden="true">
         <circle className="ring-track" cx="18" cy="18" r={RADIUS} fill="none" strokeWidth="3" />
-        {/* À 0 %, aucun arc : un bout arrondi laisserait un point coloré qui se lit comme
-            une valeur non nulle. */}
+        {/* À 0 % on ne dessine rien : le bout arrondi ferait un point coloré qui ressemble
+            à une valeur. */}
         {percent > 0 && (
           <motion.circle
             className="ring-fill"

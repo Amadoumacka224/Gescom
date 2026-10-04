@@ -15,29 +15,29 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 /**
- * Boîte à outils JWT : génération, lecture et validation des tokens d'authentification.
- * Le secret et la durée de validité sont injectés depuis application.properties
- * (jwt.secret / jwt.expiration) pour ne pas figer ces valeurs sensibles dans le code.
+ * Outils JWT : création, lecture et vérification des tokens.
+ * Le secret et la durée de validité viennent d'application.properties
+ * (jwt.secret / jwt.expiration), pour ne pas mettre ces valeurs sensibles dans le code.
  */
 @Component
 public class JwtUtils {
 
     private static final Logger log = LoggerFactory.getLogger(JwtUtils.class);
 
-    // Secret partagé servant à signer ET vérifier les tokens (algorithme HMAC symétrique).
+    // Secret qui sert à signer ET à vérifier les tokens (HMAC, symétrique).
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    // Durée de vie d'un token en millisecondes.
+    // Durée de validité d'un token, en millisecondes.
     @Value("${jwt.expiration}")
     private long jwtExpirationMs;
 
-    /** Dérive la clé de signature HMAC à partir du secret configuré. */
+    /** Crée la clé de signature HMAC à partir du secret. */
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Émet un token signé pour un utilisateur déjà authentifié (utilisé après le login). */
+    /** Crée un token signé pour un utilisateur déjà authentifié (après le login). */
     public String generateJwtToken(Authentication authentication) {
         UserDetails userPrincipal = (UserDetails) authentication.getPrincipal();
 
@@ -58,7 +58,7 @@ public class JwtUtils {
                 .compact();
     }
 
-    /** Extrait le nom d'utilisateur (subject) contenu dans un token valide. */
+    /** Récupère le username (subject) d'un token valide. */
     public String getUsernameFromJwtToken(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -69,9 +69,9 @@ public class JwtUtils {
     }
 
     /**
-     * Vérifie la signature et la validité d'un token. Chaque cause d'échec
-     * (signature falsifiée, token expiré, format invalide…) est tracée distinctement
-     * pour faciliter le diagnostic, mais renvoie toujours false sans propager d'exception.
+     * Vérifie la signature et la validité d'un token. Chaque type d'erreur (signature
+     * modifiée, token expiré, format invalide…) est loggé à part pour aider à comprendre le
+     * problème, mais on renvoie toujours false sans lancer d'exception.
      */
     public boolean validateJwtToken(String authToken) {
         try {

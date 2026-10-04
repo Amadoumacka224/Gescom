@@ -54,11 +54,10 @@ public class ClientController {
     }
 
     /**
-     * Fichier clients intégral, sans pagination.
+     * Tous les clients, sans pagination.
      *
-     * Conservé pour les écrans qui s'en servent de référentiel — la saisie d'une commande a
-     * besoin de la liste entière pour son sélecteur. Le tableau de l'écran Clients, lui, passe
-     * par {@link #searchClients}.
+     * Gardé pour les écrans qui ont besoin de la liste complète (la saisie d'une commande,
+     * pour choisir le client). Le tableau de l'écran Clients utilise {@link #searchClients}.
      */
     @GetMapping
     public ResponseEntity<List<ClientResponse>> getAllClients() {
@@ -67,11 +66,11 @@ public class ClientController {
     }
 
     /**
-     * Page du fichier clients, filtrée et triée en base.
+     * Une page de clients, filtrée et triée en base.
      *
-     * Le tri vient du {@code Pageable} (?sort=lastName,asc). Défaut sur la date de création
-     * décroissante : c'est l'ordre attendu d'un fichier que l'on alimente au fil de l'eau, et
-     * celui que l'écran appliquait déjà.
+     * Le tri vient du {@code Pageable} (?sort=lastName,asc). Par défaut, date de création
+     * décroissante : c'est l'ordre logique pour une liste qu'on remplit au fur et à mesure,
+     * et c'était déjà celui de l'écran.
      */
     @GetMapping("/search")
     public ResponseEntity<PageResponse<ClientResponse>> searchClients(
@@ -91,13 +90,13 @@ public class ClientController {
                 clientService.searchClients(criteria, pageable), referenceMapper::toResponse));
     }
 
-    /** Compteurs d'en-tête : ils portent sur le fichier entier, pas sur la page affichée. */
+    /** Compteurs en haut de page : sur tous les clients, pas sur la page affichée. */
     @GetMapping("/summary")
     public ResponseEntity<ClientSummary> getSummary() {
         return ResponseEntity.ok(clientService.getSummary());
     }
 
-    /** Villes et pays proposés par les filtres — voir {@link ClientFilterOptions}. */
+    /** Villes et pays proposés dans les filtres (voir {@link ClientFilterOptions}). */
     @GetMapping("/filter-options")
     public ResponseEntity<ClientFilterOptions> getFilterOptions() {
         return ResponseEntity.ok(clientService.getFilterOptions());
@@ -158,7 +157,7 @@ public class ClientController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Export CSV de l'ensemble du fichier clients. Usage interne — voir /{id}/export pour un DSAR. */
+    /** Export CSV de tous les clients. Usage interne (pour une demande RGPD, voir /{id}/export). */
     @GetMapping("/export")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> exportClients() {
@@ -193,12 +192,12 @@ public class ClientController {
     }
 
     /**
-     * Demande d'accès RGPD (art. 15) : toutes les données détenues sur un client donné.
-     * À ne pas confondre avec /export sans identifiant, qui sort le fichier clients entier —
-     * une réponse DSAR est individuelle et ciblée, et c'est bien l'inverse.
+     * Demande d'accès RGPD (art. 15) : toutes les données qu'on a sur un client.
+     * Rien à voir avec /export sans id, qui exporte tous les clients : ici c'est une réponse
+     * pour une seule personne.
      *
-     * JSON par défaut ; ?format=csv rend le même contenu à plat, pour un demandeur qui préfère
-     * l'ouvrir dans un tableur. Réservé à l'ADMIN, et journalisé côté service.
+     * JSON par défaut ; ?format=csv donne le même contenu à plat, pour ceux qui préfèrent
+     * l'ouvrir dans Excel. Réservé à l'ADMIN, et enregistré dans le journal par le service.
      */
     @GetMapping("/{id}/export")
     @PreAuthorize("hasRole('ADMIN')")
@@ -222,7 +221,7 @@ public class ClientController {
         return new ResponseEntity<>(csvData, headersResponse, HttpStatus.OK);
     }
 
-    // Mise à plat de l'export DSAR : une ligne par donnée, puis une ligne par commande.
+    // Export RGPD à plat : une ligne par donnée, puis une ligne par commande.
     private List<String[]> toCsvRows(ClientDataExport export) {
         ClientResponse c = export.client();
         List<String[]> rows = new ArrayList<>(List.of(

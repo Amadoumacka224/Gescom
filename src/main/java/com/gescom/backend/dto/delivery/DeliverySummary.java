@@ -3,17 +3,17 @@ package com.gescom.backend.dto.delivery;
 import java.util.List;
 
 /**
- * Compteurs d'en-tête de l'écran Livraisons.
+ * Compteurs en haut de l'écran Livraisons.
  *
- * Ils décrivent l'ensemble des livraisons du périmètre, jamais la page affichée.
+ * Ils portent sur toutes les livraisons, jamais sur la page affichée.
  *
- * <p>{@code late} n'est pas un statut mais une date prévue dépassée sur une livraison encore
- * en attente : une livraison effectuée en retard n'est plus en retard, elle est faite. Le
- * compteur ne recoupe donc pas {@code pending + delivered}, il en désigne un sous-ensemble.
+ * <p>{@code late} n'est pas un statut : c'est une livraison encore en attente dont la date
+ * prévue est passée (une livraison faite en retard n'est plus en retard, elle est faite).
+ * Ce compteur fait donc partie de {@code pending}, il ne s'ajoute pas.
  *
- * @param total     livraisons enregistrées
- * @param pending   livraisons restant à effectuer
- * @param delivered livraisons effectuées
+ * @param total     nombre de livraisons
+ * @param pending   livraisons à faire
+ * @param delivered livraisons faites
  * @param late      livraisons en attente dont la date prévue est passée
  */
 public record DeliverySummary(
@@ -22,15 +22,15 @@ public record DeliverySummary(
         long delivered,
         long late
 ) {
-    /** Une valeur proposée par un filtre : un identifiant et son libellé déjà composé. */
+    /** Une option de filtre : un id et son libellé déjà construit. */
     public record Option(Long id, String label) {
     }
 
     /**
-     * Valeurs proposées par les listes déroulantes des filtres.
+     * Valeurs proposées dans les listes déroulantes des filtres.
      *
-     * Elles doivent rester exhaustives — une ville qui n'apparaît qu'en page 3 doit être
-     * proposée depuis la page 1 —, ce qu'une déduction sur la page affichée ne donne plus.
+     * Il faut la liste complète (une ville qui n'apparaît qu'en page 3 doit être proposée dès
+     * la page 1), ce qu'on n'a plus en partant de la page affichée.
      */
     public record FilterOptions(
             List<Option> clients,

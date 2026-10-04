@@ -7,9 +7,9 @@ import java.math.BigDecimal;
 /**
  * Souscription ou changement de formule.
  *
- * Conforme au contrat DTO du projet : des identifiants scalaires, jamais d'objets imbriques.
- * {@code amount} est facultatif — laisse vide, le tarif catalogue de la formule s'applique ;
- * renseigne, il permet de figer un tarif negocie que le catalogue ne doit pas ecraser.
+ * Comme pour les autres DTO du projet : des ids simples, jamais d'objets imbriques.
+ * {@code amount} est facultatif : vide, on prend le prix de la formule ; rempli, ca permet de
+ * garder un prix negocie que le catalogue ne doit pas ecraser.
  */
 public record SubscriptionRequest(
         @NotNull(message = "L'entreprise est obligatoire")

@@ -2,15 +2,15 @@ import { useTranslation } from 'react-i18next';
 import { ORDER_STATUS_TONE, badgeClass, resolveOrderStatusKey } from '../constants/statusBadges';
 
 /**
- * Badge de statut d'une commande, tenant compte du règlement de sa facture.
+ * Badge de statut d'une commande, qui tient compte du paiement de la facture.
  *
- * Une commande facturée dont la facture est soldée s'affiche « Payée » (« Acompte versé » si
- * partiellement réglée), alors que son statut de cycle de vie reste INVOICED jusqu'à la
- * livraison. Cette résolution était dupliquée — et divergente — entre la caisse et la
- * supervision : elle vit désormais dans `constants/statusBadges`, tout comme les couleurs.
+ * Une commande facturée et payée affiche « Payée » (« Acompte versé » si payée en partie),
+ * même si son statut reste INVOICED jusqu'à la livraison. Ce calcul était copié (et pas
+ * pareil) entre la caisse et la supervision, il est maintenant dans `constants/statusBadges`
+ * avec les couleurs.
  *
- * `invoice` permet de passer une facture chargée séparément (écran de détail d'une commande),
- * sinon on retombe sur `order.invoiceStatus` fourni par les listes.
+ * `invoice` sert à passer une facture chargée à part (détail d'une commande). Sinon on utilise
+ * `order.invoiceStatus` renvoyé par les listes.
  */
 const OrderStatusBadge = ({ order, invoice = null, icon: Icon = null }) => {
   const { t } = useTranslation();

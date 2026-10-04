@@ -25,12 +25,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Gestion du parc d'entreprises clientes, reservee au proprietaire de la plateforme.
+ * Gestion des entreprises clientes, reservee au super admin.
  *
- * Ce service travaille par nature hors cloisonnement : son perimetre est l'ensemble du parc,
- * et le controle d'acces repose entierement sur le {@code @PreAuthorize} des controleurs de
- * l'espace plateforme. C'est aussi pourquoi il renseigne explicitement l'entreprise des
- * entites qu'il cree — {@code TenantEntityListener} ne peut rien deduire d'un contexte vide.
+ * Ce service travaille forcement sans filtre par entreprise : il porte sur toutes les
+ * entreprises, et l'acces est controle uniquement par le {@code @PreAuthorize} des
+ * controleurs de l'espace plateforme. C'est aussi pour ca qu'il remplit lui-meme
+ * l'entreprise des entites qu'il cree : {@code TenantEntityListener} ne peut rien deviner
+ * avec un contexte vide.
  */
 @Service
 @Transactional
@@ -73,14 +74,14 @@ public class CompanyService {
         return companyRepository.findAll();
     }
 
-    // ── Ouverture d'un compte client ─────────────────────────────────────────
+    // ── Creation d'un compte client ──────────────────────────────────────────
 
     /**
-     * Cree l'entreprise, son administrateur initial et, le cas echeant, son abonnement.
+     * Cree l'entreprise, son premier admin et, si besoin, son abonnement.
      *
-     * L'ensemble tient dans une transaction unique : une entreprise sans administrateur
-     * serait un compte inaccessible, impossible a rattraper autrement qu'a la main en base.
-     * Si l'une des trois etapes echoue, aucune ne subsiste.
+     * Le tout dans une seule transaction : une entreprise sans admin serait inaccessible, et
+     * on ne pourrait la reparer qu'a la main en base. Si une des trois etapes echoue, rien
+     * n'est garde.
      */
     public Company provision(CompanyProvisionRequest request) {
         Company company = createCompany(request.company());
@@ -101,8 +102,8 @@ public class CompanyService {
         owner.setLastName(admin.lastName());
         owner.setRole(User.Role.ADMIN);
         owner.setActive(true);
-        // Affectation explicite : le contexte de cloisonnement est vide cote plateforme,
-        // le listener n'a donc aucune entreprise a deduire.
+        // On met l'entreprise a la main : cote plateforme le contexte est vide, donc le
+        // listener ne peut pas la deviner.
         owner.setOwnerCompany(company);
         userRepository.save(owner);
 
@@ -122,9 +123,9 @@ public class CompanyService {
             }
         }
 
-        // Apres commit, et non pendant : l'entreprise vient d'etre creee dans cette
+        // Apres le commit, pas pendant : l'entreprise vient d'etre creee dans cette
         // transaction, une notification ecrite depuis une autre connexion ne la verrait pas
-        // encore et buterait sur la cle etrangere — faisant echouer l'ouverture du compte.
+        // encore et planterait sur la cle etrangere, ce qui ferait echouer la creation.
         notificationService.recordAfterCommit("COMPANY_PROVISIONED", PlatformNotification.Severity.INFO,
                 "Nouveau client : " + company.getName(),
                 "Compte ouvert avec l'administrateur " + owner.getUsername(),
@@ -151,19 +152,19 @@ public class CompanyService {
             throw new DuplicateResourceException("Company", "email", request.email());
         }
         apply(company, request);
-        // Le slug n'est pas recalcule : il est fige a la creation, un identifiant stable
-        // perdant tout interet s'il suit les changements de raison sociale.
+        // On ne recalcule pas le slug : il est fixe a la creation, un identifiant stable ne
+        // sert a rien s'il change avec la raison sociale.
         return companyRepository.save(company);
     }
 
-    // ── Cycle de vie commercial ──────────────────────────────────────────────
+    // ── Etat commercial ──────────────────────────────────────────────────────
 
     /**
-     * Suspend l'acces d'une entreprise sans toucher a ses donnees.
+     * Bloque l'acces d'une entreprise sans toucher a ses donnees.
      *
-     * L'effet est immediat pour tous ses utilisateurs : {@code User.isEnabled()} consulte le
-     * statut de l'entreprise, et le filtre JWT le revalide a chaque requete — un jeton emis
-     * avant la suspension cesse donc d'etre accepte sans attendre son expiration.
+     * Ca s'applique tout de suite a tous ses utilisateurs : {@code User.isEnabled()} regarde
+     * le statut de l'entreprise, et le filtre JWT le reverifie a chaque requete. Un token cree
+     * avant la suspension ne marche donc plus, sans attendre qu'il expire.
      */
     public Company suspend(Long id, String reason) {
         Company company = getCompanyById(id);
@@ -181,7 +182,7 @@ public class CompanyService {
         return companyRepository.save(company);
     }
 
-    /** Retablit l'acces. L'entreprise repasse en essai si son essai court encore. */
+    /** Redonne l'acces. L'entreprise repasse en essai si sa periode d'essai n'est pas finie. */
     public Company reactivate(Long id) {
         Company company = getCompanyById(id);
         boolean trialStillRunning = company.getTrialEndsAt() != null
@@ -192,11 +193,11 @@ public class CompanyService {
     }
 
     /**
-     * Resilie le compte : acces coupe, abonnement clos, donnees conservees.
+     * Resilie le compte : acces bloque, abonnement ferme, donnees gardees.
      *
-     * Rien n'est supprime — c'est ce qui rend une reactivation possible et ce qui satisfait
-     * les obligations de conservation. La resiliation de l'abonnement est ce qui alimente
-     * le churn.
+     * On ne supprime rien : c'est ce qui permet de reactiver le compte, et on respecte les
+     * obligations de conservation. C'est la resiliation de l'abonnement qui compte dans le
+     * churn.
      */
     public Company cancel(Long id, String reason) {
         Company company = getCompanyById(id);
@@ -212,7 +213,7 @@ public class CompanyService {
         return companyRepository.save(company);
     }
 
-    // ── Utilitaires ──────────────────────────────────────────────────────────
+    // ── Outils ───────────────────────────────────────────────────────────────
 
     private void apply(Company company, CompanyRequest request) {
         company.setName(request.name());
@@ -228,10 +229,10 @@ public class CompanyService {
     }
 
     /**
-     * Derive un slug du nom, suffixe d'un compteur en cas de collision.
+     * Cree un slug a partir du nom, avec un numero a la fin s'il existe deja.
      *
-     * Les accents sont decomposes puis retires plutot que remplaces un a un : « Précision »
-     * donne ainsi « precision » sans table de correspondance a maintenir.
+     * Les accents sont separes puis supprimes plutot que remplaces un par un : « Précision »
+     * donne « precision » sans avoir de table de correspondance a maintenir.
      */
     private String uniqueSlug(String name) {
         String base = Normalizer.normalize(name, Normalizer.Form.NFD)

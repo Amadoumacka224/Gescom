@@ -3,11 +3,11 @@ package com.gescom.backend.dto.platform;
 import java.time.LocalDateTime;
 
 /**
- * Fiche d'une entreprise cliente telle que la voit le proprietaire de la plateforme.
+ * Fiche d'une entreprise cliente vue par le super admin.
  *
- * Les compteurs ({@code userCount}, {@code orderCount}...) et l'abonnement courant sont
- * inclus : la liste des entreprises est l'ecran ou l'on juge d'un coup d'oeil de la sante
- * d'un compte, et un aller-retour par entreprise pour les obtenir serait un N+1 assume.
+ * On inclut les compteurs ({@code userCount}, {@code orderCount}...) et l'abonnement en cours :
+ * la liste des entreprises sert a voir rapidement si un compte va bien, et faire un appel par
+ * entreprise pour les avoir serait un N+1.
  */
 public record CompanyResponse(
         Long id,

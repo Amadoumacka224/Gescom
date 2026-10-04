@@ -1,14 +1,12 @@
 /**
- * Ligne libellé / valeur des fiches de détail (client, livraison, facture).
+ * Ligne label / valeur des fiches de détail (client, livraison, facture).
  *
- * Un champ vide affiche « — » plutôt que rien : une case muette se lit comme un bug d'affichage,
- * alors qu'un tiret dit explicitement « non renseigné ».
+ * Si la valeur est vide on affiche « — », sinon on pourrait croire à un bug d'affichage.
  *
- * S'utilise à l'intérieur d'un `<dl>` : le composant émet le couple `<dt>` / `<dd>`, ce qui donne
- * aux lecteurs d'écran la relation entre le libellé et sa valeur.
+ * À utiliser dans un `<dl>` : le composant génère `<dt>` / `<dd>`, ce qui aide les lecteurs
+ * d'écran.
  *
- * `action` accueille un bouton propre à la ligne (copier, compléter…), aligné à droite pour
- * rester à portée de la valeur qu'il concerne sans s'intercaler dans la lecture.
+ * `action` permet d'ajouter un bouton à droite de la ligne (copier, compléter…).
  */
 const InfoRow = ({ icon: Icon, label, value, href, action, className = '' }) => (
   <div className={`flex items-start gap-3 ${className}`}>

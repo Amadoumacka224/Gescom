@@ -1,29 +1,29 @@
 /**
- * Exports tabulaires partagés (CSV compatible Excel, PDF).
+ * Exports de tableaux (CSV pour Excel, PDF), communs à toutes les pages.
  *
- * Les pages construisaient leur CSV à la main, par concaténation avec des virgules. Trois
- * défauts en découlaient, tous silencieux :
- *   - aucun échappement : une raison sociale contenant une virgule (« Dupont, SPRL ») ou un
- *     saut de ligne décalait toutes les colonnes suivantes de la ligne ;
- *   - aucun BOM : Excel lit alors le fichier en ANSI et affiche « CrÃ©Ã© » au lieu de « Créé » ;
- *   - séparateur virgule : Excel en locale francophone attend le point-virgule et empile
- *     toute la ligne dans la première colonne.
+ * Avant, chaque page faisait son CSV à la main en collant les valeurs avec des virgules.
+ * Ça posait trois problèmes, sans aucun message d'erreur :
+ *   - pas d'échappement : une raison sociale avec une virgule (« Dupont, SPRL ») ou un retour
+ *     à la ligne décalait toutes les colonnes suivantes ;
+ *   - pas de BOM : Excel lit alors le fichier en ANSI et affiche « CrÃ©Ã© » au lieu de « Créé » ;
+ *   - virgule comme séparateur : Excel en français attend un point-virgule et met toute la
+ *     ligne dans la première colonne.
  *
- * Un même jeu de colonnes sert aux deux formats : ce qui est exporté est par construction ce
- * qui est affiché, alors que l'ancien export des rapports lisait d'autres champs que le
- * tableau (`totalAmount` contre `finalAmount`, `orderDate` contre `createdAt`).
+ * Les mêmes colonnes servent pour les deux formats, donc on exporte exactement ce qui est
+ * affiché. L'ancien export des rapports lisait d'autres champs que le tableau
+ * (`totalAmount` au lieu de `finalAmount`, `orderDate` au lieu de `createdAt`).
  *
- * Une colonne est décrite par `{ header, value, align }`, `value` recevant la ligne courante.
+ * Une colonne est définie par `{ header, value, align }`, `value` reçoit la ligne.
  */
 
 import i18n from '../i18n';
 
 /*
- * jspdf n'est chargé qu'au premier export PDF — voir le commentaire de `pdfGenerator.js`, qui
- * applique la même mécanique pour les mêmes raisons.
+ * jspdf n'est chargé qu'au premier export PDF (voir le commentaire dans `pdfGenerator.js`,
+ * c'est le même principe).
  *
- * `exportToCsv` reste volontairement synchrone : il n'écrit que du texte et ne dépend d'aucune
- * bibliothèque. Le rattacher au chargement différé lui ferait attendre 400 ko sans motif.
+ * `exportToCsv` reste synchrone exprès : il ne fait que du texte et n'utilise aucune
+ * librairie. Pas de raison de lui faire attendre 400 ko de chargement.
  */
 let jsPDF;
 let autoTable;
@@ -44,15 +44,15 @@ const loadPdfLibs = () => {
   return pdfLibsPromise;
 };
 
-/** Séparateur attendu par Excel en locale francophone. */
+/** Séparateur attendu par Excel en français. */
 const CSV_SEPARATOR = ';';
 
-/** Marque d'ordre des octets : sans elle, Excel n'ouvre pas l'UTF-8 en UTF-8. */
+/** BOM : sans lui, Excel n'ouvre pas le fichier en UTF-8. */
 const BOM = '﻿';
 
 /**
- * Échappe une cellule CSV selon RFC 4180 : guillemets doublés, et champ entouré de guillemets
- * dès qu'il contient un séparateur, un guillemet ou un saut de ligne.
+ * Échappe une cellule CSV (RFC 4180) : on double les guillemets, et on entoure le champ de
+ * guillemets s'il contient un séparateur, un guillemet ou un retour à la ligne.
  */
 const escapeCsvCell = (raw) => {
   const value = raw == null ? '' : String(raw);
@@ -62,7 +62,7 @@ const escapeCsvCell = (raw) => {
   return value;
 };
 
-/** Nom de fichier horodaté : « rapport-ventes-2026-07-28.csv ». */
+/** Nom de fichier avec la date : « rapport-ventes-2026-07-28.csv ». */
 const stampedName = (base, extension) => {
   const today = new Date();
   const offsetMs = today.getTimezoneOffset() * 60 * 1000;
@@ -78,12 +78,12 @@ const triggerDownload = (blob, filename) => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  // Sans révocation, l'URL et le blob restent en mémoire jusqu'au rechargement de la page.
+  // Si on ne révoque pas l'URL, le blob reste en mémoire jusqu'au rechargement de la page.
   URL.revokeObjectURL(url);
 };
 
 /**
- * Exporte des lignes en CSV téléchargeable.
+ * Exporte des lignes dans un fichier CSV à télécharger.
  * @param {object} options
  * @param {string} options.filename  nom de base, sans date ni extension
  * @param {Array<{header: string, value: Function}>} options.columns
@@ -102,25 +102,25 @@ export const exportToCsv = ({ filename, columns, rows }) => {
   triggerDownload(blob, stampedName(filename, 'csv'));
 };
 
-/** Couleurs reprises de la charte (cf. `tailwind.config.js`), comme la facture PDF. */
+/** Couleurs de la charte (voir `tailwind.config.js`), comme pour la facture PDF. */
 const PRIMARY_COLOR = [31, 119, 180]; // #1F77B4 — primary-600
 const DARK_COLOR = [26, 39, 64]; // #1A2740 — gray-900
 const MUTED_COLOR = [100, 118, 151]; // #647697 — gray-500
 
 /**
- * Exporte des lignes en PDF paysage, avec en-tête de rapport et pied de page paginé.
+ * Exporte des lignes en PDF paysage, avec un en-tête et un pied de page numéroté.
  *
  * @param {object} options
  * @param {string} options.filename    nom de base, sans date ni extension
  * @param {string} options.title       titre du rapport
- * @param {string} [options.subtitle]  périmètre (période, filtres appliqués)
- * @param {Array<{label: string, value: string}>} [options.summary] indicateurs repris en tête
+ * @param {string} [options.subtitle]  période et filtres appliqués
+ * @param {Array<{label: string, value: string}>} [options.summary] chiffres affichés en haut
  * @param {Array<{header: string, value: Function, align?: string}>} options.columns
  * @param {Array<object>} options.rows
  */
 export const exportToPdf = async ({ filename, title, subtitle, summary = [], columns, rows }) => {
   await loadPdfLibs();
-  // Paysage : ces rapports comptent 6 à 7 colonnes, illisibles en portrait.
+  // Paysage : ces rapports ont 6 ou 7 colonnes, illisibles en portrait.
   const doc = new jsPDF({ orientation: 'landscape' });
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -148,8 +148,8 @@ export const exportToPdf = async ({ filename, title, subtitle, summary = [], col
 
   let cursorY = 34;
 
-  // Bandeau d'indicateurs : le lecteur du PDF retrouve les mêmes totaux que ceux affichés
-  // au-dessus du tableau à l'écran.
+  // Bandeau de chiffres : on retrouve dans le PDF les mêmes totaux qu'au-dessus du tableau
+  // à l'écran.
   if (summary.length > 0) {
     doc.setFontSize(9);
     const columnWidth = (pageWidth - 28) / summary.length;

@@ -20,11 +20,10 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Tableau de bord du propriétaire de la plateforme.
+ * Tableau de bord du super admin.
  *
- * Chaque valeur affichée ici est agrégée en base par `PlatformMetricsService` au moment de
- * l'appel : aucun chiffre n'est calculé côté navigateur, ni figé. Une seule requête alimente
- * l'écran entier.
+ * Tous les chiffres sont calculés en base par `PlatformMetricsService` au moment de l'appel :
+ * rien n'est calculé dans le navigateur ni mis en cache. Une seule requête pour tout l'écran.
  */
 
 const COMPANY_STATUS_TONE = {
@@ -47,7 +46,7 @@ const SEVERITY_TONE = {
   INFO: 'info',
 };
 
-/** Variation d'un mois sur l'autre, avec son signe. Le serveur renvoie déjà un pourcentage. */
+/** Évolution par rapport au mois d'avant, avec le signe. Le serveur renvoie déjà un pourcentage. */
 const TrendBadge = ({ value }) => {
   const numeric = Number(value) || 0;
   if (numeric === 0) return null;
@@ -102,7 +101,7 @@ const PlatformDashboard = () => {
   const activity = data?.activity;
   const health = data?.health;
 
-  // Échelle du graphique : la plus haute barre remplit la colonne, les autres s'y rapportent.
+  // Échelle du graphique : la plus grande barre prend toute la hauteur, les autres sont proportionnelles.
   const trendMax = Math.max(1, ...(data?.revenueTrend ?? []).map((p) => Number(p.amount) || 0));
 
   return (
@@ -116,7 +115,7 @@ const PlatformDashboard = () => {
         </p>
       </div>
 
-      {/* Indicateurs de tête */}
+      {/* Chiffres principaux */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title={t('platform.dashboard.totalCompanies')}
@@ -155,7 +154,7 @@ const PlatformDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Répartition du parc */}
+        {/* Répartition des entreprises */}
         <SectionCard title={t('platform.dashboard.companyBreakdown')}>
           <div className="space-y-2">
             {['ACTIVE', 'TRIAL', 'SUSPENDED', 'CANCELED'].map((status) => {
@@ -247,7 +246,7 @@ const PlatformDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Courbe de revenus — barres proportionnelles, sans dépendance graphique */}
+        {/* Revenus : barres proportionnelles, sans librairie de graphiques */}
         <SectionCard title={t('platform.dashboard.revenueTrend')}>
           {(data?.revenueTrend ?? []).length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">

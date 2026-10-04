@@ -3,11 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 
 /**
- * `fill` : le contenu occupe toute la hauteur disponible et gère lui-même son défilement,
- * au lieu de s'empiler dans une zone scrollable. C'est ce que réclame un poste de travail
- * (le panier de commande) dont les colonnes doivent aller jusqu'en bas de l'écran : la boîte
- * prend alors toute la hauteur utile et se contente d'un rembourrage discret, chaque pixel
- * gagné étant une ligne d'article de plus à l'écran.
+ * `fill` : le contenu prend toute la hauteur et gère son propre scroll. Utilisé pour le panier
+ * de commande, dont les colonnes doivent aller jusqu'en bas de l'écran (plus de place = plus
+ * de lignes d'articles visibles).
  */
 const Modal = ({ isOpen, onClose, title, children, size = 'md', fill = false }) => {
   const { t } = useTranslation();
@@ -39,8 +37,8 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md', fill = false }) 
               transition={{ type: 'spring', duration: 0.3, bounce: 0.15 }}
               onClick={(e) => e.stopPropagation()}
               className={`bg-white dark:bg-gray-800 rounded-2xl shadow-elevated ring-1 ring-gray-900/5 w-full ${sizes[size]} ${
-                // La hauteur retranche le rembourrage du fond (p-4) pour ne jamais déborder,
-                // sans quoi le haut de la boîte serait rogné sur les petits écrans.
+                // On enlève le padding du fond (p-4) de la hauteur, sinon le haut du modal
+                // est coupé sur les petits écrans.
                 fill ? 'h-[calc(100vh-2rem)] max-h-[95vh]' : 'max-h-[90vh]'
               } overflow-hidden flex flex-col`}
             >

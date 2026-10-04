@@ -3,8 +3,8 @@ package com.gescom.backend.dto.delivery;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * Corps de PATCH /deliveries/{id}/status. Le statut cible est reçu en texte puis converti côté
- * contrôleur (message d'erreur explicite si la valeur ne correspond à aucun statut connu).
+ * Body de PATCH /deliveries/{id}/status. Le statut arrive en texte et est converti dans le
+ * contrôleur (avec un message clair si la valeur ne correspond à aucun statut).
  */
 public record DeliveryStatusUpdateRequest(
         @NotBlank(message = "Le champ 'status' est obligatoire")

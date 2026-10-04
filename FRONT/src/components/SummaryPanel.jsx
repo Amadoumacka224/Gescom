@@ -7,20 +7,20 @@ import { miniStatClass, panelToneClass } from '../constants/statusBadges';
 import { formatPercent } from '../utils/format';
 
 /**
- * Panneau de synthèse d'un domaine (commandes, factures, livraisons).
+ * Panneau de résumé d'un domaine (commandes, factures, livraisons).
  *
- * Même gabarit pour les trois, lu de haut en bas dans l'ordre où l'information est utile :
+ * Même structure pour les trois, de haut en bas :
  *
- *   1. l'en-tête — de quoi parle-t-on, et combien y en a-t-il en tout ;
- *   2. l'anneau — LE taux qui résume le domaine (finalisation, encaissement, livraison) ;
- *   3. l'indicateur à retenir (`highlight`) — le reste à traiter, seul chiffre mis en couleur ;
- *   4. la répartition par statut — le détail, en barres libellées ;
- *   5. le lien vers l'écran complet, aligné en bas quel que soit le nombre de statuts.
+ *   1. l'en-tête : le sujet et le nombre total ;
+ *   2. l'anneau : le pourcentage principal (finalisation, encaissement, livraison) ;
+ *   3. le chiffre à retenir (`highlight`) : ce qui reste à traiter, le seul en couleur ;
+ *   4. la répartition par statut, avec des barres ;
+ *   5. le lien vers l'écran complet, toujours en bas.
  *
- * Cette hiérarchie est la même dans les trois panneaux : l'œil apprend une fois où regarder.
+ * Comme les trois panneaux ont la même structure, on sait tout de suite où regarder.
  *
- * `tone` n'est que l'identité visuelle du domaine (médaillon + anneau) ; les états, eux,
- * gardent la palette sémantique des badges dans la répartition.
+ * `tone` donne juste la couleur du domaine (icône + anneau). Les statuts gardent les couleurs
+ * des badges.
  */
 const SummaryPanel = ({
   icon: Icon,
@@ -54,8 +54,8 @@ const SummaryPanel = ({
             <p className="text-xs text-gray-500 dark:text-gray-400">{totalLabel}</p>
           </div>
         </div>
-        {/* Chiffres proportionnels (pas de `tabular-nums`) : à cette taille, des chiffres
-            de largeur fixe donnent un nombre visuellement lâche. */}
+        {/* Pas de `tabular-nums` : à cette taille, les chiffres à largeur fixe donnent un
+            nombre trop espacé. */}
         <span className="text-2xl font-bold leading-none text-gray-900 dark:text-gray-100">
           {total}
         </span>

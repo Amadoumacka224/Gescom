@@ -54,22 +54,22 @@ import {
 /**
  * Rapports des ventes.
  *
- * Trois principes tiennent cet écran, chacun corrigeant un défaut de la version précédente :
+ * Trois choses ont été corrigées par rapport à l'ancienne version :
  *
- *   1. Un seul jeu de données. Les indicateurs, le graphique, l'analyse client, le tableau et
- *      les exports partent tous de `filteredOrders`. L'export lisait auparavant d'autres
- *      champs que le tableau (`totalAmount` au lieu de `finalAmount`, `orderDate` — jamais
- *      renvoyé par l'API — au lieu de `createdAt`) : le fichier livré ne correspondait donc
- *      ni à l'écran ni à la réalité, avec des dates « Invalid Date » et des montants hors TVA.
+ *   1. Une seule source de données. Les stats, le graphique, l'analyse client, le tableau et
+ *      les exports utilisent tous `filteredOrders`. Avant, l'export lisait d'autres champs
+ *      que le tableau (`totalAmount` au lieu de `finalAmount`, `orderDate` qui n'est jamais
+ *      renvoyé par l'API au lieu de `createdAt`) : le fichier ne correspondait ni à l'écran
+ *      ni à la réalité, avec des « Invalid Date » et des montants sans TVA.
  *
- *   2. Le même périmètre financier que le reste de l'application. Une commande annulée n'est
- *      pas un chiffre d'affaires : le backend l'exclut dans `/dashboard/overview` comme dans
- *      `buildDayMetrics`, ce rapport l'incluait. Les annulées restent affichées et comptées à
- *      part, jamais sommées dans le CA.
+ *   2. Les mêmes règles que le reste de l'appli. Une commande annulée ne compte pas dans le
+ *      chiffre d'affaires : le backend l'exclut dans `/dashboard/overview` et dans
+ *      `buildDayMetrics`, mais ce rapport la comptait. Les annulées sont toujours affichées
+ *      et comptées à part, mais jamais ajoutées au CA.
  *
- *   3. Des bornes de date inclusives. Le filtre comparait la date de commande à
- *      `new Date('2026-07-28')`, soit minuit UTC : toutes les commandes du dernier jour de la
- *      période disparaissaient du rapport, silencieusement.
+ *   3. Des dates incluses. Le filtre comparait la date de commande à
+ *      `new Date('2026-07-28')`, donc minuit UTC : les commandes du dernier jour de la
+ *      période disparaissaient du rapport sans prévenir.
  */
 
 const ROWS_PER_PAGE = 25;
@@ -83,20 +83,20 @@ const EMPTY_FILTERS = {
   status: '',
 };
 
-/** Date d'une commande. `orderDate` n'existe pas dans `OrderResponse` — repli défensif. */
+/** Date d'une commande. `orderDate` n'existe pas dans `OrderResponse`, c'est juste au cas où. */
 const orderDateOf = (order) => new Date(order.createdAt || order.orderDate || Date.now());
 
-/** Montant net de la commande (remise et TVA appliquées), celui qui figure sur la facture. */
+/** Montant final de la commande (remise et TVA comprises), celui de la facture. */
 const orderAmountOf = (order) => Number(order.finalAmount ?? order.totalAmount ?? 0);
 
 const orderItemCount = (order) =>
   (order.items || order.orderItems || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
 
 /**
- * Nom du client. L'expression d'origine — `client?.name || client?.firstName ? \`${firstName}
- * ${lastName}\` : 'anonyme'` — évalue `||` avant `?:` : dès qu'un `name` existait, elle
- * affichait la concaténation prénom/nom, soit une chaîne vide pour un client professionnel
- * n'ayant qu'une raison sociale.
+ * Nom du client. L'ancienne expression `client?.name || client?.firstName ? \`${firstName}
+ * ${lastName}\` : 'anonyme'` évalue `||` avant `?:` : dès qu'il y avait un `name`, elle
+ * affichait prénom + nom, donc une chaîne vide pour un client pro qui n'a qu'une raison
+ * sociale.
  */
 const clientNameOf = (order, fallback) => {
   const client = order.client;
@@ -107,7 +107,7 @@ const clientNameOf = (order, fallback) => {
     || fallback;
 };
 
-/** Libellé court d'un client — partagé par le sélecteur, sa pastille et l'analyse client. */
+/** Nom court d'un client, utilisé par le sélecteur, sa pastille et l'analyse client. */
 const clientLabelOf = (client) =>
   client?.name || `${client?.firstName || ''} ${client?.lastName || ''}`.trim() || `#${client?.id}`;
 
@@ -126,21 +126,21 @@ const startOfIsoWeek = (date) => {
 };
 
 /**
- * Clé locale d'une date, `YYYY-MM-DD`. Volontairement pas `toISOString()` : celui-ci convertit
- * en UTC, si bien qu'un minuit local à l'est de Greenwich retombe sur la veille et range la
- * commande dans le mauvais seau.
+ * Clé locale d'une date, `YYYY-MM-DD`. Pas `toISOString()` exprès : il convertit en UTC,
+ * donc un minuit local à l'est de Greenwich tombe sur la veille et la commande est rangée
+ * dans le mauvais jour.
  */
 const localDayKey = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 /**
- * Bornage temporel d'une date selon la granularité choisie.
+ * Découpage d'une date selon le pas choisi (jour, semaine, mois…).
  *
- * `next` sert à parcourir la période sans trou — un intervalle sans vente doit apparaître à
- * zéro, sinon la courbe relie deux points distants et suggère une activité continue. `prev`
- * sert à remonter depuis la fin de la période quand celle-ci dépasse `maxBuckets` : c'est la
- * période RÉCENTE qu'on conserve, alors qu'une troncature depuis le début aurait affiché les
- * premiers jours de l'historique en prétendant montrer les derniers.
+ * `next` sert à parcourir toute la période sans trou : une période sans vente doit être à
+ * zéro, sinon la courbe relie deux points éloignés comme s'il y avait eu des ventes entre
+ * les deux. `prev` sert à partir de la fin quand la période dépasse `maxBuckets` : on garde
+ * les dates RÉCENTES (si on coupait depuis le début, on afficherait les premiers jours de
+ * l'historique en faisant croire que ce sont les derniers).
  */
 const GRANULARITY = {
   day: {
@@ -183,7 +183,7 @@ const TrendTooltip = ({ active, payload, t }) => {
   );
 };
 
-/** En-tête de colonne triable : le tri se pilote au clavier et s'annonce via `aria-sort`. */
+/** En-tête de colonne triable : utilisable au clavier, avec `aria-sort`. */
 const SortableHeader = ({ label, columnKey, sort, onSort, align = 'left' }) => {
   const isActive = sort.key === columnKey;
   const direction = isActive ? sort.direction : null;
@@ -227,7 +227,7 @@ const Reports = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      // En parallèle : les trois appels sont indépendants, les enchaîner triplait l'attente.
+      // Les trois appels sont indépendants, on les lance en même temps (en série ça prenait trois fois plus de temps).
       const [ordersRes, usersRes, clientsRes] = await Promise.all([
         api.get('/orders'),
         api.get('/users'),
@@ -252,16 +252,16 @@ const Reports = () => {
 
   const resetFilters = () => setFilters(EMPTY_FILTERS);
 
-  // Toute modification de filtre ramène à la première page : rester page 7 d'un résultat qui
-  // n'en compte plus que 2 affichait un tableau vide sans expliquer pourquoi.
+  // Quand un filtre change on revient à la page 1 : rester en page 7 alors qu'il n'y en a
+  // plus que 2 affichait un tableau vide sans explication.
   useEffect(() => {
     setCurrentPage(1);
   }, [filters, itemsPerPage]);
 
   /**
-   * Périodes usuelles. Chacune porte ses deux bornes : le bandeau peut donc à la fois les
-   * appliquer et déduire laquelle est en vigueur, sans stocker un troisième état qui aurait
-   * affiché « Ce mois » alors que les dates ont été retouchées à la main depuis.
+   * Périodes prédéfinies. Chacune a ses deux dates : on peut donc les appliquer et retrouver
+   * laquelle est active, sans un état en plus qui afficherait « Ce mois » alors que les dates
+   * ont été changées à la main.
    */
   const periodPresets = useMemo(() => {
     const now = new Date();
@@ -296,15 +296,15 @@ const Reports = () => {
 
   const applyPreset = (value) => {
     const preset = periodPresets.find((p) => p.value === value);
-    // « Personnalisé » n'est qu'un état affiché, jamais une action : les bornes viennent alors
-    // des deux champs de date du panneau.
+    // « Personnalisé » est juste affiché, ce n'est pas une action : les dates viennent alors
+    // des deux champs du panneau.
     if (!preset) return;
     setFilters((prev) => ({ ...prev, startDate: preset.startDate, endDate: preset.endDate }));
   };
 
   const filteredOrders = useMemo(() => {
-    // Bornes construites en heure LOCALE et fin de journée incluse : `new Date('2026-07-28')`
-    // vaut minuit UTC, ce qui excluait toute la dernière journée de la période demandée.
+    // Dates en heure LOCALE, avec la fin de journée incluse : `new Date('2026-07-28')` donne
+    // minuit UTC, ce qui excluait tout le dernier jour de la période.
     const startBound = filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
     const endBound = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999`) : null;
     const needle = filters.search.trim().toLowerCase();
@@ -334,8 +334,8 @@ const Reports = () => {
   }, [orders, filters]);
 
   /**
-   * Indicateurs de la sélection. Les annulées sont sorties du financier — comme partout
-   * ailleurs dans l'application — mais restent comptées pour être signalées explicitement.
+   * Stats de la sélection. Les commandes annulées ne comptent pas dans les montants (comme
+   * partout dans l'appli), mais on les compte quand même pour les afficher à part.
    */
   const stats = useMemo(() => {
     const honored = filteredOrders.filter((o) => o.status !== 'CANCELED');
@@ -371,10 +371,10 @@ const Reports = () => {
     const first = config.startOf(orderDateOf(purchases[0]));
     const last = config.startOf(orderDateOf(purchases[purchases.length - 1]));
 
-    // Point de départ : au plus `maxBuckets` intervalles avant la fin. Au-delà, l'axe devient
-    // illisible — et c'est la période récente qu'on garde. On remonte donc depuis `last` au
-    // lieu d'avancer depuis `first`, ce qui borne aussi le nombre d'itérations sur un
-    // historique de plusieurs années au pas journalier.
+    // Point de départ : au maximum `maxBuckets` intervalles avant la fin. Au-delà, l'axe
+    // devient illisible, et on garde la période récente. On part donc de `last` et on recule
+    // au lieu d'avancer depuis `first`, ce qui limite aussi le nombre de tours de boucle sur
+    // plusieurs années jour par jour.
     let start = last;
     for (let i = 1; i < config.maxBuckets && start > first; i += 1) {
       start = config.prev(start);
@@ -398,8 +398,8 @@ const Reports = () => {
     : null;
 
   /**
-   * Analyse des achats d'un client, calculée sur les commandes DÉJÀ filtrées : ce qui est
-   * résumé ici correspond exactement à ce qu'affiche le tableau plus bas.
+   * Analyse des achats d'un client, sur les commandes DÉJÀ filtrées : les chiffres ici
+   * correspondent exactement au tableau plus bas.
    */
   const clientAnalytics = useMemo(() => {
     if (!filters.clientId) return null;
@@ -411,14 +411,14 @@ const Reports = () => {
     const firstDate = orderCount > 0 ? orderDateOf(purchases[0]) : null;
     const lastDate = orderCount > 0 ? orderDateOf(purchases[orderCount - 1]) : null;
 
-    // Fréquence : délai moyen entre deux achats (au moins deux achats requis).
+    // Fréquence : temps moyen entre deux achats (il faut au moins deux achats).
     let avgDaysBetween = null;
     if (orderCount >= 2) {
       const spanDays = (lastDate - firstDate) / (1000 * 60 * 60 * 24);
       avgDaysBetween = spanDays / (orderCount - 1);
     }
 
-    // Produits les plus achetés : agrégation par produit (quantité + montant).
+    // Produits les plus achetés : regroupés par produit (quantité + montant).
     const byProduct = new Map();
     purchases.forEach((order) => {
       (order.items || order.orderItems || []).forEach((item) => {
@@ -478,8 +478,8 @@ const Reports = () => {
     setSort((prev) =>
       prev.key === key
         ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
-        // Un montant ou une date se lisent d'abord du plus grand au plus petit ; un libellé,
-        // dans l'ordre alphabétique.
+        // Un montant ou une date se trie du plus grand au plus petit, un texte par ordre
+        // alphabétique.
         : { key, direction: ['amount', 'date', 'items'].includes(key) ? 'desc' : 'asc' }
     );
   };
@@ -491,7 +491,7 @@ const Reports = () => {
     ? `${filters.startDate ? formatDate(filters.startDate) : '…'} → ${filters.endDate ? formatDate(filters.endDate) : '…'}`
     : t('reports.allPeriods');
 
-  /** Suggestions de la recherche plein texte, sur les mêmes champs que le filtrage. */
+  /** Suggestions de la recherche texte, sur les mêmes champs que le filtrage. */
   const orderSuggestions = useMemo(
     () => rankSuggestions(
       orders,
@@ -503,9 +503,9 @@ const Reports = () => {
   );
 
   /**
-   * Critères du panneau replié, décrits en données plutôt qu'en JSX : le composant partagé en
-   * tire d'un coup les champs, le compteur du bouton et les pastilles de rappel, qui ne peuvent
-   * donc plus diverger de ce qui filtre réellement le rapport.
+   * Filtres du panneau, décrits sous forme de données plutôt qu'en JSX : le composant commun
+   * en tire les champs, le compteur du bouton et les pastilles, qui correspondent donc
+   * toujours à ce qui filtre vraiment le rapport.
    */
   const filterFields = useMemo(() => [
     {
@@ -528,8 +528,8 @@ const Reports = () => {
         const client = clients.find((c) => String(c.id) === String(value));
         return client ? clientLabelOf(client) : value;
       },
-      // Combobox et non `<select>` : le fichier clients se compte en centaines de lignes, une
-      // liste déroulante native s'y parcourt à l'aveugle.
+      // Combobox et pas `<select>` : il y a des centaines de clients, une liste déroulante
+      // classique serait impossible à parcourir.
       render: ({ value, onChange }) => (
         <SearchableSelect
           options={clients}
@@ -569,8 +569,8 @@ const Reports = () => {
         })),
       ],
     },
-    // Bornes croisées : une période inversée ne renvoie aucun résultat, autant l'empêcher à la
-    // saisie plutôt que d'afficher un tableau vide inexplicable.
+    // Dates liées : une période à l'envers ne donne aucun résultat, autant l'empêcher à la
+    // saisie plutôt que d'afficher un tableau vide sans raison.
     {
       key: 'startDate',
       label: t('reports.startDate'),
@@ -587,7 +587,7 @@ const Reports = () => {
     },
   ], [t, users, clients, filters.startDate, filters.endDate]);
 
-  /** Colonnes communes au tableau et aux deux exports : ils ne peuvent pas diverger. */
+  /** Colonnes communes au tableau et aux deux exports, pour qu'ils restent identiques. */
   const exportColumns = useMemo(() => [
     { header: t('reports.columns.date'), value: (o) => formatDate(orderDateOf(o)) },
     { header: t('reports.columns.orderNumber'), value: (o) => o.orderNumber || '' },
@@ -610,8 +610,8 @@ const Reports = () => {
     toast.success(t('reports.exportDone'));
   };
 
-  // Voir Caisses.jsx : jspdf est chargé au premier appel, la confirmation suit le document,
-  // et l'échec de ce chargement doit se voir.
+  // Comme dans Caisses.jsx : jspdf est chargé au premier appel, on confirme une fois le PDF
+  // généré, et une erreur de chargement doit s'afficher.
   const handleExportPdf = async () => {
     try {
       await exportToPdf({
@@ -678,11 +678,11 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Recherche et filtres — même dispositif que Commandes, Factures et Historique : la
-          recherche et la période toujours accessibles, les critères précis repliés derrière un
-          bouton qui annonce combien sont actifs, et des pastilles rappelant ce qui filtre le
-          rapport. Sans ces pastilles, un critère oublié dans un panneau fermé fait passer un
-          rapport tronqué pour le rapport complet — et ici il est exporté tel quel. */}
+      {/* Recherche et filtres, comme sur Commandes, Factures et Historique : recherche et
+          période toujours visibles, les autres filtres dans un panneau avec le nombre de
+          filtres actifs sur le bouton, et des pastilles pour les rappeler. Sans les pastilles,
+          on peut oublier un filtre dans le panneau fermé et exporter un rapport incomplet en
+          pensant qu'il est complet. */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -724,9 +724,9 @@ const Reports = () => {
             />
           )}
           quickFilters={(
-            /* La période pilote tout le rapport : elle reste hors du panneau, en accès direct.
-               Le segment sélectionné est DÉDUIT des deux bornes — deux dates saisies à la main
-               affichent « Personnalisé » au lieu de laisser « Ce mois » allumé à tort. */
+            /* La période concerne tout le rapport, donc elle reste en dehors du panneau.
+               Le bouton sélectionné est DÉDUIT des deux dates : si on tape les dates à la
+               main, on affiche « Personnalisé » au lieu de laisser « Ce mois » sélectionné. */
             <SegmentedFilter
               label={t('reports.period')}
               value={activePreset}
@@ -742,7 +742,7 @@ const Reports = () => {
         />
       </motion.section>
 
-      {/* Indicateurs de la sélection */}
+      {/* Stats de la sélection */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('reports.totalSales')}
@@ -1056,9 +1056,9 @@ const Reports = () => {
                         {orderItemCount(order)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {/* Badge partagé : une commande facturée puis réglée s'affiche « Payée »,
-                            comme sur la caisse et la supervision. Cette page tenait sa propre
-                            table de libellés, qui ignorait le règlement. */}
+                        {/* Badge commun : une commande facturée et payée affiche « Payée »,
+                            comme sur la caisse et le suivi des caisses. Avant, cette page avait
+                            sa propre liste de libellés qui ne tenait pas compte du paiement. */}
                         <OrderStatusBadge order={order} />
                       </td>
                       <td
@@ -1076,8 +1076,8 @@ const Reports = () => {
           </table>
         </div>
 
-        {/* Pagination partagée : la version précédente en réimplémentait une, sans choix du
-            nombre de lignes ni raccourci vers la première ou la dernière page. */}
+        {/* Pagination commune : l'ancienne version avait la sienne, sans choix du nombre
+            de lignes ni boutons première / dernière page. */}
         {!loading && sortedOrders.length > 0 && (
           <Pagination
             currentPage={currentPage}

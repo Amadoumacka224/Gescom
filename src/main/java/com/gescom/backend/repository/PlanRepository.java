@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Catalogue commercial. Table de reference partagee par tout le parc : elle n'est pas
- * cloisonnee et n'est modifiable que depuis l'espace plateforme.
+ * Formules d'abonnement. Table commune a toutes les entreprises : pas filtree par
+ * entreprise, et modifiable seulement depuis l'espace plateforme.
  */
 @Repository
 public interface PlanRepository extends JpaRepository<Plan, Long> {
@@ -20,6 +20,6 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
 
     List<Plan> findAllByOrderBySortOrderAsc();
 
-    /** Formules encore proposables a la souscription. */
+    /** Formules auxquelles on peut encore souscrire. */
     List<Plan> findByActiveTrueOrderBySortOrderAsc();
 }

@@ -35,16 +35,15 @@ const EMPTY_FORM = {
 
 const FORM_KEYS = Object.keys(EMPTY_FORM);
 
-/** Longueurs maximales reprises des contraintes `@Size` de `ProductRequest`. */
+/** Longueurs max, les mêmes que les `@Size` de `ProductRequest`. */
 const MAX_LENGTHS = { name: 200, barcode: 50 };
 
 /**
- * Colonnes triables, traduites en chemins d'entité pour le `sort` de Spring Data.
+ * Colonnes triables, avec le chemin de l'entité utilisé pour le `sort` de Spring Data.
  *
- * Seule `category` diffère du nom de la colonne : le tableau affiche le libellé de la famille,
- * là où l'entité porte une association. Les autres se nomment pareil des deux côtés et ne
- * figurent ici que pour rendre la liste des tris autorisés explicite — un `sort` sur un champ
- * inexistant fait répondre 500 au serveur.
+ * Seule `category` a un nom différent : le tableau affiche le nom de la catégorie, alors que
+ * l'entité a une relation. Les autres ont le même nom des deux côtés, elles sont là pour
+ * avoir la liste des tris autorisés (un `sort` sur un champ qui n'existe pas fait une 500).
  */
 const SORT_FIELDS = {
   name: 'name',
@@ -55,7 +54,7 @@ const SORT_FIELDS = {
   code: 'code',
 };
 
-/** Ordre visuel des champs : décide lequel reçoit le focus quand plusieurs sont en erreur. */
+/** Ordre des champs à l'écran : sert à savoir lequel prend le focus s'il y a plusieurs erreurs. */
 const FIELD_ORDER = [
   'name', 'categoryId', 'unit', 'purchasePrice', 'sellingPrice',
   'stockQuantity', 'minStockAlert', 'barcode',
@@ -64,9 +63,9 @@ const FIELD_ORDER = [
 const isBlank = (value) => value === '' || value === null || value === undefined;
 
 /**
- * Valide le formulaire en une passe et renvoie les messages par champ.
- * Les règles sont celles de `ProductRequest` : nom obligatoire, prix obligatoires et positifs
- * ou nuls, stock et seuil d'alerte positifs ou nuls.
+ * Valide tout le formulaire et renvoie les erreurs par champ.
+ * Mêmes règles que `ProductRequest` : nom obligatoire, prix obligatoires et >= 0,
+ * stock et seuil d'alerte >= 0.
  */
 const validateProduct = (data, t) => {
   const errors = {};
@@ -100,8 +99,8 @@ const validateProduct = (data, t) => {
 };
 
 /**
- * Marge brute du produit. Vendre à perte reste possible (déstockage, promotion) : la marge
- * est signalée, jamais bloquante — d'où un simple indicateur et non une erreur de validation.
+ * Marge brute du produit. On a le droit de vendre à perte (déstockage, promo), donc la marge
+ * est juste affichée comme indication, ce n'est pas une erreur de validation.
  */
 const computeMargin = (purchasePrice, sellingPrice) => {
   const buy = Number(purchasePrice);
@@ -115,10 +114,10 @@ const computeMargin = (purchasePrice, sellingPrice) => {
 const Products = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  // Le backend restreint déjà create/update/delete/import/export aux ADMIN
-  // (cf. ProductController @PreAuthorize("hasRole('ADMIN')")). On masque l'UI
-  // pour le CAISSIER afin d'éviter les 403 et de ne pas afficher des actions
-  // dont il ne dispose pas.
+  // Côté backend, create/update/delete/import/export sont déjà réservés aux ADMIN
+  // (voir ProductController @PreAuthorize("hasRole('ADMIN')")). On cache ces boutons
+  // au CAISSIER pour éviter les 403 et ne pas lui montrer des actions qu'il ne peut
+  // pas faire.
   const isAdmin = user?.role === 'ADMIN';
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -131,44 +130,44 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [viewMode, setViewMode] = useState(() => {
-    // Load view mode from localStorage, default to 'list' if not set
+    // Mode d'affichage lu dans le localStorage, 'list' par défaut
     return localStorage.getItem('productsViewMode') || 'list';
   });
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
-  // On affiche le maximum de produits par page par défaut (100, le plus grand pas du sélecteur).
+  // Par défaut on affiche le plus de produits possible par page (100, le max du sélecteur).
   const [itemsPerPage, setItemsPerPage] = useState(100);
   const [formData, setFormData] = useState(EMPTY_FORM);
-  // Valeurs à l'ouverture : comparées à la saisie pour savoir si le formulaire a bougé
-  // (bouton d'enregistrement inutile à vide, garde-fou à la fermeture).
+  // Valeurs au moment de l'ouverture, pour savoir si le formulaire a été modifié
+  // (bouton enregistrer désactivé sinon, confirmation à la fermeture).
   const [initialForm, setInitialForm] = useState(EMPTY_FORM);
   const [touched, setTouched] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler), tenues à part des
-  // erreurs locales : elles ne se recalculent pas à la frappe et sont levées champ par champ.
+  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler), gardées à part des
+  // erreurs locales : elles ne sont pas recalculées à la frappe et partent champ par champ.
   const [serverErrors, setServerErrors] = useState({});
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
-  // Enregistrement distinct du chargement de la liste : `loading` pilote aussi le squelette
-  // du tableau, qui n'a aucune raison de clignoter pendant une sauvegarde.
+  // État d'enregistrement séparé du chargement : `loading` gère aussi le squelette du
+  // tableau, qui n'a pas à clignoter pendant une sauvegarde.
   const [saving, setSaving] = useState(false);
-  // Cardinalité de la recherche courante, renvoyée par le serveur : le nombre de lignes n'est
-  // plus déductible de `products`, qui ne porte plus que la page affichée.
+  // Nombre total de résultats, renvoyé par le serveur (on ne peut plus le déduire de
+  // `products`, qui ne contient que la page affichée).
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
-  // Compteurs d'en-tête. Ils décrivent le catalogue ENTIER et proviennent d'un appel distinct :
-  // les déduire de la page afficherait « 3 ruptures » pour la seule page ouverte.
+  // Compteurs en haut de page. Ils portent sur TOUT le catalogue et viennent d'un appel à
+  // part : calculés sur la page, on afficherait « 3 ruptures » pour la page ouverte seulement.
   const [summary, setSummary] = useState({ total: 0, outOfStock: 0, lowStock: 0, stockValue: 0 });
 
-  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête. 300 ms est le
-  // seuil au-delà duquel l'utilisateur perçoit une latence — en deçà, la frappe est fluide.
+  // Debounce sur la saisie, sinon chaque caractère lancerait une requête. 300 ms c'est à peu
+  // près la limite avant que l'utilisateur sente un délai.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Critères envoyés au serveur. `page` passe de la numérotation de l'interface (à partir de 1)
-  // à celle de Spring Data (à partir de 0).
+  // Paramètres envoyés au serveur. `page` commence à 1 dans l'interface mais à 0 dans
+  // Spring Data.
   const queryParams = useMemo(() => {
     const params = { page: currentPage - 1, size: itemsPerPage };
     if (debouncedSearch) params.search = debouncedSearch;
@@ -186,8 +185,8 @@ const Products = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryParams]);
 
-  // Une recherche ou un tri qui change repart de la première page : rester en page 7 d'un
-  // résultat qui n'en compte plus que 2 afficherait un tableau vide.
+  // Si la recherche ou le tri change, on revient à la page 1 : rester en page 7 alors qu'il
+  // n'y en a plus que 2 afficherait un tableau vide.
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, sortConfig, itemsPerPage]);
@@ -222,7 +221,7 @@ const Products = () => {
     }
   };
 
-  /** Compteurs d'en-tête : à rafraîchir après toute écriture, une création changeant le total. */
+  /** Compteurs en haut de page : à recharger après chaque modif (une création change le total). */
   const fetchSummary = async () => {
     try {
       const { data } = await productService.getCatalogSummary();
@@ -232,7 +231,7 @@ const Products = () => {
     }
   };
 
-  /** Recharge la page courante ET les compteurs — à appeler après création, édition, suppression. */
+  /** Recharge la page en cours ET les compteurs. À appeler après création, modif ou suppression. */
   const refresh = async () => {
     await Promise.all([fetchProducts(), fetchSummary()]);
   };
@@ -243,12 +242,12 @@ const Products = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
-    // Le verdict du serveur portait sur l'ancienne valeur : il n'a plus de sens dès qu'elle change.
+    // L'erreur du serveur concernait l'ancienne valeur, on l'enlève dès que la valeur change.
     setServerErrors(prev => (prev[name] === undefined ? prev : { ...prev, [name]: undefined }));
   };
 
-  // Une erreur ne s'affiche qu'une fois le champ quitté, ou dès la première tentative
-  // d'enregistrement : la signaler à la première lettre tapée serait juste mais pénible.
+  // L'erreur s'affiche quand on quitte le champ, ou au premier essai d'enregistrement :
+  // l'afficher dès la première lettre serait pénible.
   const handleBlur = (e) => {
     const { name } = e.target;
     setTouched(prev => (prev[name] ? prev : { ...prev, [name]: true }));
@@ -300,8 +299,8 @@ const Products = () => {
     setSaving(true);
 
     try {
-      // Corps construit champ par champ plutôt qu'en étalant `formData` : en édition, celui-ci
-      // portait aussi `id`, `code`, `createdAt`, `category`… inconnus de `ProductRequest`.
+      // On construit le body champ par champ au lieu de faire `...formData` : en modification,
+      // il contenait aussi `id`, `code`, `createdAt`, `category`… que `ProductRequest` ne connaît pas.
       const productData = {
         name: formData.name.trim(),
         description: (formData.description || '').trim() || null,
@@ -315,10 +314,10 @@ const Products = () => {
         active: formData.active,
       };
 
-      // Le stock n'est envoyé qu'à la création (stock de départ). En édition, le formulaire porte
-      // la valeur lue à son ouverture : la renvoyer ramènerait le stock d'avant les ventes de
-      // l'intervalle. Il n'évolue ensuite que par les ventes, les retours et les ajustements de
-      // la page Stock — le backend ignore d'ailleurs ce champ sur un PUT.
+      // Le stock n'est envoyé qu'à la création (stock de départ). En modification, le formulaire
+      // contient la valeur lue à l'ouverture : la renvoyer remettrait le stock d'avant les ventes
+      // faites entre-temps. Ensuite le stock ne change que par les ventes, les retours et les
+      // ajustements de la page Stock (le backend ignore d'ailleurs ce champ sur un PUT).
       if (!editingProduct) {
         productData.stockQuantity = parseInt(formData.stockQuantity, 10);
       }
@@ -340,8 +339,8 @@ const Products = () => {
         ? raw
         : (raw?.message || raw?.error || t('products.saveError'));
 
-      // Le refus du serveur est ramené sur le champ concerné plutôt que sur un simple toast :
-      // l'utilisateur voit quoi corriger sans relire tout le formulaire.
+      // L'erreur du serveur est affichée sur le champ concerné plutôt que dans un toast,
+      // comme ça on voit directement quoi corriger.
       const fieldErrors = typeof raw === 'object' && raw?.fieldErrors ? { ...raw.fieldErrors } : {};
       const flagged = FIELD_ORDER.filter(field => fieldErrors[field]);
       if (flagged.length > 0) {
@@ -356,10 +355,10 @@ const Products = () => {
     }
   };
 
-  /** Ouvre le formulaire sur des valeurs données, en repartant d'un état de validation vierge. */
+  /** Ouvre le formulaire avec des valeurs données et des erreurs remises à zéro. */
   const openForm = (product) => {
-    // On ne reprend que les champs du formulaire : l'objet reçu de l'API porte aussi `id`,
-    // `code`, `createdAt`… que le DTO de requête n'attend pas.
+    // On ne garde que les champs du formulaire : l'objet de l'API contient aussi `id`,
+    // `code`, `createdAt`… dont le DTO de requête n'a pas besoin.
     const values = product
       ? {
           name: product.name || '',
@@ -423,9 +422,9 @@ const Products = () => {
   };
 
   /**
-   * Fermeture demandée par l'utilisateur (bouton Annuler, croix, clic sur le fond).
-   * Le fond de la modale se ferme au moindre clic à côté : perdre une fiche produit
-   * entièrement saisie à cette occasion est un incident réel.
+   * Fermeture par l'utilisateur (bouton Annuler, croix, clic à côté).
+   * Un clic à côté suffit à fermer le modal, et perdre une fiche produit complète comme ça,
+   * c'est vraiment énervant.
    */
   const requestCloseForm = () => {
     if (isDirty) {
@@ -438,19 +437,19 @@ const Products = () => {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Vérifier le type de fichier
+      // Vérifie le type de fichier
       if (!file.type.startsWith('image/')) {
         toast.error(t('products.selectValidImage'));
         return;
       }
 
-      // Vérifier la taille du fichier (max 5MB)
+      // Vérifie la taille du fichier (max 5 Mo)
       if (file.size > 5 * 1024 * 1024) {
         toast.error(t('products.imageSizeLimit'));
         return;
       }
 
-      // Créer une prévisualisation
+      // Crée l'aperçu de l'image
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
@@ -489,16 +488,15 @@ const Products = () => {
   };
 
   /**
-   * Export du catalogue, produit par le serveur.
+   * Export du catalogue, généré par le serveur.
    *
-   * Le fichier était auparavant assemblé ici, par concaténation avec des virgules, à partir de
-   * la liste complète chargée dans le navigateur. Celle-ci ne l'étant plus, cet assemblage
-   * n'aurait livré que la page affichée — un fichier tronqué qui s'annonce pourtant comme
-   * l'export du catalogue.
+   * Avant, le fichier était construit ici en collant les valeurs avec des virgules, à partir de
+   * la liste complète chargée dans le navigateur. Comme on ne charge plus toute la liste, on
+   * n'aurait exporté que la page affichée (un fichier incomplet).
    *
-   * `GET /products/export` existait déjà et fait mieux : il voit tout le catalogue, et passe
-   * par CsvExportService, qui échappe les valeurs et pose le BOM attendu par Excel — deux
-   * choses que la concaténation d'ici ne faisait pas.
+   * `GET /products/export` existait déjà et fait mieux : il a tout le catalogue, et passe par
+   * CsvExportService qui échappe les valeurs et ajoute le BOM pour Excel (ce que la version
+   * d'ici ne faisait pas).
    */
   const handleExport = async () => {
     try {
@@ -515,14 +513,13 @@ const Products = () => {
     }
   };
 
-  // Suggestions d'autocomplétion classées par pertinence (nom prioritaire sur
-  // code / code-barres / catégorie).
+  // Suggestions d'autocomplétion triées par pertinence (le nom passe avant le code, le
+  // code-barres et la catégorie).
   //
-  // Elles sont désormais tirées de la page reçue et non plus du catalogue entier, qui n'est
-  // plus rapatrié. Ce n'est pas une perte : la page EST le résultat de la recherche en cours,
-  // les suggestions portent donc sur les mêmes lignes qu'avant — simplement bornées à la
-  // page. Le champ cherche sur les mêmes colonnes côté serveur, la frappe suivante rend de
-  // toute façon les suggestions du nouveau résultat.
+  // Elles viennent de la page reçue, puisqu'on ne charge plus tout le catalogue. Ce n'est pas
+  // gênant : la page est déjà le résultat de la recherche, donc les suggestions portent sur
+  // les mêmes lignes qu'avant. Le serveur cherche sur les mêmes colonnes, et la frappe
+  // suivante met à jour les suggestions.
   const productSuggestions = rankSuggestions(
     products,
     searchTerm,
@@ -530,10 +527,9 @@ const Products = () => {
     8
   );
 
-  // Le tri et la pagination sont faits en base : `products` porte déjà la page demandée, dans
-  // l'ordre demandé. Trier ou découper ici ne réordonnerait que les lignes reçues, ce qui
-  // donnerait un tableau qui prétend être trié sans l'être — le piège classique du passage à
-  // la pagination serveur.
+  // Le tri et la pagination sont faits en base : `products` contient déjà la bonne page dans
+  // le bon ordre. Trier ou découper ici ne trierait que les lignes reçues, ce qui donnerait un
+  // faux tri (le piège classique quand on passe à la pagination serveur).
   const displayedProducts = products;
   const totalPages = pageMeta.totalPages;
 
@@ -546,40 +542,35 @@ const Products = () => {
     setCurrentPage(1);
   };
 
-  // Compteurs du catalogue entier, agrégés en base (cf. /api/products/summary). Ils étaient
-  // déduits de la liste complète chargée dans le navigateur ; celle-ci ne l'étant plus, les
-  // recalculer ici ne décrirait que la page affichée.
+  // Compteurs sur tout le catalogue, calculés en base (voir /api/products/summary). Avant ils
+  // étaient calculés sur la liste complète chargée dans le navigateur ; maintenant ils ne
+  // porteraient que sur la page affichée.
   const totalProducts = summary.total;
   const outOfStockCount = summary.outOfStock;
   const lowStockCount = summary.lowStock;
   const stockValue = Number(summary.stockValue) || 0;
 
-  /* Colonnes du catalogue, réduites à ce qui se lit en balayant la liste : le produit, sa
-   * famille, son prix, son stock, son état. Le reste est dans la fiche détaillée.
+  /* Colonnes du catalogue, limitées à l'essentiel : le produit, la catégorie, le prix, le
+   * stock et l'état. Le reste est dans la fiche détaillée.
    *
-   * Ce qui n'y figure plus :
-   *   - la description, texte libre de longueur imprévisible, qui occupait le tiers de la
-   *     largeur et imposait deux interlignes de hauteur à chaque rangée ;
-   *   - le code produit, qui est une clé de recherche et non un critère de lecture. Il reste
-   *     interrogeable par la recherche, affiché dans ses suggestions, dans la fiche détaillée
-   *     et à l'export CSV.
+   * Ce qu'on a enlevé :
+   *   - la description : texte libre de longueur variable, qui prenait un tiers de la largeur
+   *     et doublait la hauteur des lignes ;
+   *   - le code produit : il sert à chercher, pas à lire la liste. On peut toujours le
+   *     chercher, et il est affiché dans les suggestions, la fiche et l'export CSV.
    *
-   * Le nom tient sur une ligne, coupé par `truncate`, sous un plafond de largeur (`max-w`) :
-   * `truncate` impose `nowrap`, dont la largeur intrinsèque est celle du texte entier — sans ce
-   * plafond, un nom à rallonge élargissait le tableau au lieu d'être coupé. Le plafond borne
-   * cette largeur intrinsèque, donc la colonne se règle sur les noms courants et les rares noms
-   * interminables sont tronqués. Le nom complet reste en infobulle et dans la fiche.
+   * Le nom est sur une ligne, coupé avec `truncate`, avec une largeur max (`max-w`). Sans
+   * cette largeur max, `truncate` (qui met `nowrap`) faisait s'élargir le tableau avec les
+   * noms très longs au lieu de les couper. Le nom complet est dans l'infobulle et la fiche.
    *
-   * Le plafond est serré (10 → 15 rem selon la largeur d'écran, soit ~30 à ~45 caractères) :
-   * il est dimensionné pour les noms d'usage, pas pour le plus long du catalogue — un nom peut
-   * aller jusqu'à 200 caractères (`MAX_LENGTHS.name`), et le laisser s'étaler repoussait le
-   * prix et le stock hors de vue. Au-delà, les premiers mots suffisent à reconnaître l'article,
-   * l'infobulle donne le reste.
+   * La largeur max est assez petite (10 → 15 rem selon l'écran, ~30 à ~45 caractères) : on
+   * vise les noms normaux, pas le plus long du catalogue. Un nom peut faire jusqu'à 200
+   * caractères (`MAX_LENGTHS.name`) et poussait le prix et le stock hors de l'écran. Les
+   * premiers mots suffisent pour reconnaître l'article.
    *
-   * En amont de la troncature, `productShortName` retire les parenthèses du libellé : ce qu'elles
-   * contiennent tient de la fiche technique. Attention si des variantes ne se distinguent que
-   * par là (« ... (33 cl) » / « ... (50 cl) ») : elles s'affichent alors à l'identique, seules
-   * l'infobulle et la fiche les départagent.
+   * Avant de couper, `productShortName` enlève les parenthèses du nom (c'est plutôt du détail
+   * technique). Attention : deux variantes qui ne diffèrent que par là (« ... (33 cl) » /
+   * « ... (50 cl) ») s'affichent pareil, seules l'infobulle et la fiche les distinguent.
    */
   const columns = [
     {
@@ -605,7 +596,7 @@ const Products = () => {
       )
     },
     {
-      // La catégorie remonte à `md` : la colonne code libérée, elle tient sur tablette.
+      // La catégorie s'affiche dès `md` : maintenant que la colonne code n'est plus là, elle rentre sur tablette.
       key: 'category',
       label: t('products.category'),
       sortable: true,
@@ -673,8 +664,8 @@ const Products = () => {
             <p className="page-subtitle">{t('products.subtitle')}</p>
           </div>
         </div>
-        {/* `flex-wrap` comme sur les autres en-têtes : les quatre boutons réclamaient 540 px
-            dans un en-tête de 334 px, et la page partait en défilement horizontal. */}
+        {/* `flex-wrap` comme sur les autres en-têtes : les quatre boutons faisaient 540 px
+            dans un en-tête de 334 px, et la page scrollait horizontalement. */}
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
@@ -712,9 +703,8 @@ const Products = () => {
         </div>
       </div>
 
-      {/* Indicateurs — tuiles partagées (`StatCard`) plutôt qu'une variante maison : même
-          gabarit que les autres pages, et une bande d'en-tête plus courte au-dessus du
-          catalogue, qui est le contenu qu'on vient consulter. */}
+      {/* Stats : on utilise `StatCard` comme sur les autres pages plutôt qu'une version à
+          part. La bande du haut est aussi moins haute, pour laisser la place au catalogue. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard title={t('products.totalCount')} value={totalProducts} icon={Package} tone="info" loading={loading} />
         <StatCard title={t('products.outOfStockLabel')} value={outOfStockCount} icon={TrendingDown} tone="danger" loading={loading} />
@@ -776,11 +766,11 @@ const Products = () => {
 
       {/* Products Display - List or Grid */}
       {viewMode === 'list' ? (
-        // `p-0` : le tableau porte déjà ses marges de cellule, celles de la carte s'y ajoutaient.
+        // `p-0` : le tableau a déjà ses marges dans les cellules, celles de la carte s'ajoutaient.
         <div className="card overflow-hidden p-0">
-          {/* `compact` : le catalogue se parcourt par dizaines de lignes, contrairement aux
-              tableaux de pièces (commandes, factures) que l'on lit une par une. La ligne
-              entière ouvre la fiche, d'où le `stopPropagation` sur chaque action. */}
+          {/* `compact` : on parcourt le catalogue par dizaines de lignes, pas comme les
+              commandes ou factures qu'on lit une par une. Cliquer sur la ligne ouvre la fiche,
+              d'où le `stopPropagation` sur chaque bouton. */}
           <Table
             columns={columns}
             data={displayedProducts}
@@ -799,8 +789,8 @@ const Products = () => {
                 >
                   <Eye className="w-4 h-4" />
                 </button>
-                {/* Le caissier est en lecture seule sur les produits : seules les actions
-                    « Modifier » et « Supprimer » sont réservées à l'ADMIN. */}
+                {/* Le caissier ne peut que consulter les produits : « Modifier » et
+                    « Supprimer » sont réservés à l'ADMIN. */}
                 {isAdmin && (
                   <>
                     <button
@@ -823,7 +813,7 @@ const Products = () => {
             )}
           />
 
-          {/* Pagination : le total vient du serveur, la page affichée n'en est qu'une tranche. */}
+          {/* Pagination : le total vient du serveur, on n'affiche qu'une partie. */}
           {pageMeta.totalElements > 0 && (
             <Pagination
               currentPage={currentPage}
@@ -836,8 +826,8 @@ const Products = () => {
           )}
         </div>
       ) : (
-        // Une colonne de plus au-delà de 1536 px et des écarts resserrés : la vignette carrée
-        // ne laissait voir qu'une rangée et demie sur un écran de bureau courant.
+        // Une colonne de plus au-dessus de 1536 px et moins d'espace entre les cartes : avec
+        // les images carrées on ne voyait qu'une rangée et demie sur un écran de bureau.
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {displayedProducts.length === 0 ? (
             <div className="col-span-full text-center py-12 text-gray-500">
@@ -849,14 +839,14 @@ const Products = () => {
                 key={product.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                // Décalage plafonné : à 50 ms par carte, une page de cent produits mettait cinq
-                // secondes à finir de s'afficher. Au-delà de la huitième, tout entre ensemble.
+                // Délai limité : à 50 ms par carte, une page de cent produits mettait cinq
+                // secondes à s'afficher. Après la huitième carte, tout apparaît en même temps.
                 transition={{ delay: Math.min(index, 8) * 0.05 }}
                 onClick={() => handleViewDetails(product)}
                 className="card p-4 hover:shadow-lg transition-shadow cursor-pointer group"
               >
-                {/* Vignette en 4/3 plutôt que carrée : elle occupait deux fois la hauteur du
-                    texte utile, pour une photo de catalogue rarement décisive. */}
+                {/* Image en 4/3 au lieu de carrée : elle prenait deux fois la hauteur du texte,
+                    alors que la photo n'est pas l'info la plus importante. */}
                 <div className="relative aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg mb-3 overflow-hidden">
                   {product.imageUrl ? (
                     <img
@@ -892,7 +882,7 @@ const Products = () => {
                       </span>
                     </div>
                   )}
-                  {/* Action Buttons - Show on hover (stopPropagation pour ne pas ré-ouvrir les détails depuis le clic sur la carte) */}
+                  {/* Boutons d'action affichés au survol (stopPropagation pour ne pas rouvrir le détail via le clic sur la carte) */}
                   <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleViewDetails(product); }}
@@ -901,7 +891,7 @@ const Products = () => {
                     >
                       <Eye className="w-5 h-5" />
                     </button>
-                    {/* Caissier en lecture seule : édition et suppression réservées à l'ADMIN. */}
+                    {/* Caissier en lecture seule : modifier et supprimer réservés à l'ADMIN. */}
                     {isAdmin && (
                       <>
                         <button
@@ -925,16 +915,15 @@ const Products = () => {
 
                 {/* Product Info */}
                 <div className="space-y-1.5">
-                  {/* Nom sur une ligne, tronqué : la carte a une largeur fixe, c'est elle qui
-                      donne la mesure. Nom complet en infobulle et dans la fiche. */}
+                  {/* Nom sur une ligne, coupé : la carte a une largeur fixe. Le nom complet est
+                      dans l'infobulle et la fiche. */}
                   <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100" title={product.name}>
                     {productShortName(product.name)}
                   </h3>
 
-                  {/* Ni description ni code produit ici non plus. La ligne de catégorie est en
-                      revanche toujours réservée : sans elle, les cartes sans catégorie
-                      remontaient leur prix et leur stock d'un cran, et rien ne s'alignait plus
-                      d'une carte à l'autre. */}
+                  {/* Pas de description ni de code ici non plus. Par contre la ligne de la
+                      catégorie est toujours là : sans elle, les cartes sans catégorie avaient le
+                      prix et le stock plus haut que les autres, et plus rien n'était aligné. */}
                   <div className="min-h-[1.375rem]">
                     {product.category && (
                       <span className="badge badge-info">
@@ -968,7 +957,7 @@ const Products = () => {
             ))
           )}
 
-          {/* Pagination : le total vient du serveur, la page affichée n'en est qu'une tranche. */}
+          {/* Pagination : le total vient du serveur, on n'affiche qu'une partie. */}
           {pageMeta.totalElements > 0 && (
             <div className="col-span-full mt-6">
               <div className="card">
@@ -993,11 +982,11 @@ const Products = () => {
         title={editingProduct ? t('products.editTitle') : t('products.newTitle')}
         size="lg"
       >
-        {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont
-            les bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
+        {/* `noValidate` : on utilise notre propre validation, pas les bulles du navigateur
+            (pas au style de l'appli et dans la langue du navigateur). */}
         <form onSubmit={handleSubmit} noValidate>
-          {/* Récapitulatif des champs à corriger : sur un formulaire de cette hauteur, le champ
-              fautif peut se trouver hors écran au moment de l'enregistrement. */}
+          {/* Liste des champs à corriger : le formulaire est long, le champ en erreur peut
+              être hors de l'écran au moment d'enregistrer. */}
           {submitAttempted && invalidFields.length > 0 && (
             <div
               role="alert"
@@ -1037,8 +1026,8 @@ const Products = () => {
             </div>
           )}
 
-          {/* Ordre de lecture : ce qu'est le produit, ce qu'il coûte et rapporte, ce qu'il en
-              reste, comment on l'identifie en caisse, puis son illustration et son statut. */}
+          {/* Ordre : description du produit, prix et marge, stock, identification en caisse,
+              puis image et statut. */}
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             <FormSection
               icon={Package}
@@ -1128,9 +1117,9 @@ const Products = () => {
                   icon={Euro}
                 />
               </div>
-              {/* Marge calculée à la saisie : c'est la vérification qu'on fait de tête en
-                  remplissant les deux prix. Vendre à perte reste autorisé (déstockage), on
-                  le signale sans l'interdire. */}
+              {/* Marge calculée pendant la saisie : c'est ce qu'on vérifie de tête en
+                  remplissant les deux prix. On peut vendre à perte (déstockage), donc on
+                  affiche juste un avertissement. */}
               {margin && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
                   <span className="text-sm text-gray-600 dark:text-gray-400">{t('products.grossMargin')}</span>
@@ -1157,7 +1146,7 @@ const Products = () => {
               description={t('products.sectionStockHint')}
             >
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                {/* En édition le champ n'est qu'un rappel : le stock appartient au journal des
+                {/* En modification, le champ est juste informatif : le stock dépend des
                     mouvements (ventes, retours, ajustements) et se corrige depuis la page Stock. */}
                 <FormInput
                   label={t('products.stockQuantityLabel')}
@@ -1272,8 +1261,8 @@ const Products = () => {
               title={t('products.sectionStatus')}
               description={t('products.sectionStatusHint')}
             >
-              {/* Interrupteur plutôt qu'une case à cocher : l'effet du réglage est écrit à côté,
-                  un produit inactif ne pouvant plus être ajouté à une commande. */}
+              {/* Switch plutôt que checkbox, avec l'effet écrit à côté : un produit inactif
+                  ne peut plus être ajouté à une commande. */}
               <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
                 <div className="min-w-0">
                   <label htmlFor="active" className="cursor-pointer font-medium text-gray-900 dark:text-gray-100">
@@ -1298,8 +1287,8 @@ const Products = () => {
             </FormSection>
           </div>
 
-          {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
-              défile mais l'enregistrement reste sous la main. */}
+          {/* Boutons collés en bas du modal : sur un petit écran le formulaire scrolle mais
+              le bouton enregistrer reste visible. */}
           <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {editingProduct && !isDirty ? t('products.noChanges') : t('clients.requiredHint')}
@@ -1349,7 +1338,7 @@ const Products = () => {
         >
           <ProductDetails
             product={selectedProduct}
-            // Caissier en lecture seule : pas de onEdit → le bouton « Modifier » du détail disparaît.
+            // Caissier en lecture seule : sans onEdit, le bouton « Modifier » n'est pas affiché.
             onEdit={isAdmin ? () => {
               handleCloseDetails();
               handleEdit(selectedProduct);
@@ -1364,7 +1353,7 @@ const Products = () => {
 };
 
 const formatDateTime = (value) => {
-  // Convention de date de la langue active (cf. `export.locale`).
+  // Format de date de la langue choisie (voir `export.locale`).
   if (!value) return '—';
   try {
     return new Date(value).toLocaleString(i18n.t('export.locale'), {
@@ -1398,7 +1387,7 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header — image + identité */}
+      {/* Header : image + nom */}
       <div className="flex items-start gap-4 pb-4 border-b border-gray-200">
         <div className="flex-shrink-0 w-32 h-32 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden flex items-center justify-center">
           {product.imageUrl ? (
@@ -1512,8 +1501,8 @@ const ProductDetails = ({ product, onEdit, onClose }) => {
         <Button variant="secondary" type="button" onClick={onClose}>
           {t('common.close')}
         </Button>
-        {/* « Modifier » n'est rendu que si l'appelant fournit onEdit (ADMIN) : le caissier,
-            en lecture seule, ne voit que « Fermer ». */}
+        {/* « Modifier » s'affiche seulement si onEdit est fourni (ADMIN). Le caissier ne
+            voit que « Fermer ». */}
         {onEdit && (
           <Button variant="primary" type="button" icon={Edit} onClick={onEdit}>
             {t('common.edit')}

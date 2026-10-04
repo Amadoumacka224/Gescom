@@ -4,30 +4,26 @@ import { useTranslation } from 'react-i18next';
 /**
  * Tableau de données de l'application.
  *
- * Options (toutes facultatives, les appels existants restent valides) :
- *   - `column.className` : classes posées à la fois sur l'en-tête et sur la cellule. Sert au
- *     dévoilement progressif des colonnes (`hidden lg:table-cell`) : sur écran étroit, on masque
- *     le secondaire plutôt que de renvoyer l'utilisateur vers un défilement horizontal.
- *   - `column.sortable` + `sortKey` / `sortDirection` / `onSort` : tri piloté par le parent.
- *     L'en-tête porte `aria-sort`, seul moyen pour un lecteur d'écran de connaître l'état du tri.
- *   - `loading` : lignes squelettes plutôt qu'un tableau vide, qui se lit à tort « aucun résultat ».
- *   - `emptyState` : contenu du vide (message + action). À défaut, texte générique.
- *   - `density` : `compact` resserre les cellules pour les catalogues, où l'on compare des
- *     dizaines de lignes d'un coup et où chaque rangée gagnée compte. La valeur par défaut
- *     `comfortable` garde l'espacement des tableaux existants.
- *   - `maxHeight` : hauteur maximale de la zone de défilement, `null` pour la lever.
+ * Options (toutes facultatives) :
+ *   - `column.className` : classes mises sur l'en-tête et sur la cellule. Sert à cacher des
+ *     colonnes sur petit écran (`hidden lg:table-cell`) plutôt que d'avoir un scroll horizontal.
+ *   - `column.sortable` + `sortKey` / `sortDirection` / `onSort` : tri géré par le parent.
+ *     L'en-tête a `aria-sort` pour que les lecteurs d'écran connaissent le tri.
+ *   - `loading` : lignes squelettes au lieu d'un tableau vide (qu'on lirait « aucun résultat »).
+ *   - `emptyState` : contenu quand il n'y a rien (message + action). Sinon texte par défaut.
+ *   - `density` : `compact` réduit l'espacement, pour les catalogues avec beaucoup de lignes.
+ *     Par défaut `comfortable`, l'espacement normal.
+ *   - `maxHeight` : hauteur max de la zone qui scrolle, `null` pour l'enlever.
  *
- * En-tête collant — pourquoi cette hauteur maximale existe :
- * `position: sticky` se règle sur le plus proche ancêtre défilant, et l'en-tête en portait déjà
- * la classe sans jamais coller. Le tableau est en effet enveloppé dans trois boîtes qui, toutes,
- * capturent le collage sans jamais défiler elles-mêmes : `overflow-x-auto` ici, `card
- * overflow-hidden` sur les pages, et `main` (`overflow-auto` dans `MainLayout`) qui grandit avec
- * son contenu — c'est le document qui défile. Rendre le collage dépendant de la fenêtre
- * demanderait de démonter ces trois niveaux, jusqu'à la coquille de l'application.
+ * Pourquoi cette hauteur max (en-tête collant) :
+ * `position: sticky` se base sur le premier parent qui scrolle. L'en-tête avait déjà la classe
+ * mais ne collait jamais, parce que le tableau est dans trois conteneurs qui ne scrollent pas
+ * eux-mêmes : `overflow-x-auto` ici, `card overflow-hidden` dans les pages, et `main`
+ * (`overflow-auto` dans `MainLayout`) qui grandit avec le contenu. C'est la page qui scrolle.
+ * Pour coller à la fenêtre, il aurait fallu modifier ces trois niveaux.
  *
- * La zone de défilement est donc celle du tableau lui-même : au-delà de `maxHeight`, les lignes
- * défilent sous leurs intitulés, qui restent lus. En dessous — le cas de la plupart des tableaux
- * de l'application — la hauteur reste dictée par le contenu et rien ne change.
+ * Donc c'est le tableau qui scrolle : au-delà de `maxHeight`, les lignes défilent sous
+ * l'en-tête qui reste visible. Pour les petits tableaux (la plupart), rien ne change.
  */
 const Table = ({
   columns,
@@ -45,11 +41,11 @@ const Table = ({
 }) => {
   const { t } = useTranslation();
   const colSpan = columns.length + (actions ? 1 : 0);
-  // Utilitaires posés sur `.table-th` / la cellule : la couche `utilities` de Tailwind passe
-  // après `components`, l'espacement compact l'emporte donc sur celui de la classe partagée.
+  // Classes utilitaires sur `.table-th` / la cellule : dans Tailwind, `utilities` passe après
+  // `components`, donc l'espacement compact remplace celui de la classe commune.
   const cellPadding = density === 'compact' ? 'px-4 py-2' : 'px-6 py-4';
-  // `whitespace-nowrap` sur les en-têtes du mode compact : un intitulé replié sur deux lignes
-  // (« Prix de vente ») creusait la bande d'en-tête et désalignait les libellés entre eux.
+  // `whitespace-nowrap` sur les en-têtes en mode compact : un titre sur deux lignes
+  // (« Prix de vente ») agrandissait l'en-tête et décalait les autres titres.
   const headPadding = density === 'compact' ? 'px-4 py-2.5 whitespace-nowrap' : '';
 
   const ariaSort = (column) => {
@@ -69,9 +65,9 @@ const Table = ({
   return (
     <div className={`overflow-auto ${maxHeight || ''}`}>
       <table className="w-full">
-        {/* Fond opaque et trait porté par une ombre incrustée : en sombre, `bg-gray-900/40`
-            laissait voir les lignes défiler à travers l'en-tête une fois celui-ci collé, et une
-            bordure sur un `thead` collant disparaît sous `border-collapse` (défaut de Tailwind). */}
+        {/* Fond opaque et bordure faite avec une ombre : en mode sombre, avec `bg-gray-900/40`
+            on voyait les lignes passer à travers l'en-tête collé, et une vraie bordure sur un
+            `thead` sticky disparaît avec `border-collapse` (défaut de Tailwind). */}
         <thead className="bg-gray-50 dark:bg-gray-900 shadow-[inset_0_-1px_0_0_rgb(229_231_235)] dark:shadow-[inset_0_-1px_0_0_rgb(55_65_81)] sticky top-0 z-10">
           <tr>
             {columns.map((column) => (
@@ -122,14 +118,12 @@ const Table = ({
               </td>
             </tr>
           ) : (
-            /* Les lignes n'ont plus d'animation d'entrée.
+            /* Plus d'animation d'apparition sur les lignes.
              *
-             * Elle apparaissait en cascade (30 ms par rang) : sur une page de cent produits, la
-             * dernière ligne arrivait trois secondes après la première. Et depuis que le tableau
-             * défile dans sa propre zone, Chrome n'exécute pas ces animations pour les lignes
-             * hors de la partie visible du conteneur — elles restaient bloquées à `opacity: 0`,
-             * c'est-à-dire des lignes vides. Le squelette de chargement couvre déjà le moment où
-             * les données arrivent ; cent animations simultanées n'apportaient rien de plus. */
+             * Elles apparaissaient une par une (30 ms par ligne), donc sur une page de cent
+             * produits la dernière arrivait trois secondes après. En plus, depuis que le tableau
+             * a son propre scroll, Chrome ne lance pas l'animation des lignes cachées, qui
+             * restaient à `opacity: 0` (lignes vides). Le squelette de chargement suffit. */
             data.map((row, index) => (
               <tr
                 key={row.id || index}

@@ -17,14 +17,14 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * Passerelle branchée sur l'environnement de test de Stripe ({@code stripe.mode=api}).
+ * Passerelle qui appelle l'environnement de test de Stripe ({@code stripe.mode=api}).
  *
- * Même contrat que la passerelle simulée, mêmes jetons de carte de test : seul le
- * paramétrage change. La clé est passée par requête ({@link RequestOptions}) plutôt que via
- * le champ statique {@code Stripe.apiKey}, pour ne pas installer d'état global dans la JVM.
+ * Même interface que la passerelle simulée, mêmes cartes de test : seule la config change.
+ * La clé est passée à chaque requête ({@link RequestOptions}) plutôt que dans le champ
+ * statique {@code Stripe.apiKey}, pour ne pas avoir d'état global dans la JVM.
  *
- * Un refus de l'émetteur remonte en {@link CardException} : c'est une réponse métier normale,
- * traduite en intention FAILED. Seules les vraies pannes (réseau, clé invalide, montant
+ * Un refus de la banque arrive en {@link CardException} : c'est une réponse normale, qu'on
+ * transforme en intention FAILED. Seules les vraies erreurs (réseau, clé invalide, montant
  * refusé par l'API) deviennent des {@link BusinessException}.
  */
 @Component
@@ -50,8 +50,8 @@ public class StripeApiGateway implements StripeGateway {
                     .setCurrency(currency)
                     .setDescription(description)
                     .putAllMetadata(metadata)
-                    // Carte uniquement, et confirmation pilotée par le terminal : pas de
-                    // moyens de paiement automatiques, donc aucune redirection à gérer.
+                    // Seulement la carte, et c'est le terminal qui confirme : pas de moyens de
+                    // paiement automatiques, donc pas de redirection à gérer.
                     .addPaymentMethodType("card")
                     .build();
 
@@ -78,15 +78,15 @@ public class StripeApiGateway implements StripeGateway {
                             intentId, card.brand(), card.last4());
                     yield StripeIntent.succeeded(intentId, confirmed.getClientSecret(), card.brand(), card.last4());
                 }
-                // Le terminal encaisse ou refuse : une intention laissée en attente
-                // d'authentification n'a pas d'écran pour la porter.
+                // Le terminal accepte ou refuse : on n'a pas d'écran pour gérer une intention
+                // qui attend une authentification.
                 case "requires_action" -> StripeIntent.failed(intentId, confirmed.getClientSecret(), null, null,
                         "Authentification 3-D Secure requise, non prise en charge par le terminal");
                 default -> StripeIntent.failed(intentId, confirmed.getClientSecret(), null, null,
                         "Paiement non abouti (statut Stripe : " + confirmed.getStatus() + ")");
             };
         } catch (CardException e) {
-            // Refus de l'émetteur : réponse attendue du parcours, pas une panne.
+            // Refus de la banque : c'est un cas normal du parcours, pas une panne.
             log.info("[Stripe test] Intention {} refusée : {}", intentId, e.getMessage());
             return StripeIntent.failed(intentId, null, null, null, e.getStripeError() != null
                     ? e.getStripeError().getMessage()
@@ -112,8 +112,8 @@ public class StripeApiGateway implements StripeGateway {
     }
 
     /**
-     * Marque et quatre derniers chiffres de la carte. Purement informatif (ticket, journal) :
-     * si Stripe ne les rend pas, on n'échoue pas un paiement déjà accepté.
+     * Marque et quatre derniers chiffres de la carte. Juste pour info (ticket, journal) : si
+     * Stripe ne les renvoie pas, on ne fait pas échouer un paiement déjà accepté.
      */
     private CardDetails cardDetailsOf(String paymentMethodId) {
         if (paymentMethodId == null) {

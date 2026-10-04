@@ -3,12 +3,12 @@ package com.gescom.backend.security;
 import com.gescom.backend.exception.LocalizedException;
 
 /**
- * Levee quand un couple identifiant/adresse a epuise ses tentatives de connexion.
+ * Lancee quand un couple identifiant / adresse a utilise toutes ses tentatives de connexion.
  *
- * Distincte de {@code BadCredentialsException}, et c'est volontaire : le message ne dit pas si
- * l'identifiant existe ni si le mot de passe etait bon, seulement que la porte est fermee pour
- * un temps. Mappee en 429 par {@code GlobalExceptionHandler} — ni 401, qui laisserait croire a
- * un simple echec de plus, ni 403, qui suggererait un droit manquant.
+ * Differente de {@code BadCredentialsException} exprès : le message ne dit pas si
+ * l'identifiant existe ni si le mot de passe etait bon, juste que c'est bloque pour un
+ * moment. Transformee en 429 par {@code GlobalExceptionHandler} : pas 401, qui ferait penser
+ * a un echec de plus, ni 403, qui ferait penser a un probleme de droits.
  */
 public class TooManyAttemptsException extends RuntimeException implements LocalizedException {
 
@@ -19,7 +19,7 @@ public class TooManyAttemptsException extends RuntimeException implements Locali
         this.retryAfterSeconds = retryAfterSeconds;
     }
 
-    /** Delai restant, en secondes. Sert aussi a renseigner l'en-tete HTTP {@code Retry-After}. */
+    /** Temps restant en secondes. Sert aussi pour l'en-tete HTTP {@code Retry-After}. */
     public long getRetryAfterSeconds() {
         return retryAfterSeconds;
     }

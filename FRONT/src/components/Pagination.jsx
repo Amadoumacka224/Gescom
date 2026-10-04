@@ -41,11 +41,10 @@ const Pagination = ({
       </div>
 
       {/*
-        Commandes repliables — la rangée tenait sur une seule ligne quelle que soit la largeur.
-        Elle mesure de 338 à 577 px selon la page (le sélecteur « par page », quatre flèches et
-        jusqu'à cinq numéros), pour un conteneur de 332 px sur un téléphone de 390 px : la carte
-        parente étant en `overflow-hidden`, les boutons « page suivante » et « dernière page »
-        étaient purement et simplement coupés, donc hors d'atteinte.
+        Les boutons passent à la ligne si besoin. Avant, tout était sur une ligne qui faisait
+        entre 338 et 577 px, alors que le conteneur fait 332 px sur un téléphone de 390 px.
+        Comme la carte est en `overflow-hidden`, les boutons « page suivante » et « dernière
+        page » étaient coupés et on ne pouvait plus cliquer dessus.
       */}
       <div className="flex flex-wrap items-center justify-center gap-2">
         {/* Items per page */}

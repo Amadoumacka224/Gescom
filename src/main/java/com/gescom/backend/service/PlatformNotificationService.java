@@ -20,16 +20,16 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 
 /**
- * Journal des evenements notables de la plateforme.
+ * Historique des evenements importants de la plateforme.
  *
- * L'emission suit la meme regle que {@code ActivityLogService} : **une notification qui
- * echoue ne doit jamais faire echouer l'operation metier**. Un encaissement enregistre puis
- * perdu parce que sa notification n'a pas pu s'ecrire serait un tres mauvais echange. Les
- * erreurs sont donc avalees et tracees en avertissement.
+ * Meme regle que pour {@code ActivityLogService} : **si la notification echoue,
+ * l'operation metier ne doit jamais echouer**. Perdre un paiement enregistre juste parce que
+ * sa notification n'a pas pu etre ecrite, ce serait idiot. Les erreurs sont donc attrapees
+ * et loggees en warning.
  *
- * {@code REQUIRES_NEW} complete ce contrat : sans transaction propre, une notification
- * echouee marquerait la transaction appelante en rollback-only, et l'operation metier
- * echouerait quand meme au commit — exactement ce que le catch cherche a eviter.
+ * {@code REQUIRES_NEW} va avec : sans sa propre transaction, une notification en erreur
+ * marquerait la transaction de l'appelant en rollback-only, et l'operation echouerait quand
+ * meme au commit (justement ce que le catch essaie d'eviter).
  */
 @Service
 @Transactional(readOnly = true)
@@ -40,12 +40,12 @@ public class PlatformNotificationService {
     private final PlatformNotificationRepository notificationRepository;
 
     /**
-     * Transaction neuve pour les ecritures differees apres commit.
+     * Nouvelle transaction pour les ecritures faites apres le commit.
      *
-     * Indispensable, et pas seulement par symetrie avec le {@code REQUIRES_NEW} de
-     * {@link #record} : dans un {@code afterCommit}, les ressources transactionnelles sont
-     * encore liees au thread alors que la transaction est deja validee. Un {@code save} y
-     * rejoint une transaction close et n'est jamais ecrit — sans la moindre erreur.
+     * Obligatoire, et pas juste pour faire comme le {@code REQUIRES_NEW} de {@link #record} :
+     * dans un {@code afterCommit}, les ressources de la transaction sont encore liees au
+     * thread alors que la transaction est deja terminee. Un {@code save} a ce moment-la
+     * rejoint une transaction fermee et n'est jamais ecrit, sans aucune erreur.
      */
     private final TransactionTemplate afterCommitTransaction;
 
@@ -88,10 +88,10 @@ public class PlatformNotificationService {
     }
 
     /**
-     * Consigne un evenement. Ne leve jamais.
+     * Enregistre un evenement. Ne lance jamais d'exception.
      *
-     * @param type     identifiant stable de la nature de l'evenement, traduit cote interface
-     * @param entity   nom de l'objet vise, pour proposer un lien ; peut etre nul
+     * @param type     identifiant fixe du type d'evenement, traduit cote front
+     * @param entity   nom de l'objet concerne, pour proposer un lien ; peut etre null
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(String type, PlatformNotification.Severity severity, String title,
@@ -100,17 +100,17 @@ public class PlatformNotificationService {
     }
 
     /**
-     * Consigne un evenement une fois la transaction appelante validee.
+     * Enregistre un evenement une fois la transaction de l'appelant terminee.
      *
-     * A reserver au cas ou l'evenement porte sur une entite creee dans cette meme
-     * transaction. {@link #record} s'execute en {@code REQUIRES_NEW}, donc sur une autre
-     * connexion : la ligne n'y est pas encore visible, l'insertion viole la cle etrangere, et
-     * l'echec du commit interne remonte en {@code UnexpectedRollbackException} jusqu'a faire
-     * echouer l'operation metier — precisement ce que le catch devait empecher.
+     * A utiliser quand l'evenement concerne une entite creee dans cette meme transaction.
+     * {@link #record} tourne en {@code REQUIRES_NEW}, donc sur une autre connexion : la ligne
+     * n'y est pas encore visible, l'insertion ne respecte pas la cle etrangere, et l'echec du
+     * commit remonte en {@code UnexpectedRollbackException} jusqu'a faire echouer l'operation
+     * (justement ce que le catch devait empecher).
      *
-     * Differer l'ecriture apres le commit resout les deux : la ligne existe, et plus aucune
-     * transaction appelante ne peut etre entrainee par un echec de la notification. Sans
-     * transaction en cours, l'appel se comporte comme {@link #record}.
+     * En ecrivant apres le commit, on regle les deux : la ligne existe, et un echec de la
+     * notification ne peut plus entrainer la transaction de l'appelant. S'il n'y a pas de
+     * transaction en cours, ca fait la meme chose que {@link #record}.
      */
     public void recordAfterCommit(String type, PlatformNotification.Severity severity, String title,
                                   String message, Company company, String entity, Long entityId) {
@@ -121,12 +121,11 @@ public class PlatformNotificationService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                // Le catch de write() ne suffit pas ici : il couvre l'insertion, pas le commit
-                // de cette transaction-ci, qui a lieu apres le retour de la lambda. Or Spring
-                // n'avale pas ce qu'une synchronisation leve — l'exception remonterait au
-                // commit de l'appelant et ferait echouer en 500 une operation pourtant deja
-                // validee en base, l'entreprise etant creee et le nouvel essai butant alors
-                // sur un doublon d'email.
+                // Le catch de write() ne suffit pas ici : il protege l'insertion, mais pas le
+                // commit de cette transaction, qui arrive apres la lambda. Et Spring ne cache pas
+                // ce qu'une synchronisation lance : l'exception remonterait au commit de
+                // l'appelant et donnerait une 500 alors que tout est deja enregistre en base
+                // (l'entreprise est creee, et le nouvel essai tomberait sur un email en double).
                 try {
                     afterCommitTransaction.executeWithoutResult(status ->
                             write(type, severity, title, message, company, entity, entityId));
@@ -137,7 +136,7 @@ public class PlatformNotificationService {
         });
     }
 
-    /** Ecriture proprement dite. Ne leve jamais : une trace perdue vaut mieux qu'une operation perdue. */
+    /** L'ecriture elle-meme. Ne lance jamais d'exception : mieux vaut perdre une trace qu'une operation. */
     private void write(String type, PlatformNotification.Severity severity, String title,
                        String message, Company company, String entity, Long entityId) {
         try {
@@ -156,10 +155,10 @@ public class PlatformNotificationService {
     }
 
     /**
-     * Tronque au format de la colonne.
+     * Coupe le texte a la taille de la colonne.
      *
-     * Un libelle trop long doit apparaitre ampute plutot que faire echouer l'ecriture : la
-     * notification est une trace, pas une donnee metier dont l'integrite se defend.
+     * Un texte trop long doit etre coupe plutot que faire echouer l'ecriture : la
+     * notification est juste une trace, pas une donnee metier importante.
      */
     private String truncate(String value, int max) {
         if (value == null) return null;

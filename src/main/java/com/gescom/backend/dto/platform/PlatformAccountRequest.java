@@ -5,14 +5,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Modification du compte proprietaire : email et, facultativement, mot de passe.
+ * Modification du compte super admin : email et, si on veut, mot de passe.
  *
- * {@code currentPassword} est toujours exige, meme pour un simple changement d'email : c'est
- * ce qui distingue le titulaire du compte de quelqu'un ayant mis la main sur une session
- * ouverte. Sans lui, detourner l'adresse de recuperation suffirait a prendre le controle de
- * toute la plateforme.
+ * {@code currentPassword} est toujours demande, meme pour changer juste l'email : c'est ce
+ * qui prouve qu'on est bien le titulaire du compte et pas quelqu'un qui a recupere une
+ * session ouverte. Sinon, il suffirait de changer l'adresse de recuperation pour prendre le
+ * controle de toute la plateforme.
  *
- * {@code newPassword} vide signifie « ne pas changer le mot de passe ».
+ * {@code newPassword} vide = on ne change pas le mot de passe.
  */
 public record PlatformAccountRequest(
         @NotBlank(message = "L'email est obligatoire")

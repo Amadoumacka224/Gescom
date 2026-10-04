@@ -15,9 +15,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByInvoiceIdOrderByCreatedAtDesc(Long invoiceId);
 
     /**
-     * Sessions de terminal encore ouvertes sur une facture. Sert à garantir l'invariant
-     * « une seule session confirmable à la fois » : ouvrir une nouvelle session referme
-     * celles-ci (cf. PaymentService.createIntent).
+     * Sessions de terminal encore ouvertes sur une facture. Sert à garantir qu'il n'y a
+     * qu'une seule session à confirmer à la fois : en ouvrir une nouvelle ferme celles-ci
+     * (voir PaymentService.createIntent).
      */
     List<Payment> findByInvoiceIdAndStatus(Long invoiceId, Payment.PaymentStatus status);
 }

@@ -15,7 +15,7 @@ public record OrderItemRequest(
         @Positive(message = "La quantité doit être strictement positive")
         Integer quantity,
 
-        // Remise en pourcentage (0–100) appliquée à la ligne. Optionnelle : null = aucune remise.
+        // Remise en pourcentage (0 à 100) sur la ligne. Optionnelle : null = pas de remise.
         @DecimalMin(value = "0", message = "La remise ne peut pas être négative")
         @DecimalMax(value = "100", message = "La remise ne peut pas dépasser 100%")
         BigDecimal discount

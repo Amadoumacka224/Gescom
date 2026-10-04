@@ -19,15 +19,15 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Consultation (lecture seule) du journal d'activité. Les entrées sont produites
- * automatiquement côté serveur par les services métier ; il n'existe volontairement
- * PAS d'endpoint de création ni de suppression exposé, pour préserver l'intégrité de
- * l'audit : une piste que l'administrateur peut élaguer ne prouve plus rien, et c'est
- * précisément lui que le journal doit tracer. Une entrée est donc définitive.
+ * Lecture du journal d'activité. Les entrées sont créées automatiquement par les services
+ * métier ; il n'y a exprès AUCUN endpoint pour créer ou supprimer une entrée, pour que
+ * l'historique reste fiable : si l'admin pouvait effacer des lignes, le journal ne
+ * prouverait plus rien, alors que c'est justement lui qu'on doit pouvoir suivre. Une entrée
+ * est donc définitive.
  *
- * Les listes sont paginées ({@link PageResponse}) : c'est le seul registre qui croît sans
- * borne, et le renvoyer d'un bloc chargeait déjà près d'un mégaoctet par appel. Le filtrage
- * est fait en base, faute de quoi il ne porterait que sur la page reçue.
+ * Les listes sont paginées ({@link PageResponse}) : c'est la seule table qui grossit sans
+ * limite, et tout renvoyer d'un coup faisait déjà presque 1 Mo par appel. Le filtrage est
+ * fait en base, sinon il ne porterait que sur la page reçue.
  */
 @Tag(name = "Journal d'activite", description = "Tracabilite des operations de l'entreprise")
 @RestController
@@ -43,7 +43,7 @@ public class ActivityLogController {
         this.referenceMapper = referenceMapper;
     }
 
-    /** Page du journal. Tous les critères sont optionnels et se combinent. */
+    /** Une page du journal. Tous les filtres sont optionnels et combinables. */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResponse<ActivityLogResponse>> getAllActivities(
@@ -59,7 +59,7 @@ public class ActivityLogController {
                 referenceMapper::toResponse));
     }
 
-    /** Indicateurs sur l'ensemble du journal (la page affichée n'en dit rien). */
+    /** Stats sur tout le journal (pas seulement la page affichée). */
     @GetMapping("/summary")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ActivityLogSummary> getSummary() {

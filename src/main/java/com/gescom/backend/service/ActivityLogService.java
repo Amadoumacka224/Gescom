@@ -24,10 +24,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service de journalisation des activités (piste d'audit).
- * Tous les autres services y déposent une trace de leurs opérations via logActivity(),
- * et il expose des requêtes filtrées (par utilisateur, type d'action, entité, période)
- * pour alimenter l'historique consulté dans l'interface d'administration.
+ * Service du journal d'activité.
+ * Les autres services y enregistrent leurs opérations avec logActivity(), et il fournit
+ * des recherches filtrées (par utilisateur, type d'action, entité, période) pour l'écran
+ * Historique.
  */
 @Service
 @Transactional
@@ -47,9 +47,9 @@ public class ActivityLogService {
     }
 
     /**
-     * Page du journal, filtrée sur les critères fournis (tous optionnels).
-     * Le filtrage est fait en base et non côté client : sur une liste paginée, filtrer les
-     * seules lignes reçues ne montrerait que les résultats présents dans la page courante.
+     * Une page du journal, filtrée avec les critères donnés (tous optionnels).
+     * Le filtrage est fait en base et pas côté front : sur une liste paginée, filtrer les
+     * lignes reçues ne donnerait que les résultats de la page en cours.
      */
     @Transactional(readOnly = true)
     public Page<ActivityLog> searchActivities(Long userId,
@@ -64,12 +64,12 @@ public class ActivityLogService {
     }
 
     /**
-     * Page du journal consolidé de tout le parc, pour le back-office.
+     * Une page du journal de toutes les entreprises, pour le back-office.
      *
-     * Se distingue de {@link #searchActivities} par le seul critère qui n'a de sens qu'au-dessus
-     * du cloisonnement : l'entreprise d'origine. `platformScope` isole symétriquement les lignes
-     * qui n'en ont aucune — les actions du propriétaire de la plateforme lui-même, à commencer
-     * par ses connexions.
+     * La différence avec {@link #searchActivities}, c'est le filtre sur l'entreprise, qui
+     * n'a de sens qu'au niveau plateforme. `platformScope` fait l'inverse : il garde les
+     * lignes sans entreprise, c'est-à-dire les actions du super admin (ses connexions par
+     * exemple).
      */
     @Transactional(readOnly = true)
     public Page<ActivityLog> searchPlatformActivities(Long companyId,
@@ -86,13 +86,13 @@ public class ActivityLogService {
     }
 
     /**
-     * Lignes à exporter : le résultat filtré complet, et non la page affichée — un export qui
-     * n'emporte que les lignes visibles tout en s'annonçant comme le résultat filtré est le
-     * piège classique de ces écrans.
+     * Lignes à exporter : tout le résultat filtré, pas seulement la page affichée. Un export
+     * qui ne contient que les lignes visibles en faisant croire que c'est tout le résultat,
+     * c'est le piège classique de ces écrans.
      *
-     * Plafonné (`limit`) parce que le journal est le seul registre qui croît sans borne : sans
-     * ce garde-fou, un export sans critère matérialiserait le parc entier en mémoire. Les lignes
-     * les plus récentes sont conservées, ce sont celles que l'on vient consulter.
+     * Limité (`limit`) parce que le journal est la seule table qui grossit sans fin : sans
+     * limite, un export sans filtre chargerait tout en mémoire. On garde les lignes les plus
+     * récentes, ce sont celles qu'on veut voir.
      */
     @Transactional(readOnly = true)
     public List<ActivityLog> exportPlatformActivities(Long companyId,
@@ -108,7 +108,7 @@ public class ActivityLogService {
                 PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
     }
 
-    /** Valeurs réellement présentes dans le journal : un critère qui ne rend rien n'est pas proposé. */
+    /** Valeurs qui existent dans le journal : on ne propose pas un filtre qui ne donne rien. */
     @Transactional(readOnly = true)
     public ActivityFilterOptions getFilterOptions() {
         return new ActivityFilterOptions(
@@ -126,8 +126,8 @@ public class ActivityLogService {
                                                    String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            // Critère du seul back-office : le cloisonnement étant inactif pour le SUPER_ADMIN,
-            // c'est ici la seule façon de ramener le journal à une entreprise.
+            // Filtre utilisé seulement par le back-office : comme le filtre par entreprise est
+            // désactivé pour le SUPER_ADMIN, c'est le seul moyen de voir une seule entreprise.
             if (companyId != null) {
                 predicates.add(cb.equal(root.get("ownerCompany").get("id"), companyId));
             } else if (platformScope) {
@@ -150,9 +150,9 @@ public class ActivityLogService {
             }
             if (search != null && !search.isBlank()) {
                 String like = "%" + search.toLowerCase() + "%";
-                // Même périmètre que la recherche de l'écran Historique, à une exception près :
-                // le libellé traduit de l'action n'est pas interrogeable en base (il vit dans
-                // les catalogues i18n du client), le type brut l'est via `entity`/description.
+                // Mêmes champs que la recherche de l'écran Historique, avec une exception : le
+                // nom traduit de l'action n'est pas en base (il est dans les fichiers i18n du
+                // front), mais le type brut l'est via `entity` / description.
                 var user = root.join("user", JoinType.LEFT);
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("description")), like),
@@ -162,7 +162,7 @@ public class ActivityLogService {
                         cb.like(cb.lower(user.get("lastName")), like),
                         cb.like(cb.lower(user.get("username")), like)));
             }
-            // Aucun critère : cb.and() sans argument est une conjonction toujours vraie.
+            // Aucun filtre : cb.and() sans argument est toujours vrai.
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -192,11 +192,11 @@ public class ActivityLogService {
         return activityLogRepository.findCaissierActivities(pageable);
     }
 
-    /** Indicateurs portant sur tout le journal, pour ne pas les déduire de la page affichée. */
+    /** Stats sur tout le journal, pour ne pas les calculer à partir de la page affichée. */
     @Transactional(readOnly = true)
     public ActivityLogSummary getSummary() {
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-        // Fenêtre glissante de 7 jours, aujourd'hui inclus — cohérente avec l'écran Historique.
+        // Les 7 derniers jours, aujourd'hui compris, comme sur l'écran Historique.
         LocalDateTime startOfWeek = LocalDate.now().minusDays(6).atStartOfDay();
 
         return new ActivityLogSummary(
@@ -239,7 +239,7 @@ public class ActivityLogService {
         return activityLogRepository.findCaissierActivities();
     }
 
-    /** Crée et persiste une entrée d'audit reliée à l'utilisateur qui a déclenché l'action. */
+    /** Crée et enregistre une entrée du journal, liée à l'utilisateur qui a fait l'action. */
     public ActivityLog logActivity(Long userId, ActivityLog.ActionType actionType, String entity, Long entityId, String description, String details, String ipAddress) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("user", userId));
@@ -252,18 +252,18 @@ public class ActivityLogService {
         log.setDescription(description);
         log.setDetails(details);
         log.setIpAddress(ipAddress);
-        // L'entreprise est déduite de l'auteur plutôt que laissée au TenantEntityListener,
-        // qui n'a rien à déduire quand le contexte de cloisonnement est vide. C'est le cas
-        // de la connexion : elle est journalisée avant qu'un jeton n'existe, et l'entrée
-        // LOGIN se retrouvait alors avec company_id NULL — donc invisible sur l'écran
-        // Historique de l'entreprise, dont le filtre exclut les NULL.
+        // On prend l'entreprise de l'auteur au lieu de laisser faire le TenantEntityListener,
+        // qui ne trouve rien quand le contexte est vide. C'est le cas à la connexion : elle
+        // est enregistrée avant qu'il y ait un token, et l'entrée LOGIN se retrouvait avec
+        // company_id NULL, donc invisible dans l'écran Historique de l'entreprise (qui
+        // exclut les NULL).
         //
-        // Reste nul pour le SUPER_ADMIN, qui n'appartient à aucune entreprise : c'est
-        // précisément pourquoi la colonne est la seule du cloisonnement à être facultative.
+        // Reste null pour le SUPER_ADMIN, qui n'a pas d'entreprise : c'est justement pour ça
+        // que c'est la seule colonne company_id qui peut être vide.
         log.setOwnerCompany(user.getOwnerCompany());
 
         return activityLogRepository.save(log);
     }
 
-    // Pas de suppression : le journal est en ajout seul. Voir ActivityLogController.
+    // Pas de suppression : on ne fait qu'ajouter dans le journal. Voir ActivityLogController.
 }

@@ -4,29 +4,29 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Aperçu du tableau de bord.
+ * Données du tableau de bord.
  *
- * Enregistrement typé plutôt que {@code Map<String, Object>} : l'écran lit vingt-quatre champs,
- * et une carte ne dit ni lesquels, ni de quel type. Renommer une clé y cassait le tableau de
- * bord en silence, et Swagger n'en documentait rien.
+ * Un record typé plutôt qu'une {@code Map<String, Object>} : l'écran lit vingt-quatre champs,
+ * et avec une Map on ne sait ni lesquels ni leur type. Renommer une clé cassait le tableau de
+ * bord sans aucune erreur, et Swagger ne documentait rien.
  *
- * <h2>Trois invariants que l'écran affiche côte à côte</h2>
+ * <h2>Trois règles à respecter, car l'écran affiche les chiffres côte à côte</h2>
  *
  * <ol>
- *   <li>les cinq décomptes de commandes totalisent {@code totalOrders} ;</li>
- *   <li>les quatre décomptes de factures totalisent {@code totalInvoices} ;</li>
- *   <li>{@code pendingAmount = invoicedAmount − totalRevenue}, les trois montants décrivant le
- *       MÊME ensemble : les factures non annulées. Une facture annulée sort des livres — compter
- *       son encaissement sans compter son reliquat donnerait un taux qui n'est celui d'aucun
- *       périmètre.</li>
+ *   <li>les cinq compteurs de commandes font {@code totalOrders} au total ;</li>
+ *   <li>les quatre compteurs de factures font {@code totalInvoices} au total ;</li>
+ *   <li>{@code pendingAmount = invoicedAmount − totalRevenue}, et les trois montants portent
+ *       sur les MÊMES factures : celles qui ne sont pas annulées. Une facture annulée ne
+ *       compte plus. Compter ce qui a été payé dessus sans compter ce qui reste donnerait un
+ *       taux qui ne veut rien dire.</li>
  * </ol>
  *
- * Ces invariants sont désormais garantis par construction : chaque bloc vient d'UNE requête
- * d'agrégation, là où le calcul en mémoire les rétablissait à la main.
+ * Ces règles sont maintenant toujours vraies : chaque bloc vient d'UNE seule requête, alors
+ * qu'avant le calcul en mémoire devait les corriger à la main.
  *
- * @param totalSales     chiffre d'affaires commandé, commandes annulées exclues
- * @param ordersToSchedule commandes facturées sans livraison — le reste à planifier
- * @param topStockProducts produits les mieux approvisionnés ; ce n'est PAS un palmarès de ventes
+ * @param totalSales     montant des commandes, sans les commandes annulées
+ * @param ordersToSchedule commandes facturées sans livraison (à planifier)
+ * @param topStockProducts produits avec le plus de stock ; ce n'est PAS un classement des ventes
  */
 public record DashboardOverview(
         // --- Commandes ---
@@ -62,9 +62,8 @@ public record DashboardOverview(
         List<StockLine> lowStockProducts
 ) {
     /**
-     * Ligne du bloc « dernières commandes ». {@code invoiceStatus} permet d'afficher « Payée »
-     * sur une commande facturée puis réglée, dont le statut de commande reste INVOICED jusqu'à
-     * la livraison.
+     * Ligne du bloc « dernières commandes ». {@code invoiceStatus} sert à afficher « Payée »
+     * pour une commande facturée et payée, dont le statut reste INVOICED jusqu'à la livraison.
      */
     public record RecentOrder(
             Long id,
@@ -78,7 +77,7 @@ public record DashboardOverview(
     ) {
     }
 
-    /** Ligne des deux palmarès de stock. */
+    /** Ligne des deux classements de stock. */
     public record StockLine(Long id, String name, int stock) {
     }
 }

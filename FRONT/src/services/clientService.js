@@ -2,24 +2,23 @@ import axios from './axios';
 
 const clientService = {
   /**
-   * Fichier clients intégral. Réservé aux écrans qui s'en servent de référentiel — le
-   * sélecteur de client à la saisie d'une commande. Le tableau de l'écran Clients passe par
-   * searchClients.
+   * Tous les clients. Seulement pour les écrans qui ont besoin de la liste complète (le
+   * choix du client dans une commande). Le tableau de l'écran Clients utilise searchClients.
    */
   getAllClients: () => axios.get('/clients'),
 
   /**
-   * Page du fichier, filtrée et triée par le serveur.
+   * Une page de clients, filtrée et triée par le serveur.
    *
    * `params` : { page, size, sort, search, type, active, city, country, company, withEmail,
-   * createdFrom, createdTo }. `page` est l'index de Spring Data, donc à partir de 0.
+   * createdFrom, createdTo }. `page` suit Spring Data, donc commence à 0.
    */
   searchClients: (params) => axios.get('/clients/search', { params }),
 
-  /** Compteurs d'en-tête : ils portent sur le fichier entier, pas sur la page affichée. */
+  /** Compteurs en haut de page : sur tous les clients, pas sur la page affichée. */
   getSummary: () => axios.get('/clients/summary'),
 
-  /** Villes et pays réellement présents, pour les listes déroulantes des filtres. */
+  /** Villes et pays qui existent, pour les listes des filtres. */
   getFilterOptions: () => axios.get('/clients/filter-options'),
   getActiveClients: () => axios.get('/clients/active'),
   getClientById: (id) => axios.get(`/clients/${id}`),

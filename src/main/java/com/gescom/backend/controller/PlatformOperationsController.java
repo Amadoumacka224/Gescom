@@ -45,12 +45,13 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * L'exploitation courante de la plateforme : tableau de bord, journal, notifications,
- * reglages et support.
+ * Le suivi au quotidien de la plateforme : tableau de bord, journal, notifications,
+ * parametres et support.
  *
- * Ce sont les surfaces de surveillance du proprietaire, la ou {@code PlatformTenantController}
- * gere le parc et {@code PlatformBillingController} la chaine d'abonnement. Le tableau de bord
- * decrit l'etat courant, les notifications ce qui s'est passe, le journal qui l'a fait.
+ * C'est ce que le super admin utilise pour surveiller, alors que {@code PlatformTenantController}
+ * gere les entreprises et {@code PlatformBillingController} les abonnements. Le tableau de
+ * bord montre la situation actuelle, les notifications ce qui s'est passe, et le journal qui
+ * a fait quoi.
  */
 @RestController
 @RequestMapping("/api/platform")
@@ -58,15 +59,15 @@ import java.util.Map;
 public class PlatformOperationsController {
 
     /**
-     * Plafond de l'export du journal. Le parc entier tient rarement dans un tableur au-dela,
-     * et surtout : rien ne borne la croissance de cette table, un export sans critere la
-     * materialiserait toute entiere en memoire.
+     * Nombre max de lignes dans l'export du journal. Au-dela ca ne tient plus vraiment dans un
+     * tableur, et surtout cette table grossit sans limite : un export sans filtre la
+     * chargerait entierement en memoire.
      */
     private static final int ACTIVITY_EXPORT_LIMIT = 10_000;
 
     private static final DateTimeFormatter EXPORT_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /** Colonne « entreprise » des lignes qui n'en ont pas : les actions du proprietaire. */
+    /** Valeur de la colonne « entreprise » pour les lignes sans entreprise (actions du super admin). */
     private static final String PLATFORM_SCOPE_LABEL = "Plateforme";
 
     private final PlatformMetricsService platformMetricsService;
@@ -106,10 +107,10 @@ public class PlatformOperationsController {
     // ---------------------------------------------------------------- Journal d'activite
 
     /**
-     * Reutilise {@code ActivityLogService.searchActivities} tel quel : le filtre de cloisonnement
-     * etant inactif pour le SUPER_ADMIN, la meme requete qui ne montre a une entreprise que ses
-     * propres traces retourne ici celles de tout le parc. C'est le benefice direct d'un
-     * cloisonnement porte par l'infrastructure plutot que recopie dans chaque service.
+     * Reutilise directement {@code ActivityLogService.searchActivities} : le filtre par
+     * entreprise n'est pas actif pour le SUPER_ADMIN, donc la meme requete qui ne montre a une
+     * entreprise que ses propres lignes renvoie ici celles de toutes les entreprises. C'est
+     * l'avantage d'avoir mis le filtrage dans l'infrastructure plutot que dans chaque service.
      */
     @GetMapping("/activity")
     @Tag(name = "Plateforme - Activite", description = "Journal consolide de toutes les entreprises")
@@ -137,7 +138,7 @@ public class PlatformOperationsController {
                 result.getTotalElements(), result.getTotalPages()));
     }
 
-    /** Alimente les listes deroulantes de filtrage avec les seules valeurs presentes au journal. */
+    /** Remplit les listes des filtres avec seulement les valeurs qui existent dans le journal. */
     @GetMapping("/activity/filters")
     @Tag(name = "Plateforme - Activite")
     @Operation(summary = "Valeurs disponibles pour filtrer le journal")
@@ -148,10 +149,10 @@ public class PlatformOperationsController {
     /**
      * Export CSV du journal filtre.
      *
-     * L'export porte sur le resultat filtre complet et non sur la page affichee, mais reste
-     * plafonne a {@code ACTIVITY_EXPORT_LIMIT} lignes, les plus recentes : le journal du parc
-     * est le seul registre qui croit sans borne. L'assemblage revient a {@code CsvExportService},
-     * qui gere le BOM, le separateur attendu par Excel et la neutralisation des formules.
+     * On exporte tout le resultat filtre, pas seulement la page affichee, mais limite a
+     * {@code ACTIVITY_EXPORT_LIMIT} lignes (les plus recentes) : c'est la seule table qui
+     * grossit sans limite. Le fichier est genere par {@code CsvExportService}, qui gere le BOM,
+     * le separateur pour Excel et la neutralisation des formules.
      */
     @GetMapping("/activity/export")
     @Tag(name = "Plateforme - Activite")
@@ -199,7 +200,7 @@ public class PlatformOperationsController {
         return new ResponseEntity<>(csv, responseHeaders, HttpStatus.OK);
     }
 
-    /** Un type d'action absent ou vide ne filtre pas ; un type inconnu est un 400. */
+    /** Un type d'action absent ou vide ne filtre rien ; un type inconnu donne une 400. */
     private ActivityLog.ActionType parseActionType(String actionType) {
         return actionType == null || actionType.isBlank()
                 ? null
@@ -242,7 +243,7 @@ public class PlatformOperationsController {
                 result.getTotalElements(), result.getTotalPages()));
     }
 
-    /** Compteur du badge : appele a chaque affichage de l'interface, servi par un index partiel. */
+    /** Nombre du badge : appele a chaque affichage de l'interface, utilise un index partiel. */
     @GetMapping("/notifications/unread-count")
     @Tag(name = "Plateforme - Notifications")
     @Operation(summary = "Nombre de notifications non lues")
@@ -264,11 +265,11 @@ public class PlatformOperationsController {
         return ResponseEntity.ok(Map.of("updated", notificationService.markAllRead()));
     }
 
-    // ---------------------------------------------------------------- Reglages et compte
+    // ---------------------------------------------------------------- Parametres et compte
 
     /**
-     * A ne pas confondre avec {@code SettingsController}, qui sert le parametrage metier d'une
-     * entreprise cliente — raison sociale, TVA, prefixe de facture.
+     * Rien a voir avec {@code SettingsController}, qui gere les parametres d'une entreprise
+     * cliente (raison sociale, TVA, prefixe de facture).
      */
     @GetMapping("/settings")
     @Tag(name = "Plateforme - Parametres", description = "Reglages de la plateforme et compte proprietaire")
@@ -289,11 +290,11 @@ public class PlatformOperationsController {
     }
 
     /**
-     * Modifie le compte proprietaire.
+     * Modifie le compte super admin.
      *
-     * Le principal est pris du contexte de securite et non d'un identifiant de l'URL : cette
-     * route ne peut donc modifier que le compte de l'appelant, ce qui la met hors de portee
-     * d'une manipulation d'identifiant.
+     * L'utilisateur est pris dans le contexte de securite et pas dans l'URL : cette route ne
+     * peut donc modifier que le compte de celui qui l'appelle, impossible de viser un autre
+     * compte en changeant l'id.
      */
     @PatchMapping("/settings/account")
     @Tag(name = "Plateforme - Parametres")
@@ -345,8 +346,8 @@ public class PlatformOperationsController {
     }
 
     /**
-     * L'auteur des ecritures est pris du contexte de securite et jamais du corps de la requete :
-     * un ticket ou un message doit porter l'identite reelle de celui qui l'a saisi.
+     * L'auteur est toujours pris dans le contexte de securite, jamais dans le body : un ticket
+     * ou un message doit avoir le vrai nom de celui qui l'a ecrit.
      */
     @PostMapping("/support")
     @Tag(name = "Plateforme - Support")

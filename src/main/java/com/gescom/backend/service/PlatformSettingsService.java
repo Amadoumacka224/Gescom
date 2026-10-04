@@ -16,11 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Reglages de la plateforme et compte du proprietaire.
+ * Parametres de la plateforme et compte du super admin.
  *
- * Le parametrage suit le meme motif que {@code SettingsService} : un singleton persistant,
- * cree a la volee au premier acces. La difference tient au perimetre — celui-ci n'appartient
- * a aucune entreprise et n'est donc pas cloisonne.
+ * Meme fonctionnement que {@code SettingsService} : une seule ligne en base, creee au
+ * premier acces. La difference, c'est qu'elle n'appartient a aucune entreprise, donc elle
+ * n'est pas filtree par entreprise.
  */
 @Service
 @Transactional
@@ -44,10 +44,10 @@ public class PlatformSettingsService {
     }
 
     /**
-     * Reglages courants, crees avec leurs valeurs par defaut s'ils n'existent pas encore.
+     * Parametres actuels, crees avec les valeurs par defaut s'ils n'existent pas encore.
      *
-     * V20_2 seme deja la ligne ; ce repli couvre une base restauree depuis une sauvegarde
-     * anterieure, ou la ligne aurait ete supprimee a la main.
+     * V20_2 insere deja la ligne ; ce cas sert pour une base restauree depuis une vieille
+     * sauvegarde, ou si la ligne a ete supprimee a la main.
      */
     @Transactional(readOnly = true)
     public PlatformSettings getSettings() {
@@ -66,16 +66,16 @@ public class PlatformSettingsService {
     }
 
     /**
-     * Met a jour l'email et, si demande, le mot de passe du proprietaire.
+     * Modifie l'email et, si demande, le mot de passe du super admin.
      *
-     * C'est le seul moyen de faire tourner ce secret depuis l'application :
-     * {@code PlatformAdminBootstrap} ne reecrit jamais un compte existant — a dessein, pour
-     * qu'une rotation survive aux redeploiements — de sorte que modifier {@code .env} apres
-     * la premiere creation n'a aucun effet.
+     * C'est le seul moyen de changer ce mot de passe depuis l'application :
+     * {@code PlatformAdminBootstrap} ne modifie jamais un compte existant (exprès, pour qu'un
+     * changement de mot de passe ne soit pas ecrase au redeploiement), donc changer le
+     * {@code .env} apres la premiere creation ne sert a rien.
      *
-     * Le mot de passe actuel est verifie meme quand seul l'email change : detourner l'adresse
-     * de recuperation depuis une session laissee ouverte suffirait sinon a prendre le
-     * controle de la plateforme entiere.
+     * Le mot de passe actuel est verifie meme si on change seulement l'email : sinon, avec une
+     * session laissee ouverte, il suffirait de changer l'adresse de recuperation pour prendre
+     * le controle de toute la plateforme.
      */
     public User updateAccount(User owner, PlatformAccountRequest request) {
         if (!passwordEncoder.matches(request.currentPassword(), owner.getPassword())) {

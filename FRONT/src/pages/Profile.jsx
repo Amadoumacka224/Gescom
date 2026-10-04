@@ -30,16 +30,15 @@ import i18n from '../i18n';
 /**
  * Compte de l'utilisateur connecté : ses coordonnées et son mot de passe.
  *
- * Disposition en deux colonnes, comme les écrans de compte des applications de gestion :
- * une carte d'identité de gauche, purement informative et toujours visible, et à droite les
- * deux formulaires dans des onglets. L'identité restait auparavant à l'intérieur du
- * formulaire — l'avatar et le rôle disparaissaient donc dès qu'on passait sur l'onglet
- * Sécurité, alors que ce sont les repères « sur quel compte suis-je en train d'agir ».
+ * Deux colonnes : à gauche une carte avec l'identité, toujours visible, et à droite les deux
+ * formulaires dans des onglets. Avant, l'identité était dans le formulaire, donc l'avatar et
+ * le rôle disparaissaient quand on passait sur l'onglet Sécurité, alors que c'est ce qui
+ * montre sur quel compte on est.
  */
 
 const ROLE_LABEL_KEYS = { ADMIN: 'roles.ADMIN', CAISSIER: 'roles.CAISSIER' };
 
-/** Le rôle n'est pas un état : il identifie le compte, d'où deux teintes neutres distinctes. */
+/** Le rôle n'est pas un statut, il identifie le compte, d'où deux couleurs neutres différentes. */
 const ROLE_TONES = { ADMIN: 'accent', CAISSIER: 'info' };
 
 const EMPTY_PROFILE = {
@@ -57,10 +56,10 @@ const EMPTY_PROFILE = {
 const EMPTY_PASSWORD = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
 /**
- * Règles de robustesse, reprises telles quelles de `UserService.validatePassword` côté backend
- * (8 caractères, une majuscule, une minuscule, un chiffre). L'écran annonçait « au moins
- * 4 caractères » : la saisie passait la validation locale puis était rejetée par le serveur,
- * sans que l'utilisateur sache quelle règle il venait d'enfreindre.
+ * Règles du mot de passe, les mêmes que `UserService.validatePassword` côté backend
+ * (8 caractères, une majuscule, une minuscule, un chiffre). Avant l'écran disait « au moins
+ * 4 caractères » : le mot de passe passait la validation ici puis était refusé par le serveur,
+ * sans que l'utilisateur sache pourquoi.
  */
 const PASSWORD_RULES = [
   { key: 'length', labelKey: 'profile.rules.length', test: (p) => p.length >= 8 },
@@ -74,7 +73,7 @@ const TABS = [
   { id: 'security', labelKey: 'profile.tabs.security', icon: Lock },
 ];
 
-/** Champs que l'utilisateur peut modifier lui-même (cf. `UserUpdateSelfRequest`). */
+/** Champs que l'utilisateur peut modifier lui-même (voir `UserUpdateSelfRequest`). */
 const EDITABLE_FIELDS = ['firstName', 'lastName', 'email', 'phone'];
 
 const formatDateTime = (iso) =>
@@ -84,8 +83,8 @@ const formatDateTime = (iso) =>
       })
     : null;
 
-/** Marqueur de règle satisfaite ou non. La coche ne porte pas la seule information : le
- *  libellé reste lisible dans les deux états, seule sa teinte change. */
+/** Indique si une règle est respectée ou non. Le texte reste lisible dans les deux cas,
+ *  seule sa couleur change (la coche n'est pas la seule info). */
 const RuleCheck = ({ label, satisfied }) => (
   <li
     className={`flex items-center gap-2 text-sm ${
@@ -107,7 +106,7 @@ const RuleCheck = ({ label, satisfied }) => (
   </li>
 );
 
-/** Champ de mot de passe avec bascule d'affichage. `FormInput` ne gère pas d'icône à droite. */
+/** Champ mot de passe avec bouton afficher / masquer (`FormInput` ne gère pas d'icône à droite). */
 const PasswordField = ({ id, label, value, onChange, visible, onToggle, placeholder, autoComplete, children }) => (
   <div className="space-y-2">
     <label htmlFor={id} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -152,8 +151,8 @@ const Profile = () => {
   const [changingPassword, setChangingPassword] = useState(false);
 
   const [profile, setProfile] = useState(EMPTY_PROFILE);
-  // Dernier état enregistré : sert de point de comparaison pour « Annuler » et pour savoir
-  // si le formulaire a réellement changé.
+  // Dernier état enregistré : sert pour « Annuler » et pour savoir si le formulaire a
+  // vraiment changé.
   const [savedProfile, setSavedProfile] = useState(EMPTY_PROFILE);
 
   const [passwordData, setPasswordData] = useState(EMPTY_PASSWORD);
@@ -176,7 +175,7 @@ const Profile = () => {
       setSavedProfile(data);
     } catch (error) {
       console.error('Error fetching user profile:', error);
-      // Un 401 est déjà traité par l'intercepteur axios (redirection vers la connexion).
+      // Un 401 est déjà géré par l'intercepteur axios (redirection vers la connexion).
       if (error.response?.status !== 401) {
         toast.error(extractErrorMessage(error));
       }
@@ -225,8 +224,8 @@ const Profile = () => {
       setProfile(data);
       setSavedProfile(data);
 
-      // La barre latérale et l'en-tête lisent le contexte d'authentification : le mettre à jour
-      // suffit à y répercuter le nouveau nom, là où la page rechargeait toute la fenêtre.
+      // Le menu et l'en-tête lisent le contexte d'authentification : le mettre à jour suffit
+      // pour afficher le nouveau nom (avant, on rechargeait toute la page).
       updateUser({
         firstName: data.firstName,
         lastName: data.lastName,
@@ -254,8 +253,8 @@ const Profile = () => {
   const isSamePassword =
     passwordData.newPassword !== '' && passwordData.newPassword === passwordData.currentPassword;
 
-  // Le bouton reste actif tant qu'il manque quelque chose : c'est le message d'erreur qui
-  // désigne la règle en défaut, un bouton grisé sans explication laisse l'utilisateur bloqué.
+  // Le bouton reste actif même s'il manque quelque chose : c'est le message d'erreur qui dit
+  // quelle règle n'est pas respectée. Un bouton grisé sans explication bloque l'utilisateur.
   const handleSubmitPassword = async (e) => {
     e.preventDefault();
 
@@ -314,8 +313,8 @@ const Profile = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ---- Carte d'identité ----
-         * Colonne de gauche informative, collante au défilement : elle reste le repère du
-         * compte en cours quel que soit l'onglet ouvert à droite. */}
+         * Colonne de gauche, en sticky : on voit toujours sur quel compte on est, quel que
+         * soit l'onglet ouvert. */}
         <motion.aside
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -354,8 +353,8 @@ const Profile = () => {
               )}
             </div>
 
-            {/* Rappel en lecture seule des coordonnées enregistrées : ce qui est affiché ici
-             * est l'état côté serveur, indépendamment de la saisie en cours à droite. */}
+            {/* Coordonnées enregistrées, en lecture seule : c'est ce qui est en base, pas ce
+             * qu'on est en train de taper à droite. */}
             <dl className="space-y-4 pt-6">
               <InfoRow icon={AtSign} label={t('auth.username')} value={profile.username} />
               <InfoRow icon={Mail} label={t('common.email')} value={savedProfile.email} />
@@ -414,8 +413,8 @@ const Profile = () => {
               </div>
 
               <form onSubmit={handleSubmitProfile} className="space-y-6 pt-6">
-                {/* Identifiant de connexion : affiché mais non modifiable, il sert de clé au
-                 * compte. Le désactiver sans l'expliquer se lit comme un champ en panne. */}
+                {/* Identifiant de connexion : affiché mais pas modifiable, c'est la clé du
+                 * compte. On l'explique, sinon un champ désactivé fait penser à un bug. */}
                 <div className="space-y-2">
                   <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {t('auth.username')}
@@ -485,15 +484,15 @@ const Profile = () => {
                     icon={Phone}
                     autoComplete="tel"
                   />
-                  {/* Reprend le motif accepté par le backend (`^$|^[0-9+\- ]{6,20}$`). */}
+                  {/* Même regex que le backend (`^$|^[0-9+\- ]{6,20}$`). */}
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {t('profile.phoneHint')}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  {/* Repère explicite de modification non enregistrée : sans lui, on quitte la
-                   * page en croyant avoir sauvegardé. */}
+                  {/* Indique qu'il y a des modifs pas enregistrées : sinon on quitte la page
+                   * en pensant avoir sauvegardé. */}
                   {isDirty && (
                     <p className="mr-auto text-sm text-amber-700 dark:text-amber-400">
                       {t('profile.unsavedChanges')}
@@ -561,8 +560,8 @@ const Profile = () => {
                   placeholder={t('profile.newPasswordPlaceholder')}
                   autoComplete="new-password"
                 >
-                  {/* Les règles sont affichées en permanence, et pas seulement une fois la
-                   * saisie commencée : on doit pouvoir les lire avant de choisir. */}
+                  {/* Les règles sont toujours affichées, pas seulement quand on commence à
+                   * taper : on doit pouvoir les lire avant de choisir. */}
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 pt-2">
                     {ruleStates.map((rule) => (
                       <RuleCheck key={rule.key} label={t(rule.labelKey)} satisfied={rule.satisfied} />

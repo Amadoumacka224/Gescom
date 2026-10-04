@@ -56,20 +56,20 @@ public class DashboardController {
                 activityLogService.logActivity(userId, ActivityLog.ActionType.VIEW, "Dashboard", null, description, null, null);
             }
         } catch (Exception e) {
-            // Don't fail if logging fails
+            // On ne fait pas échouer la requête si le log échoue
         }
     }
 
     /**
-     * Aperçu du tableau de bord.
+     * Données du tableau de bord.
      *
-     * Le contrôleur redevient fin : les agrégats sont dans {@link com.gescom.backend.service.DashboardService},
-     * calculés en base. Ils occupaient auparavant plus de cent cinquante lignes ici, et
-     * chargeaient en mémoire toutes les commandes, factures, livraisons et produits du
-     * locataire à chaque affichage.
+     * Le contrôleur ne fait presque plus rien : les calculs sont dans
+     * {@link com.gescom.backend.service.DashboardService}, faits en base. Avant, il y avait
+     * plus de cent cinquante lignes ici, et on chargeait en mémoire toutes les commandes,
+     * factures, livraisons et produits de l'entreprise à chaque affichage.
      *
-     * Trois points d'entrée ont disparu au passage — /stats, /recent-orders et /top-products —
-     * qu'aucun écran n'appelait et dont l'aperçu renvoyait déjà le contenu.
+     * Trois endpoints ont été supprimés au passage (/stats, /recent-orders et /top-products) :
+     * aucun écran ne les appelait et l'aperçu renvoyait déjà les mêmes infos.
      */
     @GetMapping("/overview")
     @PreAuthorize("hasRole('ADMIN')")
@@ -88,10 +88,10 @@ public class DashboardController {
         orderData.put("finalAmount", order.getFinalAmount());
         orderData.put("status", order.getStatus());
         orderData.put("createdAt", order.getCreatedAt());
-        // Nombre d'articles de la commande : la supervision en fait une colonne, et le total
-        // d'une ligne doit se retrouver dans `dayItemsCount`. Les lignes sont chargées par
-        // jointure dans les trois requêtes qui alimentent ce mapping (findAllWithDetails,
-        // findDayOrders, findDayOrdersForCashier) — pas de N+1 ni d'accès hors transaction.
+        // Nombre d'articles de la commande : c'est une colonne du suivi des caisses, et le
+        // total doit correspondre à `dayItemsCount`. Les lignes sont chargées avec un join
+        // dans les trois requêtes utilisées ici (findAllWithDetails, findDayOrders,
+        // findDayOrdersForCashier), donc pas de N+1 ni d'accès hors transaction.
         orderData.put("itemsCount", order.getItems() != null
             ? order.getItems().stream()
                 .mapToInt(it -> it.getQuantity() != null ? it.getQuantity() : 0)
@@ -101,11 +101,11 @@ public class DashboardController {
     }
 
     /**
-     * Vue caisse opérationnelle pour l'utilisateur connecté.
-     * Toutes les métriques sont filtrées sur Order.createdBy = utilisateur courant.
-     * Le paramètre date (défaut : aujourd'hui) borne les indicateurs de la journée ;
-     * les blocs « à faire » (factures impayées, livraisons en attente) ne sont pas
-     * bornés par date — c'est la file d'attente du caissier.
+     * Vue caisse pour l'utilisateur connecté.
+     * Toutes les stats sont filtrées sur Order.createdBy = utilisateur connecté.
+     * Le paramètre date (par défaut aujourd'hui) limite les stats à la journée ; les listes
+     * « à faire » (factures impayées, livraisons en attente) ne sont pas limitées par date,
+     * c'est ce qui reste à traiter pour le caissier.
      */
     @GetMapping("/cashier")
     public ResponseEntity<Map<String, Object>> getCashierDashboard(
@@ -122,12 +122,12 @@ public class DashboardController {
 
         logView("Consultation du tableau de bord caisse (" + target + ")");
 
-        // Commandes du jour du caissier — une seule requête, lignes et client déjà chargés
-        // (remplace l'ancien chargement intégral filtré en mémoire).
+        // Commandes du jour du caissier, en une seule requête avec les lignes et le client
+        // (avant on chargeait tout et on filtrait en mémoire).
         List<Order> dayOrders = orderService.getDayOrdersForCashier(currentUserId, dayStart, dayEnd);
 
-        // Encaissé du jour : montant réellement perçu (factures soldées à cette date).
-        // À distinguer de daySales (CA commandé, qui inclut des commandes non encore payées).
+        // Encaissé du jour : l'argent vraiment reçu (factures payées ce jour-là).
+        // Différent de daySales (montant des commandes, y compris celles pas encore payées).
         BigDecimal dayCollected = invoiceService.getCollectedByCashierOnDate(currentUserId, target);
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -140,10 +140,10 @@ public class DashboardController {
     }
 
     /**
-     * Supervision des caisses : les mêmes indicateurs que {@link #getCashierDashboard}, mais
-     * pour tous les caissiers sur la date demandée. Les deux vues partagent
-     * {@link #buildDayMetrics} — c'est ce qui garantit qu'un caissier et son responsable
-     * lisent les mêmes chiffres pour une même journée (notamment l'exclusion des annulées).
+     * Suivi des caisses : les mêmes stats que {@link #getCashierDashboard}, mais pour tous
+     * les caissiers à la date demandée. Les deux utilisent {@link #buildDayMetrics}, comme ça
+     * un caissier et son responsable voient les mêmes chiffres pour la même journée (en
+     * particulier, les commandes annulées sont exclues des deux côtés).
      */
     @GetMapping("/cashiers")
     @PreAuthorize("hasRole('ADMIN')")
@@ -159,7 +159,7 @@ public class DashboardController {
         List<Order> dayOrders = orderService.getDayOrders(dayStart, dayEnd);
         Map<Long, BigDecimal> collectedPerCashier = invoiceService.getCollectedPerCashierOnDate(target);
 
-        // Statuts de facture résolus une seule fois pour toute la journée (cf. mapDayOrders).
+        // Statuts de facture récupérés une seule fois pour toute la journée (voir mapDayOrders).
         Map<Long, Invoice.InvoiceStatus> invoiceStatuses = invoiceService.getInvoiceStatusesByOrderIds(
                 dayOrders.stream().map(Order::getId).collect(Collectors.toList()));
 
@@ -167,10 +167,10 @@ public class DashboardController {
                 .filter(o -> o.getCreatedBy() != null)
                 .collect(Collectors.groupingBy(o -> o.getCreatedBy().getId()));
 
-        // Le détail part de la liste des caissiers — un caissier sans vente doit apparaître à
-        // zéro plutôt que disparaître du classement — puis on y ajoute tout autre utilisateur
-        // ayant passé des commandes ce jour-là (typiquement un admin en renfort). Sans cela,
-        // son chiffre resterait dans les totaux sans aucune ligne pour l'expliquer.
+        // On part de la liste des caissiers (un caissier sans vente doit apparaître à zéro, pas
+        // disparaître du classement), puis on ajoute les autres utilisateurs qui ont passé des
+        // commandes ce jour-là (par exemple un admin qui a aidé en caisse). Sinon, ses ventes
+        // seraient dans les totaux sans ligne pour les expliquer.
         Map<Long, Map<String, Object>> entriesById = new LinkedHashMap<>();
 
         for (UserResponse caissier : userService.getCaissiers()) {
@@ -197,8 +197,8 @@ public class DashboardController {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("selectedDate", target.toString());
-        // Totaux calculés sur l'ensemble des commandes du jour, pas en resommant les lignes
-        // par caissier : les commandes sans créateur (imports, reprises) restent comptées.
+        // Totaux calculés sur toutes les commandes du jour, pas en additionnant les lignes par
+        // caissier : comme ça, les commandes sans créateur (imports, reprises) sont comptées.
         result.putAll(buildDayMetrics(dayOrders, totalOf(collectedPerCashier)));
         result.put("hourlySales", buildHourlySales(honoredOrders(dayOrders)));
         result.put("activeCashiers", ordersByCashier.values().stream()
@@ -210,8 +210,8 @@ public class DashboardController {
     }
 
     /**
-     * Ligne de détail d'un opérateur de caisse. Le rôle est exposé pour que l'UI puisse
-     * signaler une ligne non-caissier plutôt que de la présenter comme un caissier ordinaire.
+     * Ligne de détail d'un caissier. On renvoie le rôle pour que le front puisse signaler une
+     * ligne qui n'est pas un caissier.
      */
     private Map<String, Object> buildCashierEntry(Long userId, String firstName, String lastName,
                                                   String email, String role,
@@ -232,7 +232,7 @@ public class DashboardController {
         return entry;
     }
 
-    /** Commandes honorées : les annulées n'ont jamais été encaissées, elles sortent du financier. */
+    /** Commandes valides : les annulées n'ont jamais été payées, on ne les compte pas dans les montants. */
     private List<Order> honoredOrders(List<Order> orders) {
         return orders.stream()
                 .filter(o -> o.getStatus() != Order.OrderStatus.CANCELED)
@@ -240,8 +240,8 @@ public class DashboardController {
     }
 
     /**
-     * Indicateurs d'une journée pour un périmètre de commandes donné (un caissier ou tous).
-     * Source unique des chiffres de la caisse : toute évolution ici se propage aux deux vues.
+     * Stats d'une journée pour un ensemble de commandes (un caissier ou tous).
+     * C'est la seule source des chiffres de caisse : une modif ici change les deux vues.
      */
     private Map<String, Object> buildDayMetrics(List<Order> orders, BigDecimal collected) {
         List<Order> honored = honoredOrders(orders);
@@ -271,8 +271,8 @@ public class DashboardController {
     }
 
     /**
-     * Commandes du jour enrichies du statut de facturation, pour distinguer une commande
-     * facturée mais réglée (affichée « Payée ») d'une commande seulement facturée.
+     * Commandes du jour avec leur statut de facture, pour distinguer une commande facturée et
+     * payée (affichée « Payée ») d'une commande seulement facturée.
      */
     private List<Map<String, Object>> mapDayOrders(List<Order> orders) {
         List<Long> orderIds = orders.stream().map(Order::getId).collect(Collectors.toList());
@@ -280,8 +280,8 @@ public class DashboardController {
     }
 
     /**
-     * Variante à statuts pré-chargés : la supervision résout les statuts une fois pour toute
-     * la journée, au lieu d'une requête par caissier.
+     * Version avec les statuts déjà chargés : le suivi des caisses les charge une fois pour
+     * toute la journée, au lieu d'une requête par caissier.
      */
     private List<Map<String, Object>> mapDayOrders(List<Order> orders,
                                                    Map<Long, Invoice.InvoiceStatus> invoiceStatuses) {
@@ -299,10 +299,10 @@ public class DashboardController {
     }
 
     /**
-     * Ventes agrégées par heure (0–23) à partir des commandes honorées de la journée.
-     * Renvoie une plage contiguë [première heure active, dernière heure active], les heures
-     * creuses intermédiaires étant remplies à zéro pour un histogramme lisible. Liste vide si
-     * aucune commande.
+     * Ventes par heure (0 à 23) à partir des commandes valides de la journée.
+     * On renvoie les heures de la première à la dernière heure avec des ventes, et les heures
+     * sans vente au milieu sont mises à zéro pour que l'histogramme soit lisible. Liste vide
+     * s'il n'y a aucune commande.
      */
     private List<Map<String, Object>> buildHourlySales(List<Order> honoredOrders) {
         if (honoredOrders.isEmpty()) {

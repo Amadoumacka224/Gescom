@@ -31,20 +31,20 @@ import {
   validateClient,
 } from '../utils/clientForm';
 
-/** Mémorise le mode d'affichage entre deux visites, comme la page Produits. */
+/** Garde le mode d'affichage d'une visite à l'autre, comme sur la page Produits. */
 const VIEW_MODE_KEY = 'clientsViewMode';
 
-/** Nombre de clients mis en avant dans la vue d'aperçu (les derniers ajoutés). */
+/** Nombre de clients affichés dans l'aperçu (les derniers ajoutés). */
 const RECENT_COUNT = 5;
 
-/** Commandes détaillées dans l'activité commerciale de la fiche ; au-delà, un simple décompte. */
+/** Nombre de commandes affichées dans la fiche ; au-delà, on affiche juste combien il en reste. */
 const ACTIVITY_ORDERS_SHOWN = 3;
 
 /**
- * Critères de filtrage, à l'état neutre. Sert de valeur initiale, de cible du bouton
- * « Réinitialiser » et de référence pour savoir quels critères sont actifs.
- * Type et statut y figurent au même titre que les autres : ils étaient portés par des bandeaux
- * segmentés au-dessus de la liste, qui doublonnaient avec les tuiles d'indicateurs.
+ * Filtres avec leurs valeurs vides. Sert pour l'état initial, pour le bouton « Réinitialiser »
+ * et pour savoir quels filtres sont actifs.
+ * Le type et le statut sont ici comme les autres : avant ils étaient dans des boutons au-dessus
+ * de la liste, ce qui faisait doublon avec les cartes de stats.
  */
 const EMPTY_ADVANCED = {
   type: 'ALL',
@@ -58,13 +58,12 @@ const EMPTY_ADVANCED = {
 };
 
 /**
- * Colonnes triables, traduites en champs d'entité pour le `sort` de Spring Data.
+ * Colonnes triables, avec le champ de l'entité utilisé pour le `sort` de Spring Data.
  *
- * Deux écarts assumés avec l'ancien tri du navigateur :
- *   - « nom » trie désormais sur le NOM DE FAMILLE, là où le navigateur triait sur « prénom
- *     nom » concaténé. Un `sort` ne porte que sur un champ, et c'est de toute façon l'ordre
- *     attendu d'un fichier clients ;
- *   - « lieu » trie sur la ville, ce que faisait déjà l'accesseur remplacé.
+ * Deux différences avec l'ancien tri fait dans le navigateur :
+ *   - « nom » trie maintenant sur le NOM DE FAMILLE (avant c'était sur « prénom nom »). Un
+ *     `sort` ne prend qu'un champ, et c'est de toute façon l'ordre normal pour des clients ;
+ *   - « lieu » trie sur la ville, comme avant.
  */
 const SORT_FIELDS = {
   name: 'lastName',
@@ -76,14 +75,14 @@ const SORT_FIELDS = {
 
 const fullName = (client) => `${client?.firstName || ''} ${client?.lastName || ''}`.trim();
 
-/** Adresse postale mise en lignes, dans l'ordre où on l'écrit sur une enveloppe. */
+/** Adresse découpée en lignes, comme sur une enveloppe. */
 const addressLines = (client) => [
   client?.address,
   [client?.postalCode, client?.city].filter(Boolean).join(' '),
   client?.country,
 ].filter((line) => line && line.trim());
 
-/** Copie d'une valeur isolée (e-mail, téléphone, adresse), au bout de sa propre ligne. */
+/** Bouton pour copier une valeur (e-mail, téléphone, adresse), en bout de ligne. */
 const CopyButton = ({ value, label, onCopy }) => (
   <button
     type="button"
@@ -96,7 +95,7 @@ const CopyButton = ({ value, label, onCopy }) => (
   </button>
 );
 
-/** Indicateur chiffré de l'activité commerciale (commandes, chiffre d'affaires, panier moyen). */
+/** Chiffre de l'activité du client (commandes, chiffre d'affaires, panier moyen). */
 const ActivityTile = ({ label, value }) => (
   <div className="rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
     <dt className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">{label}</dt>
@@ -104,7 +103,7 @@ const ActivityTile = ({ label, value }) => (
   </div>
 );
 
-/** Raccourci vers le formulaire, proposé là où une information essentielle manque. */
+/** Lien vers le formulaire, affiché quand une info importante manque. */
 const CompleteButton = ({ label, onClick }) => (
   <button
     type="button"
@@ -127,9 +126,8 @@ const formatDateTime = (iso) =>
     : '—';
 
 /**
- * Pastille d'identité. Le particulier porte ses initiales dans un disque, l'entreprise un
- * médaillon carré à l'icône d'immeuble : le type se lit avant même la colonne « Type », ce qui
- * évite d'avoir à parcourir la ligne entière pour savoir à qui l'on a affaire.
+ * Avatar du client. Un particulier a ses initiales dans un rond, une entreprise une icône
+ * d'immeuble dans un carré : on voit le type tout de suite sans lire la colonne « Type ».
  */
 const ClientAvatar = ({ client, size = 'md' }) => {
   const isCompany = client?.type === 'ENTREPRISE';
@@ -155,9 +153,9 @@ const Clients = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  // Le backend réserve la suppression, la désactivation et l'export à l'ADMIN
-  // (cf. ClientController) : on masque ces actions au caissier plutôt que de le laisser
-  // déclencher un 403. La création et la modification lui restent ouvertes.
+  // Côté backend, la suppression, la désactivation et l'export sont réservés à l'ADMIN
+  // (voir ClientController). On cache ces actions au caissier pour éviter les 403.
+  // Il peut quand même créer et modifier.
   const isAdmin = user?.role === 'ADMIN';
 
   const [clients, setClients] = useState([]);
@@ -177,37 +175,37 @@ const Clients = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  // Vue par défaut : seul le dernier client ajouté est mis en avant ; la liste complète
-  // s'obtient par la bascule d'affichage, ou dès qu'une recherche / un filtre est actif.
+  // Par défaut on n'affiche que le dernier client ajouté. La liste complète s'affiche avec
+  // le bouton de bascule, ou dès qu'une recherche ou un filtre est actif.
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
 
   const [formData, setFormData] = useState(EMPTY_CLIENT_FORM);
-  // Valeurs à l'ouverture : comparées à la saisie pour savoir si le formulaire a bougé
-  // (bouton d'enregistrement inutile à vide, garde-fou à la fermeture).
+  // Valeurs au moment de l'ouverture, pour savoir si le formulaire a été modifié
+  // (bouton enregistrer désactivé sinon, confirmation à la fermeture).
   const [initialForm, setInitialForm] = useState(EMPTY_CLIENT_FORM);
   const [touched, setTouched] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler, email déjà pris…) :
-  // conservées à part des erreurs locales, elles ne se recalculent pas à la frappe et sont
-  // levées champ par champ dès que l'utilisateur corrige la valeur incriminée.
+  // Erreurs renvoyées par l'API (`fieldErrors` du GlobalExceptionHandler, email déjà utilisé…).
+  // Gardées à part des erreurs locales : elles ne sont pas recalculées à la frappe et
+  // disparaissent dès que l'utilisateur modifie le champ concerné.
   const [serverErrors, setServerErrors] = useState({});
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // Activité commerciale de la fiche : chargée à l'ouverture d'un client, jamais avec la liste.
-  // Le répertoire n'a pas besoin des commandes, et les charger toutes pour n'en montrer que
-  // celles d'un client coûterait une requête énorme à chaque affichage de la page.
+  // Activité du client : chargée quand on ouvre sa fiche, pas avec la liste.
+  // La liste n'a pas besoin des commandes, et tout charger pour un seul client ferait une
+  // requête énorme à chaque affichage.
   const [activity, setActivity] = useState({ loading: false, error: false, orders: [] });
 
-  // Cardinalité du résultat courant, renvoyée par le serveur : elle n'est plus déductible de
-  // `clients`, qui ne porte que la page affichée.
+  // Nombre total de résultats, renvoyé par le serveur (on ne peut plus le déduire de
+  // `clients`, qui ne contient que la page affichée).
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
-  // Compteurs d'en-tête : ils décrivent le fichier ENTIER, d'où un appel distinct.
+  // Compteurs en haut de page : ils portent sur TOUS les clients, d'où un appel séparé.
   const [summary, setSummary] = useState({ total: 0, active: 0, individuals: 0, companies: 0 });
-  // Villes et pays proposés par les filtres. Doivent rester exhaustifs : une ville qui
-  // n'apparaît qu'en page 3 doit être proposée depuis la page 1.
+  // Villes et pays proposés dans les filtres. Il faut la liste complète : une ville qui
+  // n'apparaît qu'en page 3 doit être proposée dès la page 1.
   const [filterOptions, setFilterOptions] = useState({ cities: [], countries: [] });
 
-  // Frappe temporisée : sans cela, chaque caractère déclencherait une requête.
+  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
@@ -217,16 +215,15 @@ const Clients = () => {
   const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
     .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
   const hasActiveFilters = debouncedSearch !== '' || hasAdvancedFilters;
-  // Un filtre actif force la liste complète : filtrer pour ne voir que les cinq derniers
-  // ajoutés n'aurait aucun sens.
+  // Si un filtre est actif on affiche toute la liste : filtrer seulement les cinq derniers
+  // n'aurait pas de sens.
   const showFullList = hasActiveFilters || viewMode === 'all';
 
   /**
-   * Critères envoyés au serveur.
+   * Paramètres envoyés au serveur.
    *
-   * La vue « récents » n'est plus un découpage de la liste chargée mais une requête à part
-   * entière : les cinq derniers créés, soit la première page triée par date décroissante.
-   * C'est la même chose exprimée là où sont les données.
+   * La vue « récents » est maintenant une vraie requête : les cinq derniers créés, c'est-à-dire
+   * la première page triée par date décroissante.
    */
   const queryParams = useMemo(() => {
     if (!showFullList) {
@@ -286,7 +283,7 @@ const Clients = () => {
     }
   };
 
-  /** Rechargées après écriture : un client créé dans une ville nouvelle ajoute un choix. */
+  /** Rechargées après une modif : un client dans une nouvelle ville ajoute un choix. */
   const fetchFilterOptions = async () => {
     try {
       const { data } = await clientService.getFilterOptions();
@@ -296,7 +293,7 @@ const Clients = () => {
     }
   };
 
-  /** Recharge page, compteurs et options — à appeler après création, édition, suppression. */
+  /** Recharge la page, les compteurs et les options. À appeler après création, modif ou suppression. */
   const refresh = async () => {
     await Promise.all([fetchClients(), fetchSummary(), fetchFilterOptions()]);
   };
@@ -309,12 +306,12 @@ const Clients = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    // Le verdict du serveur portait sur l'ancienne valeur : il n'a plus de sens dès qu'elle change.
+    // L'erreur du serveur concernait l'ancienne valeur, on l'enlève dès que la valeur change.
     setServerErrors((prev) => (prev[name] === undefined ? prev : { ...prev, [name]: undefined }));
   };
 
-  // Une erreur ne s'affiche qu'une fois le champ quitté : signaler « le prénom est obligatoire »
-  // à la première lettre tapée serait juste mais insupportable.
+  // L'erreur s'affiche seulement quand on quitte le champ : afficher « le prénom est
+  // obligatoire » dès la première lettre serait pénible.
   const handleBlur = (e) => {
     const { name } = e.target;
     setTouched((prev) => (prev[name] ? prev : { ...prev, [name]: true }));
@@ -334,8 +331,8 @@ const Clients = () => {
   }, [formErrors, serverErrors, submitAttempted, touched]);
 
   const isDirty = isClientFormDirty(formData, initialForm);
-  // En modification, un enregistrement à l'identique n'apporte rien : le bouton reste inactif
-  // tant que rien n'a bougé, et la mention à côté explique pourquoi.
+  // En modification, inutile d'enregistrer si rien n'a changé : le bouton reste désactivé
+  // et un petit texte à côté explique pourquoi.
   const canSubmit = !saving && (!editingClient || isDirty);
 
   const focusField = (field) => {
@@ -376,8 +373,8 @@ const Clients = () => {
       const raw = error.response?.data;
       const message = typeof raw === 'string' ? raw : (raw?.message || raw?.error || t('clients.saveError'));
 
-      // Le refus du serveur est ramené sur le champ concerné plutôt que sur un simple toast :
-      // l'utilisateur voit quoi corriger sans relire tout le formulaire.
+      // L'erreur du serveur est affichée sur le champ concerné plutôt que dans un toast,
+      // comme ça on voit directement quoi corriger.
       const fieldErrors = typeof raw === 'object' && raw?.fieldErrors ? { ...raw.fieldErrors } : {};
       if (error.response?.status === 409) {
         fieldErrors.email = t('clients.errorEmailTaken');
@@ -395,10 +392,10 @@ const Clients = () => {
     }
   };
 
-  /** Ouvre le formulaire sur des valeurs données, en repartant d'un état de validation vierge. */
+  /** Ouvre le formulaire avec des valeurs données et des erreurs remises à zéro. */
   const openForm = (client) => {
-    // On ne reprend que les champs du formulaire : l'objet reçu de l'API porte aussi `id`,
-    // `name`, `createdAt`… que le DTO de requête n'attend pas.
+    // On ne garde que les champs du formulaire : l'objet de l'API contient aussi `id`,
+    // `name`, `createdAt`… dont le DTO de requête n'a pas besoin.
     const values = client
       ? {
           firstName: client.firstName || '',
@@ -427,8 +424,8 @@ const Clients = () => {
 
   const handleEdit = (client) => openForm(client);
 
-  // Le premier champ prend le focus à l'ouverture : la saisie démarre au clavier sans détour
-  // par la souris. Le délai laisse l'animation d'ouverture de la modale se poser.
+  // Focus sur le premier champ à l'ouverture pour pouvoir taper directement. Le délai
+  // laisse le temps à l'animation du modal de se terminer.
   useEffect(() => {
     if (!showModal) return undefined;
     const timer = setTimeout(() => focusField('firstName'), 150);
@@ -437,8 +434,8 @@ const Clients = () => {
 
   /**
    * Copie une valeur de la fiche dans le presse-papiers.
-   * L'API n'est disponible qu'en contexte sécurisé (https / localhost) : l'échec est signalé
-   * plutôt que silencieux, sans quoi l'utilisateur croirait avoir copié.
+   * L'API ne marche qu'en HTTPS / localhost : en cas d'échec on affiche un message, sinon
+   * l'utilisateur croirait avoir copié.
    */
   const copyValue = async (value, message) => {
     try {
@@ -450,7 +447,7 @@ const Clients = () => {
     }
   };
 
-  /** Coordonnées complètes en un bloc, prêtes à coller dans un e-mail ou un carnet d'adresses. */
+  /** Toutes les coordonnées en un bloc, à coller dans un e-mail ou un carnet d'adresses. */
   const copyContactCard = (client) => {
     const lines = [fullName(client), client.company, client.email, client.phone, ...addressLines(client)];
     copyValue(lines.filter(Boolean).join('\n'), t('clients.contactCopied'));
@@ -475,7 +472,7 @@ const Clients = () => {
     const clientId = selectedClient?.id;
     if (!clientId) return undefined;
 
-    // Passer d'une fiche à l'autre plus vite que le réseau ne répond ferait afficher
+    // Si on passe d'une fiche à l'autre plus vite que la réponse du réseau, on afficherait
     // l'activité du client précédent sous le nom du nouveau.
     let abandoned = false;
     loadActivity(clientId).then((result) => {
@@ -485,8 +482,8 @@ const Clients = () => {
   }, [selectedClient?.id, loadActivity]);
 
   const activityStats = useMemo(() => {
-    // Une commande annulée n'a rien facturé : la compter fausserait le chiffre d'affaires
-    // et le panier moyen. Elle reste dans le décompte total, signalée à part.
+    // Une commande annulée n'a rien rapporté : la compter fausserait le chiffre d'affaires
+    // et le panier moyen. Elle reste comptée dans le total, mais affichée à part.
     const billable = activity.orders.filter((order) => order.status !== 'CANCELED');
     const revenue = billable.reduce(
       (sum, order) => sum + (Number(order.finalAmount ?? order.totalAmount) || 0),
@@ -504,11 +501,11 @@ const Clients = () => {
     };
   }, [activity.orders]);
 
-  // La page Commandes sait ouvrir une commande précise via `?orderId=` : la fiche s'appuie
-  // dessus plutôt que de dupliquer un écran de détail de commande.
+  // La page Commandes peut ouvrir une commande avec `?orderId=`, donc on réutilise ça au lieu
+  // de refaire un écran de détail de commande.
   const openOrder = (orderId) => navigate(`/orders?orderId=${orderId}`);
 
-  /** Corps de la section d'activité : chargement, échec, aucune commande, ou les chiffres. */
+  /** Contenu de la section activité : chargement, erreur, aucune commande, ou les chiffres. */
   const renderActivity = () => {
     if (activity.loading) {
       return (
@@ -597,8 +594,8 @@ const Clients = () => {
     try {
       await clientService.deleteClient(clientToDelete.id);
       toast.success(t('clients.deleteSuccess'), { id: toastId });
-      // La suppression peut être lancée depuis la fiche elle-même : la laisser ouverte
-      // afficherait un client qui n'existe plus.
+      // On peut supprimer depuis la fiche : si on la laissait ouverte, elle afficherait un
+      // client qui n'existe plus.
       if (selectedClient?.id === clientToDelete.id) setSelectedClient(null);
       await refresh();
     } catch (error) {
@@ -643,9 +640,9 @@ const Clients = () => {
   };
 
   /**
-   * Fermeture demandée par l'utilisateur (bouton Annuler, croix, clic sur le fond).
-   * Une saisie en cours n'est jamais jetée sans confirmation : le fond de la modale se ferme
-   * au moindre clic à côté, et perdre un formulaire rempli à cette occasion est un incident réel.
+   * Fermeture par l'utilisateur (bouton Annuler, croix, clic à côté).
+   * Si une saisie est en cours, on demande confirmation : un clic à côté ferme le modal et
+   * perdre un formulaire rempli comme ça, c'est vraiment énervant.
    */
   const requestCloseForm = () => {
     if (isDirty) {
@@ -655,15 +652,15 @@ const Clients = () => {
     closeForm();
   };
 
-  // Compteurs du fichier entier, agrégés en base (cf. /api/clients/summary). Les recalculer
-  // ici ne décrirait que la page affichée — soit dix lignes sur cent trente.
+  // Compteurs sur tous les clients, calculés en base (voir /api/clients/summary). Si on les
+  // calculait ici, ils ne porteraient que sur la page affichée (dix lignes sur cent trente).
   const stats = summary;
 
-  // Listes déduites des clients eux-mêmes : n'afficher que les valeurs réellement présentes
-  // évite les critères qui ne rendent aucun résultat.
-  // Villes et pays viennent du serveur (/clients/filter-options) : les déduire de `clients` ne
-  // proposerait plus que les valeurs de la page affichée, et un filtre disparaîtrait de la
-  // liste dès qu'on change de page.
+  // Listes tirées des clients eux-mêmes : on ne propose que des valeurs qui existent, pour
+  // éviter les filtres qui ne donnent aucun résultat.
+  // Les villes et pays viennent du serveur (/clients/filter-options) : si on les tirait de
+  // `clients`, on n'aurait que ceux de la page affichée et un filtre disparaîtrait en
+  // changeant de page.
   const cityOptions = filterOptions.cities;
   const countryOptions = filterOptions.countries;
 
@@ -715,12 +712,11 @@ const Clients = () => {
     { key: 'createdTo', label: t('clients.createdToLabel'), type: 'date' },
   ], [t, cityOptions, countryOptions]);
 
-  // Suggestions d'autocomplétion classées par pertinence (nom complet et société
-  // prioritaires sur e-mail / téléphone).
+  // Suggestions d'autocomplétion triées par pertinence (le nom et la société passent avant
+  // l'e-mail et le téléphone).
   //
-  // Tirées de la page reçue et non plus du fichier entier, qui n'est plus rapatrié : la page
-  // EST le résultat de la recherche en cours, les suggestions portent donc sur les mêmes
-  // lignes qu'avant, bornées à la page.
+  // Elles viennent de la page reçue, puisqu'on ne charge plus tous les clients : la page est
+  // déjà le résultat de la recherche, donc les suggestions portent sur les mêmes lignes.
   const clientSuggestions = rankSuggestions(
     clients,
     searchTerm,
@@ -728,13 +724,13 @@ const Clients = () => {
     8
   );
 
-  // Le filtrage, le tri et la pagination sont faits en base : `clients` porte déjà la page
-  // demandée, dans l'ordre demandé. Refiltrer ici ne chercherait que dans les lignes reçues.
+  // Le filtrage, le tri et la pagination sont faits en base : `clients` contient déjà la bonne
+  // page dans le bon ordre. Refiltrer ici ne chercherait que dans les lignes reçues.
   const displayedClients = clients;
   const totalPages = pageMeta.totalPages;
 
-  // Toute modification du périmètre ramène à la première page : rester en page 4 d'un
-  // résultat qui n'en compte plus que 2 afficherait un tableau vide à tort.
+  // Dès que les filtres changent on revient à la page 1 : rester en page 4 alors qu'il n'y en
+  // a plus que 2 afficherait un tableau vide.
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, advanced, sortConfig, itemsPerPage, viewMode]);
@@ -744,7 +740,7 @@ const Clients = () => {
       if (prev.key === key) {
         return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
       }
-      // Une date s'ouvre du plus récent au plus ancien, un texte de A à Z.
+      // Une date se trie de la plus récente à la plus ancienne, un texte de A à Z.
       return { key, direction: key === 'createdAt' ? 'desc' : 'asc' };
     });
   };
@@ -775,10 +771,9 @@ const Clients = () => {
     </span>
   );
 
-  /* Colonnes ordonnées par importance décroissante — identité, moyens de contact, puis contexte.
-   * Les colonnes secondaires disparaissent sur écran étroit (`hidden … table-cell`) plutôt que
-   * de pousser le tableau dans un défilement horizontal où la colonne d'actions devient
-   * inatteignable. */
+  /* Colonnes de la plus importante à la moins importante : identité, contact, puis le reste.
+   * Les colonnes secondaires sont cachées sur petit écran (`hidden … table-cell`) pour éviter
+   * le scroll horizontal, où la colonne d'actions devenait inaccessible. */
   const columns = [
     {
       key: 'name',
@@ -927,8 +922,8 @@ const Clients = () => {
       </div>
 
       {/* ---- Indicateurs ----
-       * Les quatre tuiles partagent le composant StatCard : même échelle typographique, même
-       * squelette de chargement et même comportement en tuile étroite que les autres écrans. */}
+       * Les quatre cartes utilisent StatCard : même taille de texte, même chargement et même
+       * rendu en petit format que sur les autres écrans. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('clients.totalCount')}
@@ -999,7 +994,7 @@ const Clients = () => {
         />
       </div>
 
-      {/* ---- Répertoire ---- */}
+      {/* ---- Liste des clients ---- */}
       <div className="card overflow-hidden p-0">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div>
@@ -1062,8 +1057,8 @@ const Clients = () => {
           )}
         />
 
-        {/* Pagination : seulement quand la liste complète est affichée (la vue « dernier ajout »
-            ne montre qu'une ligne, un pied de pagination y serait trompeur). */}
+        {/* Pagination seulement quand toute la liste est affichée (la vue « dernier ajout »
+            n'a qu'une ligne, une pagination n'aurait pas de sens). */}
         {showFullList && !loading && pageMeta.totalElements > 0 && (
           <Pagination
             currentPage={currentPage}
@@ -1077,8 +1072,8 @@ const Clients = () => {
       </div>
 
       {/* ---- Fiche client (lecture seule) ----
-       * Même largeur que le formulaire : passer de l'un à l'autre ne fait plus sauter la fenêtre,
-       * et les coordonnées tiennent à côté de l'adresse au lieu de se suivre en un seul fil. */}
+       * Même largeur que le formulaire, pour que la fenêtre ne change pas de taille en passant
+       * de l'un à l'autre, et pour mettre les coordonnées à côté de l'adresse. */}
       <Modal
         isOpen={!!selectedClient}
         onClose={() => setSelectedClient(null)}
@@ -1087,12 +1082,11 @@ const Clients = () => {
       >
         {selectedClient && (
           <div className="space-y-6">
-            {/* En-tête pleine largeur : identité, qualification et actions de contact au même
-                endroit. Ce sont les seules choses que l'on vient chercher en ouvrant une fiche —
-                elles ne doivent pas se disputer la place avec le reste. */}
+            {/* En-tête sur toute la largeur : identité, type et boutons de contact. C'est ce
+                qu'on cherche en premier en ouvrant une fiche. */}
             <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
-              {/* Sur large écran, identité à gauche et actions de contact à droite : la largeur
-                  gagnée sert à mettre les deux à hauteur de regard plutôt qu'à les empiler. */}
+              {/* Sur grand écran, l'identité à gauche et les boutons de contact à droite,
+                  sur la même ligne au lieu de les empiler. */}
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
                 <div className="flex min-w-0 items-start gap-4">
                   <ClientAvatar client={selectedClient} size="lg" />
@@ -1114,8 +1108,8 @@ const Clients = () => {
                   </div>
                 </div>
 
-                {/* Actions de contact : joindre le client est le geste le plus fréquent après
-                    la consultation, il ne doit pas demander de recopier une adresse à la main. */}
+                {/* Boutons de contact : contacter le client est ce qu'on fait le plus souvent
+                    après avoir regardé sa fiche, sans devoir recopier l'adresse. */}
                 <div className="flex flex-wrap gap-2 lg:flex-shrink-0 lg:justify-end">
                   {selectedClient.email && (
                     <a href={`mailto:${selectedClient.email}`} className="quick-action">
@@ -1137,8 +1131,8 @@ const Clients = () => {
               </div>
             </header>
 
-            {/* `items-start` : les deux blocs n'ont pas la même hauteur et n'ont aucune raison
-                de s'étirer l'un sur l'autre. */}
+            {/* `items-start` : les deux blocs n'ont pas la même hauteur, pas besoin de les
+                étirer. */}
             <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
               <section className="space-y-3">
                 <h4 className="subsection-title flex items-center gap-2">
@@ -1174,8 +1168,8 @@ const Clients = () => {
                   <MapPin className="h-4 w-4 text-gray-400" aria-hidden="true" />
                   {t('clients.sectionAddress')}
                 </h4>
-                {/* Une adresse postale se lit en bloc, pas champ par champ : trois lignes
-                    étiquetées séparément obligeaient à la recomposer mentalement pour l'utiliser. */}
+                {/* L'adresse est affichée en un bloc, pas champ par champ : avec trois lignes
+                    séparées, il fallait la reconstituer soi-même. */}
                 {selectedAddress.length > 0 ? (
                   <dl className="rounded-xl border border-gray-200 dark:border-gray-700">
                     <InfoRow
@@ -1207,8 +1201,8 @@ const Clients = () => {
               </section>
             </div>
 
-            {/* Activité commerciale : ce que le client pèse. Placée après les coordonnées, qui
-                restent le motif d'ouverture le plus fréquent, mais avant la traçabilité. */}
+            {/* Activité du client. Placée après les coordonnées (c'est surtout pour elles
+                qu'on ouvre la fiche), mais avant les infos de création/modification. */}
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="subsection-title flex items-center gap-2">
@@ -1224,8 +1218,8 @@ const Clients = () => {
               {renderActivity()}
             </section>
 
-            {/* Traçabilité : utile pour arbitrer un doute, jamais pour travailler. Réduite à une
-                ligne de bas de fiche plutôt qu'à une section de même rang que les coordonnées. */}
+            {/* Infos de création/modification : utiles en cas de doute, pas au quotidien.
+                Donc juste une ligne en bas de la fiche. */}
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
               <span className="inline-flex items-center gap-1.5">
                 <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1260,8 +1254,8 @@ const Clients = () => {
         title={editingClient ? t('clients.editClient') : t('clients.newClient')}
         size="lg"
       >
-        {/* `noValidate` : la validation est celle du formulaire, pas celle du navigateur, dont les
-            bulles natives s'affichent hors de la charte et dans la langue du navigateur. */}
+        {/* `noValidate` : on utilise notre propre validation, pas les bulles du navigateur
+            (pas au style de l'appli et dans la langue du navigateur). */}
         <form onSubmit={handleSubmit} noValidate>
           <ClientFormFields
             values={formData}
@@ -1272,8 +1266,8 @@ const Clients = () => {
             showErrorSummary={submitAttempted}
           />
 
-          {/* Barre d'actions collée au bas de la modale : sur un écran court, le formulaire
-              défile mais l'enregistrement reste sous la main, sans avoir à chercher le bas. */}
+          {/* Boutons collés en bas du modal : sur un petit écran le formulaire scrolle mais
+              le bouton enregistrer reste visible. */}
           <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-col-reverse gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800/95">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {editingClient && !isDirty ? t('clients.noChanges') : t('clients.requiredHint')}

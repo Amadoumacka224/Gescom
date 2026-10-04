@@ -11,26 +11,25 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Description OpenAPI de l'API et déclaration du schéma d'authentification.
+ * Description OpenAPI de l'API et déclaration de l'authentification.
  *
- * Sans le {@link SecurityScheme} ci-dessous, l'interface Swagger s'affiche mais ne sert à
- * rien : elle n'a aucun moyen de joindre un jeton aux requêtes d'essai, si bien que tout
- * appel autre que /api/auth/login répond 401. C'est ce bouton « Authorize » qui fait la
- * différence entre une documentation à lire et une API que l'on peut dérouler en direct.
+ * Sans le {@link SecurityScheme} ci-dessous, Swagger s'affiche mais ne sert pas à grand-chose :
+ * on ne peut pas ajouter de token aux requêtes de test, donc tout ce qui n'est pas
+ * /api/auth/login répond 401. C'est le bouton « Authorize » qui permet de vraiment tester
+ * l'API depuis l'interface.
  *
- * Le schéma est également posé en exigence globale : toutes les routes en héritent, ce qui
- * évite d'annoter chaque méthode. Les rares points ouverts (/api/auth/**, /actuator/health)
- * s'accommodent d'un en-tête d'autorisation superflu — l'inverse, oublier le jeton là où il
- * est requis, coûterait un 401 à chaque essai.
+ * Le schéma est aussi déclaré pour toutes les routes, comme ça pas besoin d'annoter chaque
+ * méthode. Les quelques routes publiques (/api/auth/**, /actuator/health) ne sont pas
+ * gênées par un en-tête Authorization en trop, alors qu'un token oublié là où il faut
+ * donnerait un 401 à chaque essai.
  *
- * Mode d'emploi : POST /api/auth/login, copier la valeur du champ {@code token} de la
- * réponse, la coller dans « Authorize ». Le préfixe « Bearer » est ajouté par l'interface,
- * il ne doit pas être saisi.
+ * Utilisation : POST /api/auth/login, copier le {@code token} de la réponse et le coller
+ * dans « Authorize ». Ne pas taper « Bearer », Swagger l'ajoute tout seul.
  */
 @Configuration
 public class OpenApiConfig {
 
-    /** Nom interne du schéma, repris tel quel dans le document OpenAPI produit. */
+    /** Nom du schéma, repris tel quel dans le document OpenAPI généré. */
     private static final String SCHEME_NAME = "bearerAuth";
 
     @Bean
@@ -38,8 +37,8 @@ public class OpenApiConfig {
         SecurityScheme bearerScheme = new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP)
                 .scheme("bearer")
-                // Renseigne le format sans changer la validation : purement documentaire,
-                // mais c'est ce qui fait afficher « JWT » dans l'interface.
+                // Juste pour la doc, ça ne change pas la validation : c'est ce qui affiche
+                // « JWT » dans l'interface.
                 .bearerFormat("JWT")
                 .in(SecurityScheme.In.HEADER)
                 .name("Authorization")

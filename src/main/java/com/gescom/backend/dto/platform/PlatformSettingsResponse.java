@@ -3,11 +3,11 @@ package com.gescom.backend.dto.platform;
 import java.time.LocalDateTime;
 
 /**
- * Reglages de la plateforme, accompagnes de l'identite du compte proprietaire.
+ * Parametres de la plateforme, avec les infos du compte super admin.
  *
- * Les deux voyagent ensemble parce que l'ecran Parametres les affiche cote a cote et qu'un
- * second aller-retour pour deux champs n'aurait aucun interet. Aucune empreinte de mot de
- * passe n'y figure, evidemment.
+ * Les deux sont renvoyes ensemble parce que l'ecran Parametres les affiche cote a cote, pas
+ * la peine de faire un deuxieme appel pour deux champs. Bien sur, aucun hash de mot de passe
+ * n'est renvoye.
  */
 public record PlatformSettingsResponse(
         Integer renewalWindowDays,
@@ -19,7 +19,7 @@ public record PlatformSettingsResponse(
         Account account
 ) {
 
-    /** Compte proprietaire connecte. */
+    /** Compte super admin connecte. */
     public record Account(
             Long id,
             String username,

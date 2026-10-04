@@ -10,13 +10,13 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 /**
- * Creation ou modification d'une formule du catalogue.
+ * Creation ou modification d'une formule.
  *
- * Le {@code code} n'est lu qu'a la creation : c'est l'identifiant stable de la formule, cite
- * dans les contrats et les exports, et le laisser changer romprait ce lien. La modification
- * ignore donc ce champ, comme le slug d'une entreprise.
+ * Le {@code code} n'est utilise qu'a la creation : c'est l'identifiant fixe de la formule,
+ * utilise dans les contrats et les exports, et le changer casserait ce lien. En modification
+ * ce champ est donc ignore, comme le slug d'une entreprise.
  *
- * {@code maxUsers} / {@code maxProducts} laisses vides valent « illimite ».
+ * {@code maxUsers} / {@code maxProducts} vides = « illimite ».
  */
 public record PlanRequest(
         @NotBlank(message = "Le code de la formule est obligatoire")

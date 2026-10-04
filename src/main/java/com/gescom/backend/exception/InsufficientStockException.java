@@ -1,8 +1,8 @@
 package com.gescom.backend.exception;
 
 /**
- * Levée lorsqu'une opération demande plus d'unités qu'il n'y en a en stock.
- * Le message indique le produit, le disponible et le demandé pour faciliter le diagnostic.
+ * Lancée quand une opération demande plus d'unités qu'il n'y en a en stock.
+ * Le message donne le produit, la quantité disponible et la quantité demandée.
  */
 public class InsufficientStockException extends BusinessException {
 

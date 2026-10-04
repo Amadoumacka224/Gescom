@@ -6,29 +6,29 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * Corps JSON unique pour toutes les réponses d'erreur de l'API.
- * Centraliser ce format garantit que le frontend reçoit toujours la même structure,
- * quel que soit l'endroit où l'erreur est produite (advice global, filtre de sécurité, etc.).
+ * Format JSON commun à toutes les réponses d'erreur de l'API.
+ * Comme ça, le front reçoit toujours la même structure, peu importe d'où vient l'erreur
+ * (handler global, filtre de sécurité, etc.).
  *
- * Les champs optionnels ({@code fieldErrors}, {@code traceId}) sont omis du JSON quand
- * ils sont nuls grâce à {@link JsonInclude.Include#NON_NULL}.
+ * Les champs optionnels ({@code fieldErrors}, {@code traceId}) ne sont pas mis dans le JSON
+ * quand ils sont null, grâce à {@link JsonInclude.Include#NON_NULL}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ErrorResponse {
 
-    /** Horodatage de l'erreur côté serveur. */
+    /** Date et heure de l'erreur côté serveur. */
     private final LocalDateTime timestamp;
     /** Code HTTP (ex : 404). */
     private final int status;
     /** Libellé court du statut HTTP (ex : "Not Found"). */
     private final String error;
-    /** Message lisible destiné à l'utilisateur / au frontend. */
+    /** Message lisible pour l'utilisateur / le front. */
     private final String message;
-    /** Chemin de la requête à l'origine de l'erreur. */
+    /** Chemin de la requête qui a provoqué l'erreur. */
     private final String path;
-    /** Détail champ par champ pour les erreurs de validation (sinon null). */
+    /** Erreurs par champ pour les erreurs de validation (sinon null). */
     private final Map<String, String> fieldErrors;
-    /** Identifiant de corrélation, présent uniquement pour les erreurs internes (500). */
+    /** Id pour retrouver l'erreur dans les logs, seulement pour les erreurs internes (500). */
     private final String traceId;
 
     private ErrorResponse(int status, String error, String message, String path,

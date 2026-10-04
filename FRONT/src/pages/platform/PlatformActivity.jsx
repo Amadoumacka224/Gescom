@@ -14,21 +14,20 @@ import { ACTIVITY_TONE, badgeClass } from '../../constants/statusBadges';
 import platformService from '../../services/platformService';
 
 /**
- * Journal d'activité consolidé de tout le parc.
+ * Journal d'activité de toutes les entreprises.
  *
- * La colonne « entreprise » est ce qui distingue cet écran de l'historique interne d'une
- * société : dans un journal global, savoir qu'un article a été supprimé n'a de sens que si
- * l'on sait chez qui. C'est aussi le premier critère de filtrage, pour la même raison.
+ * La différence avec l'historique d'une entreprise, c'est la colonne « entreprise » : dans
+ * un journal global, savoir qu'un article a été supprimé ne sert à rien si on ne sait pas
+ * chez qui. C'est aussi le premier filtre, pour la même raison.
  *
- * La recherche, les filtres, la pagination et l'export sont traités côté serveur — le journal
- * est le registre qui croît sans borne, filtrer ou exporter les seules lignes reçues ne
- * porterait que sur la page affichée.
+ * La recherche, les filtres, la pagination et l'export sont faits côté serveur : le journal
+ * grossit sans arrêt, et filtrer ou exporter les lignes reçues ne porterait que sur la page.
  */
 
-/** Valeur du filtre entreprise désignant les lignes qui n'en ont aucune : celles du propriétaire. */
+/** Valeur du filtre entreprise pour les lignes sans entreprise (celles du super admin). */
 const PLATFORM_SCOPE = 'PLATFORM';
 
-/** Doit refléter ACTIVITY_EXPORT_LIMIT côté serveur : sert à prévenir d'un export tronqué. */
+/** Doit être égal à ACTIVITY_EXPORT_LIMIT côté serveur : sert à prévenir quand l'export est coupé. */
 const EXPORT_LIMIT = 10000;
 
 const EMPTY_FILTERS = {
@@ -56,7 +55,7 @@ const PlatformActivity = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  // La recherche part au serveur : on attend une frappe stabilisée plutôt qu'une requête
+  // La recherche est faite par le serveur : debounce pour ne pas envoyer une requête
   // par caractère.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -66,14 +65,14 @@ const PlatformActivity = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Critères seuls, sans pagination : c'est le périmètre que l'export doit reprendre.
+  // Seulement les filtres, sans pagination : c'est ce que l'export doit reprendre.
   const filterParams = useMemo(() => {
     const params = {};
     if (filters.company === PLATFORM_SCOPE) params.platformScope = true;
     else if (filters.company) params.companyId = filters.company;
     if (filters.actionType) params.actionType = filters.actionType;
     if (filters.entity) params.entity = filters.entity;
-    // Bornes inclusives sur le jour entier.
+    // Bornes incluses, sur toute la journée.
     if (filters.from) params.start = `${filters.from}T00:00:00`;
     if (filters.to) params.end = `${filters.to}T23:59:59`;
     if (debouncedSearch) params.search = debouncedSearch;
@@ -103,8 +102,8 @@ const PlatformActivity = () => {
     load();
   }, [load]);
 
-  // Listes de filtrage : entreprises du parc, et valeurs réellement présentes au journal.
-  // Le parc d'un back-office SaaS se compte en centaines, une page large suffit.
+  // Listes des filtres : les entreprises, et les valeurs qui existent dans le journal.
+  // Il y a au plus quelques centaines d'entreprises, une grande page suffit.
   useEffect(() => {
     platformService
       .getCompanies({ page: 0, size: 200 })
@@ -116,8 +115,8 @@ const PlatformActivity = () => {
       .catch(() => setOptions({ actionTypes: [], entities: [] }));
   }, []);
 
-  // Tout changement de critère renvoie à la première page : rester sur la page 7 d'un résultat
-  // qui n'en compte plus que deux affiche une liste vide.
+  // Quand un filtre change on revient à la page 1 : rester en page 7 alors qu'il n'y en a
+  // plus que deux afficherait une liste vide.
   const handleFilterChange = (key, value) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
@@ -133,8 +132,8 @@ const PlatformActivity = () => {
   const hasActiveFilters = search.trim() !== '' || hasFieldFilters;
 
   /**
-   * Le fichier est assemblé par le serveur, qui seul voit le résultat filtré complet : le
-   * navigateur n'a jamais que la page affichée sous la main.
+   * Le fichier est généré par le serveur, le seul à avoir tout le résultat filtré (le
+   * navigateur n'a que la page affichée).
    */
   const handleExport = async () => {
     setExporting(true);
@@ -161,13 +160,13 @@ const PlatformActivity = () => {
 
   const companyOptions = useMemo(() => ([
     { value: '', label: t('platform.activity.allCompanies') },
-    // Les actions du propriétaire ne portent aucune entreprise : sans cette entrée, elles ne
-    // sont isolables par aucun critère.
+    // Les actions du super admin n'ont pas d'entreprise : sans cette option, on ne pourrait
+    // pas les filtrer.
     { value: PLATFORM_SCOPE, label: t('platform.activity.platformScope') },
     ...companies.map((company) => ({ value: String(company.id), label: company.name })),
   ]), [companies, t]);
 
-  // Déduites du journal lui-même : un critère qui ne rendrait aucun résultat n'est pas proposé.
+  // Tirées du journal : on ne propose pas un filtre qui ne donnerait aucun résultat.
   const actionOptions = useMemo(() => {
     const present = new Set(options.actionTypes ?? []);
     return [
@@ -285,8 +284,8 @@ const PlatformActivity = () => {
       </div>
 
       <div className="card overflow-hidden p-0">
-        {/* Ce qui est exporté est le résultat filtré entier, pas la page affichée : sans ce
-            rappel du périmètre, un export filtré passe pour un export complet. */}
+        {/* On exporte tout le résultat filtré, pas seulement la page affichée. On l'indique
+            pour qu'un export filtré ne soit pas pris pour un export complet. */}
         <div className="border-b border-gray-200 px-6 py-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {hasActiveFilters
             ? t('platform.activity.scopeFiltered', { total: totalItems })

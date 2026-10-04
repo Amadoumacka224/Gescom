@@ -15,15 +15,14 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Parc des entreprises clientes.
+ * Liste des entreprises clientes.
  *
- * L'ouverture d'un compte crée en une seule fois l'entreprise, son administrateur initial et
- * son abonnement : le serveur traite les trois en une transaction, un compte à moitié créé
- * n'ayant aucun sens (une entreprise sans administrateur est inaccessible).
+ * Créer un compte crée en même temps l'entreprise, son premier administrateur et son
+ * abonnement, dans une seule transaction côté serveur (une entreprise sans administrateur
+ * serait inaccessible, donc pas de compte à moitié créé).
  *
- * Suspendre et résilier ne suppriment jamais rien. Le back-office n'expose d'ailleurs aucune
- * suppression d'entreprise : les données d'un client se conservent, et une réactivation doit
- * rester possible.
+ * Suspendre et résilier ne suppriment rien. D'ailleurs le back-office ne permet pas de
+ * supprimer une entreprise : on garde les données du client et on doit pouvoir la réactiver.
  */
 
 const STATUS_TONE = {
@@ -413,8 +412,8 @@ const PlatformCompanies = () => {
             </div>
           </div>
 
-          {/* Administrateur et abonnement : uniquement à la création. Modifier une entreprise
-              existante ne doit pas rouvrir un compte utilisateur ni resouscrire un contrat. */}
+          {/* Administrateur et abonnement seulement à la création. Modifier une entreprise ne
+              doit pas recréer un compte ni un nouvel abonnement. */}
           {!editing && (
             <>
               <div>
@@ -467,8 +466,8 @@ const PlatformCompanies = () => {
                   {t('platform.companies.sectionSubscription')}
                 </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  {/* FormSelect ajoute lui-même une première option vide : elle sert ici
-                      de choix « aucune formule », l'entreprise démarrant alors sans contrat. */}
+                  {/* FormSelect ajoute déjà une option vide en premier : ici elle veut dire
+                      « aucune formule », l'entreprise démarre alors sans abonnement. */}
                   <FormSelect
                     label={t('platform.companies.plan')}
                     name="planId"

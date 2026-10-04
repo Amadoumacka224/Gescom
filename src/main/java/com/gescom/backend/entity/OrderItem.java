@@ -11,9 +11,9 @@ import java.math.BigDecimal;
 
 /**
  * Ligne de commande : un produit, une quantité et le prix au moment de la vente.
- * Le prix unitaire est figé ici (copié depuis le produit lors de la création par OrderService)
- * pour que la commande ne soit pas affectée par les changements de tarif ultérieurs.
- * La référence vers l'Order est masquée du JSON (@JsonIgnore) afin d'éviter la récursion infinie.
+ * Le prix unitaire est copié depuis le produit à la création (par OrderService), comme ça
+ * la commande ne change pas si le prix du produit change plus tard.
+ * Le lien vers l'Order n'est pas mis dans le JSON (@JsonIgnore) pour éviter une boucle infinie.
  */
 @Entity
 @Table(name = "order_items")

@@ -8,24 +8,21 @@ import { computeItemsGross, computeItemsTotal, computeLineTotal, lineGrossTotal 
 import { formatCurrency } from '../utils/format';
 
 /**
- * Panier de traitement d'une commande : client, lignes, remises et totaux.
+ * Panier d'une commande : client, lignes, remises et totaux.
  *
- * C'est la pièce qui reste à l'écran du début à la fin du cycle de vie — le pied de panneau
- * (`children`) accueille l'étape courante (valider, confirmer, facturer, encaisser). Les
- * lignes ne sont modifiables qu'au stade brouillon et en attente : au-delà, elles ont sorti du
- * stock et servent de base à la facture (cf. `OrderService.updateOrder`, qui exige PENDING).
- * Le panier passe alors en lecture seule plutôt que de disparaître : c'est ce qu'on relit en
- * encaissant.
+ * Il reste affiché pendant tout le traitement. Le bas du panneau (`children`) affiche l'étape
+ * en cours (valider, confirmer, facturer, encaisser). Les lignes ne sont modifiables qu'en
+ * brouillon ou en attente : après, le stock est sorti et elles servent pour la facture
+ * (voir `OrderService.updateOrder`, qui demande PENDING). Le panier passe alors en lecture
+ * seule au lieu de disparaître, car on en a besoin pour encaisser.
  *
- * Le panneau est bâti en trois bandes — en-tête, lignes, pied — dont une seule s'étire : la
- * liste d'articles. L'en-tête et les totaux gardent une hauteur fixe, le pied est borné à 55 %
- * du panneau, et tout le reste de l'écran va aux lignes. C'est ce qui décide du nombre
- * d'articles lisibles sans molette, la mesure qui compte au comptoir.
+ * Le panneau a trois zones : en-tête, lignes, pied. Seule la liste des articles s'agrandit.
+ * L'en-tête et les totaux ont une hauteur fixe, le pied est limité à 55 % du panneau, et le
+ * reste va aux lignes, pour voir le plus d'articles possible sans scroller.
  *
- * La TVA affichée avant facturation est une *estimation* au taux configuré dans les réglages :
- * elle n'est ni envoyée ni stockée, le taux réellement appliqué est saisi à la facturation.
- * L'étiquette le dit explicitement — un total TTC qui bouge entre deux écrans sans explication
- * est le premier motif d'appel au support.
+ * Avant la facture, la TVA affichée est une estimation avec le taux des paramètres. Elle
+ * n'est ni envoyée ni enregistrée : le vrai taux est saisi au moment de facturer. C'est écrit
+ * dans le libellé pour qu'on ne s'étonne pas de voir le TTC changer.
  */
 const OrderWorkspaceCart = ({
   order,
@@ -57,12 +54,12 @@ const OrderWorkspaceCart = ({
   const discountTotal = grossTotal - netTotal;
   const itemCount = items.reduce((n, it) => n + (parseInt(it.quantity) || 0), 0);
 
-  // Après facturation, les montants de référence sont ceux de la facture (elle porte la remise
-  // commerciale éventuelle et le taux de TVA réellement retenu) ; avant, on estime.
+  // Une fois facturée, on prend les montants de la facture (remise éventuelle et vrai taux
+  // de TVA). Avant, on fait une estimation.
   const invoiced = !!invoice;
-  // À l'étape de facturation, le taux se saisit juste en dessous et le panneau d'étape affiche
-  // son propre « Total à facturer ». Afficher ici une estimation au taux configuré donnerait
-  // deux TTC différents à l'écran : on s'en tient au HT, seul montant encore certain.
+  // À l'étape de facturation, le taux est saisi juste en dessous et l'étape affiche son propre
+  // « Total à facturer ». Si on affichait ici une estimation, il y aurait deux TTC différents
+  // à l'écran : on affiche donc seulement le HT.
   const pendingInvoice = !invoiced && order?.status === 'CONFIRMED';
   const effectiveRate = invoiced ? Number(invoice.taxRate || 0) : Number(taxRate || 0);
   const commercialDiscount = invoiced ? Number(invoice.discount || 0) : 0;
@@ -79,12 +76,12 @@ const OrderWorkspaceCart = ({
     setGlobalDiscount('');
   };
 
-  // Largeur fixe seulement une fois côte à côte avec le catalogue (`lg`) ; empilé en dessous,
-  // le panier prend toute la largeur et sa hauteur suit son contenu — `h-full` le tirait sinon
-  // à la hauteur du modal, reléguant le catalogue hors écran.
+  // Largeur fixe seulement quand il est à côté du catalogue (`lg`). En dessous, le panier
+  // prend toute la largeur et sa hauteur suit le contenu (avec `h-full` il prenait toute la
+  // hauteur du modal et poussait le catalogue hors de l'écran).
   return (
     <aside className="w-full lg:w-[380px] shrink-0 lg:h-full flex flex-col bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {/* ───────── En-tête : identité du panier et client ───────── */}
+      {/* ───────── En-tête : panier et client ───────── */}
       <div className="shrink-0 px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <h3 className="subsection-title flex items-center gap-2 min-w-0">
@@ -96,9 +93,9 @@ const OrderWorkspaceCart = ({
           </span>
         </div>
 
-        {/* Client : modifiable tant que la commande n'existe pas. Le backend ne permet pas de
-            changer le client d'une commande déjà créée (OrderUpdateRequest ne porte que les
-            lignes) — on l'affiche donc en clair plutôt que d'exposer un champ inopérant. */}
+        {/* Client : modifiable tant que la commande n'est pas créée. Après, le backend ne
+            permet plus de changer le client (OrderUpdateRequest ne contient que les lignes),
+            donc on l'affiche en texte simple. */}
         {order ? (
           <div className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-xs">
             <User className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400 shrink-0" aria-hidden="true" />
@@ -186,16 +183,16 @@ const OrderWorkspaceCart = ({
                     </span>
                   )}
                 />
-                {/* Pas de pastille de rappel sous le champ : le combobox affiche déjà le client
-                    retenu, nom et société comprises. La redondance coûtait une ligne de panier. */}
+                {/* Pas de rappel sous le champ : le combobox affiche déjà le client choisi
+                    (nom et société). Ça faisait une ligne de perdue. */}
               </div>
             )}
           </>
         )}
 
-        {/* Note libre portée par la commande (champ `notes` du contrat backend). Repliée par
-            défaut : elle sert dans une minorité de ventes, mais son absence obligeait jusqu'ici
-            à passer par un autre écran pour consigner « à livrer avant vendredi ». */}
+        {/* Note libre de la commande (champ `notes` côté backend). Fermée par défaut car peu
+            utilisée, mais avant il fallait aller sur un autre écran pour noter par exemple
+            « à livrer avant vendredi ». */}
         {editable ? (
           <div>
             <button
@@ -228,17 +225,13 @@ const OrderWorkspaceCart = ({
       </div>
 
       {/* ───────── Lignes ─────────
-          Seule zone extensible du panneau : tout ce que l'en-tête et le pied n'utilisent pas
-          lui revient, et c'est elle qui absorbe l'agrandissement de l'écran. Chaque ligne tient
-          en trois rangs (article / prix et stock / quantité, remise et total) plutôt qu'en
-          quatre — le total remonte à côté des commandes de quantité, l'alerte de stock rejoint
-          la ligne de prix.
+          C'est la seule zone qui s'agrandit : elle prend toute la place laissée par l'en-tête
+          et le pied. Chaque ligne tient sur trois rangs (article / prix et stock / quantité,
+          remise et total) au lieu de quatre.
 
-          `flex-1` seulement à partir de `lg`, là où le panneau a une hauteur définie à se
-          partager. Empilé en dessous, le panier fait sa hauteur : `flex-1` y calait la zone
-          sur son `min-h` de 120 px — une ligne et demie, quel que soit le nombre d'articles —
-          alors qu'en hauteur automatique elle suit vraiment son contenu, la colonne entière
-          défilant d'un bloc. */}
+          `flex-1` seulement à partir de `lg`, quand le panneau a une hauteur fixe. En dessous,
+          `flex-1` bloquait la zone à son `min-h` de 120 px (une ligne et demie), alors qu'en
+          hauteur auto elle suit son contenu et toute la colonne scrolle ensemble. */}
       <div className="min-h-[120px] lg:flex-1 overflow-y-auto p-1.5 space-y-1">
         {items.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500 py-8">
@@ -252,9 +245,8 @@ const OrderWorkspaceCart = ({
             const exceedsStock = editable && product && parseInt(item.quantity) > product.stockQuantity;
             const gross = lineGrossTotal(item);
             const name = product?.name || t('common.product');
-            // Montant de la ligne, remise déduite, avec le prix barré juste avant lui quand
-            // une remise s'applique : la comparaison se lit d'un coup d'œil sans occuper de
-            // rang supplémentaire.
+            // Montant de la ligne après remise, avec le prix barré juste avant quand il y a
+            // une remise. On voit la différence sans ajouter de ligne.
             const lineAmount = (
               <span className="ml-auto flex items-baseline gap-1 shrink-0">
                 {parseFloat(item.discount) > 0 && (
@@ -283,8 +275,8 @@ const OrderWorkspaceCart = ({
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-1.5">
-                    {/* Une seule ligne, l'intitulé complet en infobulle : un article au nom
-                        long ne repousse plus les suivants hors de l'écran. */}
+                    {/* Sur une seule ligne, le nom complet en infobulle : un nom long ne
+                        pousse plus les autres articles hors de l'écran. */}
                     <p
                       title={name}
                       className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 leading-tight truncate"
@@ -364,8 +356,8 @@ const OrderWorkspaceCart = ({
                       </div>
                     </>
                   ) : (
-                    // Lignes figées : le détail « quantité × prix » remplace la ligne de prix
-                    // unitaire, deux rangs suffisent.
+                    // Lignes figées : « quantité × prix » remplace le prix unitaire,
+                    // deux rangs suffisent.
                     <div className="flex items-baseline gap-2">
                       <span className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums truncate">
                         {item.quantity} × {formatCurrency(item.unitPrice)}
@@ -382,16 +374,16 @@ const OrderWorkspaceCart = ({
         )}
       </div>
 
-      {/* ───────── Totaux et étape courante ─────────
-          Deux blocs distincts : les montants, qui ne défilent jamais, et l'étape courante, qui
-          défile pour elle seule quand son formulaire est long (facturation). Le pied entier
-          défilait auparavant, si bien qu'un total pouvait sortir de l'écran ; il est en outre
-          borné à 55 % du panneau pour que la liste d'articles garde toujours la majorité. */}
+      {/* ───────── Totaux et étape en cours ─────────
+          Deux blocs : les montants, qui ne scrollent jamais, et l'étape en cours, qui scrolle
+          seule quand son formulaire est long (facturation). Avant, tout le pied scrollait et
+          le total pouvait sortir de l'écran. Le pied est aussi limité à 55 % du panneau pour
+          laisser la place aux articles. */}
       <div className="shrink-0 flex flex-col min-h-0 max-h-[55%] border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40">
         <div className="shrink-0 px-3 pt-2.5 pb-2 space-y-2">
-          {/* Remise appliquée d'un geste à toutes les lignes : en caisse, une remise commerciale
-              se négocie sur le panier entier, pas ligne à ligne. Elle écrit dans le champ
-              `discount` de chaque ligne — aucune notion nouvelle côté métier. */}
+          {/* Remise appliquée en une fois sur toutes les lignes : en caisse, on négocie une
+              remise sur tout le panier. Elle remplit simplement le champ `discount` de chaque
+              ligne, rien de nouveau côté métier. */}
           {editable && items.length > 0 && (
             <div className="flex items-center gap-2">
               <Percent className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />
@@ -421,7 +413,7 @@ const OrderWorkspaceCart = ({
             </div>
           )}
 
-          {/* Décomposition du prix, dans l'ordre où elle se calcule côté serveur. */}
+          {/* Détail du prix, dans le même ordre que le calcul côté serveur. */}
           <dl className="space-y-0.5 text-xs">
             <div className="flex items-center justify-between">
               <dt className="text-gray-500 dark:text-gray-400">{t('orders.subtotalExclTax')}</dt>
@@ -473,9 +465,9 @@ const OrderWorkspaceCart = ({
           </div>
         </div>
 
-        {/* Étape courante : c'est elle, et elle seule, qui défile si son formulaire dépasse
-            (saisie de facturation, encaissement). Le bouton d'action reste donc atteignable
-            sans jamais chasser les totaux de l'écran. */}
+        {/* Étape en cours : c'est la seule partie qui scrolle si le formulaire est trop long
+            (facturation, encaissement). Le bouton reste accessible et les totaux restent
+            visibles. */}
         <div className="min-h-0 overflow-y-auto px-3 pb-3 pt-2">
           {children}
         </div>

@@ -13,16 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Catalogue commercial.
+ * Gestion des formules d'abonnement.
  *
- * Une regle domine tout ce service : **modifier une formule ne touche jamais aux contrats
- * deja souscrits**. {@code Subscription.amount} fige le tarif a la souscription, de sorte
- * qu'une revision du catalogue n'affecte que les souscriptions a venir. Sans cela, changer
- * un prix reecrirait retroactivement le MRR et contredirait les paiements deja encaisses.
+ * La regle principale de ce service : **modifier une formule ne change jamais les contrats
+ * deja souscrits**. {@code Subscription.amount} garde le prix au moment de la souscription,
+ * donc un changement de prix ne concerne que les prochaines souscriptions. Sinon, changer un
+ * prix modifierait le MRR passe et ne correspondrait plus aux paiements deja recus.
  *
- * Corollaire : retirer une formule du catalogue se fait en la desactivant, pas en la
- * supprimant. La suppression n'est acceptee que sur une formule que personne n'a jamais
- * souscrite — sinon l'historique des contrats pointerait dans le vide.
+ * Du coup, pour retirer une formule on la desactive, on ne la supprime pas. La suppression
+ * n'est possible que pour une formule que personne n'a jamais prise, sinon les anciens
+ * contrats pointeraient vers rien.
  */
 @Service
 @Transactional
@@ -47,7 +47,7 @@ public class PlanService {
                 .orElseThrow(() -> new ResourceNotFoundException("Plan", id));
     }
 
-    /** Nombre de contrats — tous statuts — rattaches a une formule. */
+    /** Nombre de contrats (tous statuts) lies a une formule. */
     @Transactional(readOnly = true)
     public long countSubscriptions(Long planId) {
         return subscriptionRepository.countByPlanId(planId);
@@ -65,8 +65,8 @@ public class PlanService {
     }
 
     /**
-     * Met a jour une formule. Le code est volontairement ignore : il identifie la formule et
-     * doit rester stable, comme le slug d'une entreprise.
+     * Modifie une formule. Le code est ignore exprès : il identifie la formule et ne doit pas
+     * changer, comme le slug d'une entreprise.
      */
     public Plan update(Long id, PlanRequest request) {
         Plan plan = getById(id);
@@ -75,11 +75,11 @@ public class PlanService {
     }
 
     /**
-     * Retire ou remet une formule au catalogue.
+     * Active ou desactive une formule.
      *
-     * Desactiver n'a aucun effet sur les contrats en cours : ils continuent de courir et de
-     * peser dans le MRR. Seule la souscription est fermee, ce que
-     * {@code SubscriptionService.subscribe} refuse deja sur une formule inactive.
+     * Desactiver ne change rien aux contrats en cours : ils continuent et comptent toujours
+     * dans le MRR. On ne peut juste plus y souscrire, ce que {@code SubscriptionService.subscribe}
+     * verifie deja pour une formule inactive.
      */
     public Plan setActive(Long id, boolean active) {
         Plan plan = getById(id);
@@ -90,9 +90,9 @@ public class PlanService {
     /**
      * Supprime une formule jamais souscrite.
      *
-     * Le garde-fou porte sur *tous* les contrats, resilies compris : l'historique des
-     * abonnements reference la formule, et l'effacer laisserait des contrats sans tarif ni
-     * intitule. Une formule qu'on ne veut plus vendre se desactive.
+     * On verifie *tous* les contrats, resilies compris : les anciens abonnements font
+     * reference a la formule, et la supprimer laisserait des contrats sans prix ni nom. Une
+     * formule qu'on ne veut plus vendre, on la desactive.
      */
     public void delete(Long id) {
         Plan plan = getById(id);

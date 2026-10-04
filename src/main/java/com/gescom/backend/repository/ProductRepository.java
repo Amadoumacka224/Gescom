@@ -15,18 +15,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * {@code JpaSpecificationExecutor} porte la recherche paginée du catalogue : les critères de
- * l'écran Produits sont tous facultatifs et se combinent, ce qu'une méthode dérivée par nom ne
- * sait pas exprimer. Le cloisonnement par entreprise reste assuré — le filtre Hibernate couvre
- * aussi les requêtes par critères.
+ * {@code JpaSpecificationExecutor} sert pour la recherche paginée du catalogue : les filtres
+ * de l'écran Produits sont tous facultatifs et combinables, impossible à faire avec une
+ * méthode dérivée. Le filtrage par entreprise marche toujours, le filtre Hibernate
+ * s'applique aussi aux requêtes par critères.
  */
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpecificationExecutor<Product> {
     Optional<Product> findByCode(String code);
 
     /**
-     * Produits portant ce code-barres. Renvoie une liste car la colonne barcode n'est pas unique
-     * en base : le service privilégiera un produit actif s'il en existe plusieurs.
+     * Produits qui ont ce code-barres. Renvoie une liste car barcode n'est pas unique en base :
+     * le service prendra de préférence un produit actif s'il y en a plusieurs.
      */
     List<Product> findByBarcode(String barcode);
     List<Product> findByActiveTrue();
@@ -41,25 +41,25 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     Boolean existsByCode(String code);
 
     /**
-     * Lecture avec verrou pessimiste — à utiliser dans les opérations qui modifient
-     * le stock pour empêcher deux transactions simultanées de lire/écrire en parallèle.
-     * Doit être appelé dans un contexte transactionnel.
+     * Lecture avec verrou pessimiste, à utiliser quand on modifie le stock pour empêcher deux
+     * transactions de lire / écrire en même temps.
+     * À appeler dans une transaction.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Product p WHERE p.id = :id")
     Optional<Product> findByIdForUpdate(Long id);
 
     /**
-     * Compteurs d'en-tête du catalogue, agrégés en base.
+     * Compteurs en haut du catalogue, calculés en base.
      *
-     * L'écran les déduisait de la liste complète chargée dans le navigateur ; celle-ci n'étant
-     * plus rapatriée en entier, il faut les calculer là où sont les données. Une seule requête
-     * pour les quatre, plutôt que quatre COUNT : ils décrivent le même ensemble et doivent être
-     * cohérents entre eux, ce que quatre requêtes séparées ne garantissent pas.
+     * Avant, l'écran les calculait à partir de tout le catalogue chargé dans le navigateur.
+     * Comme on ne le charge plus en entier, il faut les calculer en base. Une seule requête
+     * pour les quatre plutôt que quatre COUNT : ils portent sur les mêmes produits et doivent
+     * être cohérents, ce que quatre requêtes séparées ne garantissent pas.
      *
-     * COALESCE partout : sur un catalogue VIDE, SUM rend NULL et non 0 — la projection declare
-     * des long primitifs, et Spring Data echouait alors sur « Null return value from advice ».
-     * Le cas se produit chez toute entreprise nouvellement creee.
+     * COALESCE partout : sur un catalogue VIDE, SUM renvoie NULL et pas 0. La projection
+     * utilise des long primitifs, et Spring Data plantait avec « Null return value from
+     * advice ». Ça arrivait pour toute nouvelle entreprise.
      */
     @Query("""
            SELECT COUNT(p) AS total,
@@ -71,23 +71,23 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     CatalogSummaryView catalogSummary();
 
     /**
-     * Produits les mieux approvisionnes, pour le tableau de bord.
+     * Produits avec le plus de stock, pour le tableau de bord.
      *
-     * Ce n'est PAS un classement des meilleures ventes — pour cela il faudrait agreger les
-     * OrderItem. Le nom le dit, l'ecran aussi.
+     * Ce n'est PAS un classement des meilleures ventes (pour ça il faudrait additionner les
+     * OrderItem). Le nom le dit, et l'écran aussi.
      */
     @Query("SELECT p FROM Product p WHERE p.stockQuantity > 0 ORDER BY p.stockQuantity DESC")
     List<Product> findTopStocked(Pageable pageable);
 
-    /** Produits sous leur seuil d'alerte, du plus critique au moins critique. */
+    /** Produits sous leur seuil d'alerte, du plus urgent au moins urgent. */
     @Query("SELECT p FROM Product p WHERE p.stockQuantity < p.minStockAlert ORDER BY p.stockQuantity ASC")
     List<Product> findMostDepleted(Pageable pageable);
 
     /**
-     * Projection par interface plutôt qu'expression constructeur : les types rendus par un
-     * agrégat JPQL (COUNT, SUM sur un produit Integer × BigDecimal) dépendent du dialecte, et
-     * une expression constructeur les fige au risque d'échouer au démarrage. L'interface laisse
-     * Spring Data convertir.
+     * Projection par interface plutôt qu'avec un constructeur : le type renvoyé par un calcul
+     * JPQL (COUNT, SUM sur Integer × BigDecimal) dépend du dialecte, et avec un constructeur
+     * il est fixé, ce qui peut faire planter au démarrage. Avec une interface, Spring Data
+     * fait la conversion.
      */
     interface CatalogSummaryView {
         long getTotal();

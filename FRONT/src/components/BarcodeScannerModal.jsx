@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import Modal from './Modal';
 import { formatCurrency } from '../utils/format';
 
-// Traduit une erreur getUserMedia / d'accès caméra en clé de message pour l'utilisateur.
+// Convertit une erreur d'accès à la caméra en clé de message à afficher.
 const cameraErrorKey = (err) => {
   const name = err?.name || '';
   if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'scanner.errors.denied';
@@ -17,11 +17,11 @@ const cameraErrorKey = (err) => {
 };
 
 /**
- * Scanner de code-barres par caméra pour l'ajout de produits à une commande.
+ * Scanner de code-barres avec la caméra, pour ajouter des produits à une commande.
  *
- * Séparation des responsabilités : ce composant gère UNIQUEMENT la caméra, le décodage
- * temps réel (ZXing) et l'aperçu produit avant ajout. La résolution du produit et l'ajout
- * au panier restent au parent, injectés via `resolveProduct` et `onConfirm`.
+ * Ce composant s'occupe seulement de la caméra, du décodage (ZXing) et de l'aperçu du produit.
+ * La recherche du produit et l'ajout au panier sont faits par le parent via `resolveProduct`
+ * et `onConfirm`.
  *
  * @param {boolean} isOpen
  * @param {() => void} onClose
@@ -41,8 +41,8 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
 
-  // getUserMedia n'est disponible qu'en contexte sécurisé (HTTPS ou localhost) et avec une caméra.
-  // Dérivé au rendu (valeur stable) plutôt que positionné en état depuis l'effet.
+  // getUserMedia ne marche qu'en HTTPS (ou localhost) et s'il y a une caméra.
+  // Calculé au rendu plutôt que mis dans un state depuis l'effet.
   const cameraSupported = typeof window !== 'undefined'
     && window.isSecureContext
     && !!navigator.mediaDevices?.getUserMedia;
@@ -54,9 +54,8 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
     scanningRef.current = true;
   }, []);
 
-  // Traitement d'un code lu. Mémorisé puis exposé via une ref (mise à jour dans un effet) pour
-  // que le callback ZXing — dont l'effet caméra ne dépend que de `isOpen` — appelle toujours la
-  // dernière version sans jamais relancer le flux vidéo.
+  // Traitement d'un code scanné. On le passe par une ref pour que le callback ZXing appelle
+  // toujours la dernière version, sans relancer la caméra (l'effet ne dépend que de `isOpen`).
   const handleCode = useCallback(async (code) => {
     setNotice('');
     setPhase('looking');
@@ -85,8 +84,8 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
   const handleCodeRef = useRef(handleCode);
   useEffect(() => { handleCodeRef.current = handleCode; }, [handleCode]);
 
-  // Démarrage/arrêt de la caméra piloté par l'ouverture du modal (déps volontairement limitées
-  // à `isOpen` pour ne jamais réinitialiser le flux au gré des re-rendus du parent).
+  // Allume / éteint la caméra selon l'ouverture du modal. Les dépendances sont limitées à
+  // `isOpen` exprès, sinon chaque re-rendu du parent relancerait le flux.
   useEffect(() => {
     if (!isOpen || !cameraSupported) return undefined;
 
@@ -103,7 +102,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
         if (!scanningRef.current || !result) return; // erreurs "NotFound" entre lectures ignorées
         const code = result.getText();
         const now = Date.now();
-        // Anti-rebond : on ignore le même code relu dans les 1,2 s.
+        // Anti-rebond : on ignore le même code s'il est relu dans les 1,2 s.
         if (lastCodeRef.current.code === code && now - lastCodeRef.current.at < 1200) return;
         lastCodeRef.current = { code, at: now };
         scanningRef.current = false;
@@ -130,7 +129,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
 
   if (!isOpen) return null;
 
-  // Erreur affichée : caméra non supportée (contexte non sécurisé / pas de caméra) ou échec d'accès.
+  // Erreur affichée : caméra non disponible (pas de HTTPS / pas de caméra) ou accès refusé.
   const showError = phase === 'error' || !cameraSupported;
   const displayError = !cameraSupported
     ? t('scanner.errors.unsupported')
@@ -167,7 +166,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
       ) : (
         <div className="space-y-3">
           <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
-            {/* Le flux reste monté en continu : le détacher casserait le décodage ZXing. */}
+            {/* La vidéo reste toujours montée, sinon ZXing arrête de décoder. */}
             <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
 
             {/* Cadre de visée */}
@@ -182,7 +181,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
               </div>
             )}
 
-            {/* Aperçu produit AVANT ajout, en overlay (le flux continue dessous). */}
+            {/* Aperçu du produit avant l'ajout, par-dessus la vidéo. */}
             {phase === 'preview' && product && (
               <div className="absolute inset-0 bg-white/97 p-4 flex flex-col gap-3 overflow-y-auto">
                 <div className="flex items-start gap-3">

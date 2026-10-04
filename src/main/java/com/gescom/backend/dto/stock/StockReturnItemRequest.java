@@ -5,8 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 /**
- * Un article rendu au sein d'un retour. Conformément au contrat des DTO de requête, le produit
- * est désigné par son identifiant scalaire, jamais par un objet imbriqué.
+ * Un article rendu dans un retour. Comme pour les autres DTO de requête, le produit est
+ * donné par son id, jamais par un objet imbriqué.
  */
 public record StockReturnItemRequest(
         @NotNull(message = "L'identifiant du produit est obligatoire")
@@ -23,8 +23,8 @@ public record StockReturnItemRequest(
         StockReturnItem.ReturnTreatment treatment,
 
         /**
-         * Article remis en échange, ignoré hors traitement {@code EXCHANGE}.
-         * Absent, l'échange se fait à l'identique (même produit).
+         * Article donné en échange, ignoré si le traitement n'est pas {@code EXCHANGE}.
+         * S'il est absent, l'échange se fait avec le même produit.
          */
         Long replacementProductId
 ) {

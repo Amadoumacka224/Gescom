@@ -9,9 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 /**
- * Service des paramètres globaux de l'application (entreprise, TVA, facturation, thème…).
- * Il n'existe qu'une seule ligne de paramètres en base : getSettings() la retourne, ou la
- * crée avec des valeurs par défaut au tout premier accès (pattern singleton persistant).
+ * Service des paramètres de l'application (entreprise, TVA, facturation, thème…).
+ * Il n'y a qu'une seule ligne de paramètres en base : getSettings() la renvoie, ou la crée
+ * avec les valeurs par défaut au premier accès.
  */
 @Service
 @Transactional
@@ -23,14 +23,14 @@ public class SettingsService {
         this.settingsRepository = settingsRepository;
     }
 
-    /** Retourne l'unique enregistrement de paramètres, en l'initialisant par défaut s'il n'existe pas encore. */
+    /** Renvoie la ligne de paramètres, en la créant avec les valeurs par défaut si elle n'existe pas encore. */
     public Settings getSettings() {
         Optional<Settings> settings = settingsRepository.findFirstByOrderByIdAsc();
 
         if (settings.isPresent()) {
             return settings.get();
         } else {
-            // Premier démarrage : on persiste un jeu de paramètres par défaut.
+            // Premier démarrage : on enregistre les paramètres par défaut.
             Settings defaultSettings = new Settings();
             defaultSettings.setCompanyName("GESCOM");
             defaultSettings.setCompanyCountry("Belgique");

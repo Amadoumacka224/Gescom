@@ -12,42 +12,43 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Limitation des tentatives de connexion.
+ * Limite le nombre de tentatives de connexion.
  *
- * {@code /api/auth/login} etait la seule route ouverte sans jeton et n'opposait aucune limite :
- * ni compteur d'echecs, ni verrouillage, ni ralentissement. Le cout BCrypt (12 tours, quelques
- * centaines de millisecondes) ralentit un attaquant sans jamais l'arreter — sur une nuit, cela
- * laisse largement de quoi essayer les mots de passe courants sur un compte connu.
+ * {@code /api/auth/login} etait la seule route accessible sans token, et il n'y avait aucune
+ * limite : pas de compteur d'echecs, pas de blocage, rien. Le cout de BCrypt (12 tours,
+ * quelques centaines de millisecondes) ralentit un attaquant mais ne l'arrete pas : en une
+ * nuit, il a largement le temps d'essayer les mots de passe courants sur un compte connu.
  *
- * <h2>Ce qui est compte</h2>
+ * <h2>Ce qu'on compte</h2>
  *
- * Le compteur porte sur le couple <b>identifiant + adresse d'origine</b>, et non sur l'un des
- * deux seuls. Ce choix est le coeur du dispositif :
+ * Le compteur porte sur le couple <b>identifiant + adresse IP</b>, et pas sur un seul des
+ * deux. C'est le point important :
  *
  * <ul>
- *   <li><b>Par identifiant seul</b>, n'importe qui pourrait verrouiller le compte {@code admin}
- *       depuis l'exterieur en repetant de faux mots de passe : la protection deviendrait une
- *       arme de deni de service contre l'utilisateur legitime.</li>
- *   <li><b>Par adresse seule</b>, tous les postes derriere une meme sortie internet — le cas
- *       ordinaire d'un commerce — partageraient le meme quota, et l'erreur de frappe d'un
- *       collegue fermerait la caisse du voisin.</li>
- *   <li><b>Par couple</b>, l'attaquant qui martele un compte depuis une machine est bloque
- *       pour ce compte-la, tandis que son titulaire garde l'acces depuis son propre poste.</li>
+ *   <li><b>Avec l'identifiant seul</b>, n'importe qui pourrait bloquer le compte {@code admin}
+ *       de l'exterieur en tapant de faux mots de passe : la protection servirait a empecher
+ *       le vrai utilisateur de se connecter.</li>
+ *   <li><b>Avec l'adresse seule</b>, tous les postes derriere la meme connexion internet (le
+ *       cas normal dans un magasin) partageraient le meme compteur, et les erreurs de frappe
+ *       d'un collegue bloqueraient la caisse d'a cote.</li>
+ *   <li><b>Avec le couple</b>, un attaquant qui insiste sur un compte depuis une machine est
+ *       bloque pour ce compte, mais le vrai utilisateur peut toujours se connecter depuis son
+ *       poste.</li>
  * </ul>
  *
- * <h2>Ce que cela n'arrete pas</h2>
+ * <h2>Ce que ca n'empeche pas</h2>
  *
- * Une attaque repartie sur de nombreuses adresses passe au travers, chaque couple restant sous
- * le seuil. La reponse a ce cas est un pare-feu applicatif ou une limitation en amont, pas un
- * compteur applicatif — c'est une limite assumee, pas un oubli.
+ * Une attaque repartie sur beaucoup d'adresses passe quand meme, chaque couple restant sous
+ * la limite. Pour ca il faudrait un pare-feu applicatif ou une limite en amont, pas un
+ * compteur dans l'appli. C'est une limite connue, pas un oubli.
  *
- * <h2>Etat en memoire</h2>
+ * <h2>En memoire</h2>
  *
- * Le compteur vit dans l'instance : il repart a zero au redemarrage, et deux instances
- * derriere un repartiteur comptent chacune de leur cote. Pour un outil interne c'est
- * suffisant, et cela evite d'ajouter une dependance (Redis) et une table pour une protection
- * dont l'effet recherche est de ralentir, pas de tenir un registre. Le passage a un compteur
- * partage se ferait en remplacant la seule carte ci-dessous.
+ * Le compteur est dans l'instance : il repart a zero au redemarrage, et deux instances
+ * derriere un load balancer comptent chacune de leur cote. Pour un outil interne ca suffit,
+ * et ca evite d'ajouter Redis et une table pour une protection qui sert a ralentir, pas a
+ * garder un historique. Pour passer a un compteur partage, il suffirait de remplacer la map
+ * ci-dessous.
  */
 @Component
 public class LoginAttemptService {
@@ -55,16 +56,16 @@ public class LoginAttemptService {
     private static final Logger log = LoggerFactory.getLogger(LoginAttemptService.class);
 
     /**
-     * Au-dela de cette taille, les entrees perimees sont balayees. Le seuil n'est pas une
-     * limite fonctionnelle mais un garde-fou memoire : sans lui, une attaque changeant
-     * d'identifiant a chaque essai ferait croitre la carte indefiniment.
+     * Au-dela de cette taille, on supprime les entrees expirees. Ce n'est pas une regle
+     * fonctionnelle, juste une protection pour la memoire : sans ca, une attaque qui change
+     * d'identifiant a chaque essai ferait grossir la map sans fin.
      */
     private static final int PURGE_THRESHOLD = 10_000;
 
     private final int maxAttempts;
     private final Duration lockDuration;
 
-    /** Une entree par couple identifiant/adresse. */
+    /** Une entree par couple identifiant / adresse. */
     private final Map<String, Attempt> attempts = new ConcurrentHashMap<>();
 
     public LoginAttemptService(
@@ -75,10 +76,10 @@ public class LoginAttemptService {
     }
 
     /**
-     * Verifie qu'une tentative est permise, et leve {@link TooManyAttemptsException} sinon.
+     * Verifie qu'on a encore le droit d'essayer, sinon lance {@link TooManyAttemptsException}.
      *
-     * A appeler AVANT toute verification du mot de passe : verifier d'abord reviendrait a
-     * offrir a l'attaquant le calcul BCrypt qu'on cherche justement a lui refuser.
+     * A appeler AVANT de verifier le mot de passe : si on verifiait d'abord, l'attaquant
+     * aurait quand meme droit au calcul BCrypt qu'on veut justement lui refuser.
      */
     public void checkAllowed(String username, String clientIp) {
         Attempt attempt = attempts.get(key(username, clientIp));
@@ -92,11 +93,11 @@ public class LoginAttemptService {
     }
 
     /**
-     * Enregistre un echec. Au {@code maxAttempts}-ieme, le couple est verrouille pour
+     * Enregistre un echec. Au {@code maxAttempts}-ieme, le couple est bloque pendant
      * {@code lockDuration}.
      *
-     * Le verrou expire de lui-meme : aucun deverrouillage manuel n'est necessaire, et un
-     * utilisateur qui s'est simplement trompe retrouve l'acces sans appeler personne.
+     * Le blocage s'arrete tout seul : pas besoin de debloquer a la main, et quelqu'un qui
+     * s'est juste trompe peut se reconnecter sans appeler personne.
      */
     public void recordFailure(String username, String clientIp) {
         purgeIfCrowded();
@@ -104,21 +105,21 @@ public class LoginAttemptService {
         Attempt attempt = attempts.computeIfAbsent(key, k -> new Attempt());
         int count = attempt.registerFailure(lockDuration, maxAttempts);
         if (count >= maxAttempts) {
-            // Trace au niveau WARN : c'est le signal qu'un compte est vise. Le journal
-            // d'activite, lui, ne consigne que les connexions REUSSIES.
+            // Log en WARN : ca veut dire qu'un compte est vise. Le journal d'activite, lui,
+            // n'enregistre que les connexions REUSSIES.
             log.warn("Connexion verrouillee pour « {} » depuis {} apres {} echecs",
                     username, clientIp, count);
         }
     }
 
-    /** Efface le compteur apres une connexion reussie : seuls les echecs consecutifs comptent. */
+    /** Remet le compteur a zero apres une connexion reussie : seuls les echecs a la suite comptent. */
     public void recordSuccess(String username, String clientIp) {
         attempts.remove(key(username, clientIp));
     }
 
     /**
-     * Identifiant normalise en minuscules : sans cela, alterner « Admin » et « admin »
-     * ouvrirait autant de compteurs distincts que de variantes de casse.
+     * Identifiant mis en minuscules : sinon, en alternant « Admin » et « admin », on aurait
+     * un compteur different pour chaque variante.
      */
     private String key(String username, String clientIp) {
         return (username == null ? "" : username.toLowerCase()) + '|' + (clientIp == null ? "" : clientIp);
@@ -131,7 +132,7 @@ public class LoginAttemptService {
         attempts.values().removeIf(Attempt::isExpired);
     }
 
-    /** Compteur d'un couple : nombre d'echecs consecutifs et fin de verrou eventuelle. */
+    /** Compteur d'un couple : nombre d'echecs a la suite et fin du blocage s'il y en a un. */
     private static final class Attempt {
         private final AtomicInteger failures = new AtomicInteger();
         private volatile Instant lockedUntil = Instant.EPOCH;
@@ -140,9 +141,9 @@ public class LoginAttemptService {
             int count = failures.incrementAndGet();
             if (count >= maxAttempts) {
                 lockedUntil = Instant.now().plus(lockDuration);
-                // Remise a zero du compteur en meme temps que la pose du verrou : sans cela,
-                // le verrou expire mais le compteur reste au maximum, et le tout premier essai
-                // suivant — meme correct dans l'intention — reverrouillerait aussitot.
+                // On remet le compteur a zero en meme temps qu'on bloque : sinon, a la fin du
+                // blocage le compteur serait toujours au max, et le premier essai suivant
+                // rebloquerait tout de suite.
                 failures.set(0);
             }
             return count;

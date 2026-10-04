@@ -5,11 +5,11 @@ import { Menu } from 'lucide-react';
 import PlatformSidebar from '../components/PlatformSidebar';
 
 /**
- * Coquille du back-office propriétaire.
+ * Layout du back-office plateforme.
  *
- * Elle ne réutilise pas `Header`, qui porte des éléments propres à l'espace métier (recherche
- * catalogue, alertes de stock, sélection d'entreprise). Le propriétaire de la plateforme n'a
- * rien à y faire : son en-tête se limite au titre de l'espace et à l'ouverture du menu mobile.
+ * On n'utilise pas `Header` car il contient des éléments de l'appli métier (recherche
+ * catalogue, alertes de stock, choix de l'entreprise) qui ne servent à rien ici. L'en-tête se
+ * limite au titre et au bouton du menu mobile.
  */
 const PlatformLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);

@@ -49,11 +49,11 @@ const HourlyTooltip = ({ active, payload, t }) => {
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow px-3 py-2 text-sm">
       <p className="font-semibold text-gray-800 dark:text-gray-100">{d.label}</p>
-      {/* Même teinte que la barre qu'il décrit (`primary`) : le vert du jeton `success` porte
-          un ÉTAT, or une vente horaire n'en porte aucun. */}
+      {/* Même couleur que la barre (`primary`) : le vert `success` sert pour un statut, et des
+          ventes par heure n'en ont pas. */}
       <p className="text-primary-700 dark:text-primary-300 font-medium">{formatCurrency(d.sales)}</p>
-      {/* `ordersHint` compte des ARTICLES (« N article(s) vendu(s) ») : l'appliquer au nombre
-          de commandes de la tranche horaire annonçait un volume d'articles qui n'en était pas un. */}
+      {/* `ordersHint` compte des articles (« N article(s) vendu(s) »). Il ne faut pas
+          l'utiliser pour le nombre de commandes de la tranche horaire. */}
       <p className="text-gray-500 dark:text-gray-400 text-xs">{t('caisse.ordersCountHint', { count: d.orders })}</p>
     </div>
   );
@@ -147,8 +147,8 @@ const Caisse = () => {
           <button
             type="button"
             onClick={() => navigate('/orders')}
-            /* `py-2` : `btn-primary` monte à `py-2.5`, ce qui décalerait ce bouton
-               de 4 px par rapport aux deux autres actions de l'en-tête. */
+            /* `py-2` car `btn-primary` met `py-2.5`, ce qui décalerait ce bouton
+               de 4 px par rapport aux deux autres. */
             className="btn-primary py-2"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
@@ -165,7 +165,7 @@ const Caisse = () => {
         >
           {t('caisse.myDay')}
         </h2>
-        {/* Quatre colonnes seulement à partir de `xl` : la barre latérale prend 288 px dès `lg`. */}
+        {/* Quatre colonnes seulement à partir de `xl`, car le menu prend 288 px dès `lg`. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <StatCard
             title={t('caisse.collected')}
@@ -206,7 +206,7 @@ const Caisse = () => {
         </div>
       </section>
 
-      {/* Ventes par heure — pics d'affluence de la journée */}
+      {/* Ventes par heure (heures de pointe de la journée) */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -221,8 +221,8 @@ const Caisse = () => {
           <span className="text-xs text-gray-400 dark:text-gray-500">{t('caisse.hourlySalesHint')}</span>
         </div>
 
-        {/* On distingue « en cours de chargement » de « aucune vente » : afficher l'état vide
-            pendant la requête annonçait à tort une journée sans activité. */}
+        {/* On sépare « chargement » et « aucune vente » : sinon pendant la requête on
+            affichait une journée sans ventes. */}
         {loading ? (
           <div className="h-60 rounded-lg bg-gray-100 dark:bg-gray-700/40 animate-pulse" />
         ) : data.hourlySales.length === 0 ? (
@@ -243,9 +243,9 @@ const Caisse = () => {
                 tickFormatter={formatCompactCurrency}
               />
               <Tooltip content={<HourlyTooltip t={t} />} cursor={{ fill: 'rgba(33,150,243,0.08)' }} />
-              {/* Bleu de marque (#2196F3, `primary-500`), comme la courbe d'évolution des
-                * Rapports : une série de ventes horaires ne porte pas d'état, elle n'a donc pas
-                * à emprunter le vert du jeton `success`. */}
+              {/* Bleu de la charte (#2196F3, `primary-500`), comme la courbe des Rapports :
+                * des ventes par heure ne sont pas un statut, donc pas besoin du vert
+                * `success`. */}
               <Bar dataKey="sales" fill="#2196f3" radius={[4, 4, 0, 0]} maxBarSize={48} />
             </BarChart>
           </ResponsiveContainer>
@@ -318,12 +318,12 @@ const Caisse = () => {
                   return (
                     <tr
                       key={order.id}
-                      /* La ligne reste cliquable à la souris, mais ce n'est plus elle qui porte
-                         le focus. Une `<tr tabindex=0>` s'annonce « ligne » — jamais ce qu'elle
-                         ouvre — et oblige à recâbler Entrée/Espace à la main. Le numéro de
-                         commande ci-dessous est un vrai bouton, nommé : il est atteignable au
-                         clavier, annoncé correctement, et hérite de l'anneau de focus commun
-                         (`:focus-visible` dans index.css) sans gestion de touches. */
+                      /* On peut toujours cliquer sur la ligne à la souris, mais ce n'est plus
+                         elle qui prend le focus. Un `<tr tabindex=0>` est lu comme « ligne »
+                         par les lecteurs d'écran et il faut gérer Entrée/Espace à la main.
+                         À la place, le numéro de commande ci-dessous est un vrai bouton :
+                         accessible au clavier, bien lu, et il a le style de focus commun
+                         (`:focus-visible` dans index.css). */
                       onClick={() => openOrder(order.id)}
                       className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer transition-colors ${
                         isCanceled ? 'opacity-60' : ''
@@ -336,8 +336,8 @@ const Caisse = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {/* Porteur de l'action de la ligne : c'est lui qui reçoit le focus et
-                            qui annonce au lecteur d'écran ce que l'activation va faire. */}
+                        {/* C'est ce bouton qui prend le focus et qui dit au lecteur d'écran
+                            ce que fait le clic. */}
                         <button
                           type="button"
                           onClick={() => openOrder(order.id)}

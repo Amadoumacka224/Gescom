@@ -7,13 +7,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * Ouverture d'un compte client : l'entreprise, son premier administrateur et son abonnement
- * en une seule operation.
+ * Creation d'un compte client : l'entreprise, son premier admin et son abonnement en une
+ * seule fois.
  *
- * Les trois sont indissociables et c'est pourquoi ils voyagent ensemble. Une entreprise sans
- * administrateur serait inaccessible a son proprietaire, et il faudrait alors une seconde
- * requete pour la rendre utilisable — avec le risque qu'elle echoue et laisse un compte
- * orphelin en base. La creation est traitee en une transaction unique cote service.
+ * Les trois vont ensemble, c'est pour ca qu'ils sont dans la meme requete. Une entreprise
+ * sans admin serait inaccessible, et il faudrait une deuxieme requete pour la rendre
+ * utilisable, qui pourrait echouer et laisser un compte a moitie cree en base. Le service
+ * fait tout dans une seule transaction.
  */
 public record CompanyProvisionRequest(
         @NotNull(message = "Les informations de l'entreprise sont obligatoires")
@@ -24,24 +24,24 @@ public record CompanyProvisionRequest(
         @Valid
         InitialAdmin admin,
 
-        /** Formule souscrite ; laissee vide, l'entreprise demarre en essai sans abonnement. */
+        /** Formule choisie ; si vide, l'entreprise demarre en essai sans abonnement. */
         Long planId,
 
         /** MONTHLY ou YEARLY ; ignore si aucune formule n'est choisie. */
         String billingPeriod,
 
         /**
-         * Vrai pour ouvrir le compte en periode d'essai : l'abonnement demarre en TRIALING et
-         * l'echeance est calculee a partir du nombre de jours d'essai de la formule.
+         * Vrai pour demarrer en periode d'essai : l'abonnement est en TRIALING et la date de
+         * fin est calculee avec le nombre de jours d'essai de la formule.
          */
         Boolean startTrial
 ) {
 
     /**
-     * Administrateur initial de l'entreprise.
+     * Premier admin de l'entreprise.
      *
-     * Le mot de passe est transmis en clair sur le canal HTTPS puis encode au BCrypt du
-     * projet des la reception ; il n'est ni journalise ni renvoye.
+     * Le mot de passe arrive en clair (en HTTPS) puis est encode en BCrypt des la reception ;
+     * il n'est jamais logge ni renvoye.
      */
     public record InitialAdmin(
             @NotBlank(message = "Le nom d'utilisateur est obligatoire")

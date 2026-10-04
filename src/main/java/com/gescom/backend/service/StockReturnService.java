@@ -47,21 +47,21 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Gestion des retours clients, adossée à la vente d'origine.
+ * Gestion des retours clients, à partir de la vente d'origine.
  *
- * Le module part toujours d'une vente identifiée : {@link #lookup(String)} retrouve la commande
- * depuis un numéro de commande OU de facture et renvoie ses lignes avec la quantité encore
- * retournable. {@link #createReturn(StockReturnRequest)} rejoue ensuite ce contrôle côté serveur —
- * l'écran borne la saisie, le service la garantit — puis applique les mouvements de stock et
- * enregistre le document de retour.
+ * On part toujours d'une vente : {@link #lookup(String)} retrouve la commande à partir d'un
+ * numéro de commande OU de facture, et renvoie ses lignes avec la quantité qu'on peut encore
+ * retourner. {@link #createReturn(StockReturnRequest)} refait ensuite ce contrôle côté
+ * serveur (l'écran limite la saisie, le service s'assure que c'est respecté), puis applique
+ * les mouvements de stock et enregistre le retour.
  *
- * Les quantités sont modifiées sous verrou pessimiste ({@code findByIdForUpdate}), comme dans
- * {@link OrderService} : un retour et une confirmation de commande peuvent viser le même produit
- * au même instant. Pour la même raison, l'écriture du mouvement passe par un helper local plutôt
- * que par {@link StockService}, dont les méthodes rechargeraient le produit sans le verrou.
+ * Les quantités sont modifiées avec un verrou pessimiste ({@code findByIdForUpdate}), comme
+ * dans {@link OrderService} : un retour et une confirmation de commande peuvent toucher le
+ * même produit au même moment. Pour la même raison, le mouvement est écrit par une méthode
+ * locale et pas par {@link StockService}, qui rechargerait le produit sans verrou.
  *
- * L'enregistrement verrouille en plus la commande elle-même : le retournable se calcule sur le
- * cumul des retours de la vente, un contrôle que le verrou des produits ne couvre pas.
+ * On verrouille aussi la commande : ce qu'on peut retourner dépend du total des retours déjà
+ * faits sur la vente, et le verrou sur les produits ne protège pas ça.
  */
 @Service
 @Transactional
@@ -70,9 +70,9 @@ public class StockReturnService {
     private static final Logger log = LoggerFactory.getLogger(StockReturnService.class);
 
     /**
-     * Statuts de commande dont la marchandise est sortie du stock (le décrément a lieu à la
-     * confirmation) : ce sont les seuls qui puissent donner lieu à un retour. Une commande en
-     * attente n'a rien sorti, une commande annulée a déjà tout restitué.
+     * Statuts où la marchandise est sortie du stock (ça se fait à la confirmation) : ce sont
+     * les seuls où on peut faire un retour. Une commande en attente n'a rien sorti, une
+     * commande annulée a déjà tout remis.
      */
     private static final Set<Order.OrderStatus> RETURNABLE_STATUSES = EnumSet.of(
             Order.OrderStatus.CONFIRMED, Order.OrderStatus.INVOICED, Order.OrderStatus.DELIVERED);
@@ -85,7 +85,7 @@ public class StockReturnService {
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
 
-    /** Attribution des numeros de documents : suite par entreprise et par annee. */
+    /** Generation des numeros de documents : une suite par entreprise et par annee. */
     private final DocumentNumberService documentNumberService;
 
     public StockReturnService(StockReturnRepository stockReturnRepository,
@@ -109,9 +109,9 @@ public class StockReturnService {
     /* ---------- Recherche de la vente ---------- */
 
     /**
-     * Retrouve la vente désignée par un numéro de commande ou de facture et prépare ses lignes
-     * retournables. La recherche est insensible à la casse et tente les deux registres : côté
-     * comptoir, le client tend indifféremment son bon de commande ou sa facture.
+     * Retrouve la vente à partir d'un numéro de commande ou de facture et prépare les lignes
+     * qu'on peut retourner. On ignore la casse et on cherche dans les deux : au comptoir, le
+     * client peut donner son bon de commande ou sa facture.
      */
     @Transactional(readOnly = true)
     public ReturnLookupResponse lookup(String reference) {
@@ -127,8 +127,8 @@ public class StockReturnService {
 
         requireReturnable(order);
 
-        // La facture est toujours relue depuis la commande : qu'on soit entré par l'un ou l'autre
-        // numéro, la réponse décrit la même vente de la même façon.
+        // On relit toujours la facture depuis la commande : peu importe le numéro utilisé, la
+        // réponse décrit la même vente de la même façon.
         Invoice invoice = invoiceRepository.findByOrderId(order.getId()).orElse(null);
 
         return new ReturnLookupResponse(
@@ -148,7 +148,7 @@ public class StockReturnService {
                 returnableItems(order, paidRatio(order, invoice)));
     }
 
-    /** Refuse d'emblée une vente dont la marchandise n'est pas (ou n'est plus) chez le client. */
+    /** Refuse tout de suite une vente dont la marchandise n'est pas (ou plus) chez le client. */
     private void requireReturnable(Order order) {
         if (order.getStatus() == Order.OrderStatus.CANCELED) {
             throw BusinessException.of("return.order.canceled",
@@ -165,9 +165,9 @@ public class StockReturnService {
     }
 
     /**
-     * Lignes de la vente avec, pour chacune, ce qui reste retournable.
-     * Les quantités sont agrégées par produit : une commande peut porter deux fois le même
-     * article, or c'est bien un seul solde retournable qui doit être présenté.
+     * Lignes de la vente, avec pour chacune ce qu'on peut encore retourner.
+     * Les quantités sont regroupées par produit : une commande peut avoir deux fois le même
+     * article, mais on doit afficher un seul total retournable.
      */
     private List<ReturnableItemResponse> returnableItems(Order order, BigDecimal paidRatio) {
         Map<Long, Integer> alreadyReturned = returnedQuantitiesByProduct(order.getId());
@@ -206,17 +206,18 @@ public class StockReturnService {
     }
 
     /**
-     * Part du montant de ligne que le client a réellement payée, une fois la remise globale
-     * de la vente appliquée.
+     * Part du montant de la ligne que le client a vraiment payée, après la remise globale de
+     * la vente.
      *
-     * Les remises se posent à deux endroits : celle de la ligne est déjà déduite de
-     * {@code OrderItem.totalPrice}, mais celle de la vente entière est un montant global, porté
-     * par la commande puis repris — cumulé à l'éventuelle remise de facturation — par la
-     * facture. Rembourser le total de ligne brut rendrait donc plus que ce qui a été encaissé.
-     * On répartit la remise au prorata des lignes, l'assiette étant leur somme, c'est-à-dire
-     * exactement ce sur quoi elle a été calculée.
+     * Il y a deux remises : celle de la ligne est déjà enlevée de {@code OrderItem.totalPrice},
+     * mais celle de toute la vente est un montant global, sur la commande, puis reprise par la
+     * facture (en plus de l'éventuelle remise faite à la facturation). Si on remboursait le
+     * total brut de la ligne, on rendrait plus que ce qui a été payé. On répartit donc la
+     * remise entre les lignes au prorata, sur leur somme, c'est-à-dire sur le même montant que
+     * celui qui a servi à la calculer.
      *
-     * La facture prime quand elle existe : sa remise contient déjà celle de la commande.
+     * Si une facture existe, on l'utilise en priorité : sa remise contient déjà celle de la
+     * commande.
      */
     private BigDecimal paidRatio(Order order, Invoice invoice) {
         BigDecimal gross = order.getTotalAmount();
@@ -230,24 +231,24 @@ public class StockReturnService {
         BigDecimal net = gross.subtract(discount);
         if (net.signum() <= 0) return BigDecimal.ZERO;
 
-        // Ratio à 6 décimales : c'est un facteur intermédiaire, les montants qui en découlent
-        // sont arrondis au centime une seule fois, au moment de les exposer.
+        // Ratio à 6 décimales : c'est une valeur intermédiaire, les montants calculés avec sont
+        // arrondis au centime une seule fois, à la fin.
         return net.divide(gross, 6, RoundingMode.HALF_UP);
     }
 
-    /** Total de ligne réellement payé : le total net de remise de ligne, au prorata du global. */
+    /** Total de la ligne vraiment payé : total après remise de ligne, au prorata de la remise globale. */
     private BigDecimal paidLineTotal(BigDecimal lineTotal, BigDecimal paidRatio) {
         if (lineTotal == null) return BigDecimal.ZERO;
         return lineTotal.multiply(paidRatio).setScale(2, RoundingMode.HALF_UP);
     }
 
     /**
-     * Prix unitaire réellement payé : le total payé de la ligne (toutes remises déduites)
-     * rapporté à la quantité. C'est ce montant, et non le tarif courant du produit, qui sert
-     * de base à un remboursement.
+     * Prix unitaire vraiment payé : le total payé de la ligne (toutes remises enlevées) divisé
+     * par la quantité. C'est sur ce montant, et pas sur le prix actuel du produit, qu'on
+     * rembourse.
      *
-     * Valeur d'affichage : elle est arrondie au centime, donc indicative dès que le total ne
-     * se divise pas en parts entières. Le montant remboursé, lui, vient de
+     * Juste pour l'affichage : il est arrondi au centime, donc approximatif quand le total ne
+     * se divise pas exactement. Le montant remboursé, lui, vient de
      * {@link #refundShare(BigDecimal, int, int)}.
      */
     private BigDecimal netUnitPrice(BigDecimal lineTotal, int quantity) {
@@ -256,14 +257,14 @@ public class StockReturnService {
     }
 
     /**
-     * Part du total payé qui revient aux unités rendues : {@code total × rendues / vendues},
-     * arrondie une seule fois, à la fin.
+     * Part du total payé pour les unités rendues : {@code total × rendues / vendues}, arrondi
+     * une seule fois à la fin.
      *
-     * Multiplier le prix unitaire déjà arrondi par la quantité perdrait un centime dès que le
-     * total ne se divise pas en parts entières : une ligne de 10,00 € pour 3 unités donne
-     * 3,33 € l'unité, et son retour intégral rembourserait 9,99 € — le client ne récupérerait
-     * pas ce qu'il a versé. En partant du total, un retour intégral rend exactement le total,
-     * et deux retours partiels qui épuisent la ligne se recomposent (6,67 + 3,33).
+     * Si on multipliait le prix unitaire déjà arrondi par la quantité, on perdrait un centime
+     * quand le total ne se divise pas exactement : une ligne de 10,00 € pour 3 unités donne
+     * 3,33 € l'unité, et rendre les trois rembourserait 9,99 €, le client ne récupérerait pas
+     * tout ce qu'il a payé. En partant du total, un retour complet rend exactement le total, et
+     * deux retours partiels qui vident la ligne retombent juste (6,67 + 3,33).
      */
     private BigDecimal refundShare(BigDecimal paidLineTotal, int soldQuantity, int returnedQuantity) {
         if (paidLineTotal == null || soldQuantity <= 0) return BigDecimal.ZERO;
@@ -282,15 +283,15 @@ public class StockReturnService {
     /* ---------- Enregistrement d'un retour ---------- */
 
     /**
-     * Enregistre un retour : contrôle les quantités, applique les mouvements de stock propres à
-     * chaque traitement, puis persiste le document. Tout se joue dans une seule transaction —
-     * un retour partiellement appliqué laisserait un stock faux.
+     * Enregistre un retour : vérifie les quantités, fait les mouvements de stock selon chaque
+     * traitement, puis enregistre le document. Tout est dans une seule transaction : un retour
+     * appliqué à moitié laisserait un stock faux.
      */
     public StockReturn createReturn(StockReturnRequest request) {
-        // La commande est verrouillée dès l'entrée : le contrôle des quantités porte sur le
-        // cumul des retours déjà enregistrés sur cette vente, que le verrou des produits ne
-        // protège pas. Sans lui, deux retours simultanés liraient tous deux « rien de rendu »
-        // avant de verrouiller les produits, et dépasseraient ensemble le retournable.
+        // On verrouille la commande dès le début : le contrôle des quantités dépend du total
+        // des retours déjà faits sur cette vente, que le verrou sur les produits ne protège
+        // pas. Sans ça, deux retours en même temps liraient tous les deux « rien de rendu »
+        // avant de verrouiller les produits, et dépasseraient ensemble ce qui est retournable.
         Order order = orderRepository.findByIdForUpdate(request.orderId())
                 .orElseThrow(() -> new ResourceNotFoundException("order", request.orderId()));
         requireReturnable(order);
@@ -305,9 +306,9 @@ public class StockReturnService {
         }
         Map<Long, Integer> alreadyReturned = returnedQuantitiesByProduct(order.getId());
 
-        // Contrôle d'ensemble avant toute écriture : les quantités sont cumulées par produit,
-        // sans quoi deux lignes portant le même article pourraient, chacune valide, dépasser
-        // ensemble le solde retournable.
+        // Vérification de l'ensemble avant d'écrire quoi que ce soit : on additionne les
+        // quantités par produit, sinon deux lignes avec le même article pourraient chacune être
+        // valides mais dépasser ensemble ce qui reste retournable.
         Map<Long, Integer> requested = new LinkedHashMap<>();
         for (StockReturnItemRequest line : request.items()) {
             requested.merge(line.productId(), line.quantity(), Integer::sum);
@@ -338,14 +339,14 @@ public class StockReturnService {
         stockReturn.setNotes(request.notes());
         currentUser().ifPresent(stockReturn::setCreatedBy);
 
-        // Le numéro est généré à la persistance, or les mouvements de stock doivent le porter en
-        // référence : on enregistre donc l'entête d'abord, les lignes ensuite.
+        // Le numéro est généré à l'enregistrement, et les mouvements de stock doivent l'avoir
+        // comme référence : on enregistre donc d'abord l'en-tête, puis les lignes.
         stockReturn.setReturnNumber(documentNumberService.next(DocumentNumberService.DocumentType.RETURN));
 
         StockReturn saved = stockReturnRepository.save(stockReturn);
 
-        // Même base de prix que l'écran de saisie : ce que le client a payé, remise globale de
-        // la vente comprise. Le montant remboursé ne doit jamais dépasser l'encaissé.
+        // Même prix de base que dans l'écran de saisie : ce que le client a payé, remise globale
+        // comprise. On ne doit jamais rembourser plus que ce qui a été payé.
         BigDecimal paidRatio = paidRatio(order, invoice);
 
         int totalQuantity = 0;
@@ -370,8 +371,8 @@ public class StockReturnService {
     }
 
     /**
-     * Applique une ligne de retour : réintégration au stock de l'article rendu, puis effet propre
-     * au traitement retenu. Voir {@link StockReturnItem.ReturnTreatment} pour la sémantique de
+     * Applique une ligne de retour : l'article rendu revient en stock, puis on applique l'effet
+     * du traitement choisi. Voir {@link StockReturnItem.ReturnTreatment} pour le détail de
      * chaque valeur.
      */
     private StockReturnItem applyLine(StockReturn stockReturn, Order order,
@@ -398,9 +399,9 @@ public class StockReturnService {
         }
 
         if (line.treatment() == StockReturnItem.ReturnTreatment.EXCHANGE) {
-            // Échange à l'identique par défaut : c'est le cas courant (unité défectueuse
-            // remplacée par la même référence). Le produit rendu vient d'être réintégré, la
-            // sortie du remplaçant se fait donc sur un stock déjà à jour.
+            // Par défaut, échange avec le même article : c'est le cas le plus courant (un
+            // article défectueux remplacé par le même). Le produit rendu vient d'être remis en
+            // stock, donc la sortie du remplaçant se fait sur un stock déjà à jour.
             Long replacementId = line.replacementProductId() != null
                     ? line.replacementProductId()
                     : line.productId();
@@ -423,7 +424,7 @@ public class StockReturnService {
         return item;
     }
 
-    /* ---------- Consultation du registre ---------- */
+    /* ---------- Consultation des retours ---------- */
 
     @Transactional(readOnly = true)
     public Page<StockReturn> searchReturns(Long orderId, LocalDateTime start, LocalDateTime end,
@@ -463,14 +464,14 @@ public class StockReturnService {
         return stockReturnRepository.findDetailedById(id);
     }
 
-    /* ---------- Utilitaires ---------- */
+    /* ---------- Outils ---------- */
 
     /**
-     * Enregistre un mouvement de stock sur un produit DÉJÀ verrouillé et applique la nouvelle
-     * quantité. Même contrat que {@code OrderService.recordMovement} : le verrou pessimiste reste
-     * détenu par l'appelant, et le mouvement fige le stock avant/après pour rester auditable.
+     * Enregistre un mouvement de stock sur un produit DÉJÀ verrouillé et met à jour sa
+     * quantité. Même principe que {@code OrderService.recordMovement} : le verrou reste à
+     * l'appelant, et le mouvement garde le stock avant/après pour pouvoir vérifier.
      *
-     * @param delta variation appliquée au stock (positif = entrée, négatif = sortie)
+     * @param delta variation du stock (positif = entrée, négatif = sortie)
      */
     private void recordMovement(Product lockedProduct, StockMovement.MovementType type,
                                 int delta, String reason, String reference) {
@@ -501,7 +502,7 @@ public class StockReturnService {
         return Optional.empty();
     }
 
-    // L'échec du journal d'audit ne doit jamais faire échouer le retour lui-même.
+    // Si le journal d'activité échoue, le retour ne doit pas échouer pour autant.
     private void logActivity(StockReturn stockReturn, Order order) {
         try {
             currentUser().ifPresent(user -> activityLogService.logActivity(

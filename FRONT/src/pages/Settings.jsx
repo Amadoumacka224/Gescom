@@ -38,21 +38,19 @@ import Button from '../components/Button';
 import { extractErrorMessage } from '../utils/apiError';
 
 /**
- * Réglages de l'application. Les réglages sont un singleton côté serveur (une seule ligne,
- * cf. `SettingsService`) : un unique `PUT /settings` enregistre l'ensemble des rubriques.
+ * Paramètres de l'application. Côté serveur il n'y a qu'une ligne de paramètres (voir
+ * `SettingsService`), et un seul `PUT /settings` enregistre toutes les rubriques.
  *
- * D'où la disposition retenue, celle des écrans de configuration des applications de gestion :
- * une navigation verticale à gauche, groupée par domaine, et une seule barre d'enregistrement
- * qui n'apparaît qu'en cas de modification. L'ancien bouton « Enregistrer » de l'en-tête
- * disparaissait dès qu'on descendait dans la rubrique Entreprise, longue de dix champs, et
- * rien n'indiquait qu'une modification faite dans un onglet restait à enregistrer en passant
- * dans un autre.
+ * D'où cette disposition : un menu vertical à gauche, groupé par thème, et une seule barre
+ * d'enregistrement qui apparaît quand quelque chose a changé. Avant, le bouton « Enregistrer »
+ * de l'en-tête disparaissait dès qu'on descendait dans la rubrique Entreprise (dix champs), et
+ * rien n'indiquait qu'une modif faite dans un onglet n'était pas encore enregistrée quand on
+ * passait à un autre.
  */
 
 /**
- * Rubriques, groupées par domaine. « Apparence » a rejoint « Général » : elle ne contenait
- * qu'un choix de thème, et une entrée de navigation pour un seul champ coûte plus qu'elle
- * ne rapporte.
+ * Rubriques, groupées par thème. « Apparence » a été mise dans « Général » : elle ne
+ * contenait qu'un choix de thème, pas la peine d'avoir une entrée de menu pour un seul champ.
  */
 const SECTIONS = [
   { id: 'company', icon: Building2, group: 'organisation' },
@@ -66,9 +64,9 @@ const SECTIONS = [
 const GROUPS = ['organisation', 'application', 'administration'];
 
 /**
- * Champs réellement enregistrés, dans l'ordre de `SettingsRequest`. Sert à composer le corps
- * du PUT et à détecter les modifications : l'écran envoyait jusqu'ici l'objet complet reçu du
- * serveur, `id` et horodatages compris, que le DTO ignore.
+ * Champs vraiment enregistrés, dans l'ordre de `SettingsRequest`. Sert à construire le body
+ * du PUT et à détecter les modifs. Avant, l'écran envoyait tout l'objet reçu du serveur, avec
+ * `id` et les dates, que le DTO ignore.
  */
 const EDITABLE_KEYS = [
   'language', 'currency', 'timezone', 'dateFormat',
@@ -79,14 +77,14 @@ const EDITABLE_KEYS = [
   'theme',
 ];
 
-/** Champs numériques : contrainte `@PositiveOrZero` côté backend. */
+/** Champs numériques : `@PositiveOrZero` côté backend. */
 const NUMERIC_KEYS = ['taxRate', 'invoiceNumberStart', 'paymentTerms', 'lowStockThreshold'];
 
 /**
- * État initial neutre. L'écran partait auparavant d'un jeu de valeurs de démonstration
- * (« GESCOM », « contact@gescom.be », un IBAN fictif) : quand le chargement échouait, ces
- * valeurs s'affichaient comme si elles étaient enregistrées, et un simple « Enregistrer »
- * les écrivait en base par-dessus les vraies.
+ * État initial vide. Avant, l'écran démarrait avec des valeurs de démo (« GESCOM »,
+ * « contact@gescom.be », un faux IBAN) : si le chargement échouait, elles s'affichaient comme
+ * si elles étaient enregistrées, et un clic sur « Enregistrer » les écrivait en base à la
+ * place des vraies.
  */
 const EMPTY_SETTINGS = {
   language: 'fr',
@@ -129,7 +127,7 @@ const CURRENCIES = [
 ];
 
 /** Europe/Brussels est la valeur par défaut du backend : sans elle dans la liste, le champ
- *  s'affichait vide sur une base fraîche et réécrivait Europe/Paris au premier enregistrement. */
+ *  était vide sur une base neuve et enregistrait Europe/Paris à la première sauvegarde. */
 const TIMEZONES = [
   { value: 'Europe/Brussels', labelKey: 'settings.timezones.brussels' },
   { value: 'Europe/Paris', labelKey: 'settings.timezones.paris' },
@@ -144,9 +142,9 @@ const DATE_FORMATS = [
 ];
 
 /**
- * Jeux de données exportables. `importable` reflète l'API : seul `POST /products/import`
- * existe. Les quatre autres boutons « Importer » appelaient une route inexistante et
- * échouaient en 404 après que l'utilisateur ait choisi son fichier.
+ * Données qu'on peut exporter. `importable` suit l'API : seul `POST /products/import` existe.
+ * Les quatre autres boutons « Importer » appelaient une route qui n'existe pas et finissaient
+ * en 404 après que l'utilisateur avait choisi son fichier.
  */
 const DATASETS = [
   { type: 'clients', icon: Users, importable: false },
@@ -157,11 +155,11 @@ const DATASETS = [
 ];
 
 /* ------------------------------------------------------------------------------------------
- * Champs de formulaire.
+ * Champs du formulaire.
  *
- * Définis au niveau du module et non dans le corps de `Settings` : une fonction déclarée dans
- * le rendu change d'identité à chaque frappe, React démontait donc l'`<input>` et le
- * remontait à chaque caractère — le champ perdait le focus à chaque lettre saisie.
+ * Définis en dehors de `Settings` : une fonction déclarée dans le rendu change à chaque
+ * frappe, donc React supprimait et recréait l'`<input>` à chaque caractère, et le champ
+ * perdait le focus à chaque lettre.
  * ---------------------------------------------------------------------------------------- */
 
 const Field = ({ label, htmlFor, hint, required = false, children }) => (
@@ -207,9 +205,9 @@ const SelectField = ({ id, label, value, onChange, options, required, hint }) =>
 );
 
 /**
- * Interrupteur d'un réglage booléen. `role="switch"` + `aria-checked` sur un vrai `<button>` :
- * l'ancienne version reposait sur une case à cocher masquée dont l'état n'était porté que par
- * la couleur du curseur.
+ * Switch pour un paramètre oui/non. `role="switch"` + `aria-checked` sur un vrai `<button>` :
+ * l'ancienne version utilisait une checkbox cachée dont l'état n'était visible que par la
+ * couleur.
  */
 const ToggleField = ({ id, label, description, checked, onChange, disabled = false }) => (
   <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
@@ -240,7 +238,7 @@ const ToggleField = ({ id, label, description, checked, onChange, disabled = fal
   </div>
 );
 
-/** Bandeau d'information ou d'avertissement, aux teintes sémantiques de la charte. */
+/** Bandeau d'info ou d'avertissement, avec les couleurs de la charte. */
 const Callout = ({ tone = 'info', icon: Icon = Info, title, children }) => {
   const tones = {
     info: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-500/10 dark:border-blue-500/20 dark:text-blue-200',
@@ -257,7 +255,7 @@ const Callout = ({ tone = 'info', icon: Icon = Info, title, children }) => {
   );
 };
 
-/** En-tête d'une rubrique : un seul niveau de titre pour les six panneaux. */
+/** Titre d'une rubrique : le même niveau de titre pour les six panneaux. */
 const SectionHeader = ({ title, description }) => (
   <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
     <h2 className="section-title">{title}</h2>
@@ -273,7 +271,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
-  // Dernier état enregistré, référence du bandeau « modifications non enregistrées ».
+  // Dernier état enregistré, pour savoir s'il faut afficher « modifications non enregistrées ».
   const [savedSettings, setSavedSettings] = useState(EMPTY_SETTINGS);
 
   const [pendingImport, setPendingImport] = useState(null);
@@ -295,7 +293,7 @@ const Settings = () => {
       localStorage.setItem('language', loaded.language);
     } catch (error) {
       console.error('Error fetching settings:', error);
-      // Un 401 est déjà traité par l'intercepteur axios.
+      // Un 401 est déjà géré par l'intercepteur axios.
       if (error.response?.status !== 401) {
         toast.error(extractErrorMessage(error));
       }
@@ -314,9 +312,9 @@ const Settings = () => {
   );
 
   /**
-   * Contrôles repris des contraintes de `SettingsRequest`. Le premier défaut rencontré ouvre
-   * sa rubrique : sans cela, un 400 renvoyé par le serveur désignait un champ situé dans un
-   * panneau fermé, que l'utilisateur devait retrouver lui-même.
+   * Mêmes contrôles que `SettingsRequest`. On ouvre la rubrique de la première erreur trouvée :
+   * sinon, une 400 du serveur pouvait concerner un champ dans un panneau fermé, et
+   * l'utilisateur devait le chercher lui-même.
    */
   const validate = () => {
     const required = [
@@ -369,13 +367,13 @@ const Settings = () => {
       setSettings(saved);
       setSavedSettings(saved);
 
-      // react-i18next rerend les composants abonnés : la langue change sans recharger la
-      // fenêtre, ce que faisait l'écran après une temporisation d'une seconde.
+      // react-i18next met à jour les composants tout seul : la langue change sans recharger
+      // la page (avant, l'écran rechargeait après une seconde).
       i18n.changeLanguage(saved.language);
       localStorage.setItem('language', saved.language);
 
-      // Les écrans de facturation lisent les réglages via un cache de session : sans cette
-      // invalidation, ils continueraient de proposer l'ancien taux de TVA jusqu'au rechargement.
+      // Les écrans de facturation gardent les paramètres en cache pendant la session : sans
+      // ça, ils proposeraient l'ancien taux de TVA jusqu'au rechargement.
       invalidateSettingsCache();
 
       toast.success(t('settings.saved'), { id: toastId });
@@ -432,7 +430,7 @@ const Settings = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // L'intercepteur axios ajoute l'en-tête d'autorisation.
+      // L'en-tête Authorization est ajouté par l'intercepteur axios.
       const { data } = await api.post(`/${type}/import`, formData);
       toast.success(data?.message || t('settings.imported', { dataset: label }), { id: toastId });
       closeImportModal();
@@ -703,9 +701,9 @@ const Settings = () => {
             )}
           </button>
 
-          {/* Le réglage est bien persisté côté serveur, mais aucun composant ne l'applique
-              encore (le hook `useTheme` n'est branché nulle part) : le proposer comme un choix
-              actif afficherait « sombre » sans que rien ne change à l'écran. */}
+          {/* Le paramètre est bien enregistré côté serveur, mais rien ne l'applique encore
+              (le hook `useTheme` n'est utilisé nulle part) : si on le proposait, on pourrait
+              choisir « sombre » sans que rien ne change. */}
           <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 opacity-70">
             <Moon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
             <div className="min-w-0">
@@ -816,7 +814,7 @@ const Settings = () => {
                   <Button variant="secondary" size="sm" icon={Download} onClick={() => handleExport(dataset)}>
                     {t('common.export')}
                   </Button>
-                  {/* Seuls les produits disposent d'une route d'import côté API. */}
+                  {/* Seuls les produits ont une route d'import dans l'API. */}
                   {dataset.importable && (
                     <Button
                       variant="primary"
@@ -868,15 +866,15 @@ const Settings = () => {
               </p>
             </div>
           </div>
-          {/* Le bouton n'avait aucune action associée : il mène désormais à l'écran qui
-              effectue réellement le changement. */}
+          {/* Avant ce bouton ne faisait rien : maintenant il mène à l'écran où on change
+              vraiment le mot de passe. */}
           <Button variant="secondary" onClick={() => navigate('/profile')}>
             {t('settings.openProfile')}
           </Button>
         </div>
 
-        {/* Règles reprises de `UserService.validatePassword` : ce sont celles que le serveur
-            applique réellement à l'enregistrement. */}
+        {/* Mêmes règles que `UserService.validatePassword` : ce sont celles que le serveur
+            vérifie vraiment. */}
         <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700">
           <h3 className="subsection-title">{t('settings.passwordRulesTitle')}</h3>
           <ul className="mt-3 space-y-2">
@@ -930,10 +928,10 @@ const Settings = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* ---- Navigation des rubriques ----
-         * Verticale et groupée sur grand écran, défilante horizontalement en dessous : sept
-         * onglets alignés débordaient de la largeur utile dès que la barre latérale était
-         * ouverte, et les derniers n'étaient atteignables qu'en faisant défiler à l'aveugle. */}
+        {/* ---- Menu des rubriques ----
+         * Vertical sur grand écran, et scroll horizontal en dessous : sept onglets en ligne
+         * dépassaient de la largeur dès que le menu latéral était ouvert, et les derniers
+         * n'étaient accessibles qu'en scrollant à l'aveugle. */}
         <nav className="lg:col-span-1" aria-label={t('settings.sectionsNavLabel')}>
           <div className="card p-3 lg:sticky lg:top-6">
             <div
@@ -942,8 +940,8 @@ const Settings = () => {
               className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible"
             >
               {GROUPS.map((group) => (
-                // `presentation` : le regroupement est visuel, seuls les boutons doivent être
-                // exposés comme onglets de la liste.
+                // `presentation` : le groupe est juste visuel, seuls les boutons doivent
+                // être vus comme des onglets.
                 <div key={group} role="presentation" className="contents lg:block">
                   <p className="hidden lg:block px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                     {t(`settings.groups.${group}`)}
@@ -1014,9 +1012,9 @@ const Settings = () => {
       </div>
 
       {/* ---- Barre d'enregistrement ----
-       * Un seul PUT enregistre toutes les rubriques : l'action est donc globale et non propre
-       * à un panneau. La barre colle au bas de la fenêtre et n'apparaît qu'en cas de
-       * modification, ce qui la rend atteignable au bas d'un formulaire long. */}
+       * Un seul PUT enregistre toutes les rubriques, donc le bouton est commun à tous les
+       * panneaux. La barre est collée en bas de la fenêtre et n'apparaît que s'il y a des
+       * modifs, comme ça on l'atteint même en bas d'un long formulaire. */}
       {isDirty && !loading && (
         <motion.div
           initial={{ opacity: 0, y: 16 }}

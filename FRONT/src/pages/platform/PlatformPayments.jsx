@@ -15,14 +15,14 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Registre des encaissements d'abonnement — les versements des entreprises à GESCOM.
+ * Paiements des abonnements, c'est-à-dire ce que les entreprises paient à GESCOM.
  *
- * À ne pas confondre avec la page Caisse, qui concerne les encaissements d'une entreprise
- * auprès de ses propres clients.
+ * Rien à voir avec la page Caisse, qui concerne ce qu'une entreprise encaisse de ses
+ * propres clients.
  *
- * Les échecs se saisissent comme les succès, et c'est voulu : sans eux, ni taux de réussite
- * ni suivi des impayés. Enregistrer un échec bascule d'ailleurs l'abonnement en impayé,
- * comme un succès en renouvelle la période — le serveur s'en charge.
+ * On enregistre aussi les échecs, exprès : sans eux, pas de taux de réussite ni de suivi des
+ * impayés. Un échec fait passer l'abonnement en impayé, et un succès renouvelle sa période
+ * (c'est le serveur qui s'en occupe).
  */
 
 const STATUS_TONE = {
@@ -80,8 +80,8 @@ const PlatformPayments = () => {
     load();
   }, [load]);
 
-  // Liste déroulante des entreprises du formulaire : une page large suffit, le parc d'un
-  // back-office SaaS se compte en centaines, pas en millions.
+  // Liste des entreprises pour le formulaire : une grande page suffit, il y a au plus
+  // quelques centaines d'entreprises.
   useEffect(() => {
     platformService
       .getCompanies({ page: 0, size: 200 })
@@ -277,8 +277,8 @@ const PlatformPayments = () => {
             />
           </div>
 
-          {/* Le motif n'a de sens que sur un échec : c'est ce qui distingue un rejet
-              bancaire d'un virement simplement en attente. */}
+          {/* Le motif ne sert que pour un échec : c'est ce qui permet de distinguer un refus
+              de la banque d'un virement juste en attente. */}
           {form.status === 'FAILED' && (
             <FormInput
               label={t('platform.payments.failureMessage')}

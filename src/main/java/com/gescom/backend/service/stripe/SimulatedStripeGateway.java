@@ -10,18 +10,18 @@ import java.security.SecureRandom;
 import java.util.Map;
 
 /**
- * Passerelle par défaut : rejoue le protocole de Stripe sans sortir de la machine.
+ * Passerelle par défaut : imite le fonctionnement de Stripe sans sortir de la machine.
  *
- * Elle sert le cas prévu par l'énoncé — démontrer le parcours complet avec une clé factice,
- * donc sans compte Stripe. Les identifiants produits suivent la forme du prestataire
- * ({@code pi_sim_...}, {@code ..._secret_...}) et les moyens de paiement acceptés sont ceux
- * du bac à sable de Stripe ({@code pm_card_visa}, {@code pm_card_chargeDeclined}, …), pour
- * que le passage en {@code stripe.mode=api} ne demande aucune retouche du terminal.
+ * Elle sert pour le cas demandé dans l'énoncé : montrer tout le parcours avec une fausse
+ * clé, donc sans compte Stripe. Les ids ont le même format que chez Stripe
+ * ({@code pi_sim_...}, {@code ..._secret_...}) et les cartes acceptées sont celles du mode
+ * test de Stripe ({@code pm_card_visa}, {@code pm_card_chargeDeclined}, …), pour qu'on puisse
+ * passer en {@code stripe.mode=api} sans rien changer au terminal.
  *
- * Volontairement sans état : le résultat se déduit du moyen de paiement présenté, l'intention
- * n'est pas mémorisée ici. Ce qui fait foi côté application, c'est la ligne {@code payments} —
- * dupliquer cet état dans une map en mémoire n'apporterait rien et ferait échouer les
- * confirmations après un redémarrage, au beau milieu d'une démonstration.
+ * Pas d'état exprès : le résultat dépend juste de la carte envoyée, on ne garde pas
+ * l'intention ici. Ce qui compte côté appli, c'est la ligne dans {@code payments} : garder
+ * la même chose dans une map en mémoire ne servirait à rien, et les confirmations
+ * échoueraient après un redémarrage, en pleine démo.
  */
 @Component
 @ConditionalOnProperty(name = "stripe.mode", havingValue = "simulated", matchIfMissing = true)
@@ -33,8 +33,8 @@ public class SimulatedStripeGateway implements StripeGateway {
     private static final String ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     /**
-     * Cartes de test reconnues, calquées sur celles de Stripe. La marque et les quatre
-     * derniers chiffres sont ceux que renverrait le prestataire pour le même jeton.
+     * Cartes de test acceptées, copiées sur celles de Stripe. La marque et les quatre derniers
+     * chiffres sont ceux que Stripe renverrait pour le même token.
      */
     private static final Map<String, TestCard> TEST_CARDS = Map.of(
             "pm_card_visa", TestCard.accepted("VISA", "4242"),
@@ -65,8 +65,8 @@ public class SimulatedStripeGateway implements StripeGateway {
 
         TestCard card = TEST_CARDS.get(paymentMethodId);
         if (card == null) {
-            // Erreur d'intégration, pas un refus de l'émetteur : le terminal a présenté un
-            // jeton que Stripe lui-même ne connaîtrait pas.
+            // Erreur d'intégration, pas un refus de la banque : le terminal a envoyé un token
+            // que Stripe lui-même ne connaîtrait pas.
             throw new BusinessException("Moyen de paiement de test inconnu : " + paymentMethodId);
         }
 
@@ -91,8 +91,8 @@ public class SimulatedStripeGateway implements StripeGateway {
     }
 
     /**
-     * Refuse une intention issue d'un autre mode : basculer {@code stripe.mode} en cours de
-     * route laisserait sinon confirmer en local une intention créée chez Stripe.
+     * Refuse une intention créée dans l'autre mode : si on changeait {@code stripe.mode} en
+     * cours de route, on pourrait sinon confirmer en local une intention créée chez Stripe.
      */
     private void requireSimulatedIntent(String intentId) {
         if (intentId == null || !intentId.startsWith(ID_PREFIX)) {
@@ -110,7 +110,7 @@ public class SimulatedStripeGateway implements StripeGateway {
         return token.toString();
     }
 
-    /** Carte de test : acceptée, ou refusée avec son motif. */
+    /** Carte de test : acceptée, ou refusée avec la raison. */
     private record TestCard(String brand, String last4, String declineReason) {
         static TestCard accepted(String brand, String last4) {
             return new TestCard(brand, last4, null);

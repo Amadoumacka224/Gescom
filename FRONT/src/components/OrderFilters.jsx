@@ -4,20 +4,17 @@ import { useTranslation } from 'react-i18next';
 import SearchableSelect from './SearchableSelect';
 
 /**
- * Barre de recherche et de filtrage des commandes.
+ * Barre de recherche et de filtres des commandes.
  *
- * Organisation en trois étages, du plus utilisé au plus rare — c'est ce qui évite le mur de
- * champs : une recherche plein texte toujours visible, un panneau de critères précis replié
- * par défaut, et une rangée de pastilles rappelant ce qui est actif. Sans ces pastilles, un
- * filtre oublié dans un panneau fermé fait passer une liste tronquée pour la liste complète —
- * c'est le principal piège des écrans de ce genre.
+ * Trois niveaux : la recherche texte toujours visible, le panneau des filtres détaillés fermé
+ * par défaut, et les pastilles des filtres actifs. Les pastilles évitent d'oublier un filtre
+ * dans le panneau fermé et de croire qu'on voit toute la liste.
  *
- * Le composant ne détient aucun état : il reçoit `filters` et remonte chaque changement par
- * `onChange(champ, valeur)`. Le filtrage lui-même est appliqué par la page, qui seule connaît
- * les commandes.
+ * Pas d'état ici : on reçoit `filters` et on appelle `onChange(champ, valeur)`. Le filtrage
+ * est fait par la page.
  *
- * Les listes d'options ne portent que des clés : les libellés de statut viennent de la table
- * canonique `status.*`, partagée avec les badges, pour qu'un même statut se lise partout pareil.
+ * Les options ne contiennent que des clés : les libellés de statut viennent de `status.*`,
+ * comme pour les badges, pour qu'un statut ait le même nom partout.
  */
 
 const STATUS_OPTIONS = [
@@ -51,9 +48,8 @@ const toDateInput = (date) => {
 };
 
 /**
- * Raccourcis de période. Ils écrivent dans les deux mêmes champs que la saisie manuelle
- * plutôt que de créer un troisième état : un raccourci reste donc modifiable à la main,
- * et les pastilles n'ont qu'un seul couple de valeurs à décrire.
+ * Raccourcis de période. Ils remplissent les deux mêmes champs que la saisie manuelle, donc
+ * on peut les modifier à la main ensuite et il n'y a qu'une paire de valeurs à gérer.
  */
 const buildDateShortcuts = () => {
   const today = new Date();
@@ -115,21 +111,21 @@ const OrderFilters = ({
 }) => {
   const { t } = useTranslation();
 
-  // Calculés une fois : les bornes dépendent de la date du jour, pas des props.
+  // Calculé une seule fois : dépend de la date du jour, pas des props.
   const shortcuts = useMemo(() => buildDateShortcuts(), []);
   const selectClass =
     'w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/15 outline-none transition-all';
   const comboClass =
     'w-full pl-9 pr-8 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/15 outline-none transition-all';
 
-  /** Libellé traduit d'une option, pour les pastilles de filtres actifs. */
+  /** Libellé traduit d'une option, pour les pastilles. */
   const labelFrom = (options, value) => {
     const option = options.find((o) => o.value === value);
     return option ? t(option.labelKey) : value;
   };
 
-  /* Pastilles : une entrée par critère renseigné, avec de quoi le retirer seul. `q` en est
-   * exclu — il reste visible dans son champ, une pastille ne ferait que le redire. */
+  /* Une pastille par filtre rempli, avec une croix pour l'enlever. Pas de pastille pour `q` :
+   * la recherche est déjà visible dans son champ. */
   const chips = [];
   const push = (field, label, resetTo = '') => chips.push({ field, label, resetTo });
 
@@ -183,7 +179,7 @@ const OrderFilters = ({
       className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-card"
       aria-label={t('orders.filters.regionLabel')}
     >
-      {/* Étage 1 — recherche plein texte, toujours accessible */}
+      {/* Niveau 1 : recherche texte, toujours visible */}
       <div className="p-4 flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -227,7 +223,7 @@ const OrderFilters = ({
         </div>
       </div>
 
-      {/* Étage 2 — critères précis, repliés par défaut */}
+      {/* Niveau 2 : filtres détaillés, fermés par défaut */}
       {expanded && (
         <div
           id="order-advanced-filters"
@@ -313,9 +309,9 @@ const OrderFilters = ({
               </select>
             </Field>
 
-            {/* Filtre « créée par » : n'a de sens que si la liste couvre plusieurs opérateurs.
-                Un caissier ne voit que ses propres ventes — le serveur les cloisonne — donc
-                cette liste se réduit à lui seul et le filtre n'écarterait jamais rien. */}
+            {/* Filtre « créée par » : utile seulement si la liste contient les ventes de
+                plusieurs personnes. Un caissier ne voit que les siennes (filtré côté serveur),
+                donc ce filtre ne servirait à rien pour lui. */}
             {users.length > 1 && (
               <Field label={t('orders.filters.createdByLabel')} htmlFor="f-user">
                 <select
@@ -418,7 +414,7 @@ const OrderFilters = ({
             </div>
           </div>
 
-          {/* Raccourcis de période : ils écrivent dans les deux champs de date ci-dessus */}
+          {/* Raccourcis de période : remplissent les deux champs de date au-dessus */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400">
               <Calendar className="w-3.5 h-3.5" />
@@ -443,7 +439,7 @@ const OrderFilters = ({
         </div>
       )}
 
-      {/* Étage 3 — rappel de ce qui filtre réellement la liste affichée */}
+      {/* Niveau 3 : pastilles des filtres actifs */}
       {chips.length > 0 && (
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mr-1">

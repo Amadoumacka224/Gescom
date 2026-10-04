@@ -37,8 +37,8 @@ import { normalizeText, rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatDate, formatTime } from '../utils/format';
 import { STOCK_MOVEMENT_TONE, badgeClass } from '../constants/statusBadges';
 
-/* Types de mouvement, dans l'ordre du flux métier. Les libellés passent par i18n ;
- * la teinte vient de `STOCK_MOVEMENT_TONE`, partagée avec les autres écrans. */
+/* Types de mouvement, dans l'ordre du métier. Les libellés passent par i18n,
+ * la couleur vient de `STOCK_MOVEMENT_TONE` (commune aux autres écrans). */
 const MOVEMENT_TYPES = [
   { value: 'STOCK_IN', icon: TrendingUp },
   { value: 'STOCK_OUT', icon: TrendingDown },
@@ -50,8 +50,8 @@ const MOVEMENT_TYPES = [
 
 const MOVEMENT_ICONS = Object.fromEntries(MOVEMENT_TYPES.map((m) => [m.value, m.icon]));
 
-/* Colonnes triables du grand livre et champ trié en base. `delta` n'y figure pas : la
- * variation est calculée à l'affichage (newStock - previousStock) et n'existe pas en base. */
+/* Colonnes triables des mouvements et champ en base. Pas de `delta` : la variation est
+ * calculée à l'affichage (newStock - previousStock), elle n'existe pas en base. */
 const MOVEMENT_SORT_FIELDS = {
   createdAt: 'createdAt',
   product: 'product.name',
@@ -59,7 +59,7 @@ const MOVEMENT_SORT_FIELDS = {
   quantity: 'quantity',
 };
 
-/* Colonnes triables du registre des retours et champ trié en base. */
+/* Colonnes triables des retours et champ en base. */
 const RETURN_SORT_FIELDS = {
   createdAt: 'createdAt',
   returnNumber: 'returnNumber',
@@ -68,19 +68,19 @@ const RETURN_SORT_FIELDS = {
   refundAmount: 'refundAmount',
 };
 
-/* Les opérations de stock saisies à la main, avec leur endpoint et le champ de quantité
- * attendu. `sign` sert au calcul du stock projeté affiché avant validation.
+/* Les opérations de stock saisies à la main, avec leur endpoint et le nom du champ quantité.
+ * `sign` sert à calculer le stock prévu affiché avant de valider.
  *
- * Le retour client n'en fait plus partie : il ne se saisit pas produit par produit mais part
- * de la vente d'origine (cf. ReturnWizard), seul moyen de contrôler les quantités rendues et
- * de rattacher le mouvement à son document. */
+ * Le retour client n'est plus ici : il ne se saisit pas produit par produit mais à partir
+ * de la vente (voir ReturnWizard). C'est le seul moyen de contrôler les quantités rendues et
+ * de lier le mouvement au document de retour. */
 const OPERATIONS = {
   add: { endpoint: '/stock/add', icon: Plus, sign: 1, withUnitCost: true, withReference: true },
   remove: { endpoint: '/stock/remove', icon: Minus, sign: -1, withReference: true },
   adjust: { endpoint: '/stock/adjust', icon: Edit2, sign: 0 },
-  // Pas de référence pour un dommage : `StockDamageRequest` n'expose pas ce champ et
-  // `recordDamage` ne le prend pas. Le formulaire l'affichait pourtant, et la valeur
-  // saisie était silencieusement perdue — le n° de constat va dans « Raison ».
+  // Pas de référence pour une casse : `StockDamageRequest` n'a pas ce champ et
+  // `recordDamage` ne le prend pas. Le formulaire l'affichait quand même et la valeur
+  // était perdue sans rien dire. Le n° de constat va dans « Raison ».
   damage: { endpoint: '/stock/damage', icon: AlertTriangle, sign: -1 },
 };
 
@@ -93,9 +93,9 @@ const EMPTY_FORM = {
   reference: '',
 };
 
-/* État de stock d'un produit. Les deux seuils sont volontairement disjoints — un produit
- * épuisé est « en rupture », pas « en stock faible » — et la comparaison est stricte, comme
- * la requête `stockQuantity < minStockAlert` du backend. */
+/* État de stock d'un produit. Les deux cas ne se chevauchent pas exprès (un produit à zéro
+ * est « en rupture », pas « en stock faible »), et la comparaison est stricte, comme la
+ * requête `stockQuantity < minStockAlert` du backend. */
 const stockStatus = (product) => {
   const quantity = product.stockQuantity ?? 0;
   const threshold = product.minStockAlert ?? 0;
@@ -109,17 +109,17 @@ const stockValueOf = (product) => (product.stockQuantity ?? 0) * (product.purcha
 const Stock = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  // Gestion du stock = réservée ADMIN (la barre latérale la masque déjà au CAISSIER,
-  // le backend la refuse). Garde defense-in-depth si l'URL est tapée à la main.
+  // La gestion du stock est réservée à l'ADMIN (le menu la cache déjà au CAISSIER et le
+  // backend la refuse). Protection en plus si quelqu'un tape l'URL à la main.
   const isAdmin = user?.role === 'ADMIN';
 
   const [activeTab, setActiveTab] = useState('stock');
   const [products, setProducts] = useState([]);
-  // `movements` ne contient que la page courante du grand livre.
+  // `movements` ne contient que la page en cours des mouvements.
   const [movements, setMovements] = useState([]);
   const [movementsMeta, setMovementsMeta] = useState({ totalElements: 0, totalPages: 1 });
   const [movementsLoading, setMovementsLoading] = useState(true);
-  // Même principe pour le registre des retours : append-only, paginé côté serveur.
+  // Pareil pour les retours : on ne fait qu'ajouter, et c'est paginé côté serveur.
   const [returns, setReturns] = useState([]);
   const [returnsMeta, setReturnsMeta] = useState({ totalElements: 0, totalPages: 1 });
   const [returnsLoading, setReturnsLoading] = useState(true);
@@ -145,15 +145,15 @@ const Stock = () => {
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Seul l'identifiant est conservé : la fiche lit ensuite le produit dans la liste
-  // rafraîchie, sinon elle continuerait d'afficher le stock d'avant l'opération.
+  // On ne garde que l'id : la fiche relit ensuite le produit dans la liste rechargée,
+  // sinon elle afficherait encore le stock d'avant l'opération.
   const [detailsProductId, setDetailsProductId] = useState(null);
   const [productMovements, setProductMovements] = useState([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // Le grand livre des mouvements est paginé côté serveur (registre append-only) : filtre,
-  // recherche et tri lui sont délégués, sinon ils ne porteraient que sur la page reçue.
-  // La liste des produits, elle, est bornée par le catalogue et reste traitée côté client.
+  // Les mouvements sont paginés côté serveur (on ne fait qu'en ajouter) : le filtre, la
+  // recherche et le tri sont faits par le serveur, sinon ils ne porteraient que sur la page.
+  // La liste des produits, elle, a une taille limitée et reste gérée côté client.
   useEffect(() => {
     if (isAdmin) fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -251,15 +251,15 @@ const Stock = () => {
     }
   };
 
-  // Après une opération de stock, produit ET grand livre ont changé.
+  // Après une opération de stock, le produit ET les mouvements ont changé.
   const fetchData = async () => {
     await Promise.all([fetchProducts(), fetchMovements()]);
   };
 
-  /* Indicateurs calculés depuis la liste des produits plutôt que depuis `/stock/statistics`.
-   * L'endpoint compte comme « stock faible » tous les produits sous leur seuil, ruptures
-   * comprises : la tuile annonçait donc un total que le filtre correspondant ne retrouvait
-   * jamais. Ici tuiles, filtres et pastilles du tableau appliquent la même règle. */
+  /* Stats calculées à partir de la liste des produits plutôt qu'avec `/stock/statistics`.
+   * L'endpoint compte en « stock faible » tous les produits sous leur seuil, ruptures
+   * comprises : la carte affichait donc un total différent de celui du filtre. Ici les
+   * cartes, les filtres et les pastilles utilisent la même règle. */
   const stats = useMemo(() => {
     const statuses = products.map(stockStatus);
     return {
@@ -272,7 +272,7 @@ const Stock = () => {
     };
   }, [products]);
 
-  // Recherche insensible à la casse ET aux accents, comme le moteur de suggestions.
+  // Recherche sans tenir compte des majuscules ni des accents, comme les suggestions.
   const query = normalizeText(searchTerm);
   const matchesQuery = (...fields) =>
     !query || fields.some((field) => field && normalizeText(field).includes(query));
@@ -316,10 +316,9 @@ const Stock = () => {
   const isMovementsTab = activeTab === 'movements';
   const isReturnsTab = activeTab === 'returns';
 
-  /* Les onglets ne se paginent pas de la même façon : le catalogue est borné et découpé côté
-   * client, tandis que le grand livre et le registre des retours arrivent déjà paginés du
-   * serveur (filtrés, cherchés et triés par lui). D'où trois sources pour le total et pour
-   * les lignes affichées. */
+  /* Les onglets ne sont pas paginés de la même façon : le catalogue est découpé côté client,
+   * alors que les mouvements et les retours arrivent déjà paginés par le serveur (filtrés,
+   * cherchés et triés). D'où trois sources pour le total et les lignes affichées. */
   const panel = isStockTab
     ? {
         loading,
@@ -370,8 +369,8 @@ const Stock = () => {
 
   /* ---- Retours clients ---- */
 
-  // Le retour vient de modifier des stocks et d'écrire au grand livre : les trois onglets
-  // doivent repartir du serveur, pas seulement celui qu'on regarde.
+  // Le retour a modifié du stock et ajouté des mouvements : on recharge les trois onglets,
+  // pas seulement celui qui est affiché.
   const handleReturnCreated = async (created) => {
     setReturnWizardOpen(false);
     toast.success(t('stock.returns.created', { number: created.returnNumber }));
@@ -380,8 +379,8 @@ const Stock = () => {
     if (detailsProductId) await fetchProductMovements(detailsProductId);
   };
 
-  // La liste ne transporte que les entêtes : le détail des articles rendus est chargé
-  // à l'ouverture de la fiche.
+  // La liste ne contient que les en-têtes : le détail des articles rendus est chargé
+  // quand on ouvre la fiche.
   const openReturnDetails = async (stockReturn) => {
     setSelectedReturn(stockReturn);
     setReturnDetailsLoading(true);
@@ -415,8 +414,8 @@ const Stock = () => {
     setFormError('');
   };
 
-  // Produit visé par l'opération, déduit du seul `productId` : une même valeur pilote
-  // le sélecteur, l'aperçu du stock projeté et la validation.
+  // Produit concerné par l'opération, trouvé à partir de `productId` : la même valeur sert
+  // pour le sélecteur, l'aperçu du stock prévu et la validation.
   const operationProduct = useMemo(
     () => products.find((p) => String(p.id) === String(formData.productId)) || null,
     [products, formData.productId]
@@ -425,8 +424,8 @@ const Stock = () => {
   const config = operation ? OPERATIONS[operation] : null;
   const isAdjust = operation === 'adjust';
 
-  // Stock projeté après validation : le chiffre que l'utilisateur vient vérifier avant
-  // de confirmer, et que l'écran ne montrait nulle part.
+  // Stock prévu après validation : c'est ce qu'on veut vérifier avant de confirmer, et ce
+  // n'était affiché nulle part.
   const projection = useMemo(() => {
     if (!operationProduct || !config) return null;
     const current = operationProduct.stockQuantity ?? 0;
@@ -459,8 +458,8 @@ const Stock = () => {
       setFormError(t('stock.quantityPositive'));
       return;
     }
-    // Une sortie supérieure au stock disponible part sinon pour revenir en
-    // InsufficientStockException : autant le dire avant l'appel.
+    // Une sortie plus grande que le stock finirait en InsufficientStockException :
+    // autant le dire avant l'appel.
     if (projection.next < 0) {
       setFormError(t('stock.insufficientStock', { available: projection.current }));
       return;
@@ -484,7 +483,7 @@ const Stock = () => {
       toast.success(t('stock.operationSuccess'));
       closeOperation();
       await fetchData();
-      // La fiche ouverte doit refléter le mouvement qui vient d'être enregistré.
+      // La fiche ouverte doit afficher le mouvement qu'on vient d'enregistrer.
       if (detailsProductId) await fetchProductMovements(detailsProductId);
     } catch (error) {
       console.error('Error submitting stock operation:', error);
@@ -504,8 +503,8 @@ const Stock = () => {
     [products, detailsProductId]
   );
 
-  // Fiche produit : on montre l'historique récent, borné à une page — l'onglet Mouvements
-  // reste l'endroit où parcourir le grand livre entier.
+  // Fiche produit : on affiche les derniers mouvements, une page maximum. Pour voir tout
+  // l'historique, il y a l'onglet Mouvements.
   const fetchProductMovements = async (productId) => {
     setDetailsLoading(true);
     try {
@@ -527,7 +526,7 @@ const Stock = () => {
     fetchProductMovements(product.id);
   };
 
-  /* ---- Rendu partagé ---- */
+  /* ---- Rendu commun ---- */
 
   const statusBadge = (product) => {
     const status = stockStatus(product);
@@ -647,13 +646,13 @@ const Stock = () => {
     {
       key: 'delta',
       label: t('stock.columnMovement'),
-      // Non triable : l'écart est calculé à l'affichage et n'existe pas en base, or le tri
-      // du grand livre est délégué au serveur. Trier ici n'ordonnerait que la page visible.
+      // Pas triable : l'écart est calculé à l'affichage et n'existe pas en base, et le tri
+      // des mouvements est fait par le serveur. Trier ici ne trierait que la page visible.
       sortable: false,
       render: (movement) => {
-        /* L'écart est recalculé depuis previousStock/newStock : `quantity` est stocké en
-         * valeur absolue (cf. StockService.adjustStock), il ne porte donc pas le sens du
-         * mouvement. Le signe affiché est ainsi toujours celui de l'effet réel. */
+        /* L'écart est recalculé avec previousStock/newStock : `quantity` est stocké en
+         * valeur absolue (voir StockService.adjustStock), il ne dit pas si c'est une entrée
+         * ou une sortie. Comme ça le signe affiché est toujours le bon. */
         const delta = (movement.newStock ?? 0) - (movement.previousStock ?? 0);
         const tone =
           delta > 0
@@ -827,7 +826,7 @@ const Stock = () => {
 
   const tabs = [
     { value: 'stock', label: t('stock.tabStock'), icon: Boxes, count: products.length },
-    // Totaux des registres, pas le nombre de lignes de la page affichée.
+    // Nombre total d'enregistrements, pas le nombre de lignes de la page affichée.
     { value: 'movements', label: t('stock.tabMovements'), icon: ArrowRightLeft, count: movementsMeta.totalElements },
     { value: 'returns', label: t('stock.tabReturns'), icon: RotateCcw, count: returnsMeta.totalElements },
   ];
@@ -892,10 +891,9 @@ const Stock = () => {
       </div>
 
       {/* ---- Opérations ----
-       * Les quatre opérations secondaires vivaient dans l'onglet « Mouvements », tout comme
-       * la modale elle-même : le bouton « Ajouter du stock » de l'en-tête n'ouvrait donc
-       * rien tant qu'on était sur l'onglet « Stock actuel ». Elles sont désormais hors des
-       * onglets, donc accessibles en permanence. */}
+       * Avant, les quatre opérations et le modal étaient dans l'onglet « Mouvements » : le
+       * bouton « Ajouter du stock » de l'en-tête n'ouvrait rien quand on était sur l'onglet
+       * « Stock actuel ». Maintenant elles sont en dehors des onglets, toujours accessibles. */}
       <div className="card">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mr-1">
@@ -915,7 +913,7 @@ const Stock = () => {
           >
             {t('stock.opDamage')}
           </Button>
-          {/* Le retour client ouvre son propre parcours : il commence par retrouver la vente,
+          {/* Le retour client a son propre formulaire : on commence par retrouver la vente,
               pas par choisir un produit. */}
           <Button variant="outline" size="sm" icon={RotateCcw} onClick={() => setReturnWizardOpen(true)}>
             {t('stock.opReturn')}
@@ -923,9 +921,9 @@ const Stock = () => {
         </div>
       </div>
 
-      {/* ---- Alerte actionnable ----
-       * L'ancien bandeau répétait mot pour mot les deux tuiles qui le précédaient. Il sert
-       * maintenant de raccourci : un clic bascule sur l'onglet stock avec le filtre posé. */}
+      {/* ---- Alerte cliquable ----
+       * L'ancien bandeau répétait exactement les deux cartes au-dessus. Maintenant c'est un
+       * raccourci : un clic ouvre l'onglet stock avec le filtre déjà appliqué. */}
       {!loading && (stats.out > 0 || stats.low > 0) && (
         <div className="card border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
@@ -968,8 +966,8 @@ const Stock = () => {
       )}
 
       {/* ---- Onglets et contenu ----
-       * Barre d'onglets et panneau dans une même carte : la barre flottait auparavant dans
-       * sa propre carte, séparée de son contenu par les indicateurs et le bandeau d'alerte. */}
+       * Les onglets et leur contenu dans la même carte : avant, la barre d'onglets était dans
+       * sa propre carte, séparée de son contenu par les stats et le bandeau d'alerte. */}
       <div className="card overflow-hidden p-0">
         <div role="tablist" aria-label={t('stock.title')} className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
           {tabs.map((tab) => {
@@ -1001,9 +999,9 @@ const Stock = () => {
           })}
         </div>
 
-        {/* Barre de recherche et filtres du panneau actif. Les suggestions de produits
-            servent aux deux onglets : choisir un produit revient à filtrer ses mouvements,
-            la recherche portant sur son nom de part et d'autre. */}
+        {/* Recherche et filtres de l'onglet actif. Les suggestions de produits servent aux
+            deux onglets : choisir un produit filtre aussi ses mouvements, car la recherche
+            se fait sur le nom dans les deux cas. */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-4 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <SearchBox
             className="flex-1"
@@ -1109,8 +1107,8 @@ const Stock = () => {
                       >
                         <Eye className="w-4 h-4" aria-hidden="true" />
                       </button>
-                      {/* Opérer depuis la ligne du produit concerné : `openOperation`
-                          acceptait déjà un produit, rien ne le lui passait. */}
+                      {/* Lancer une opération depuis la ligne du produit : `openOperation`
+                          acceptait déjà un produit, mais on ne lui en passait jamais. */}
                       <button
                         onClick={() => openOperation('add', product)}
                         className="text-green-600 hover:text-green-800 dark:hover:text-green-300 p-2 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors"
@@ -1154,10 +1152,10 @@ const Stock = () => {
         </div>
       </div>
 
-      {/* ---- Modale d'opération ----
-       * Enveloppée dans un contexte d'empilement supérieur : elle peut être ouverte
-       * depuis la fiche produit, et les deux modales partagent le même `z-50`. Sans
-       * cela, la fiche — déclarée après dans le DOM — recouvrirait le formulaire. */}
+      {/* ---- Modal d'opération ----
+       * Mis dans un z-index plus haut : on peut l'ouvrir depuis la fiche produit, et les deux
+       * modals ont le même `z-50`. Sinon la fiche, qui est après dans le DOM, passerait
+       * par-dessus le formulaire. */}
       <div className="relative z-[60]">
       <Modal
         isOpen={Boolean(operation)}
@@ -1263,7 +1261,7 @@ const Stock = () => {
               />
             )}
 
-            {/* Aperçu du résultat : ce que deviendra le stock si l'opération est validée. */}
+            {/* Aperçu : ce que sera le stock si on valide l'opération. */}
             {projection && (
               <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -1435,8 +1433,8 @@ const Stock = () => {
       </Modal>
 
       {/* ---- Retour client ----
-       * Au-dessus de la fiche produit pour la même raison que la modale d'opération : les deux
-       * partagent `z-50` et c'est l'ordre du DOM qui trancherait autrement. */}
+       * Au-dessus de la fiche produit pour la même raison que le modal d'opération : les deux
+       * ont `z-50` et sinon c'est l'ordre du DOM qui déciderait. */}
       <div className="relative z-[60]">
         <Modal
           isOpen={returnWizardOpen}

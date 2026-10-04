@@ -25,12 +25,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Billetterie du support.
+ * Gestion des tickets de support.
  *
- * Le ticket est ouvert par l'operateur a partir d'un appel ou d'un courriel : GESCOM garde
- * la trace et le suivi, le canal reste humain. Rien n'est envoye au client — le fil est un
- * registre, pas une messagerie, et {@code internal} prepare la distinction du jour ou un
- * envoi automatique sera branche.
+ * Le ticket est cree par l'operateur apres un appel ou un mail : GESCOM garde la trace et
+ * le suivi, le contact reste humain. Rien n'est envoye au client, c'est un historique et pas
+ * une messagerie, et {@code internal} prepare le jour ou on ajoutera un envoi automatique.
  */
 @Service
 @Transactional
@@ -95,8 +94,8 @@ public class SupportTicketService {
         if (request.contactUserId() != null) {
             User contact = userRepository.findById(request.contactUserId())
                     .orElseThrow(() -> new ResourceNotFoundException("user", request.contactUserId()));
-            // Un interlocuteur d'une autre entreprise serait une erreur de saisie qui
-            // brouillerait le suivi : on la refuse plutot que de la consigner.
+            // Un contact d'une autre entreprise serait une erreur de saisie qui melangerait le
+            // suivi : on le refuse plutot que de l'enregistrer.
             if (contact.getOwnerCompany() == null
                     || !contact.getOwnerCompany().getId().equals(company.getId())) {
                 throw BusinessException.of("support.contact.mismatch",
@@ -105,7 +104,7 @@ public class SupportTicketService {
             ticket.setContactUser(contact);
         }
 
-        // La description devient le premier message : un seul endroit ou lire le contenu.
+        // La description devient le premier message : tout le contenu est au meme endroit.
         SupportTicketMessage first = new SupportTicketMessage();
         first.setTicket(ticket);
         first.setAuthor(operator);
@@ -137,8 +136,8 @@ public class SupportTicketService {
         message.setInternal(Boolean.TRUE.equals(request.internal()));
         ticket.getMessages().add(message);
 
-        // Repondre a un ticket en attente le remet naturellement en traitement ; une note
-        // interne, elle, ne change rien a l'etat du dossier vis-a-vis du client.
+        // Repondre a un ticket en attente le remet en cours de traitement ; une note interne,
+        // par contre, ne change rien a l'etat du ticket pour le client.
         if (!message.isInternal() && ticket.getStatus() == SupportTicket.TicketStatus.OPEN) {
             ticket.setStatus(SupportTicket.TicketStatus.IN_PROGRESS);
         }
@@ -154,8 +153,8 @@ public class SupportTicketService {
         }
 
         ticket.setStatus(target);
-        // Les horodatages suivent le statut plutot que d'etre saisis : ils servent aux delais
-        // de traitement, et une date renseignee a la main s'en ecarte vite.
+        // Les dates suivent le statut au lieu d'etre saisies : elles servent a mesurer les
+        // delais de traitement, et une date tapee a la main devient vite fausse.
         ticket.setResolvedAt(target == SupportTicket.TicketStatus.RESOLVED
                 || target == SupportTicket.TicketStatus.CLOSED
                 ? (ticket.getResolvedAt() != null ? ticket.getResolvedAt() : LocalDateTime.now())
@@ -197,7 +196,7 @@ public class SupportTicketService {
         };
     }
 
-    /** Reference lisible : TK-<periode>-<compteur du mois>. */
+    /** Reference lisible : TK-<periode>-<numero dans le mois>. */
     private String nextReference() {
         String prefix = "TK-" + LocalDateTime.now().format(PERIOD);
         int sequence = 1;
@@ -208,7 +207,7 @@ public class SupportTicketService {
         return candidate;
     }
 
-    /** Une demande urgente merite une notification critique ; les autres restent informatives. */
+    /** Une demande urgente donne une notification critique ; les autres restent de simples infos. */
     private PlatformNotification.Severity severityOf(SupportTicket.TicketPriority priority) {
         return switch (priority) {
             case URGENT -> PlatformNotification.Severity.CRITICAL;

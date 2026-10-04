@@ -12,12 +12,12 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Contrats du parc.
+ * Abonnements des entreprises.
  *
- * `monthlyAmount` est affiché à côté du montant facturé : c'est la contribution réelle du
- * contrat au MRR, un abonnement annuel n'y pesant qu'au douzième. Le serveur le calcule, la
- * page ne le recalcule pas — deux règles d'arrondi divergentes finiraient par ne plus
- * s'accorder avec le tableau de bord.
+ * `monthlyAmount` est affiché à côté du montant facturé : c'est ce que le contrat rapporte
+ * vraiment par mois dans le MRR (un abonnement annuel compte pour un douzième). C'est le
+ * serveur qui le calcule, pas la page, sinon avec deux façons d'arrondir on finirait par ne
+ * plus avoir les mêmes chiffres que le tableau de bord.
  */
 
 const STATUS_TONE = {
@@ -133,7 +133,7 @@ const PlatformSubscriptions = () => {
     },
   ];
 
-  // Un contrat clos (résilié, expiré) n'offre plus d'action : ni renouvellement ni résiliation.
+  // Un contrat terminé (résilié, expiré) n'a plus d'action : ni renouvellement ni résiliation.
   const isLive = (row) => ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(row.status);
 
   const actions = (row) =>

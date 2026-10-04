@@ -8,21 +8,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 /**
- * Implementation de base de tous les repositories, qui ferme la faille des acces par
- * identifiant.
+ * Implementation de base de tous les repositories, qui bouche le trou des acces par id.
  *
- * Le filtre Hibernate ({@code tenantFilter}) reecrit les requetes, mais {@code findById}
- * passe par {@code EntityManager.find} : Hibernate peut alors servir l'entite depuis le
- * cache de premier niveau, sans emettre de SQL et donc sans appliquer le moindre filtre.
- * Sans ce garde-fou, {@code GET /api/products/42} renverrait l'article 42 d'une autre
- * entreprise des lors qu'il aurait ete charge plus tot dans la meme transaction.
+ * Le filtre Hibernate ({@code tenantFilter}) modifie les requetes, mais {@code findById}
+ * passe par {@code EntityManager.find} : Hibernate peut alors renvoyer l'entite depuis son
+ * cache, sans faire de SQL et donc sans appliquer de filtre. Sans cette classe,
+ * {@code GET /api/products/42} pourrait renvoyer l'article 42 d'une autre entreprise s'il
+ * avait deja ete charge avant dans la meme transaction.
  *
- * La reponse retenue est de faire disparaitre l'entite plutot que de repondre 403 :
- * un identifiant appartenant a autrui doit etre indiscernable d'un identifiant inexistant,
- * faute de quoi l'API confirmerait l'existence de donnees d'un autre client.
+ * On fait comme si l'entite n'existait pas plutot que de repondre 403 : un id d'une autre
+ * entreprise doit etre impossible a distinguer d'un id qui n'existe pas, sinon l'API
+ * confirmerait que les donnees d'un autre client existent.
  *
- * Enregistree globalement via {@code @EnableJpaRepositories(repositoryBaseClass = ...)}
- * dans {@code PersistenceConfig} : aucun repository n'a a s'en soucier.
+ * Activee pour tous les repositories avec {@code @EnableJpaRepositories(repositoryBaseClass = ...)}
+ * dans {@code PersistenceConfig} : aucun repository n'a besoin de s'en occuper.
  */
 public class TenantAwareRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID> {
 
@@ -44,10 +43,10 @@ public class TenantAwareRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID>
     }
 
     /**
-     * Volontairement resolu en chargement reel plutot qu'en proxy paresseux : verifier
-     * l'appartenance impose de lire l'entite. Le surcout est negligeable — cette methode
-     * sert a rattacher une cle etrangere, jamais a parcourir un volume — et le prix a payer
-     * pour qu'un identifiant d'une autre entreprise ne puisse pas etre lie ici.
+     * On charge vraiment l'entite au lieu d'un proxy lazy, exprès : pour verifier a quelle
+     * entreprise elle appartient, il faut la lire. Ca ne coute presque rien (cette methode
+     * sert a remplir une cle etrangere, pas a parcourir beaucoup de lignes), et c'est ce qui
+     * empeche de lier ici un id d'une autre entreprise.
      */
     @Override
     public T getReferenceById(ID id) {
@@ -59,8 +58,8 @@ public class TenantAwareRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID>
     @Transactional
     public void delete(T entity) {
         if (!TenantGuard.isVisible(entity)) {
-            // Suppression silencieusement ignoree : meme raisonnement que pour findById,
-            // echouer bruyamment revelerait l'existence de la ligne visee.
+            // Suppression ignoree sans rien dire : meme raison que pour findById, une erreur
+            // reveleraient que la ligne existe.
             return;
         }
         super.delete(entity);
@@ -73,11 +72,11 @@ public class TenantAwareRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID>
     }
 
     /**
-     * Interdit d'ecrire dans le perimetre d'une autre entreprise.
+     * Interdit de modifier des donnees d'une autre entreprise.
      *
-     * Le cas vise n'est pas la creation — {@link TenantEntityListener} affecte alors
-     * l'entreprise courante — mais la mise a jour d'une entite construite a partir d'un
-     * identifiant etranger, qui contournerait le cloisonnement en ecriture.
+     * Ca ne concerne pas la creation ({@link TenantEntityListener} met alors l'entreprise
+     * courante), mais la modification d'une entite construite a partir d'un id d'une autre
+     * entreprise, qui permettrait de contourner le filtrage en ecriture.
      */
     @Override
     @Transactional
@@ -97,13 +96,13 @@ public class TenantAwareRepositoryImpl<T, ID> extends SimpleJpaRepository<T, ID>
         if (!(entity instanceof TenantOwned owned) || !TenantContext.isScoped()) {
             return;
         }
-        // ownerCompany null a la creation : le listener la renseignera au flush.
+        // ownerCompany null a la creation : le listener la remplira au flush.
         if (owned.getOwnerCompany() != null && !TenantGuard.isVisible(owned)) {
             throw new TenantViolationException();
         }
     }
 
-    /** Expose l'EntityManager aux sous-classes eventuelles de repositories personnalises. */
+    /** Donne acces a l'EntityManager pour d'eventuels repositories personnalises. */
     protected EntityManager entityManager() {
         return entityManager;
     }

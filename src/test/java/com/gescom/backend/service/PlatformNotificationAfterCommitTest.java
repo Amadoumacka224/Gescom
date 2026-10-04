@@ -29,20 +29,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Quand une notification porte sur une entreprise creee a l'instant.
+ * Cas d'une notification sur une entreprise qu'on vient de creer.
  *
- * L'ouverture d'un compte client cree l'entreprise et sa notification dans la meme
- * transaction. Ecrite pendant celle-ci, la notification part sur une autre connexion — le
- * {@code REQUIRES_NEW} de {@code record} — d'ou la ligne {@code companies} n'est pas encore
- * visible : la cle etrangere saute, et l'echec du commit interne remonte en
- * {@code UnexpectedRollbackException} jusqu'a faire echouer l'ouverture du compte. Le compte
+ * Creer un compte client cree l'entreprise et sa notification dans la meme transaction. Si
+ * on l'ecrit pendant cette transaction, la notification passe par une autre connexion (le
+ * {@code REQUIRES_NEW} de {@code record}) qui ne voit pas encore la ligne {@code companies} :
+ * la cle etrangere bloque, et l'echec du commit remonte en
+ * {@code UnexpectedRollbackException} jusqu'a faire echouer la creation du compte. Le compte
  * n'etait donc pas cree, alors que la notification n'est qu'une trace.
  *
- * Deux exigences en decoulent, et la seconde est celle qu'on oublie : l'ecriture doit etre
- * differee apres le commit, <b>et</b> s'y faire dans une transaction neuve. Dans un
- * {@code afterCommit}, les ressources transactionnelles sont encore liees au thread alors que
- * la transaction est close ; un {@code save} qui les rejoint n'est jamais ecrit, et pas la
- * moindre erreur ne le signale.
+ * Il faut donc deux choses, et c'est la deuxieme qu'on oublie : ecrire apres le commit,
+ * <b>et</b> le faire dans une nouvelle transaction. Dans un {@code afterCommit}, les
+ * ressources de la transaction sont encore liees au thread alors qu'elle est terminee ; un
+ * {@code save} qui les utilise n'est jamais ecrit, et aucune erreur ne le signale.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -83,8 +82,8 @@ class PlatformNotificationAfterCommitTest {
 
         record();
 
-        // Le point du correctif : ecrire ici viserait une entreprise que l'autre connexion
-        // ne voit pas encore.
+        // C'est tout l'interet de la correction : ecrire ici viserait une entreprise que
+        // l'autre connexion ne voit pas encore.
         verify(notificationRepository, never()).save(any());
         assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
     }
@@ -106,8 +105,8 @@ class PlatformNotificationAfterCommitTest {
     }
 
     /**
-     * Et cette ecriture differee doit ouvrir sa propre transaction : sans quoi elle rejoint
-     * celle qui vient d'etre validee et se perd en silence.
+     * Et cette ecriture apres le commit doit ouvrir sa propre transaction : sinon elle rejoint
+     * celle qui vient de se terminer et est perdue sans rien dire.
      */
     @Test
     void lEcritureDiffereeOuvreUneTransactionNeuve() {
@@ -123,7 +122,7 @@ class PlatformNotificationAfterCommitTest {
                 .isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    /** Hors transaction, il n'y a rien a differer : l'ecriture se fait tout de suite. */
+    /** En dehors d'une transaction, rien a attendre : on ecrit tout de suite. */
     @Test
     void horsTransactionLEcritureEstImmediate() {
         record();
@@ -132,13 +131,13 @@ class PlatformNotificationAfterCommitTest {
     }
 
     /**
-     * Un echec au commit de l'ecriture differee reste sans consequence.
+     * Si le commit de l'ecriture differee echoue, ca ne doit avoir aucune consequence.
      *
-     * C'est le dernier maillon du contrat « une notification ne fait jamais echouer une
-     * operation metier », et le plus facile a manquer : le {@code try} autour du {@code save}
-     * ne couvre pas le commit, qui a lieu apres. Spring ne rattrape pas ce qu'une
-     * synchronisation leve — l'exception remonterait au commit de l'appelant et rendrait un
-     * 500 sur une entreprise pourtant bel et bien creee.
+     * C'est la derniere partie de la regle « une notification ne fait jamais echouer une
+     * operation », et la plus facile a rater : le {@code try} autour du {@code save} ne couvre
+     * pas le commit, qui arrive apres. Spring ne rattrape pas ce qu'une synchronisation lance :
+     * l'exception remonterait au commit de l'appelant et donnerait une 500 alors que
+     * l'entreprise est bien creee.
      */
     @Test
     void unEchecAuCommitDiffereNeRemontePasALAppelant() {

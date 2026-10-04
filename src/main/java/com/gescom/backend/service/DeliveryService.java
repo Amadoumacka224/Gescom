@@ -40,10 +40,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Service métier des livraisons : création, suivi de statut et confirmation de livraison.
- * Dernière étape du cycle de vie d'une commande — une livraison ne peut exister que pour
- * une commande facturée (INVOICED), et son passage à DELIVERED fait basculer l'Order en
- * DELIVERED (état commercial final). Règle : une seule livraison par commande.
+ * Service des livraisons : création, suivi du statut et confirmation de livraison.
+ * C'est la dernière étape d'une commande : on ne peut créer une livraison que pour une
+ * commande facturée (INVOICED), et quand elle passe à DELIVERED, la commande passe aussi à
+ * DELIVERED (état final). Une seule livraison par commande.
  */
 @Service
 @Transactional
@@ -58,7 +58,7 @@ public class DeliveryService {
     private final ActivityLogService activityLogService;
     private final CashierScope cashierScope;
 
-    /** Attribution des numeros de documents : suite par entreprise et par annee. */
+    /** Generation des numeros de documents : une suite par entreprise et par annee. */
     private final DocumentNumberService documentNumberService;
 
     public DeliveryService(DeliveryRepository deliveryRepository, OrderRepository orderRepository,
@@ -95,17 +95,17 @@ public class DeliveryService {
 
     @Transactional(readOnly = true)
     public List<Delivery> getAllDeliveries() {
-        // Chargement de la commande associée (client, créateur, lignes, produits) en une requête
-        // pour éviter le N+1 au mapping (chaque DeliveryResponse embarque un OrderResponse complet).
+        // On charge la commande (client, créateur, lignes, produits) en une seule requête pour
+        // éviter le N+1 au mapping (chaque DeliveryResponse contient un OrderResponse complet).
         return deliveryRepository.findAllWithDetails(cashierScope.restrictedUserId());
     }
 
     /**
-     * Page de livraisons, filtrée et triée en base, chaque ligne entièrement chargée.
+     * Une page de livraisons, filtrée et triée en base, chaque ligne chargée en entier.
      *
-     * Même recherche en deux temps que pour les commandes et les factures : la réponse embarque
-     * la commande livrée avec ses lignes, donc un JOIN FETCH sur une collection, qu'une base ne
-     * sait pas paginer.
+     * Même recherche en deux étapes que pour les commandes et les factures : la réponse
+     * contient la commande avec ses lignes, donc un JOIN FETCH sur une collection, que la
+     * base ne sait pas paginer.
      */
     @Transactional(readOnly = true)
     public Page<Delivery> searchDeliveries(DeliverySearchCriteria criteria, Pageable pageable) {
@@ -120,7 +120,7 @@ public class DeliveryService {
         return new PageImpl<>(ordered, pageable, idPage.getTotalElements());
     }
 
-    /** Compteurs d'en-tête, agrégés en base — voir {@link DeliverySummary}. */
+    /** Compteurs en haut de page, calculés en base (voir {@link DeliverySummary}). */
     @Transactional(readOnly = true)
     public DeliverySummary getSummary() {
         DeliveryRepository.DeliverySummaryView v = deliveryRepository.summaryFor(
@@ -129,7 +129,7 @@ public class DeliveryService {
         return new DeliverySummary(v.getTotal(), v.getPending(), v.getDelivered(), v.getLate());
     }
 
-    /** Clients, villes et pays proposés par les filtres — voir {@link DeliverySummary.FilterOptions}. */
+    /** Clients, villes et pays proposés dans les filtres (voir {@link DeliverySummary.FilterOptions}). */
     @Transactional(readOnly = true)
     public DeliverySummary.FilterOptions getFilterOptions() {
         Long restrictedUserId = cashierScope.restrictedUserId();
@@ -143,7 +143,7 @@ public class DeliveryService {
                 deliveryRepository.findDistinctCountries(restrictedUserId));
     }
 
-    /** « Prénom Nom », à défaut la raison sociale — la règle qu'appliquait l'écran. */
+    /** « Prénom Nom », sinon la raison sociale (comme faisait l'écran). */
     private String clientLabel(DeliveryRepository.DeliveryClientView v) {
         String composed = Stream.of(v.getFirstName(), v.getLastName())
                 .filter(part -> part != null && !part.isBlank())
@@ -156,17 +156,17 @@ public class DeliveryService {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Cloisonnement caissier, évalué EN BASE : appliqué après coup, il rendrait des
-            // pages à moitié vides et un total faux.
+            // Limite du caissier à ses ventes, faite EN BASE : si on filtrait après, on aurait
+            // des pages à moitié vides et un total faux.
             Long restrictedUserId = cashierScope.restrictedUserId();
             if (restrictedUserId != null) {
                 predicates.add(cb.equal(root.get("order").get("createdBy").get("id"), restrictedUserId));
             }
 
             if (c.late()) {
-                // « En retard » n'est pas un statut : c'est une date prévue dépassée sur une
-                // livraison ENCORE EN ATTENTE. Une livraison effectuée en retard n'est plus en
-                // retard, elle est faite.
+                // « En retard » n'est pas un statut : c'est une livraison ENCORE EN ATTENTE dont
+                // la date prévue est passée. Une livraison faite en retard n'est plus en retard,
+                // elle est faite.
                 predicates.add(cb.and(
                         cb.equal(root.get("status"), Delivery.DeliveryStatus.PENDING),
                         cb.isNotNull(root.get("scheduledDate")),
@@ -193,16 +193,16 @@ public class DeliveryService {
                         root.get("scheduledDate"), c.scheduledFrom().atStartOfDay()));
             }
             if (c.scheduledTo() != null) {
-                // Borne haute exclusive au lendemain minuit : scheduledDate est un horodatage,
-                // une livraison prévue à 14 h le jour de fin serait sinon écartée.
+                // Borne de fin exclue au lendemain minuit : scheduledDate a une heure, donc une
+                // livraison prévue à 14 h le dernier jour serait sinon exclue.
                 predicates.add(cb.lessThan(
                         root.get("scheduledDate"), c.scheduledTo().plusDays(1).atStartOfDay()));
             }
             if (c.search() != null && !c.search().isBlank()) {
                 String pattern = "%" + c.search().toLowerCase().trim() + "%";
-                // Jointure GAUCHE sur le client : Order.client est nullable — c'est la vente de
-                // passage. Naviguer par root.get(...) produirait une jointure interne, et la
-                // livraison d'une vente sans client deviendrait introuvable par la recherche.
+                // LEFT JOIN sur le client : Order.client peut être null (vente sans client).
+                // Avec root.get(...) on aurait un INNER JOIN, et la livraison d'une vente sans
+                // client ne serait plus trouvée par la recherche.
                 Join<Object, Object> order = root.join("order", JoinType.LEFT);
                 Join<Object, Object> client = order.join("client", JoinType.LEFT);
                 predicates.add(cb.or(
@@ -219,14 +219,14 @@ public class DeliveryService {
         };
     }
 
-    /** COALESCE avant LOWER : une colonne nulle rendrait la comparaison indéfinie, pas fausse. */
+    /** COALESCE avant LOWER : avec une colonne null, la comparaison ne donnerait ni vrai ni faux. */
     private Predicate like(CriteriaBuilder cb, Path<?> path, String pattern) {
         return cb.like(cb.lower(cb.coalesce(path.as(String.class), "")), pattern);
     }
 
     /**
-     * Lecture unitaire. Hors périmètre du caissier, la livraison est rendue absente (404) plutôt
-     * que refusée — même règle que pour la vente dont elle découle.
+     * Lecture d'une livraison. Si elle n'est pas au caissier, on fait comme si elle n'existait
+     * pas (404) au lieu de refuser, comme pour la vente.
      */
     @Transactional(readOnly = true)
     public Optional<Delivery> getDeliveryById(Long id) {
@@ -257,17 +257,17 @@ public class DeliveryService {
     public Delivery createDelivery(Delivery delivery) {
         Order order = orderRepository.findById(delivery.getOrder().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("order", delivery.getOrder().getId()));
-        // On ne planifie une livraison que sur ses propres ventes.
+        // On ne peut planifier une livraison que sur ses propres ventes.
         cashierScope.requireAccess(order);
 
-        // Pré-requis métier : la livraison ne peut être créée qu'après la facturation.
+        // Règle métier : on ne peut créer la livraison qu'après la facturation.
         if (order.getStatus() != Order.OrderStatus.INVOICED) {
             throw new BusinessException(
                     "La commande doit être facturée pour être livrée (statut actuel : " + order.getStatus() + ")");
         }
 
-        // Défense en profondeur : statut INVOICED implique en principe la présence d'une facture
-        // valide, mais on vérifie explicitement pour rejeter le cas d'une facture annulée.
+        // Vérification en plus : INVOICED veut normalement dire qu'il y a une facture valide,
+        // mais on vérifie quand même pour refuser le cas d'une facture annulée.
         Invoice invoice = invoiceRepository.findByOrderId(order.getId())
                 .orElseThrow(() -> new BusinessException(
                         "Aucune facture n'a été émise pour cette commande — impossible de créer la livraison"));
@@ -282,8 +282,8 @@ public class DeliveryService {
                     "Une livraison existe déjà pour cette commande");
         }
 
-        // Les nouvelles livraisons démarrent toujours en PENDING — le statut envoyé par
-        // le client est ignoré pour éviter les sauts de cycle.
+        // Une nouvelle livraison commence toujours en PENDING : on ignore le statut envoyé
+        // par le client pour qu'il ne puisse pas sauter d'étape.
         delivery.setStatus(Delivery.DeliveryStatus.PENDING);
         delivery.setDeliveredDate(null);
         delivery.setDeliveredBy(null);
@@ -292,9 +292,9 @@ public class DeliveryService {
 
         Delivery savedDelivery = deliveryRepository.save(delivery);
 
-        // L'Order reste en INVOICED tant que la livraison n'est pas effectivement
-        // marquée DELIVERED — la transition Order INVOICED → DELIVERED est faite par
-        // markDeliveryAsDelivered() pour refléter l'état réel.
+        // La commande reste en INVOICED tant que la livraison n'est pas vraiment marquée
+        // DELIVERED : c'est markDeliveryAsDelivered() qui fait passer la commande de INVOICED
+        // à DELIVERED, au moment où c'est vraiment livré.
 
         logActivity(ActivityLog.ActionType.CREATE, "Delivery", savedDelivery.getId(),
                 "Création de la livraison " + savedDelivery.getDeliveryNumber()
@@ -304,8 +304,8 @@ public class DeliveryService {
     }
 
     /**
-     * Bascule la livraison à DELIVERED et propage la transition à l'Order
-     * (INVOICED → DELIVERED). Idempotent si déjà DELIVERED.
+     * Passe la livraison à DELIVERED et fait passer la commande de INVOICED à DELIVERED.
+     * Ne fait rien de plus si elle est déjà DELIVERED.
      */
     private void applyDelivered(Delivery delivery, String deliveredBy) {
         if (delivery.getStatus() == Delivery.DeliveryStatus.DELIVERED) {

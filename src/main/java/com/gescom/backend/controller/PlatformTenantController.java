@@ -25,20 +25,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Le parc : entreprises clientes et comptes utilisateurs, vus par le proprietaire de la plateforme.
+ * Gestion des entreprises clientes et de leurs comptes utilisateurs, cote super admin.
  *
- * Les deux vont de pair — ouvrir un compte client cree l'entreprise et son administrateur, et
- * couper un acces se decide au niveau de l'un ou de l'autre. Ne double pas
- * {@code UserController}, qui sert l'ADMIN d'une entreprise sur ses propres comptes :
- * perimetres et droits distincts.
+ * Les deux vont ensemble : creer un compte client cree l'entreprise et son admin, et on peut
+ * bloquer l'acces soit pour l'entreprise, soit pour un compte. Ce n'est pas un doublon de
+ * {@code UserController}, qui sert a l'ADMIN d'une entreprise pour gerer ses propres
+ * comptes : ce n'est pas le meme perimetre ni les memes droits.
  *
- * Le prefixe {@code /api/platform} est deja reserve au SUPER_ADMIN par {@code SecurityConfig} ;
- * le {@code @PreAuthorize} de classe redouble la regle au niveau methode, de sorte qu'aucune
- * des deux barrieres ne soit seule a repondre de l'acces.
+ * Le prefixe {@code /api/platform} est deja reserve au SUPER_ADMIN dans {@code SecurityConfig} ;
+ * le {@code @PreAuthorize} sur la classe refait la verification au niveau des methodes,
+ * comme ca on ne depend pas d'une seule protection.
  *
- * Controleur mince, conformement au reste du projet : il delegue aux services et convertit
- * en DTO, sans jamais renvoyer d'entite ni traiter d'erreur — {@code GlobalExceptionHandler}
- * s'en charge.
+ * Controleur simple comme le reste du projet : il appelle les services et convertit en DTO,
+ * sans jamais renvoyer d'entite ni gerer les erreurs ({@code GlobalExceptionHandler} s'en occupe).
  */
 @RestController
 @RequestMapping("/api/platform")
@@ -93,10 +92,10 @@ public class PlatformTenantController {
     }
 
     /**
-     * Ouvre un compte client complet : entreprise, administrateur initial et abonnement.
+     * Cree un compte client complet : entreprise, premier admin et abonnement.
      *
-     * Une seule transaction cote service — une entreprise creee sans administrateur serait
-     * un compte inaccessible.
+     * Le tout dans une seule transaction cote service : une entreprise sans admin serait
+     * inaccessible.
      */
     @PostMapping("/companies")
     @Tag(name = "Plateforme - Entreprises")
@@ -142,7 +141,7 @@ public class PlatformTenantController {
         return ResponseEntity.ok(platformMapper.toResponse(companyService.cancel(id, reason)));
     }
 
-    // ---------------------------------------------------------------- Utilisateurs du parc
+    // ---------------------------------------------------------------- Utilisateurs de toutes les entreprises
 
     @GetMapping("/users")
     @Tag(name = "Plateforme - Utilisateurs", description = "Comptes de toutes les entreprises clientes")
@@ -168,8 +167,8 @@ public class PlatformTenantController {
     /**
      * Active ou desactive un compte.
      *
-     * Le levier operationnel du support : couper un acces compromis sans toucher au reste de
-     * l'entreprise, la ou suspendre l'entreprise couperait tous ses utilisateurs.
+     * Utile pour le support : on peut bloquer un compte pirate sans toucher au reste de
+     * l'entreprise, alors que suspendre l'entreprise bloquerait tous ses utilisateurs.
      */
     @PatchMapping("/users/{id}/active")
     @Tag(name = "Plateforme - Utilisateurs")

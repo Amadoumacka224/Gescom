@@ -14,10 +14,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Entité facture, liée à une commande (relation 1-1) et optionnellement à une livraison.
- * Conserve la décomposition du montant (sous-total, remise, TVA, total) et le suivi des
- * paiements (montant payé, restant dû). Le numéro de facture et le montant restant sont
- * calculés automatiquement via les callbacks @PrePersist / @PreUpdate.
+ * Facture, liée à une commande (relation 1-1) et parfois à une livraison.
+ * On garde le détail du montant (sous-total, remise, TVA, total) et le suivi des paiements
+ * (montant payé, reste à payer). Le numéro et le reste à payer sont calculés automatiquement
+ * dans les callbacks @PrePersist / @PreUpdate.
  */
 @Entity
 @Table(name = "invoices", uniqueConstraints = @UniqueConstraint(name = "uq_invoices_company_number", columnNames = {"company_id", "invoice_number"}))
@@ -33,11 +33,11 @@ public class Invoice implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
@@ -116,21 +116,21 @@ public class Invoice implements TenantOwned {
     }
 
     /*
-     * Numéro attribué par DocumentNumberService — voir le commentaire équivalent sur Order.
-     * C'est ici que cela compte le plus : une facture doit porter un numéro séquentiel et
-     * continu, ce qu'un horodatage ne donne pas.
+     * Numéro donné par DocumentNumberService (voir le commentaire du même genre dans Order).
+     * C'est ici que c'est le plus important : une facture doit avoir un numéro qui se suit,
+     * sans trou, ce qu'on n'a pas avec un horodatage.
      */
 
     private void calculateRemainingAmount() {
         remainingAmount = totalAmount.subtract(paidAmount);
     }
 
-    // État de règlement de la facture, déduit du rapport montant payé / montant total (cf. InvoiceService).
+    // État du paiement de la facture, calculé à partir du montant payé et du total (voir InvoiceService).
     public enum InvoiceStatus {
         UNPAID, PARTIALLY_PAID, PAID, CANCELED
     }
 
-    // Moyen de paiement enregistré lors du règlement.
+    // Mode de paiement utilisé.
     public enum PaymentMethod {
         CASH, CREDIT_CARD, DEBIT_CARD, BANK_TRANSFER, CHECK, MOBILE_PAYMENT
     }

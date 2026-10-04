@@ -16,13 +16,13 @@ import java.util.Set;
 /**
  * Demande de support d'une entreprise cliente.
  *
- * Non cloisonnee : le ticket reference une entreprise mais releve de l'exploitation de la
- * plateforme, au meme titre que {@link Company} ou {@link Subscription}. Son unique porte
- * d'entree est {@code /api/platform/**}.
+ * Pas filtree par entreprise : le ticket concerne une entreprise mais fait partie de la
+ * gestion de la plateforme, comme {@link Company} ou {@link Subscription}. On n'y accede
+ * que par {@code /api/platform/**}.
  *
- * Le ticket est ouvert par l'operateur a partir d'un appel ou d'un courriel — il n'existe
- * pas d'ecran client pour en deposer un. C'est assume : le canal reste humain, GESCOM n'en
- * garde que la trace et le suivi.
+ * Le ticket est cree par l'operateur apres un appel ou un mail, les clients n'ont pas
+ * d'ecran pour en creer un. C'est voulu : le contact reste humain, GESCOM garde juste une
+ * trace et le suivi.
  */
 @Entity
 @Table(name = "support_tickets")
@@ -31,7 +31,7 @@ import java.util.Set;
 @AllArgsConstructor
 public class SupportTicket {
 
-    /** Statuts qui comptent comme un ticket encore a traiter. */
+    /** Statuts qui veulent dire que le ticket est encore a traiter. */
     public static final Set<TicketStatus> OPEN_STATUSES =
             Set.of(TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.WAITING_CUSTOMER);
 
@@ -67,7 +67,7 @@ public class SupportTicket {
     @Column(nullable = false, length = 20)
     private TicketCategory category = TicketCategory.OTHER;
 
-    /** Interlocuteur chez le client, quand il a pu etre identifie. */
+    /** Personne a contacter chez le client, si on la connait. */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "contact_user_id")
     private User contactUser;
@@ -77,10 +77,10 @@ public class SupportTicket {
     private User openedBy;
 
     /**
-     * Fil de discussion, du plus ancien au plus recent.
+     * Messages du ticket, du plus ancien au plus recent.
      *
-     * {@code orphanRemoval} suit la cascade de suppression posee en base : un message n'a
-     * aucune existence hors de son ticket.
+     * {@code orphanRemoval} correspond a la suppression en cascade en base : un message
+     * n'existe pas sans son ticket.
      */
     @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt ASC")
@@ -114,11 +114,11 @@ public class SupportTicket {
     }
 
     /**
-     * Cycle de vie d'une demande.
+     * Statuts d'une demande.
      *
-     * RESOLVED et CLOSED sont distincts a dessein : le premier dit que la reponse est
-     * apportee, le second que le dossier est definitivement clos. Entre les deux, le client
-     * peut encore revenir sans qu'il faille rouvrir un ticket.
+     * RESOLVED et CLOSED sont differents exprès : le premier veut dire qu'on a repondu, le
+     * second que le dossier est ferme pour de bon. Entre les deux, le client peut encore
+     * revenir sans qu'on doive rouvrir un ticket.
      */
     public enum TicketStatus {
         OPEN,              // Recue, pas encore prise en charge

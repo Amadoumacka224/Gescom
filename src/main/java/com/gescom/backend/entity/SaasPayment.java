@@ -12,15 +12,15 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Encaissement d'abonnement — le registre de revenus de la plateforme.
+ * Paiement d'abonnement, c'est l'historique des revenus de la plateforme.
  *
- * A ne pas confondre avec {@link Payment}, qui trace les transactions carte du terminal
- * de caisse d'une entreprise : la, une entreprise encaisse ses propres clients ; ici,
- * c'est GESCOM qui encaisse ses entreprises abonnees.
+ * A ne pas confondre avec {@link Payment}, qui garde les transactions carte du terminal de
+ * caisse d'une entreprise : la-bas une entreprise encaisse ses clients, ici c'est GESCOM qui
+ * encaisse les entreprises abonnees.
  *
- * Les echecs sont conserves au meme titre que les succes — c'est ce qui rend le taux de
- * reussite et le suivi des impayes calculables. Le montant reste donc renseigne meme sur
- * un paiement FAILED, et seuls les SUCCEEDED alimentent le revenu encaisse.
+ * On garde les echecs comme les succes, c'est ce qui permet de calculer le taux de reussite
+ * et de suivre les impayes. Le montant est donc rempli meme pour un paiement FAILED, et
+ * seuls les SUCCEEDED comptent dans le revenu encaisse.
  */
 @Entity
 @Table(name = "saas_payments")
@@ -38,8 +38,8 @@ public class SaasPayment {
     private Company company;
 
     /**
-     * Abonnement couvert. Nullable : un versement exceptionnel (regularisation, prestation
-     * ponctuelle) peut exister sans se rattacher a un contrat.
+     * Abonnement concerne. Peut etre null : un paiement exceptionnel (regularisation,
+     * prestation ponctuelle) peut ne pas etre lie a un contrat.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subscription_id")
@@ -67,14 +67,14 @@ public class SaasPayment {
     @Column(nullable = false, length = 20)
     private PaymentMethod method = PaymentMethod.TRANSFER;
 
-    /** Periode d'abonnement couverte : distingue deux versements d'un meme mois. */
+    /** Periode d'abonnement payee : permet de distinguer deux paiements du meme mois. */
     @Column
     private LocalDateTime periodStart;
 
     @Column
     private LocalDateTime periodEnd;
 
-    /** Date d'encaissement effectif ; renseignee uniquement quand le statut est SUCCEEDED. */
+    /** Date ou l'argent a ete recu ; remplie seulement si le statut est SUCCEEDED. */
     @Column
     private LocalDateTime paidAt;
 

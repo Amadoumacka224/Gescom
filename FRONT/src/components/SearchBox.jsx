@@ -3,11 +3,11 @@ import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /**
- * Champ de recherche avec liste de suggestions (autocomplétion) affichée sous le champ.
- * Le filtrage reste piloté par le parent via `value`/`onChange` ; ce composant se contente
- * d'afficher les suggestions déjà calculées (`suggestions`) et de remonter le clic.
+ * Champ de recherche avec une liste de suggestions en dessous.
+ * Le filtrage est géré par le parent via `value`/`onChange`. Ce composant affiche juste
+ * les suggestions déjà calculées (`suggestions`) et renvoie le clic.
  *
- * Navigation : ↑/↓ pour parcourir, Entrée pour valider, Échap pour fermer.
+ * Clavier : ↑/↓ pour naviguer, Entrée pour valider, Échap pour fermer.
  */
 const SearchBox = ({
   id,
@@ -31,7 +31,7 @@ const SearchBox = ({
 
   const canShow = open && value.trim().length >= minChars;
 
-  // Fermeture au clic en dehors.
+  // Ferme la liste quand on clique à côté.
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
@@ -40,10 +40,10 @@ const SearchBox = ({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Réinitialise l'élément survolé quand la requête change.
+  // Remet la sélection à zéro quand la recherche change.
   useEffect(() => setHighlight(0), [value]);
 
-  // Maintient l'élément survolé visible.
+  // Garde l'élément sélectionné visible.
   useEffect(() => {
     if (!canShow || !listRef.current) return;
     const node = listRef.current.children[highlight];

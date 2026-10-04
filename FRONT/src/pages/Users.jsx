@@ -80,8 +80,8 @@ const Users = () => {
     fetchUsers();
   }, []);
 
-  // Retour à la première page quand le contenu de la liste change : rester en page 3
-  // d'un résultat qui n'en compte plus qu'une affiche un tableau vide.
+  // Retour à la page 1 quand la liste change : rester en page 3 alors qu'il n'y a plus
+  // qu'une page afficherait un tableau vide.
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, roleFilter, statusFilter, itemsPerPage]);
@@ -205,8 +205,8 @@ const Users = () => {
 
     try {
       if (editingUser) {
-        // Charge utile explicite : `UserUpdateAdminRequest` ne connaît pas `username`
-        // (non modifiable) et n'accepte le mot de passe que s'il change réellement.
+        // Body construit à la main : `UserUpdateAdminRequest` n'a pas `username` (pas
+        // modifiable) et ne prend le mot de passe que s'il change vraiment.
         const payload = {
           email: formData.email,
           firstName: formData.firstName,
@@ -255,8 +255,8 @@ const Users = () => {
       if (user.active) {
         await api.patch(`/users/${user.id}/deactivate`);
       } else {
-        // Il n'existe pas d'endpoint de réactivation : on repasse par la mise à jour
-        // complète, avec les seuls champs attendus par UserUpdateAdminRequest.
+        // Il n'y a pas d'endpoint pour réactiver : on refait une mise à jour complète,
+        // avec seulement les champs de UserUpdateAdminRequest.
         await api.put(`/users/${user.id}`, {
           email: user.email,
           firstName: user.firstName,
@@ -282,7 +282,7 @@ const Users = () => {
     setActivitiesLoading(true);
     try {
       // Journal paginé côté serveur : on affiche l'activité récente de l'utilisateur,
-      // l'écran Historique permettant d'en parcourir l'intégralité.
+      // et l'écran Historique permet de tout voir.
       const response = await api.get(`/activities/user/${user.id}`, {
         params: { page: 0, size: 50, sort: 'createdAt,desc' },
       });
@@ -296,9 +296,9 @@ const Users = () => {
     }
   };
 
-  /* Le rôle ADMIN portait un badge rouge, teinte réservée dans la charte aux états négatifs
-   * ou bloquants (cf. section Badges de `index.css`) : un administrateur n'est pas une
-   * anomalie. L'indigo `accent` le distingue sans lui donner ce sens. */
+  /* Le rôle ADMIN avait un badge rouge, couleur réservée aux erreurs et aux blocages dans la
+   * charte (voir la section Badges de `index.css`) : un admin n'est pas un problème. L'indigo
+   * `accent` le distingue sans ce sens négatif. */
   const roleBadge = (user) =>
     user.role === 'ADMIN' ? (
       <span className="badge-accent">
@@ -471,8 +471,8 @@ const Users = () => {
           tone="success"
           loading={loading}
         />
-        {/* Les comptes désactivés n'apparaissaient nulle part : ce sont pourtant eux qu'on
-            vient vérifier après un départ ou une suspension. */}
+        {/* Les comptes désactivés n'étaient affichés nulle part, alors que c'est justement
+            eux qu'on veut vérifier après un départ ou une suspension. */}
         <StatCard
           title={t('users.inactiveCount')}
           value={stats.inactive}
@@ -571,9 +571,9 @@ const Users = () => {
               >
                 <Edit className="w-4 h-4" aria-hidden="true" />
               </button>
-              {/* Se désactiver ou se supprimer soi-même coupe la session en cours sans
-                  qu'aucune garde côté backend ne s'y oppose : les deux actions sont
-                  neutralisées sur sa propre ligne. */}
+              {/* Se désactiver ou se supprimer soi-même couperait la session en cours, et le
+                  backend ne l'empêche pas : les deux boutons sont désactivés sur sa propre
+                  ligne. */}
               <button
                 onClick={() => handleToggleActive(user)}
                 disabled={isSelf(user)}

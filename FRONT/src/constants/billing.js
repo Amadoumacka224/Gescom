@@ -1,11 +1,10 @@
 /**
- * Valeurs de facturation par défaut, appliquées uniquement lorsque les réglages de l'entreprise
- * sont indisponibles. Elles doivent rester alignées sur `Settings.java` — c'est ce jeu de
- * valeurs que le serveur persiste au premier démarrage.
+ * Valeurs de facturation par défaut, utilisées seulement si les paramètres de l'entreprise
+ * ne sont pas disponibles. Elles doivent rester les mêmes que dans `Settings.java` (ce sont
+ * les valeurs enregistrées par le serveur au premier démarrage).
  *
- * Un seul endroit les définit : elles étaient auparavant recopiées dans chaque écran de
- * facturation, si bien qu'un taux modifié dans Réglages ne s'appliquait qu'à une partie des
- * factures.
+ * Elles sont définies ici une seule fois. Avant, chaque écran de facturation avait sa copie,
+ * et un taux changé dans les Paramètres ne s'appliquait pas partout.
  */
 
 /** Taux de TVA standard en Belgique. */

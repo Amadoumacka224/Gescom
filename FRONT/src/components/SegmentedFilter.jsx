@@ -1,16 +1,14 @@
 /**
- * Groupe de filtres exclusifs (statut, type, mode d'affichage…).
+ * Groupe de filtres où un seul choix est possible (statut, type, affichage…).
  *
- * Boutons plutôt qu'une liste déroulante : les effectifs restent visibles en permanence
- * (« Livrées 12 »), ce qui donne la composition de la liste sans avoir à ouvrir quoi que ce
- * soit — et un clic suffit là où un `<select>` en demande deux.
+ * Des boutons plutôt qu'un select : les nombres restent toujours visibles (« Livrées 12 »)
+ * et il suffit d'un clic au lieu de deux.
  *
- * `aria-pressed` porte l'état sélectionné : la couleur ne le dit pas seule.
+ * `aria-pressed` indique le bouton actif, pas seulement la couleur.
  *
- * `flex-wrap` : à quatre filtres chiffrés (« Tous 160 · Disponible 160 · Stock faible 0 ·
- * Rupture 0 »), le groupe réclame 416 px. Sur un téléphone il ne les avait pas, et la carte qui
- * l'entoure étant en `overflow-hidden`, le dernier filtre était coupé sans que rien ne permette
- * d'y accéder. Il passe désormais à la ligne.
+ * `flex-wrap` : avec quatre filtres et leurs nombres (« Tous 160 · Disponible 160 · Stock
+ * faible 0 · Rupture 0 ») il faut 416 px. Sur téléphone ça ne rentrait pas, et comme la carte
+ * est en `overflow-hidden` le dernier filtre était coupé. Maintenant ça passe à la ligne.
  */
 const SegmentedFilter = ({ label, value, options, onChange, className = '' }) => (
   <div

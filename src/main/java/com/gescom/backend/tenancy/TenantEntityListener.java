@@ -8,16 +8,16 @@ import jakarta.persistence.PrePersist;
 import org.springframework.stereotype.Component;
 
 /**
- * Affecte automatiquement l'entreprise courante a toute entite cloisonnee creee.
+ * Met automatiquement l'entreprise en cours sur chaque entite creee qui est filtree par
+ * entreprise.
  *
- * Sans ce dispositif, il faudrait modifier chacun des services et mappers existants pour
- * y renseigner {@code setCompany(...)} — une douzaine de fichiers, et autant d'occasions
- * d'en oublier un, l'oubli produisant silencieusement une ligne non rattachee. Le poser
- * une fois au niveau du cycle de vie JPA garantit l'invariant pour tout code, present
- * comme futur.
+ * Sans ca, il faudrait modifier chaque service et mapper pour faire {@code setCompany(...)} :
+ * une douzaine de fichiers, et autant de risques d'en oublier un, avec une ligne sans
+ * entreprise creee sans aucune erreur. En le faisant une fois dans le cycle de vie JPA, on
+ * est sur que c'est fait partout, pour le code actuel comme pour le futur.
  *
- * Le champ n'est renseigne que s'il est vide : cela laisse au back-office proprietaire la
- * possibilite de creer explicitement une donnee pour le compte d'une entreprise donnee.
+ * Le champ n'est rempli que s'il est vide : le back-office plateforme peut donc creer une
+ * donnee pour une entreprise precise en la renseignant lui-meme.
  */
 @Component
 public class TenantEntityListener {
@@ -25,19 +25,18 @@ public class TenantEntityListener {
     /**
      * Reference statique vers l'instance geree par Spring.
      *
-     * Les {@code @EntityListeners} sont instancies par le fournisseur de persistance, dont
-     * la resolution via le conteneur Spring n'est pas garantie selon la configuration.
-     * Passer par ce relai rend l'injection fiable quel que soit le mode d'instanciation.
+     * Les {@code @EntityListeners} sont crees par Hibernate, et selon la config ils ne passent
+     * pas forcement par Spring. Passer par cette reference rend l'injection fiable dans tous
+     * les cas.
      */
     private static TenantEntityListener instance;
 
     /**
-     * L'EntityManager est sollicite directement, sans passer par un repository : le rappel
-     * se declenche pendant le flush, moment ou l'on veut le geste le plus inerte possible.
-     * {@code getReference} se contente de fabriquer un proxy et ne lit pas la base, la ou
-     * {@code CompanyRepository.getReferenceById} declencherait un chargement reel — le
-     * controle d'appartenance de {@link TenantAwareRepositoryImpl} l'impose — et donc une
-     * requete au milieu d'un flush.
+     * On utilise directement l'EntityManager, sans repository : le callback est appele pendant
+     * le flush, et a ce moment on veut faire le moins de choses possible. {@code getReference}
+     * cree juste un proxy sans lire la base, alors que {@code CompanyRepository.getReferenceById}
+     * chargerait vraiment l'entite (a cause de la verification de
+     * {@link TenantAwareRepositoryImpl}), donc une requete en plein flush.
      */
     @PersistenceContext
     private EntityManager entityManager;
@@ -54,8 +53,8 @@ public class TenantEntityListener {
         }
         Long companyId = TenantContext.getCompanyId();
         if (companyId == null || instance == null) {
-            // Vue plateforme ou traitement hors requete : c'est a l'appelant de designer
-            // explicitement l'entreprise. La contrainte NOT NULL en base fera le reste.
+            // Vue plateforme ou traitement hors requete : c'est a l'appelant de donner
+            // l'entreprise. Sinon la contrainte NOT NULL en base bloquera.
             return;
         }
         Company company = instance.entityManager.getReference(Company.class, companyId);

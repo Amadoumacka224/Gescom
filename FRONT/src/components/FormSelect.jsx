@@ -9,9 +9,9 @@ const FormSelect = ({
   required = false,
   error,
   placeholder = 'Sélectionner...',
-  // L'option vide de tête n'a de sens que si « rien » est un choix valable.
-  // Sur une liste dont une valeur est toujours retenue, elle ferait doublon
-  // avec la première option et permettrait de vider un champ obligatoire.
+  // L'option vide en tête seulement si « aucune valeur » est autorisé.
+  // Sinon elle doublerait la première option et permettrait de vider
+  // un champ obligatoire.
   allowEmpty = true,
 }) => {
   return (

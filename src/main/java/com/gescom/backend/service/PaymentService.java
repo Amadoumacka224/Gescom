@@ -28,23 +28,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Parcours de paiement par carte du terminal, en trois temps :
+ * Paiement par carte au terminal, en trois étapes :
  * <ol>
- *   <li>{@link #createIntent} — l'intention est ouverte chez le prestataire et tracée en base ;</li>
- *   <li>{@link #confirmIntent} — le terminal présente une carte, le prestataire tranche ;</li>
- *   <li>encaissement — si le prestataire accepte, {@link InvoiceService#recordPayment} met la
- *       facture à jour (PARTIALLY_PAID ou PAID) exactement comme un règlement en espèces.</li>
+ *   <li>{@link #createIntent} : l'intention est créée chez Stripe et enregistrée en base ;</li>
+ *   <li>{@link #confirmIntent} : le terminal envoie une carte, Stripe accepte ou refuse ;</li>
+ *   <li>paiement : si Stripe accepte, {@link InvoiceService#recordPayment} met la facture à
+ *       jour (PARTIALLY_PAID ou PAID), exactement comme un paiement en espèces.</li>
  * </ol>
  *
- * <strong>Statut de la commande.</strong> Aucune transition n'est déclenchée ici, et c'est
- * voulu : le cycle de vie de l'Order est linéaire (CONFIRMED → INVOICED → DELIVERED) et une
- * commande facturée est déjà INVOICED quand le terminal entre en jeu. Ce que le paiement fait
- * évoluer, c'est le statut de sa facture — dont l'application déduit le « Payée » affiché sur
- * la commande (voir {@code InvoiceService.getInvoiceStatusesByOrderIds}). Introduire un statut
- * PAID sur l'Order dupliquerait cette information dans deux machines à états concurrentes.
+ * <strong>Statut de la commande.</strong> On ne change aucun statut de commande ici, exprès :
+ * le cycle de la commande est linéaire (CONFIRMED → INVOICED → DELIVERED) et une commande
+ * facturée est déjà INVOICED quand on arrive au terminal. Le paiement change le statut de sa
+ * facture, et c'est de là que vient le « Payée » affiché sur la commande (voir
+ * {@code InvoiceService.getInvoiceStatusesByOrderIds}). Ajouter un statut PAID sur la commande
+ * mettrait la même info dans deux machines à états différentes.
  *
- * Le service n'encaisse jamais de sa propre autorité : il délègue à {@link InvoiceService},
- * qui reste seul juge des règles de règlement (facture annulée, dépassement du reste dû…).
+ * Ce service n'enregistre jamais un paiement lui-même : il passe par {@link InvoiceService},
+ * qui reste le seul à appliquer les règles de paiement (facture annulée, montant trop grand…).
  */
 @Service
 @Transactional
@@ -52,7 +52,7 @@ public class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
-    /** Stripe raisonne en plus petite unité monétaire : 12,34 € → 1234. */
+    /** Stripe travaille en centimes : 12,34 € → 1234. */
     private static final BigDecimal CENTS = new BigDecimal("100");
 
     private final PaymentRepository paymentRepository;
@@ -79,12 +79,13 @@ public class PaymentService {
     // ── Lecture ──────────────────────────────────────────────────────────────
 
     /**
-     * Session de paiement, cloisonnée sur le caissier qui a saisi la vente d'origine
-     * (payment → facture → commande).
+     * Session de paiement, visible seulement par le caissier qui a fait la vente
+     * (paiement → facture → commande).
      *
-     * Hors périmètre, la session est traitée comme inexistante plutôt que refusée : contrairement
-     * à une commande ou une facture, son identifiant n'est qu'une poignée interne que l'interface
-     * n'expose jamais entre opérateurs — il n'y a donc rien à confirmer à qui la devinerait.
+     * Si elle n'est pas au caissier, on fait comme si elle n'existait pas au lieu de refuser :
+     * contrairement à une commande ou une facture, son id est purement interne et l'interface
+     * ne le montre jamais aux autres caissiers, donc il n'y a rien à confirmer à quelqu'un qui
+     * le devinerait.
      */
     @Transactional(readOnly = true)
     public Payment getPayment(Long id) {
@@ -94,12 +95,12 @@ public class PaymentService {
     }
 
     /**
-     * Historique des tentatives d'une facture. La facture est relue au préalable pour que
-     * l'historique d'un collègue ne puisse pas être obtenu en donnant simplement son
-     * identifiant — le cloisonnement ne porterait sinon que sur la facture elle-même.
+     * Historique des tentatives sur une facture. On relit d'abord la facture pour qu'on ne
+     * puisse pas obtenir l'historique d'un collègue juste en donnant son id (sinon la
+     * vérification ne porterait que sur la facture elle-même).
      *
-     * Hors périmètre, la facture est traitée comme inexistante : un 403 confirmerait à qui
-     * balaierait les identifiants lesquels correspondent aux ventes de ses collègues.
+     * Si la facture n'est pas au caissier, on fait comme si elle n'existait pas : une 403
+     * permettrait, en essayant des ids, de savoir lesquels correspondent aux ventes des collègues.
      */
     @Transactional(readOnly = true)
     public List<Payment> getPaymentsByInvoice(Long invoiceId) {
@@ -109,9 +110,9 @@ public class PaymentService {
     }
 
     /**
-     * Session à modifier. La réponse reste celle de la lecture — hors périmètre, la session est
-     * inexistante — mais la tentative, elle, est tracée : l'interface ne mène jamais à la session
-     * d'un collègue, un tel appel traduit une requête forgée ou une régression.
+     * Session à modifier. La réponse est la même qu'en lecture (si ce n'est pas au caissier,
+     * la session « n'existe pas »), mais on logge la tentative : l'interface ne permet jamais
+     * d'arriver sur la session d'un collègue, donc c'est une requête fabriquée ou un bug.
      */
     private Payment getPaymentForWrite(Long id) {
         Payment payment = paymentRepository.findById(id)
@@ -127,19 +128,19 @@ public class PaymentService {
     // ── 1. Création de l'intention ───────────────────────────────────────────
 
     /**
-     * Ouvre une session de paiement pour une facture.
+     * Crée une session de paiement pour une facture.
      *
-     * @param requestedAmount montant à encaisser ; {@code null} pour solder le reste dû
+     * @param requestedAmount montant à encaisser ; {@code null} pour payer tout le reste
      */
     public Payment createIntent(Long invoiceId, BigDecimal requestedAmount) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("invoice", invoiceId));
         // On n'encaisse que ses propres ventes : ouvrir une session sur la facture d'un collègue
-        // porterait son encaissement au crédit d'une autre caisse.
+        // mettrait son paiement sur une autre caisse.
         cashierScope.requireAccess(invoice);
 
-        // Mêmes gardes que l'encaissement manuel — autant refuser avant d'appeler Stripe
-        // qu'après avoir créé une intention qu'on ne pourra pas honorer.
+        // Mêmes vérifications que pour le paiement manuel : autant refuser avant d'appeler
+        // Stripe plutôt qu'après avoir créé une intention qu'on ne pourra pas utiliser.
         if (invoice.getStatus() == Invoice.InvoiceStatus.CANCELED) {
             throw BusinessException.of("invoice.payment.canceled",
                     "Impossible d'encaisser une facture annulée");
@@ -150,11 +151,11 @@ public class PaymentService {
 
         BigDecimal amount = normalizeAmount(invoice, requestedAmount);
 
-        // Une seule session confirmable à la fois : deux intentions ouvertes sur la même facture
-        // mèneraient à un double encaissement au moment des confirmations. On referme donc les
-        // sessions restées ouvertes plutôt que de refuser la nouvelle — un terminal fermé avant
-        // la fin du parcours laisse une session pendante que personne ne viendra solder, et la
-        // refuser priverait alors la facture de tout paiement carte.
+        // Une seule session à confirmer à la fois : avec deux intentions ouvertes sur la même
+        // facture, on pourrait encaisser deux fois. On ferme donc les sessions encore ouvertes
+        // au lieu de refuser la nouvelle : si le terminal a été fermé avant la fin, la session
+        // reste ouverte et personne ne la terminera, et la refuser empêcherait tout paiement
+        // carte sur la facture.
         closeOpenSessions(invoiceId);
 
         StripeIntent intent = stripeGateway.createIntent(
@@ -176,15 +177,15 @@ public class PaymentService {
                 "Intention de paiement " + intent.id() + " de " + amount + " € sur la facture "
                         + invoice.getInvoiceNumber());
 
-        // Le secret n'est pas persisté : il ne vit que le temps de cette réponse.
+        // Le secret n'est pas enregistré : il n'existe que dans cette réponse.
         return withClientSecret(saved, intent.clientSecret());
     }
 
-    // ── 2. Confirmation, puis encaissement ───────────────────────────────────
+    // ── 2. Confirmation, puis paiement ───────────────────────────────────────
 
     /**
-     * Confirme l'intention avec un moyen de paiement de test et, si le prestataire accepte,
-     * enregistre l'encaissement sur la facture.
+     * Confirme l'intention avec une carte de test et, si Stripe accepte, enregistre le
+     * paiement sur la facture.
      */
     public Payment confirmIntent(Long paymentId, String paymentMethodId) {
         Payment payment = getPaymentForWrite(paymentId);
@@ -194,15 +195,15 @@ public class PaymentService {
                     + payment.getStatus() + ")");
         }
 
-        // Le reste dû a pu changer entre l'ouverture de la session et la carte présentée
-        // (encaissement partiel en espèces entre-temps). On le revérifie avant d'appeler le
-        // prestataire : après, l'argent serait pris et le rejet de recordPayment annulerait
-        // la transaction locale sans annuler le débit.
+        // Le reste à payer a pu changer entre l'ouverture de la session et l'envoi de la carte
+        // (paiement partiel en espèces entre-temps). On le revérifie avant d'appeler Stripe :
+        // après, l'argent serait pris, et si recordPayment refusait, on annulerait la
+        // transaction locale mais pas le débit.
         //
-        // La session est alors close, et l'issue est *retournée*, pas levée : lever une
-        // BusinessException annulerait la transaction — donc le passage à CANCELED juste
-        // au-dessus — et laisserait la session ouverte, bloquant les tentatives suivantes.
-        // C'est exactement le traitement réservé à un refus d'émetteur plus bas.
+        // On ferme alors la session et on *renvoie* le résultat, sans lancer d'exception : une
+        // BusinessException annulerait la transaction (donc aussi le passage à CANCELED juste
+        // au-dessus) et laisserait la session ouverte, ce qui bloquerait les essais suivants.
+        // C'est le même traitement que pour une carte refusée plus bas.
         Invoice invoice = payment.getInvoice();
         BigDecimal remaining = remainingOf(invoice);
         if (invoice.getStatus() == Invoice.InvoiceStatus.CANCELED
@@ -235,8 +236,8 @@ public class PaymentService {
             return refused;
         }
 
-        // 3. Le prestataire a accepté : l'encaissement suit la même règle métier que tout
-        // autre règlement, y compris la bascule UNPAID → PARTIALLY_PAID → PAID.
+        // 3. Stripe a accepté : le paiement suit la même règle que tous les autres, y compris
+        // le passage UNPAID → PARTIALLY_PAID → PAID.
         Invoice settled = invoiceService.recordPayment(
                 invoice.getId(), payment.getAmount(), Invoice.PaymentMethod.CREDIT_CARD);
 
@@ -251,7 +252,7 @@ public class PaymentService {
         return succeeded;
     }
 
-    // ── Abandon ──────────────────────────────────────────────────────────────
+    // ── Annulation ───────────────────────────────────────────────────────────
 
     public Payment cancelIntent(Long paymentId) {
         Payment payment = getPaymentForWrite(paymentId);
@@ -261,8 +262,8 @@ public class PaymentService {
                     "Seul un paiement en attente de confirmation peut être annulé");
         }
 
-        // Au mieux côté prestataire : le caissier a demandé l'abandon, une panne réseau ne doit
-        // pas laisser la session ouverte de notre côté.
+        // On essaie d'annuler chez Stripe, sans bloquer si ça échoue : le caissier a demandé
+        // l'annulation, une coupure réseau ne doit pas laisser la session ouverte chez nous.
         abandonAtGateway(payment);
         payment.setStatus(Payment.PaymentStatus.CANCELED);
         Payment canceled = paymentRepository.save(payment);
@@ -272,12 +273,12 @@ public class PaymentService {
         return canceled;
     }
 
-    // ── Utilitaires ──────────────────────────────────────────────────────────
+    // ── Outils ───────────────────────────────────────────────────────────────
 
     /**
-     * Referme les sessions encore ouvertes sur une facture. Une session pendante n'est pas le
-     * signe d'un encaissement en cours mais, presque toujours, d'un terminal fermé en route :
-     * elle n'a aucune valeur et seule la plus récente doit rester confirmable.
+     * Ferme les sessions encore ouvertes sur une facture. Une session ouverte ne veut pas dire
+     * qu'un paiement est en cours, mais presque toujours qu'un terminal a été fermé avant la
+     * fin : elle ne sert à rien et seule la plus récente doit pouvoir être confirmée.
      */
     private void closeOpenSessions(Long invoiceId) {
         for (Payment pending : paymentRepository.findByInvoiceIdAndStatus(
@@ -292,9 +293,9 @@ public class PaymentService {
     }
 
     /**
-     * Clôture l'intention chez le prestataire, au mieux : ce qui fait foi est l'état local.
-     * Une panne réseau ne doit pas faire échouer — donc annuler — la transaction qui vient de
-     * marquer la session close de notre côté.
+     * Ferme l'intention chez Stripe si possible : c'est l'état chez nous qui compte. Une
+     * coupure réseau ne doit pas faire échouer (donc annuler) la transaction qui vient de
+     * fermer la session de notre côté.
      */
     private void abandonAtGateway(Payment payment) {
         try {
@@ -305,7 +306,7 @@ public class PaymentService {
         }
     }
 
-    /** Montant demandé (ou reste dû par défaut), normalisé et validé. */
+    /** Montant demandé (ou reste à payer par défaut), arrondi et vérifié. */
     private BigDecimal normalizeAmount(Invoice invoice, BigDecimal requestedAmount) {
         BigDecimal remaining = remainingOf(invoice);
         if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
@@ -336,7 +337,7 @@ public class PaymentService {
         return amount.multiply(CENTS).setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
-    /** Références métier attachées à la transaction, pour retrouver l'origine côté Stripe. */
+    /** Infos métier ajoutées à la transaction, pour retrouver d'où elle vient côté Stripe. */
     private Map<String, String> metadataOf(Invoice invoice) {
         Map<String, String> metadata = new HashMap<>();
         metadata.put("invoiceId", String.valueOf(invoice.getId()));
@@ -350,8 +351,8 @@ public class PaymentService {
     }
 
     /**
-     * Attache le secret client à l'objet renvoyé sans le stocker : l'entité est détachée du
-     * contexte de persistance pour ce seul aller-retour HTTP.
+     * Ajoute le secret client à l'objet renvoyé sans l'enregistrer : l'entité est détachée du
+     * contexte de persistance juste pour cette réponse HTTP.
      */
     private Payment withClientSecret(Payment payment, String clientSecret) {
         payment.setClientSecret(clientSecret);

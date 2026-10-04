@@ -1,14 +1,14 @@
 import axios from './axios';
 
 /**
- * Terminal de paiement carte (Stripe, mode test).
+ * Terminal de paiement par carte (Stripe, mode test).
  *
- * Le parcours se joue en deux appels : on ouvre une intention pour une facture, puis on la
- * confirme avec un moyen de paiement de test. C'est la confirmation qui déclenche, côté
- * serveur, l'encaissement de la facture — le terminal ne met jamais un statut à jour lui-même.
+ * Deux appels : on crée une intention pour une facture, puis on la confirme avec une carte
+ * de test. C'est la confirmation qui fait enregistrer le paiement de la facture côté
+ * serveur, le terminal ne change jamais un statut lui-même.
  */
 const paymentService = {
-  // Montant omis : le serveur propose le reste dû de la facture.
+  // Sans montant, le serveur prend le reste à payer de la facture.
   createIntent: (invoiceId, amount) =>
     axios.post('/payments/stripe/intents', { invoiceId, amount }),
   confirmIntent: (paymentId, paymentMethodId) =>
@@ -19,8 +19,8 @@ const paymentService = {
 };
 
 /**
- * Cartes de test proposées par le terminal. Ce sont les jetons du bac à sable de Stripe :
- * les mêmes valeurs fonctionnent en mode simulé et en mode test réel.
+ * Cartes de test proposées par le terminal. Ce sont les tokens de test de Stripe : les mêmes
+ * valeurs marchent en mode simulé et en vrai mode test.
  */
 export const TEST_CARDS = [
   {

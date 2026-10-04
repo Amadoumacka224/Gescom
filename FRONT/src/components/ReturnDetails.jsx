@@ -8,7 +8,7 @@ import useSettings from '../hooks/useSettings';
 import { generateCreditNotePDF } from '../utils/pdfGenerator';
 import { formatCurrency, formatDate, formatTime } from '../utils/format';
 
-/* Teinte du traitement : ce qui rend l'argent est signalé, la remise en stock est l'ordinaire. */
+/* Couleur selon le traitement : le remboursement est mis en évidence, la remise en stock est le cas normal. */
 const TREATMENT_TONE = {
   RESTOCK: 'badge-success',
   REFUND: 'badge-warning',
@@ -16,24 +16,23 @@ const TREATMENT_TONE = {
 };
 
 /**
- * Fiche d'un retour enregistré : le document tel qu'il a été validé.
+ * Détail d'un retour enregistré.
  *
- * Purement consultative — un retour ne se modifie pas. Corriger une erreur passe par les
- * opérations de stock (ajustement, sortie), qui laissent elles aussi leur trace dans le grand
- * livre plutôt que de réécrire l'historique.
+ * En lecture seule : un retour ne se modifie pas. Pour corriger une erreur, on passe par
+ * une opération de stock (ajustement, sortie), qui reste elle aussi dans l'historique.
  */
 const ReturnDetails = ({ stockReturn, loading }) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
 
-  /* L'avoir n'a de sens que s'il y a de l'argent à rendre : une remise en stock ou un échange
-   * reprend de la marchandise sans mouvement financier, il n'y a alors rien à créditer. */
+  /* L'avoir ne sert que s'il y a un remboursement. Une remise en stock ou un échange ne fait
+   * pas bouger d'argent, il n'y a rien à créditer. */
   const refundable = Number(stockReturn?.refundAmount) > 0;
 
   const handleCreditNote = async () => {
     try {
-      // Les coordonnées de l'entreprise viennent des Réglages ; leur absence ne bloque pas
-      // l'édition, le générateur applique ses propres valeurs par défaut.
+      // Les coordonnées de l'entreprise viennent des Paramètres. Si elles manquent, on génère
+      // quand même le PDF avec les valeurs par défaut.
       await generateCreditNotePDF(stockReturn, settings || {});
     } catch (error) {
       console.error('Error generating credit note:', error);
@@ -64,8 +63,8 @@ const ReturnDetails = ({ stockReturn, loading }) => {
               }`
             : ''}
         </p>
-        {/* Le titre porté par l'enveloppe et non par le bouton : un bouton désactivé ne reçoit
-            pas les événements de survol, l'explication ne s'afficherait jamais. */}
+        {/* Le title est sur le span et pas sur le bouton : un bouton désactivé ne reçoit pas
+            le survol, l'infobulle ne s'afficherait jamais. */}
         <span title={refundable ? undefined : t('stock.returns.creditNoteNoRefund')}>
           <Button
             variant="secondary"

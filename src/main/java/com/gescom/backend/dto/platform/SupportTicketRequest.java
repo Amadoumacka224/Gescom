@@ -5,11 +5,11 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * Ouverture d'un ticket depuis le back-office.
+ * Creation d'un ticket depuis le back-office.
  *
- * {@code description} n'est pas une colonne du ticket : elle devient le premier message du
- * fil. Un ticket n'a ainsi qu'un seul endroit ou lire son contenu, au lieu d'un resume
- * fige d'un cote et la conversation de l'autre.
+ * {@code description} n'est pas une colonne du ticket : elle devient le premier message.
+ * Comme ca tout le contenu du ticket est au meme endroit, au lieu d'avoir un resume d'un
+ * cote et la discussion de l'autre.
  */
 public record SupportTicketRequest(
         @NotNull(message = "L'entreprise est obligatoire")
@@ -28,7 +28,7 @@ public record SupportTicketRequest(
         @NotNull(message = "La categorie est obligatoire")
         String category,
 
-        /** Interlocuteur chez le client, quand il est identifie. */
+        /** Personne a contacter chez le client, si on la connait. */
         Long contactUserId
 ) {
 }

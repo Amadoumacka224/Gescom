@@ -17,29 +17,29 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Cloisonnement d'un caissier à ses propres ventes.
+ * Limite un caissier à ses propres ventes.
  *
- * Deuxième niveau d'isolement, sous celui des entreprises : {@code TenantContext} détermine
- * QUELLE entreprise la requête peut voir, celui-ci détermine QUELLE PART de cette entreprise
- * un caissier peut voir. L'ADMIN, lui, supervise l'ensemble — {@link #restrictedUserId()}
- * renvoie alors {@code null}, qui signifie « aucune restriction », exactement comme un
- * contexte d'entreprise vide.
+ * C'est un deuxième niveau de séparation, en dessous de celui des entreprises :
+ * {@code TenantContext} dit QUELLE entreprise la requête peut voir, cette classe dit QUELLE
+ * PARTIE de l'entreprise un caissier peut voir. L'ADMIN voit tout : {@link #restrictedUserId()}
+ * renvoie alors {@code null}, qui veut dire « pas de restriction », comme un contexte
+ * d'entreprise vide.
  *
- * La propriété d'une opération remonte toujours à {@code Order.createdBy} : une facture, une
- * livraison ou un paiement carte n'existent que par la vente dont ils découlent, et suivent
- * donc le caissier qui l'a saisie plutôt que celui qui a produit le document. Sans quoi un
- * caissier perdrait la facture de sa propre vente dès qu'un collègue l'aurait éditée.
+ * Une opération appartient toujours au caissier de {@code Order.createdBy} : une facture,
+ * une livraison ou un paiement carte n'existent que grâce à la vente, donc ils suivent le
+ * caissier qui a fait la vente et pas celui qui a créé le document. Sinon un caissier ne
+ * verrait plus la facture de sa propre vente dès qu'un collègue l'aurait créée.
  *
- * L'identité est lue sur le principal authentifié — l'entité {@code User} chargée en base par
- * {@code JwtAuthenticationFilter} —, jamais sur un identifiant fourni par l'appelant : c'est
- * ce qui rend le cloisonnement insensible à un appel direct de l'API.
+ * L'utilisateur est lu dans le principal authentifié (l'entité {@code User} chargée en base
+ * par {@code JwtAuthenticationFilter}), jamais dans un id envoyé par l'appelant : comme ça,
+ * appeler l'API directement ne permet pas de contourner la règle.
  */
 @Component("cashierScope")
 public class CashierScope {
 
     private static final Logger log = LoggerFactory.getLogger(CashierScope.class);
 
-    /** Utilisateur authentifié, ou {@code null} hors requête authentifiée. */
+    /** Utilisateur connecté, ou {@code null} en dehors d'une requête authentifiée. */
     private User currentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
@@ -49,17 +49,17 @@ public class CashierScope {
     }
 
     /**
-     * Identifiant du caissier auquel la requête est restreinte, ou {@code null} si elle ne
-     * l'est pas (ADMIN, et traitements hors requête qui ne servent aucun écran).
+     * Id du caissier auquel la requête est limitée, ou {@code null} si elle ne l'est pas
+     * (ADMIN, ou traitements hors requête qui ne servent aucun écran).
      *
-     * C'est la valeur à passer aux requêtes de liste : {@code null} y désactive le filtre.
+     * C'est la valeur à passer aux requêtes de liste : {@code null} désactive le filtre.
      */
     public Long restrictedUserId() {
         User user = currentUser();
         return isCashier(user) ? user.getId() : null;
     }
 
-    /** Vrai si la requête en cours est celle d'un caissier, donc limitée à ses propres ventes. */
+    /** Vrai si c'est un caissier qui fait la requête, donc limité à ses propres ventes. */
     public boolean isRestricted() {
         return isCashier(currentUser());
     }
@@ -68,16 +68,16 @@ public class CashierScope {
         return user != null && user.getRole() == User.Role.CAISSIER;
     }
 
-    // --- Appartenance d'une opération -----------------------------------------
+    // --- À qui appartient une opération ---------------------------------------
 
-    /** Vrai si la requête en cours a le droit de voir cette vente. */
+    /** Vrai si la requête a le droit de voir cette vente. */
     public boolean canAccess(Order order) {
         Long restricted = restrictedUserId();
         if (restricted == null) {
             return true;
         }
         // Une vente sans créateur (import, reprise de données) n'appartient à personne :
-        // elle relève de la supervision, pas de la caisse.
+        // c'est pour l'admin, pas pour la caisse.
         return order != null
                 && order.getCreatedBy() != null
                 && restricted.equals(order.getCreatedBy().getId());
@@ -95,24 +95,23 @@ public class CashierScope {
         return payment != null && canAccess(payment.getInvoice());
     }
 
-    // --- Lecture : la vente d'autrui se comporte comme une vente inexistante ---
+    // --- Lecture : la vente d'un autre est traitée comme si elle n'existait pas ---
 
     /**
-     * Ne laisse passer la ressource que si la requête y a droit, sinon renvoie un
-     * {@link Optional} vide — le contrôleur en tire un 404, indiscernable d'un identifiant
-     * qui n'existe pas. Une lecture hors périmètre ne doit rien révéler, pas même l'existence
-     * de la vente d'un collègue.
+     * Ne garde la ressource que si la requête y a droit, sinon renvoie un {@link Optional}
+     * vide. Le contrôleur renvoie alors un 404, comme pour un id qui n'existe pas : une
+     * lecture interdite ne doit rien révéler, même pas que la vente d'un collègue existe.
      */
     public <T> Optional<T> filterReadable(Optional<T> found, Function<T, Order> saleOf) {
-        // Sans restriction, la vente n'est même pas lue : la résoudre initialiserait les proxies
-        // de la chaîne (paiement → facture → commande) pour une valeur aussitôt écartée.
+        // Sans restriction, on ne lit même pas la vente : ça chargerait les proxies
+        // (paiement → facture → commande) pour rien.
         if (!isRestricted()) {
             return found;
         }
         return found.filter(item -> canAccess(saleOf.apply(item)));
     }
 
-    /** Restreint une liste au périmètre de la requête (sans copie inutile pour un ADMIN). */
+    /** Filtre une liste selon ce que la requête peut voir (pas de copie inutile pour un ADMIN). */
     public <T> List<T> filterReadable(Collection<T> items, Function<T, Order> saleOf) {
         if (!isRestricted()) {
             return items instanceof List<T> list ? list : List.copyOf(items);
@@ -120,12 +119,12 @@ public class CashierScope {
         return items.stream().filter(item -> canAccess(saleOf.apply(item))).toList();
     }
 
-    // --- Écriture : refus explicite et tracé ----------------------------------
+    // --- Écriture : refus clair et loggé --------------------------------------
 
     /**
-     * Exige que la requête ait le droit d'agir sur cette vente. Contrairement à la lecture,
-     * l'écriture hors périmètre est rejetée franchement : l'interface n'y mène jamais, une
-     * telle tentative traduit un appel forgé ou une régression.
+     * Vérifie que la requête a le droit de modifier cette vente. Contrairement à la lecture,
+     * on refuse clairement : l'interface ne permet jamais d'arriver là, donc c'est forcément
+     * une requête fabriquée à la main ou un bug.
      */
     public void requireAccess(Order order) {
         if (!canAccess(order)) {

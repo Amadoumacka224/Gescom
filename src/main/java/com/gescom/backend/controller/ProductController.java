@@ -49,11 +49,11 @@ public class ProductController {
     }
 
     /**
-     * Catalogue intégral, sans pagination.
+     * Tout le catalogue, sans pagination.
      *
-     * Conservé parce que plusieurs écrans s'en servent comme d'un référentiel à charger une
-     * fois — la caisse, l'ajustement de stock, le décompte par catégorie — et non comme d'un
-     * tableau à parcourir. Le tableau de l'écran Produits, lui, passe par {@link #searchProducts}.
+     * Gardé parce que plusieurs écrans le chargent une fois pour s'en servir comme liste de
+     * référence (la caisse, l'ajustement de stock, le nombre par catégorie), pas pour
+     * l'afficher en tableau. Le tableau de l'écran Produits utilise {@link #searchProducts}.
      */
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getAllProducts() {
@@ -62,11 +62,11 @@ public class ProductController {
     }
 
     /**
-     * Page du catalogue, filtrée et triée en base.
+     * Une page du catalogue, filtrée et triée en base.
      *
      * Le tri vient du {@code Pageable} (?sort=name,asc) : les colonnes triables de l'écran sont
-     * des champs de l'entité, il n'y a rien à traduire. Défaut sur le nom, ordre alphabétique,
-     * qui est l'attendu d'un catalogue.
+     * des champs de l'entité, rien à convertir. Par défaut, tri par nom (ordre alphabétique),
+     * c'est le plus logique pour un catalogue.
      */
     @GetMapping("/search")
     public ResponseEntity<PageResponse<ProductResponse>> searchProducts(
@@ -79,7 +79,7 @@ public class ProductController {
                 referenceMapper::toResponse));
     }
 
-    /** Compteurs d'en-tête : ils portent sur le catalogue entier, pas sur la page affichée. */
+    /** Compteurs en haut de page : sur tout le catalogue, pas sur la page affichée. */
     @GetMapping("/summary")
     public ResponseEntity<ProductCatalogSummary> getCatalogSummary() {
         return ResponseEntity.ok(productService.getCatalogSummary());
@@ -108,9 +108,9 @@ public class ProductController {
     }
 
     /**
-     * Recherche d'un produit par code-barres (scan lors de la saisie d'une commande).
-     * Renvoie le produit même s'il est désactivé (le client distingue alors « indisponible »
-     * de « inconnu ») ; 404 si aucun produit ne porte ce code-barres.
+     * Recherche d'un produit par code-barres (scan pendant la saisie d'une commande).
+     * Renvoie le produit même s'il est désactivé (le front peut alors afficher « indisponible »
+     * au lieu de « inconnu ») ; 404 si aucun produit n'a ce code-barres.
      */
     @GetMapping("/barcode/{barcode}")
     public ResponseEntity<ProductResponse> getProductByBarcode(@PathVariable String barcode) {
@@ -140,10 +140,10 @@ public class ProductController {
     }
 
     /**
-     * Modification de la fiche produit. {@code stockQuantity} n'est lu qu'à la création : sur une
-     * mise à jour il est ignoré (cf. {@link com.gescom.backend.service.ProductService#updateProduct}),
-     * le stock ne se corrigeant que par {@code PATCH /{id}/stock} ou les opérations de {@code /stock},
-     * qui laissent une trace dans le grand livre des mouvements.
+     * Modification d'un produit. {@code stockQuantity} n'est utilisé qu'à la création : en
+     * modification il est ignoré (voir {@link com.gescom.backend.service.ProductService#updateProduct}).
+     * Le stock se corrige seulement par {@code PATCH /{id}/stock} ou par les opérations de
+     * {@code /stock}, qui enregistrent un mouvement.
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")

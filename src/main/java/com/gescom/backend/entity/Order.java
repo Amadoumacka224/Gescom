@@ -21,9 +21,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Entité commande, pièce maîtresse du domaine. Elle agrège ses lignes (OrderItem) avec
- * cascade complète, mémorise les montants (total, remise, net à facturer) et porte
- * sa propre machine à états (enum OrderStatus) qui régit les transitions de statut autorisées.
+ * Commande, l'entité centrale du projet. Elle contient ses lignes (OrderItem) en cascade,
+ * garde les montants (total, remise, net à facturer) et a sa propre machine à états
+ * (enum OrderStatus) qui définit les changements de statut autorisés.
  */
 @Entity
 @Table(name = "orders", uniqueConstraints = @UniqueConstraint(name = "uq_orders_company_number", columnNames = {"company_id", "order_number"}))
@@ -40,11 +40,11 @@ public class Order implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
@@ -54,7 +54,7 @@ public class Order implements TenantOwned {
     @Column(nullable = false, length = 50)
     private String orderNumber;
 
-    // Optionnel : null pour une vente de passage (client non enregistré).
+    // Optionnel : null pour une vente sans client enregistré.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id")
     private Client client;
@@ -66,16 +66,16 @@ public class Order implements TenantOwned {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
-    // Total HT des lignes, remises de ligne déjà déduites.
+    // Total HT des lignes, remises des lignes déjà enlevées.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
-    // Remise commerciale globale, en euros (les remises de ligne, elles, sont en %).
+    // Remise globale en euros (les remises des lignes, elles, sont en %).
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal discount = BigDecimal.ZERO;
 
-    // Net HT à facturer : totalAmount − discount. C'est exactement la base sur laquelle
-    // InvoiceService applique ensuite la TVA — les deux montants ne doivent jamais diverger.
+    // Net HT à facturer : totalAmount − discount. C'est sur ce montant qu'InvoiceService
+    // applique ensuite la TVA, les deux doivent toujours correspondre.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal finalAmount = BigDecimal.ZERO;
 
@@ -104,27 +104,27 @@ public class Order implements TenantOwned {
     }
 
     /*
-     * Le numéro n'est plus composé ici. Il est attribué par DocumentNumberService avant
-     * l'enregistrement, sous la forme CMD-2026-000042 : séquentiel, par entreprise, remis à zéro
-     * chaque année. Un @PrePersist ne peut pas s'en charger — il n'a accès à aucun repository, et
-     * ne pouvait donc qu'inventer un numéro à partir de l'horloge.
+     * Le numéro n'est plus créé ici. C'est DocumentNumberService qui le donne avant
+     * l'enregistrement, au format CMD-2026-000042 : il se suit, il est propre à chaque
+     * entreprise et repart à zéro chaque année. Un @PrePersist ne peut pas le faire car il n'a
+     * pas accès aux repositories, il ne pouvait que fabriquer un numéro avec l'heure.
      *
-     * Conséquence assumée : une commande insérée sans passer par le service n'a pas de numéro et
-     * viole la contrainte NOT NULL. C'est voulu — un échec franc vaut mieux qu'un numéro à
-     * l'horodatage réapparaissant discrètement au milieu de la suite.
+     * Du coup, une commande ajoutée sans passer par le service n'a pas de numéro et ne respecte
+     * pas le NOT NULL. C'est voulu : mieux vaut une erreur claire qu'un numéro basé sur l'heure
+     * qui se glisse au milieu de la suite.
      */
 
     public enum OrderStatus {
 
-        // ── Valeurs (ordre du cycle de vie) ──────────────────────────
-        // Flux linéaire strict : la livraison ne peut être créée qu'après la facturation.
+        // ── Valeurs (dans l'ordre du cycle de vie) ───────────────────
+        // Ordre strict : on ne peut créer la livraison qu'après la facturation.
         PENDING,    // Créée, en attente de confirmation
         CONFIRMED,  // Confirmée — peut être facturée
         INVOICED,   // Facturée — peut être livrée
         DELIVERED,  // Livrée — état commercial final
         CANCELED;   // Annulée — terminal
 
-        // ── Machine à états : transitions autorisées ─────────────────
+        // ── Machine à états : changements autorisés ──────────────────
         private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS;
 
         static {
@@ -132,14 +132,14 @@ public class Order implements TenantOwned {
             map.put(PENDING,   Collections.unmodifiableSet(EnumSet.of(CONFIRMED, CANCELED)));
             map.put(CONFIRMED, Collections.unmodifiableSet(EnumSet.of(INVOICED, CANCELED)));
             map.put(INVOICED,  Collections.unmodifiableSet(EnumSet.of(DELIVERED, CANCELED)));
-            // DELIVERED est terminal : on n'annule pas des marchandises déjà livrées
-            // (ce serait un retour, hors périmètre de ce flux).
+            // DELIVERED est final : on n'annule pas une marchandise déjà livrée
+            // (ce serait un retour, ça ne passe pas par ici).
             map.put(DELIVERED, Collections.emptySet());
             map.put(CANCELED,  Collections.emptySet());
             ALLOWED_TRANSITIONS = Collections.unmodifiableMap(map);
         }
 
-        // ── API publique ─────────────────────────────────────────────
+        // ── Méthodes publiques ───────────────────────────────────────
         public Set<OrderStatus> allowedTransitions() {
             return ALLOWED_TRANSITIONS.getOrDefault(this, Collections.emptySet());
         }

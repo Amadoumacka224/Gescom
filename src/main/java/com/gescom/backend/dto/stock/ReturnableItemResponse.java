@@ -3,11 +3,12 @@ package com.gescom.backend.dto.stock;
 import java.math.BigDecimal;
 
 /**
- * Ligne d'une vente vue depuis le module de retours.
+ * Ligne d'une vente vue depuis l'écran des retours.
  *
  * {@code quantityReturnable} = {@code quantitySold} − {@code quantityReturned} : c'est la seule
- * valeur que l'écran doit laisser saisir, et le service la revalide à l'enregistrement — un
- * client ne peut pas rendre plus qu'il n'a acheté, ni deux fois le même article.
+ * quantité que l'écran doit permettre de saisir, et le service la revérifie à
+ * l'enregistrement. Un client ne peut pas rendre plus que ce qu'il a acheté, ni rendre deux
+ * fois le même article.
  */
 public record ReturnableItemResponse(
         Long productId,
@@ -17,12 +18,12 @@ public record ReturnableItemResponse(
         Integer quantitySold,
         Integer quantityReturned,
         Integer quantityReturnable,
-        // Prix unitaire réellement payé, toutes remises déduites : celle de la ligne, et la
-        // part de la remise globale de la vente qui revient à cette ligne. C'est la base d'un
-        // remboursement — on ne rend pas plus que ce qui a été encaissé.
+        // Prix unitaire vraiment payé, avec toutes les remises : celle de la ligne et la part
+        // de la remise globale qui revient à cette ligne. C'est sur ce prix qu'on rembourse,
+        // on ne rend pas plus que ce qui a été payé.
         BigDecimal unitPrice,
         BigDecimal lineTotal,
-        // Stock actuel du produit, pour situer l'effet du retour avant de le valider.
+        // Stock actuel du produit, pour voir l'effet du retour avant de valider.
         Integer stockQuantity
 ) {
 }

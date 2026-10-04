@@ -14,14 +14,13 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Utilisateurs de tout le parc.
+ * Utilisateurs de toutes les entreprises.
  *
- * L'écran répond à une question de support : « quel compte pose problème chez ce client ? ».
- * D'où les deux colonnes qui le distinguent de l'écran Utilisateurs d'une entreprise —
- * l'entreprise d'appartenance, et la dernière connexion, qui dit si le compte sert encore.
+ * Cet écran sert surtout au support : « quel compte pose problème chez ce client ? ». C'est
+ * pour ça qu'il a deux colonnes en plus de l'écran Utilisateurs d'une entreprise :
+ * l'entreprise, et la dernière connexion (pour savoir si le compte est encore utilisé).
  *
- * Le propriétaire de la plateforme n'y figure pas : il n'est l'utilisateur d'aucune
- * entreprise, le serveur l'exclut de la requête.
+ * Le super admin n'apparaît pas : il n'appartient à aucune entreprise, le serveur l'exclut.
  */
 
 const ROLE_TONE = { ADMIN: 'accent', CAISSIER: 'info' };
@@ -154,8 +153,8 @@ const PlatformUsers = () => {
             {formatDate(row.lastLoginAt)}
           </span>
         ) : (
-          // Un compte jamais utilisé est le premier signal d'un déploiement qui a échoué
-          // chez un client : il mérite mieux qu'un tiret muet.
+          // Un compte jamais utilisé, c'est souvent le signe que la mise en place a raté chez
+          // un client : on l'indique clairement plutôt qu'avec un simple tiret.
           <span className="text-sm text-amber-600 dark:text-amber-400">
             {t('platform.users.neverConnected')}
           </span>

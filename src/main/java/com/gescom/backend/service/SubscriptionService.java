@@ -21,12 +21,12 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Cycle de vie des abonnements.
+ * Gestion des abonnements.
  *
- * Une entreprise n'a qu'un contrat vivant a la fois — regle inscrite en base par l'index
- * partiel {@code uq_subscriptions_active_per_company}. Souscrire alors qu'un contrat court
- * deja n'est donc pas une erreur a signaler mais un changement de formule : l'ancien est
- * clos, le nouveau ouvert, et l'historique conserve les deux.
+ * Une entreprise n'a qu'un contrat actif a la fois (impose en base par l'index partiel
+ * {@code uq_subscriptions_active_per_company}). Souscrire alors qu'il y a deja un contrat
+ * n'est donc pas une erreur, c'est un changement de formule : l'ancien est ferme, le nouveau
+ * est cree, et on garde les deux dans l'historique.
  */
 @Service
 @Transactional
@@ -59,7 +59,7 @@ public class SubscriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Subscription", id));
     }
 
-    /** Contrat vivant d'une entreprise, s'il en existe un. */
+    /** Contrat actif d'une entreprise, s'il y en a un. */
     @Transactional(readOnly = true)
     public Optional<Subscription> getLiveForCompany(Long companyId) {
         return subscriptionRepository.findLiveByCompany(companyId, Subscription.LIVE_STATUSES);
@@ -81,12 +81,12 @@ public class SubscriptionService {
     }
 
     /**
-     * Ouvre un contrat, en cloturant celui qui court eventuellement.
+     * Cree un contrat, en fermant celui en cours s'il y en a un.
      *
-     * @param amount tarif negocie ; {@code null} pour appliquer le tarif catalogue. Le montant
-     *               retenu est ensuite fige sur le contrat, de sorte qu'une revision du
-     *               catalogue ne reecrive pas retroactivement le MRR des contrats en cours.
-     * @param trial  ouvre le contrat en TRIALING, sans facturation immediate.
+     * @param amount prix negocie ; {@code null} pour prendre le prix de la formule. Le montant
+     *               est ensuite fixe sur le contrat, pour qu'un changement de prix ne modifie
+     *               pas apres coup le MRR des contrats en cours.
+     * @param trial  demarre le contrat en TRIALING, sans facturation tout de suite.
      */
     public Subscription subscribe(Company company, Plan plan, Subscription.BillingPeriod period,
                                   BigDecimal amount, boolean trial) {
@@ -95,8 +95,8 @@ public class SubscriptionService {
                     "La formule " + plan.getName() + " n'est plus proposee a la souscription",
                     plan.getName());
         }
-        // Un contrat vivant doit etre clos avant d'en ouvrir un autre : l'index partiel en
-        // base refuserait le second, et un changement de formule est precisement cela.
+        // Il faut fermer le contrat actif avant d'en creer un autre : l'index partiel en base
+        // refuserait le deuxieme, et c'est exactement ce qu'est un changement de formule.
         getLiveForCompany(company.getId())
                 .ifPresent(current -> close(current, Subscription.SubscriptionStatus.CANCELED,
                         "Changement de formule"));
@@ -117,7 +117,7 @@ public class SubscriptionService {
         return subscriptionRepository.save(subscription);
     }
 
-    /** Renouvelle le contrat pour une periode de plus. */
+    /** Renouvelle le contrat pour une periode en plus. */
     public Subscription renew(Long id) {
         Subscription subscription = getById(id);
         if (!subscription.isLive()) {
@@ -129,12 +129,12 @@ public class SubscriptionService {
                 : LocalDateTime.now();
         subscription.setCurrentPeriodStart(start);
         subscription.setCurrentPeriodEnd(nextPeriodEnd(start, subscription.getBillingPeriod()));
-        // Un renouvellement solde l'echeance impayee qui avait fait basculer en PAST_DUE.
+        // Un renouvellement regle l'echeance impayee qui avait fait passer en PAST_DUE.
         subscription.setStatus(Subscription.SubscriptionStatus.ACTIVE);
         return subscriptionRepository.save(subscription);
     }
 
-    /** Marque l'echeance comme impayee, sans interrompre le contrat. */
+    /** Marque l'echeance comme impayee, sans arreter le contrat. */
     public Subscription markPastDue(Long id) {
         Subscription subscription = getById(id);
         if (!subscription.isLive()) {
@@ -154,18 +154,18 @@ public class SubscriptionService {
         return close(subscription, Subscription.SubscriptionStatus.CANCELED, reason);
     }
 
-    /** Cloture le contrat vivant d'une entreprise, s'il y en a un. Sans effet sinon. */
+    /** Ferme le contrat actif d'une entreprise, s'il y en a un. Sinon ne fait rien. */
     public void cancelForCompany(Long companyId, String reason) {
         getLiveForCompany(companyId)
                 .ifPresent(subscription -> close(subscription, Subscription.SubscriptionStatus.CANCELED, reason));
     }
 
     /**
-     * Cloture un contrat en horodatant la resiliation.
+     * Ferme un contrat en enregistrant la date de resiliation.
      *
-     * {@code canceledAt} n'est pas cosmetique : c'est le seul point d'appui du calcul du
-     * churn, qui compte les resiliations d'une periode. Le laisser vide rendrait l'indicateur
-     * muet.
+     * {@code canceledAt} est important : c'est la seule chose sur laquelle se base le calcul
+     * du churn, qui compte les resiliations sur une periode. S'il restait vide, l'indicateur
+     * ne marcherait plus.
      */
     private Subscription close(Subscription subscription, Subscription.SubscriptionStatus status, String reason) {
         subscription.setStatus(status);

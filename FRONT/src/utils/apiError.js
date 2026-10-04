@@ -1,9 +1,9 @@
 /**
- * Extrait un message d'erreur lisible d'une réponse Axios.
+ * Récupère un message d'erreur lisible depuis une réponse Axios.
  *
- * Le backend peut renvoyer soit une chaîne, soit un objet { message } (erreur métier via
- * `GlobalExceptionHandler`), soit un objet de violations de validation : on évite ainsi
- * d'afficher « [object Object] » à l'utilisateur.
+ * Le backend peut renvoyer une chaîne, un objet { message } (erreur métier via
+ * `GlobalExceptionHandler`) ou un objet avec des erreurs de validation : comme ça on
+ * n'affiche jamais « [object Object] » à l'utilisateur.
  */
 import i18n from '../i18n';
 

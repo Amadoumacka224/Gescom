@@ -28,15 +28,15 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Conversions de la chaîne de vente : commande, facture, livraison et paiement carte.
+ * Conversions pour la partie vente : commande, facture, livraison et paiement carte.
  *
- * Ces quatre documents se citent en cascade — une réponse de paiement contient sa facture,
- * qui contient sa commande, qui contient ses lignes. Les réunir évite d'injecter trois mappers
- * les uns dans les autres ; ne reste que la dépendance vers {@link ReferenceMapper} pour le
- * client, le produit et l'utilisateur.
+ * Ces quatre documents s'imbriquent : une réponse de paiement contient sa facture, qui
+ * contient sa commande, qui contient ses lignes. Les mettre ensemble évite d'injecter trois
+ * mappers les uns dans les autres ; il reste juste la dépendance vers {@link ReferenceMapper}
+ * pour le client, le produit et l'utilisateur.
  *
- * Les résolutions de clés étrangères restent ici (contrat des DTO : les *Request ne portent que
- * des identifiants scalaires).
+ * C'est ici qu'on va chercher les entités liées à partir des ids (les *Request ne contiennent
+ * que des ids simples).
  */
 @Component
 public class SalesMapper {
@@ -62,7 +62,7 @@ public class SalesMapper {
         return toResponse(order, null);
     }
 
-    /** `invoice` peut être null : la commande n'est alors pas encore facturée. */
+    /** `invoice` peut être null si la commande n'est pas encore facturée. */
     public OrderResponse toResponse(Order order, Invoice invoice) {
         if (order == null) return null;
         return new OrderResponse(
@@ -100,7 +100,7 @@ public class SalesMapper {
     public Order toEntity(OrderCreateRequest request) {
         Order order = new Order();
 
-        // Client optionnel : null = vente de passage (aucune fiche client).
+        // Client optionnel : null = vente sans fiche client.
         if (request.clientId() != null) {
             Client client = clientRepository.findById(request.clientId())
                     .orElseThrow(() -> new ResourceNotFoundException("client", request.clientId()));
@@ -113,9 +113,9 @@ public class SalesMapper {
         return order;
     }
 
-    // Objet de patch : les champs absents de la requête restent à null pour que
-    // OrderService.updateOrder les distingue d'une valeur envoyée et les laisse intacts.
-    // D'où le null explicite sur la remise, que l'entité initialise sinon à zéro.
+    // Objet de mise à jour partielle : les champs absents de la requête restent à null pour
+    // qu'OrderService.updateOrder sache qu'ils n'ont pas été envoyés et n'y touche pas.
+    // D'où le null mis exprès sur la remise, que l'entité met sinon à zéro.
     public Order toUpdate(OrderUpdateRequest request) {
         Order patch = new Order();
         patch.setDiscount(request.discount());

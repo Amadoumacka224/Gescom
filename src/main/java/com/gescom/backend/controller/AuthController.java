@@ -51,19 +51,19 @@ public class AuthController {
         return xfHeader.split(",")[0].trim();
     }
 
-    // Les échecs d'authentification (BadCredentials, DisabledException…) ne sont pas rattrapés
-    // ici : ils remontent au GlobalExceptionHandler qui produit un ErrorResponse homogène (401),
-    // identique au reste de l'API — le frontend n'a donc qu'un seul format d'erreur à traiter.
+    // Les erreurs d'authentification (BadCredentials, DisabledException…) ne sont pas
+    // attrapées ici : elles remontent au GlobalExceptionHandler qui renvoie un ErrorResponse
+    // (401) comme pour le reste de l'API, donc le front n'a qu'un seul format d'erreur à gérer.
     //
-    // Seul le décompte des tentatives justifie un try/catch : il faut enregistrer l'échec avant
-    // de laisser l'exception poursuivre sa route, sans changer ce que reçoit l'appelant.
+    // Le try/catch sert seulement à compter les tentatives : on enregistre l'échec puis on
+    // relance l'exception, sans changer ce que reçoit l'appelant.
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
                                                           HttpServletRequest request) {
         String clientIp = getClientIp(request);
 
-        // Avant toute vérification du mot de passe : contrôler après reviendrait à offrir à
-        // l'attaquant le calcul BCrypt qu'on cherche justement à lui refuser.
+        // Avant de vérifier le mot de passe : si on vérifiait après, l'attaquant aurait quand
+        // même droit au calcul BCrypt qu'on veut justement lui refuser.
         loginAttemptService.checkAllowed(loginRequest.getUsername(), clientIp);
 
         Authentication authentication;
@@ -71,9 +71,9 @@ public class AuthController {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
         } catch (AuthenticationException e) {
-            // Compte tout refus, y compris un compte désactivé : un attaquant qui découvrirait
-            // qu'un identifiant existe mais est suspendu apprendrait déjà quelque chose, et
-            // rien ne justifie de lui laisser un nombre d'essais illimité pour le confirmer.
+            // On compte tous les refus, même un compte désactivé : savoir qu'un identifiant
+            // existe mais est suspendu, c'est déjà une info pour un attaquant, pas de raison
+            // de lui laisser des essais illimités pour le vérifier.
             loginAttemptService.recordFailure(loginRequest.getUsername(), clientIp);
             throw e;
         }

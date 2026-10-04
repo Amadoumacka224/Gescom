@@ -11,18 +11,17 @@ import { formatCurrency, formatDate } from '../utils/format';
 import i18n from '../i18n';
 
 /**
- * Dossier de la commande, affiché à la place de la grille produits une fois les lignes figées.
+ * Récapitulatif de la commande, affiché à la place de la grille quand les lignes sont figées.
  *
- * Passé la confirmation, proposer un catalogue serait un piège : les articles ne peuvent plus
- * changer (`OrderService.updateOrder` exige PENDING). La colonne centrale devient donc ce
- * qu'on a réellement besoin de relire à ce stade — pièce comptable, client, lignes vendues et
- * état du règlement — pendant que le panier, à droite, continue de piloter les étapes.
+ * Après la confirmation, les articles ne peuvent plus changer (`OrderService.updateOrder`
+ * demande PENDING), donc afficher le catalogue n'aurait pas de sens. On affiche à la place
+ * ce qui est utile à ce moment : numéro, client, lignes vendues et état du paiement. Le
+ * panier à droite continue de gérer les étapes.
  *
- * La lecture suit la même hiérarchie que les autres écrans de détail : ce que le dossier vaut
- * et où il en est d'abord, le détail ensuite.
+ * Même ordre que les autres écrans de détail : montant et statut d'abord, détail ensuite.
  */
 
-/** Date et heure dans la convention de la langue active. */
+/** Date et heure au format de la langue choisie. */
 const formatDateTime = (value) =>
   value
     ? new Date(value).toLocaleDateString(i18n.t('export.locale'), {
@@ -30,7 +29,7 @@ const formatDateTime = (value) =>
       })
     : '—';
 
-/** Titre de section du dossier, même gabarit pour les trois blocs. */
+/** Titre de section, le même pour les trois blocs. */
 const SectionTitle = ({ icon: Icon, children, action }) => (
   <h3 className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
     {Icon && <Icon className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" aria-hidden="true" />}
@@ -45,8 +44,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
   const unitCount = items.reduce((n, i) => n + (parseInt(i.quantity) || 0), 0);
   const client = order.client;
 
-  // Une facture annulée reste affichée — c'est une information — mais elle ne porte plus ni le
-  // montant de référence ni le reliquat : il n'y a plus rien à encaisser dessus.
+  // Une facture annulée reste affichée, mais on ne s'en sert plus pour le montant ni pour
+  // le reste à payer : il n'y a plus rien à encaisser.
   const liveInvoice = invoice && invoice.status !== 'CANCELED' ? invoice : null;
   const grossTotal = Number(order.totalAmount || 0);
   const orderDiscount = Number(order.discount || 0);
@@ -67,15 +66,14 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
     client?.country,
   ].filter((part) => part && part.trim()).join(', ');
 
-  // Mêmes règles d'empilement que le catalogue : sous `lg`, le panier sert sa hauteur avant ce
-  // panneau, qui tombait sinon à quelques dizaines de pixels sur téléphone — et à zéro en
-  // paysage, faisant disparaître les lignes et le récapitulatif de facture. Il ne se comprime
-  // donc plus et laisse défiler la colonne entière ; son propre défilement ne sert qu'à partir
-  // de `lg`, où il partage une hauteur fixe avec le panier.
+  // Comme pour le catalogue : sous `lg`, le panier passe en premier. Avant, ce panneau était
+  // écrasé à quelques pixels sur téléphone (voire zéro en paysage). Maintenant il garde sa
+  // hauteur et c'est toute la colonne qui scrolle. Son propre scroll ne sert qu'à partir de
+  // `lg`, quand il partage une hauteur fixe avec le panier.
   return (
     <div className="min-w-0 shrink-0 min-h-[24rem] lg:flex-1 lg:shrink lg:min-h-0 lg:overflow-y-auto pr-1 space-y-4">
-      {/* En-tête du dossier : l'état et le montant, c'est-à-dire ce qu'on vient vérifier.
-          Le montant n'y figurait pas du tout tant qu'aucune facture n'était émise. */}
+      {/* En-tête : statut et montant, ce qu'on vient vérifier en premier.
+          (Avant, le montant n'apparaissait pas tant qu'il n'y avait pas de facture.) */}
       <section className="bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -117,10 +115,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
       <section className="bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <SectionTitle icon={User}>{t('orders.client')}</SectionTitle>
         {client ? (
-          /* Deux colonnes : à gauche qui est le client, à droite comment le joindre et où le
-             livrer. Répartir ainsi occupe la largeur du dossier avec de l'information réelle,
-             là où une colonne unique laissait la moitié droite vide — sans y remettre des
-             boutons de contact, hors sujet sur un dossier relu en cours de vente. */
+          /* Deux colonnes : à gauche l'identité du client, à droite le contact et l'adresse.
+             Avec une seule colonne, la moitié droite restait vide. */
           <div className="grid gap-4 p-4 sm:grid-cols-2 sm:gap-6">
             <div className="min-w-0">
               <p className="truncate text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -133,8 +129,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
                 <span className={client.type === 'ENTREPRISE' ? 'badge-accent' : 'badge-info'}>
                   {client.type === 'ENTREPRISE' ? t('clients.typeBusiness') : t('clients.typeIndividual')}
                 </span>
-                {/* Ancienneté du compte : sur une vente, savoir si l'on a affaire à un client
-                    de longue date ou tout juste créé change la conversation. */}
+                {/* Date de création du compte : utile pour savoir si c'est un client
+                    habituel ou un nouveau. */}
                 {client.createdAt && (
                   <span className="text-xs text-gray-400 dark:text-gray-500">
                     {t('clients.columnSince')} {formatDate(client.createdAt)}
@@ -146,8 +142,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
             <dl className="min-w-0 space-y-3">
               <InfoRow icon={Mail} label={t('common.email')} value={client.email} />
               <InfoRow icon={Phone} label={t('common.phone')} value={client.phone} />
-              {/* Adresse complète : seule la rue était affichée, ce qui ne suffit ni à livrer
-                  ni à facturer. */}
+              {/* Adresse complète (avant on n'avait que la rue, pas suffisant pour livrer
+                  ou facturer). */}
               <InfoRow icon={MapPin} label={t('common.address')} value={clientAddress} />
             </dl>
           </div>
@@ -201,8 +197,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
                 </tr>
               ))}
             </tbody>
-            {/* Totaux au pied du tableau, comme sur un document commercial : les lignes
-                s'additionnaient sans que leur somme n'apparaisse nulle part. */}
+            {/* Totaux en bas du tableau, comme sur une facture (avant la somme n'était
+                affichée nulle part). */}
             <tfoot className="border-t-2 border-gray-200 dark:border-gray-600">
               <tr>
                 <td colSpan="4" className="px-4 py-2 text-right text-sm text-gray-600 dark:text-gray-400">
@@ -233,8 +229,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
             </tfoot>
           </table>
         </div>
-        {/* Le stock est sorti à la confirmation, sous verrou, et restitué à l'annulation :
-            le dire ici évite la question « faut-il ressaisir un mouvement de stock ? ». */}
+        {/* Le stock est sorti à la confirmation et remis à l'annulation. On l'écrit ici pour
+            que personne ne refasse un mouvement de stock à la main. */}
         <p className="flex items-center gap-2 px-4 py-2.5 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
           <Boxes className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
           {t('orders.recap.stockNote', { count: unitCount })}
@@ -263,9 +259,8 @@ const OrderWorkspaceRecap = ({ order, invoice, invoiceLoading }) => {
                 <KeyFact icon={Calendar} label={t('orders.recap.dueOn')} value={formatDate(invoice.dueDate)} />
               </dl>
 
-              {/* Colonne de montants unique, comme le récapitulatif du détail d'une facture :
-                  les quatre chiffres étaient alignés côte à côte, sans hiérarchie entre le
-                  total et ce qui reste dû. */}
+              {/* Montants sur une seule colonne, comme dans le détail d'une facture. Avant ils
+                  étaient côte à côte et on ne distinguait pas le total du reste à payer. */}
               <div className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white sm:ml-auto sm:max-w-sm dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800/40">
                 <AmountRow label={t('orders.subtotalExclTax')} value={formatCurrency(invoice.subtotal)} />
                 <AmountRow

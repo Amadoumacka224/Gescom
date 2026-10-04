@@ -1,13 +1,12 @@
 /**
- * Ligne d'un bloc de totaux : sous-total, remise, TVA, total, reste à payer.
+ * Une ligne de totaux : sous-total, remise, TVA, total, reste à payer.
  *
- * Partagée par le détail d'une facture et celui d'une commande, dont les récapitulatifs doivent
- * se lire de la même façon — mêmes graisses, même alignement des montants sur une colonne unique.
- * `emphasis` est réservé aux deux ou trois chiffres qui décident de l'action à mener (total,
- * reste à payer) : tout mettre en avant reviendrait à ne rien mettre en avant.
+ * Utilisée dans le détail d'une facture et d'une commande pour qu'ils aient le même rendu
+ * (mêmes graisses, montants alignés). `emphasis` est à garder pour les montants vraiment
+ * importants (total, reste à payer), sinon plus rien ne ressort.
  *
- * `tone` n'habille que les montants qui portent une nature — une remise se retranche, un
- * règlement déjà encaissé s'ajoute — jamais les lignes neutres.
+ * `tone` sert seulement pour les montants qui ont un sens (une remise en moins, un paiement
+ * déjà reçu), pas pour les lignes neutres.
  */
 const AmountRow = ({ label, value, emphasis = false, tone = '' }) => (
   <div className={`flex items-baseline justify-between gap-6 px-4 ${emphasis ? 'py-3' : 'py-2.5'}`}>

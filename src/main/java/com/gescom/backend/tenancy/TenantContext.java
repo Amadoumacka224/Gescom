@@ -1,28 +1,28 @@
 package com.gescom.backend.tenancy;
 
 /**
- * Entreprise a laquelle se rapporte la requete en cours.
+ * Entreprise concernee par la requete en cours.
  *
- * Le contexte est alimente par {@code JwtAuthenticationFilter}, dans la foulee immediate
- * de l'authentification : l'entreprise est lue sur l'utilisateur charge en base, jamais
- * sur une donnee fournie par le client. Aucun claim du jeton ne porte l'identifiant
- * d'entreprise, il n'y a donc rien a falsifier de ce cote.
+ * Le contexte est rempli par {@code JwtAuthenticationFilter}, juste apres
+ * l'authentification : l'entreprise est lue sur l'utilisateur charge en base, jamais sur
+ * une donnee envoyee par le client. Aucun claim du token ne contient l'id d'entreprise,
+ * donc il n'y a rien a falsifier de ce cote.
  *
- * Une valeur nulle signifie « aucune restriction » et couvre deux situations :
- * le SUPER_ADMIN, proprietaire de la plateforme, qui doit voir l'ensemble du parc ; et
- * les traitements hors requete (connexion, demarrage, taches planifiees) qui n'ont pas
- * encore d'entreprise. Ces derniers ne manipulent pas de donnees metier.
+ * Une valeur null veut dire « pas de restriction », dans deux cas : le SUPER_ADMIN, qui doit
+ * voir toutes les entreprises ; et les traitements en dehors d'une requete (connexion,
+ * demarrage, taches planifiees) qui n'ont pas encore d'entreprise. Ces derniers ne
+ * touchent pas aux donnees metier.
  *
- * Le nettoyage en fin de requete ({@link #clear()}) n'est pas optionnel : les threads
- * du conteneur sont recycles, et un contexte oublie serait herite par la requete
- * suivante — donc par un autre client.
+ * Il faut absolument nettoyer a la fin de la requete ({@link #clear()}) : les threads du
+ * serveur sont reutilises, et un contexte oublie passerait a la requete suivante, donc
+ * peut-etre a un autre client.
  */
 public final class TenantContext {
 
     /** Nom du filtre Hibernate declare dans {@code entity/package-info.java}. */
     public static final String FILTER_NAME = "tenantFilter";
 
-    /** Nom du parametre attendu par ce filtre. */
+    /** Nom du parametre du filtre. */
     public static final String FILTER_PARAM = "tenantCompanyId";
 
     private static final ThreadLocal<Long> CURRENT_COMPANY = new ThreadLocal<>();
@@ -30,17 +30,17 @@ public final class TenantContext {
     private TenantContext() {
     }
 
-    /** Restreint la requete a une entreprise. */
+    /** Limite la requete a une entreprise. */
     public static void setCompanyId(Long companyId) {
         CURRENT_COMPANY.set(companyId);
     }
 
-    /** Entreprise courante, ou null si la requete n'est pas cloisonnee. */
+    /** Entreprise en cours, ou null si la requete n'est pas limitee. */
     public static Long getCompanyId() {
         return CURRENT_COMPANY.get();
     }
 
-    /** Vrai si la requete est limitee a une entreprise (donc pas une vue plateforme). */
+    /** Vrai si la requete est limitee a une entreprise (donc pas la vue plateforme). */
     public static boolean isScoped() {
         return CURRENT_COMPANY.get() != null;
     }
@@ -50,11 +50,11 @@ public final class TenantContext {
     }
 
     /**
-     * Execute un traitement en vue plateforme, puis restaure le contexte precedent.
+     * Execute un traitement sans filtre d'entreprise, puis remet le contexte d'avant.
      *
-     * Utile lorsqu'un service cloisonne doit lire une donnee transverse (le catalogue des
-     * formules, une entreprise). Le contexte anterieur est restaure dans un {@code finally}
-     * pour qu'une exception ne laisse pas la requete en vue globale.
+     * Utile quand un service filtre par entreprise doit lire une donnee commune (les
+     * formules, une entreprise). Le contexte d'avant est remis dans un {@code finally} pour
+     * qu'une exception ne laisse pas la requete sans filtre.
      */
     public static <T> T callUnscoped(java.util.function.Supplier<T> action) {
         Long previous = CURRENT_COMPANY.get();

@@ -8,15 +8,15 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Vérifie que l'export CSV neutralise l'injection de formule (CSV injection / DDE) :
- * une valeur débutant par =, +, -, @ ou une tabulation ne doit plus être interprétée
- * comme une formule à l'ouverture dans un tableur. Test unitaire pur, sans contexte Spring.
+ * Vérifie que l'export CSV bloque l'injection de formule (CSV injection / DDE) : une valeur
+ * qui commence par =, +, -, @ ou une tabulation ne doit plus être lue comme une formule
+ * quand on ouvre le fichier dans un tableur. Test unitaire simple, sans contexte Spring.
  */
 class CsvExportServiceTest {
 
     private final CsvExportService service = new CsvExportService();
 
-    /** Décode le CSV produit en sautant le BOM UTF-8 de tête, et rend la ligne de données. */
+    /** Lit le CSV généré en sautant le BOM UTF-8 du début, et renvoie la ligne de données. */
     private String firstDataRow(byte[] csv) {
         String content = new String(csv, StandardCharsets.UTF_8);
         if (content.startsWith("﻿")) {
@@ -35,10 +35,10 @@ class CsvExportServiceTest {
 
     @Test
     void prefixesFormulaLeadingEquals() {
-        // =HYPERLINK(...) est le cas d'exfiltration classique.
+        // =HYPERLINK(...) est l'exemple classique pour faire fuiter des données.
         String row = firstDataRow(exportSingleCell("=HYPERLINK(\"http://evil.tld\")"));
-        // L'apostrophe de neutralisation est présente, et comme la valeur contient un
-        // guillemet elle est aussi mise entre guillemets — l'apostrophe reste à l'intérieur.
+        // L'apostrophe est bien ajoutée, et comme la valeur contient un guillemet elle est aussi
+        // entourée de guillemets (l'apostrophe reste à l'intérieur).
         assertThat(row).startsWith("\"'=HYPERLINK");
     }
 
@@ -58,7 +58,7 @@ class CsvExportServiceTest {
 
     @Test
     void doesNotFlagNumberContainingButNotStartingWithOperator() {
-        // Un signe - au milieu (numéro de TVA, référence) n'est pas une formule.
+        // Un signe - au milieu (numéro de TVA, référence) ne fait pas une formule.
         assertThat(firstDataRow(exportSingleCell("BE-0123-456"))).isEqualTo("BE-0123-456");
     }
 }

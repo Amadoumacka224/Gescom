@@ -22,9 +22,9 @@ public class SettingsController {
     }
 
     /**
-     * Lecture ouverte aux caissiers : les écrans de facturation y prennent le taux de TVA et le
-     * délai de paiement par défaut. Leur refuser l'accès les faisait retomber sur des valeurs
-     * codées en dur, donc facturer à un autre taux que celui configuré.
+     * Lecture autorisée aux caissiers : les écrans de facturation y lisent la TVA et le délai
+     * de paiement par défaut. Quand l'accès leur était refusé, ils utilisaient des valeurs en
+     * dur et pouvaient facturer avec un autre taux que celui configuré.
      */
     @GetMapping
     public ResponseEntity<Settings> getSettings() {

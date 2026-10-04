@@ -4,14 +4,14 @@ import com.gescom.backend.exception.BusinessException;
 import org.springframework.stereotype.Component;
 
 /**
- * Regle unique de solidite des mots de passe.
+ * Regle de solidite des mots de passe, a un seul endroit.
  *
- * Extraite de {@code UserService} le jour ou le back-office proprietaire a eu besoin de la
- * meme verification : deux copies de la meme politique auraient fini par diverger, et la
- * divergence se serait vue au pire endroit — un mot de passe accepte ici, refuse ailleurs.
+ * Sortie de {@code UserService} quand le back-office plateforme a eu besoin de la meme
+ * verification : avec deux copies, on aurait fini par avoir des differences, et ca se
+ * serait vu au pire moment (un mot de passe accepte a un endroit et refuse a l'autre).
  *
- * Les messages sont portes par des cles de traduction, resolues par
- * {@code GlobalExceptionHandler} avec la locale de la requete.
+ * Les messages sont des cles de traduction, traduites par {@code GlobalExceptionHandler}
+ * dans la langue de la requete.
  */
 @Component
 public class PasswordPolicy {
@@ -19,12 +19,12 @@ public class PasswordPolicy {
     public static final int MIN_LENGTH = 8;
 
     /**
-     * Verifie un mot de passe en clair et leve une {@link BusinessException} au premier
-     * manquement.
+     * Verifie un mot de passe en clair et lance une {@link BusinessException} des la premiere
+     * regle pas respectee.
      *
-     * L'ordre des controles n'est pas neutre : la longueur d'abord, qui est le reproche le
-     * plus frequent, puis la composition. Signaler « il manque une majuscule » sur un mot de
-     * passe de trois caracteres serait une aide de mauvaise qualite.
+     * L'ordre compte : d'abord la longueur, l'erreur la plus courante, puis le contenu. Dire
+     * « il manque une majuscule » pour un mot de passe de trois caracteres ne serait pas tres
+     * utile.
      */
     public void validate(String password) {
         if (password == null || password.isEmpty()) {

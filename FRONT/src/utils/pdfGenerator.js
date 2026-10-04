@@ -2,22 +2,20 @@ import i18n from '../i18n';
 import { paymentMethodLabelKey } from '../constants/paymentMethods';
 import { formatAmount, formatCurrency, formatDate } from './format';
 
-// La facture est un document destiné au client : elle est éditée dans la langue de
-// l'interface, celle dans laquelle l'utilisateur travaille au moment de l'émission.
+// La facture est envoyée au client : elle est générée dans la langue de l'interface,
+// celle utilisée par l'utilisateur au moment où il la crée.
 const t = (key, values) => i18n.t(key, values);
-import { DEFAULT_TAX_RATE } from '../constants/billing';
 
 /*
- * jspdf et jspdf-autotable pèsent à eux deux plus de 400 ko, pour deux boutons — éditer une
- * facture et éditer un avoir. Importés en tête de module, ils partaient dans le paquet
- * d'entrée et se téléchargeaient à l'ouverture de la page de connexion, où personne n'édite
- * quoi que ce soit. Ils sont désormais chargés au premier appel, puis conservés : rouvrir une
- * facture ne les retélécharge pas.
+ * jspdf et jspdf-autotable font plus de 400 ko à eux deux, pour seulement deux boutons
+ * (facture et avoir). Importés en haut du fichier, ils étaient chargés dès la page de
+ * connexion, où on ne génère rien. Maintenant ils sont chargés au premier appel puis gardés :
+ * rouvrir une facture ne les recharge pas.
  *
- * Les deux bibliothèques sont liées à des variables de module plutôt que passées en argument :
- * `autoTable` est utilisé par les fonctions de dessin plus bas, qui restent ainsi inchangées.
- * Elles ne sont appelées que depuis les deux générateurs exportés, lesquels attendent le
- * chargement avant toute chose — la liaison est donc toujours faite au moment de leur usage.
+ * Les deux librairies sont mises dans des variables du module plutôt que passées en
+ * paramètre : `autoTable` est utilisé par les fonctions de dessin plus bas, qu'on n'a donc
+ * pas eu à modifier. Elles ne sont appelées que par les deux fonctions exportées, qui
+ * attendent le chargement en premier, donc les variables sont toujours prêtes.
  */
 let jsPDF;
 let autoTable;
@@ -31,9 +29,9 @@ const loadPdfLibs = () => {
         autoTable = tableModule.default;
       })
       .catch((error) => {
-        // Sans cette remise à zéro, un échec réseau ponctuel condamnerait l'édition de PDF
-        // pour toute la durée de la session : la promesse rejetée serait réutilisée telle
-        // quelle à chaque tentative suivante.
+        // Sans cette remise à zéro, une seule erreur réseau empêcherait de générer des PDF
+        // pendant toute la session : la même promesse rejetée serait réutilisée à chaque
+        // nouvel essai.
         pdfLibsPromise = undefined;
         throw error;
       });
@@ -41,20 +39,20 @@ const loadPdfLibs = () => {
   return pdfLibsPromise;
 };
 
-// Configuration des couleurs — reprise de la charte (cf. `tailwind.config.js`)
+// Couleurs, prises dans la charte (voir `tailwind.config.js`)
 const primaryColor = [31, 119, 180]; // #1F77B4 — bleu acier (primary-600)
 const secondaryColor = [100, 118, 151]; // #647697 — gris bleuté (gray-500)
 const darkColor = [26, 39, 64]; // #1A2740 — bleu nuit (gray-900)
 
 /**
- * Emblème de l'en-tête : la flèche entrante de l'application, reprise telle quelle de l'icône
- * `log-in` de lucide (la même que sur l'écran de connexion), redessinée en vectoriel.
+ * Logo de l'en-tête : la flèche d'entrée de l'appli, recopiée de l'icône `log-in` de lucide
+ * (la même que sur l'écran de connexion), redessinée en vectoriel.
  *
- * Le tracé garde le repère de 24 unités de l'icône d'origine et se met à l'échelle demandée :
- * les coordonnées ci-dessous se lisent donc en regard du SVG de lucide, segment par segment.
- * `doc.lines` attend des déplacements relatifs, comme les commandes minuscules d'un chemin SVG,
- * et les quarts de cercle des angles sont approchés par des Bézier cubiques (k = 0,5523 × r),
- * jsPDF ne traçant pas d'arc.
+ * On garde la grille de 24 unités de l'icône d'origine et on met à l'échelle : on peut donc
+ * comparer les coordonnées ci-dessous avec le SVG de lucide, segment par segment.
+ * `doc.lines` prend des déplacements relatifs, comme les commandes en minuscule d'un chemin
+ * SVG, et les coins arrondis sont faits avec des courbes de Bézier (k = 0,5523 × r) car
+ * jsPDF ne sait pas tracer d'arc.
  */
 const drawLoginGlyph = (doc, x, y, size, color) => {
   const s = size / 24;
@@ -65,11 +63,11 @@ const drawLoginGlyph = (doc, x, y, size, color) => {
   doc.setLineCap('round');
   doc.setLineJoin('round');
 
-  // « m10 17 5-5-5-5 » — la pointe de la flèche.
+  // « m10 17 5-5-5-5 » : la pointe de la flèche.
   doc.lines([[5, -5], [-5, -5]], ...at(10, 17), [s, s], 'S', false);
-  // « M15 12H3 » — sa hampe.
+  // « M15 12H3 » : le trait de la flèche.
   doc.lines([[-12, 0]], ...at(15, 12), [s, s], 'S', false);
-  // « M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 » — le montant de la porte, angles arrondis.
+  // « M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 » : le cadre de la porte, coins arrondis.
   doc.lines([
     [4, 0],
     [1.1046, 0, 2, 0.8954, 2, 2],
@@ -78,15 +76,15 @@ const drawLoginGlyph = (doc, x, y, size, color) => {
     [-4, 0],
   ], ...at(15, 3), [s, s], 'S', false);
 
-  // Les réglages de trait sont globaux au document : sans remise à zéro, le filet du
-  // récapitulatif et les cadres tracés plus bas hériteraient de cette épaisseur et de ces bouts
-  // arrondis.
+  // Les réglages de trait s'appliquent à tout le document : si on ne les remet pas à zéro,
+  // le trait du récapitulatif et les cadres plus bas auraient la même épaisseur et les mêmes
+  // bouts arrondis.
   doc.setLineWidth(0.2);
   doc.setLineCap('butt');
   doc.setLineJoin('miter');
 };
 
-/** Informations de l'entreprise issues des Réglages (avec valeurs par défaut belges). */
+/** Infos de l'entreprise venant des Paramètres (avec des valeurs par défaut belges). */
 const companyFrom = (settings) => ({
   name: settings.companyName || 'GESCOM',
   address: settings.companyAddress || '',
@@ -101,33 +99,33 @@ const companyFrom = (settings) => ({
 });
 
 /*
- * Montants et dates sont formatés comme partout ailleurs dans l'application (`utils/format`) :
- * la facture sortait « 1234.50 € » et « 2026-08-18 » là où l'écran affiche « 1 234,50 € » et
- * « 18/08/2026 » pour la même donnée — le client recevait un document qui ne ressemblait pas à
- * celui que le vendeur avait sous les yeux.
+ * Montants et dates formatés comme dans le reste de l'appli (`utils/format`) : avant, la
+ * facture affichait « 1234.50 € » et « 2026-08-18 » alors que l'écran affichait « 1 234,50 € »
+ * et « 18/08/2026 » pour la même valeur. Le client recevait un document différent de ce que
+ * voyait le vendeur.
  *
- * `pdfSafe` ramène toute espace à l'espace ordinaire : jsPDF n'embarque que les polices
- * standard, encodées en WinAnsi, où l'espace fine insécable qu'`Intl` place avant le symbole
- * monétaire en fr-BE (U+202F) n'existe pas et sortirait en caractère parasite.
+ * `pdfSafe` remplace tous les types d'espace par un espace normal : jsPDF n'a que les polices
+ * standard (encodage WinAnsi), où l'espace fine insécable qu'`Intl` met avant le symbole €
+ * en fr-BE (U+202F) n'existe pas et donnerait un caractère bizarre.
  */
 const pdfSafe = (text) => String(text).replace(/\s/g, ' ');
 const money = (amount) => pdfSafe(formatCurrency(amount));
 const day = (value) => pdfSafe(formatDate(value));
 
 /**
- * Hauteur réservée en bas de page (bandeau de couleur + mention légale). Rien ne doit être
- * écrit dessous : jsPDF ne déborde pas sur une page suivante, il perd silencieusement ce qui
- * sort de la page.
+ * Hauteur réservée en bas de page (bandeau de couleur + mention légale). Il ne faut rien
+ * écrire dessous : jsPDF ne passe pas tout seul à la page suivante, ce qui dépasse est
+ * simplement perdu.
  */
 const FOOTER_ZONE = 24;
 
-/** Ordonnée du premier contenu d'une page de suite, juste sous le bandeau d'en-tête. */
+/** Position Y du début du contenu sur les pages suivantes, juste sous le bandeau d'en-tête. */
 const CONTENT_TOP = 56;
 
 /**
- * En-tête commun aux documents client : bandeau de couleur, raison sociale et coordonnées
- * légales. Facture et avoir sortent de la même entreprise, elles s'annoncent de la
- * même façon — c'est ce qui les fait reconnaître comme deux pièces d'un même dossier.
+ * En-tête commun aux documents client : bandeau de couleur, nom de l'entreprise et infos
+ * légales. La facture et l'avoir viennent de la même entreprise, donc ils ont le même
+ * en-tête, et on voit tout de suite qu'ils vont ensemble.
  */
 const drawHeader = (doc, company) => {
   const headerHeight = 46;
@@ -135,13 +133,12 @@ const drawHeader = (doc, company) => {
   doc.rect(0, 0, 210, headerHeight, 'F');
 
   /*
-   * Emblème : pastille blanche portant la flèche entrante de l'application, celle de l'écran de
-   * connexion et de la barre latérale — le document se rattache ainsi visuellement à l'outil
-   * qui l'a produit.
+   * Logo : rond blanc avec la flèche d'entrée de l'appli (la même que sur l'écran de
+   * connexion et dans le menu), pour qu'on reconnaisse l'outil qui a généré le document.
    *
-   * Tracé en vectoriel plutôt qu'en image : rien à charger, rien à encoder en base64, et le
-   * rendu reste net à l'impression quelle que soit la définition. `assets/logo.svg` n'est pas
-   * utilisable ici — c'est une plaque portant le mot « GESCOM » en dur, pas une marque.
+   * Dessiné en vectoriel plutôt qu'en image : rien à charger ni à encoder en base64, et ça
+   * reste net à l'impression. On ne peut pas utiliser `assets/logo.svg` ici, c'est une image
+   * avec le mot « GESCOM » écrit dedans, pas un logo.
    */
   const badgeX = 15;
   const badgeY = 11;
@@ -153,9 +150,9 @@ const drawHeader = (doc, company) => {
   const glyphOffset = (badgeSize - glyphSize) / 2;
   drawLoginGlyph(doc, badgeX + glyphOffset, badgeY + glyphOffset, glyphSize, primaryColor);
 
-  // Raison sociale, à droite de l'emblème. Le corps se réduit jusqu'à ce que le nom tienne dans
-  // la laisse laissée libre par les coordonnées de droite : une raison sociale longue passait
-  // sinon par-dessus l'adresse.
+  // Nom de l'entreprise, à droite du logo. On réduit la taille du texte jusqu'à ce que le nom
+  // rentre dans la place laissée par les coordonnées à droite, sinon un nom long passait
+  // par-dessus l'adresse.
   const nameX = badgeX + badgeSize + 5;
   const nameWidth = 145 - nameX;
   doc.setTextColor(255, 255, 255);
@@ -171,7 +168,7 @@ const drawHeader = (doc, company) => {
   doc.setFont('helvetica', 'normal');
   doc.text(t('app.tagline'), nameX, 25);
 
-  // Coordonnées et références légales belges (à droite)
+  // Coordonnées et infos légales belges (à droite)
   doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
   const cityLine = [company.postal, company.city].filter(Boolean).join(' ');
@@ -189,7 +186,7 @@ const drawHeader = (doc, company) => {
   });
 };
 
-/** Mention légale belge (raison sociale + n° TVA/BCE), pagination et bandeau de bas de page. */
+/** Mention légale belge (raison sociale + n° TVA/BCE), numéro de page et bandeau du bas. */
 const drawFooter = (doc, company, settings, page, pageCount) => {
   const pageHeight = doc.internal.pageSize.height;
   doc.setFontSize(8);
@@ -199,9 +196,9 @@ const drawFooter = (doc, company, settings, page, pageCount) => {
   const legalParts = [company.name];
   if (company.vat) legalParts.push(t('pdf.vatLine', { vat: company.vat }));
   const footerText = `${legalParts.join(' — ')} | ${settings.footerText || t('settings.footerText')}`;
-  // Le texte de pied vient des Réglages, sa longueur est libre : borné à 145 mm pour ne pas
-  // courir sous la pagination, et réduit à sa première ligne — le bas de page n'en tient pas
-  // deux sans mordre sur le bandeau.
+  // Le texte du pied de page vient des Paramètres et peut être long : limité à 145 mm pour
+  // ne pas passer sous le numéro de page, et seulement la première ligne, car le bas de page
+  // n'a pas la place pour deux sans toucher le bandeau.
   doc.text(doc.splitTextToSize(footerText, 145)[0], 105, pageHeight - 15, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
@@ -212,8 +209,8 @@ const drawFooter = (doc, company, settings, page, pageCount) => {
 };
 
 /**
- * Pied de page apposé sur *toutes* les pages, une fois le document terminé : la pagination
- * annonce le nombre total de pages, qu'on ne connaît qu'à la fin.
+ * Pied de page ajouté sur *toutes* les pages une fois le document fini : on affiche le
+ * nombre total de pages, qu'on ne connaît qu'à la fin.
  */
 const stampFooters = (doc, company, settings) => {
   const pageCount = doc.internal.getNumberOfPages();
@@ -224,9 +221,9 @@ const stampFooters = (doc, company, settings) => {
 };
 
 /**
- * Réserve `needed` millimètres sous `y`, en ouvrant une page si le pied de page est trop
- * proche, et retourne l'ordonnée où écrire. Sans cette garde, un récapitulatif ou des notes
- * arrivant en bas de page s'écrivaient par-dessus le bandeau, voire hors de la feuille.
+ * Réserve `needed` mm sous `y`, ajoute une page si on est trop près du pied de page, et
+ * renvoie la position Y où écrire. Sans ça, un récapitulatif ou des notes en bas de page
+ * s'écrivaient par-dessus le bandeau, voire en dehors de la feuille.
  */
 const ensureSpace = (doc, company, y, needed) => {
   if (y + needed <= doc.internal.pageSize.height - FOOTER_ZONE) return y;
@@ -235,7 +232,7 @@ const ensureSpace = (doc, company, y, needed) => {
   return CONTENT_TOP;
 };
 
-/** Bloc « coordonnées bancaires » : mention de paiement, sous le récapitulatif. */
+/** Bloc « coordonnées bancaires » pour le paiement, sous le récapitulatif. */
 const drawBankDetails = (doc, company, y) => {
   const bankParts = [];
   if (company.iban) bankParts.push(`IBAN : ${company.iban}`);
@@ -271,8 +268,8 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
 
   const invoiceDetails = [
     { label: t('pdf.invoiceNumberLabel'), value: invoice.invoiceNumber || '-' },
-    // La pièce d'origine : une facture dit de quelle commande elle sort, comme l'avoir dit de
-    // quelle facture il sort. C'est ce qui permet au client de rapprocher les deux documents.
+    // La commande d'origine : la facture indique de quelle commande elle vient, comme l'avoir
+    // indique de quelle facture il vient. Ça permet au client de relier les deux documents.
     { label: t('pdf.orderLabel'), value: invoice.order?.orderNumber || '—' },
     { label: t('pdf.dateLabel'), value: day(invoice.invoiceDate) },
     { label: t('pdf.dueDateLabel'), value: day(invoice.dueDate) },
@@ -288,14 +285,13 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
   });
 
   /*
-   * Adresse de facturation complète : sans code postal ni ville, ce n'est pas une adresse, et
-   * la raison sociale d'un client professionnel doit figurer sur la pièce. Le cadre s'ajuste au
-   * nombre de lignes plutôt que de rester à une hauteur fixe où les dernières débordaient du
-   * fond gris.
+   * Adresse de facturation complète : sans code postal ni ville ce n'est pas une adresse, et
+   * la raison sociale d'un client pro doit apparaître sur la facture. Le cadre s'adapte au
+   * nombre de lignes au lieu d'avoir une hauteur fixe où les dernières lignes dépassaient.
    */
   const client = invoice.order?.client;
-  // Le repli de police doit être posé avant le calcul : `splitTextToSize` mesure avec la
-  // police courante, et une adresse longue doit se replier dans le cadre, pas en sortir.
+  // La police doit être choisie avant le calcul : `splitTextToSize` mesure avec la police
+  // en cours, et une adresse longue doit passer à la ligne dans le cadre, pas en sortir.
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   const clientLines = (client
@@ -308,8 +304,8 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
         client.email,
         client.phone,
       ].filter(Boolean)
-    // Vente de passage : la commande n'a pas de client, la facture le dit plutôt que de laisser
-    // un cadre vide qu'on prendrait pour un oubli.
+    // Vente sans client : on l'écrit sur la facture plutôt que de laisser un cadre vide qui
+    // ferait penser à un oubli.
     : [t('pdf.walkInClient')]
   ).flatMap(line => doc.splitTextToSize(String(line), 82));
 
@@ -357,19 +353,19 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
   doc.setTextColor(255, 255, 255);
   doc.text(statusText, 160, 92, { align: 'center' });
 
-  // Tableau des articles, sous le plus bas du cadre client et du pavé de statut.
+  // Tableau des articles, sous le cadre client et le bloc de statut.
   const tableStartY = Math.max(120, clientBoxTop + clientBoxHeight + 10);
 
   const items = invoice.order?.items || [];
 
-  // Total d'une ligne : celui calculé et stocké par le backend (`OrderItem.totalPrice`), déjà
-  // net de la remise de ligne. Le recalculer en quantité × prix unitaire afficherait un montant
-  // brut qui ne s'additionne pas au sous-total du récapitulatif — la facture ne tomberait plus
-  // juste aux yeux du client. Le repli ne sert qu'aux réponses sans totalPrice.
+  // Total d'une ligne : celui calculé et enregistré par le backend (`OrderItem.totalPrice`),
+  // remise de ligne déjà déduite. Si on recalculait quantité × prix, on aurait un brut qui ne
+  // correspond pas au sous-total, et la facture ne tomberait plus juste pour le client.
+  // Le calcul de secours ne sert que si totalPrice est absent.
   const lineNetTotal = (item) => Number(item.totalPrice ?? (item.quantity * item.unitPrice)) || 0;
 
-  // La colonne « Remise » n'apparaît que si au moins une ligne en porte une : une vente sans
-  // remise garde exactement la mise en page habituelle.
+  // La colonne « Remise » n'apparaît que si au moins une ligne a une remise : sinon on garde
+  // la mise en page habituelle.
   const hasLineDiscount = items.some((item) => Number(item.discount) > 0);
 
   if (items.length > 0) {
@@ -402,38 +398,42 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
       },
       styles: {
         fontSize: 9,
-        cellPadding: 5
+        // Padding horizontal réduit : à 5 mm de chaque côté, une colonne de 15 mm ne laissait
+        // que 5 mm au texte et « Qté », « Remise », « Prix unitaire » passaient à la ligne.
+        cellPadding: { top: 5, bottom: 5, left: 2.5, right: 2.5 }
       },
       /*
-       * Le tableau est calé sur la laisse du document (15 → 195 mm), celle de l'en-tête, du
-       * titre et du récapitulatif : à la marge par défaut d'autoTable (40 pt ≈ 14,1 mm) il
-       * commençait 1 mm trop à gauche et débordait de 4 mm à droite, autoTable signalant en
-       * console la largeur qu'il n'arrivait pas à faire tenir.
+       * Le tableau est aligné sur les marges du document (15 → 195 mm), comme l'en-tête, le
+       * titre et le récapitulatif. Avec la marge par défaut d'autoTable (40 pt ≈ 14,1 mm), il
+       * commençait 1 mm trop à gauche et dépassait de 4 mm à droite (autoTable affichait un
+       * warning dans la console).
        *
-       * `top` place les pages de suite sous le bandeau d'en-tête, `bottom` réserve le pied de
-       * page : une ligne d'articles ne doit jamais s'écrire par-dessus.
+       * `top` place les pages suivantes sous le bandeau d'en-tête, `bottom` laisse la place
+       * du pied de page : une ligne d'article ne doit jamais passer par-dessus.
        */
       margin: { top: CONTENT_TOP, left: 15, right: 15, bottom: FOOTER_ZONE },
-      // L'en-tête est redessiné à chaque page : une facture qui tient sur deux feuilles ne doit
-      // pas en sortir une seconde, anonyme, sans raison sociale ni n° de TVA.
+      // L'en-tête est redessiné sur chaque page : une facture sur deux pages ne doit pas
+      // avoir une deuxième page sans nom d'entreprise ni n° de TVA.
       didDrawPage: () => drawHeader(doc, company),
-      // Largeurs redistribuées à somme constante (180 mm) quand la colonne « Remise » s'ajoute :
-      // le tableau occupe la même laisse, aucun débordement de page à craindre.
+      // Quand la colonne « Remise » est ajoutée, on redistribue les largeurs en gardant le même
+      // total (180 mm) : le tableau garde la même largeur, pas de dépassement.
+      // Les largeurs tiennent l'intitulé le plus long des trois langues sur une ligne
+      // (« Eenheidsprijs », « Discount », « Aant. »).
       columnStyles: hasLineDiscount
         ? {
-            0: { cellWidth: 60 },
-            1: { cellWidth: 30 },
-            2: { cellWidth: 15, halign: 'center' },
-            3: { cellWidth: 25, halign: 'right' },
-            4: { cellWidth: 22, halign: 'right' },
-            5: { cellWidth: 28, halign: 'right' }
+            0: { cellWidth: 52 },
+            1: { cellWidth: 28 },
+            2: { cellWidth: 17, halign: 'center' },
+            3: { cellWidth: 30, halign: 'right' },
+            4: { cellWidth: 23, halign: 'right' },
+            5: { cellWidth: 30, halign: 'right' }
           }
         : {
-            0: { cellWidth: 72 },
-            1: { cellWidth: 33 },
-            2: { cellWidth: 17, halign: 'center' },
-            3: { cellWidth: 28, halign: 'right' },
-            4: { cellWidth: 30, halign: 'right' }
+            0: { cellWidth: 68 },
+            1: { cellWidth: 30 },
+            2: { cellWidth: 18, halign: 'center' },
+            3: { cellWidth: 32, halign: 'right' },
+            4: { cellWidth: 32, halign: 'right' }
           }
     });
   }
@@ -441,21 +441,21 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
   // Récapitulatif financier
   const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : tableStartY + 10;
 
-  // Rectangle pour le récapitulatif
+  // Cadre du récapitulatif
   doc.setDrawColor(...secondaryColor);
   doc.setLineWidth(0.5);
 
   const summaryX = 120;
 
   /*
-   * Les montants sont repris tels quels de la facture enregistrée — le document ne recalcule
-   * rien, même quand la TVA est nulle.
+   * Les montants sont repris tels quels de la facture enregistrée, le document ne recalcule
+   * rien, même si la TVA est à zéro.
    *
-   * Le repli qui, à taux et montant de TVA nuls, refacturait au taux des Réglages produisait
-   * une facture réclamant 21 % de plus que la ligne inscrite en base : une vente exonérée ou
-   * saisie hors TVA sortait avec un total que ni l'écran Factures ni le registre ne portaient.
-   * Un document commercial n'invente pas son total : une facture sans TVA se corrige en base,
-   * pas à l'impression. C'est la règle déjà appliquée à l'avoir.
+   * Avant, quand le taux et le montant de TVA étaient à zéro, on recalculait avec le taux des
+   * Paramètres, ce qui donnait une facture avec 21 % de plus que ce qui était en base : une
+   * vente exonérée ou sans TVA sortait avec un total qu'on ne retrouvait ni dans l'écran
+   * Factures ni ailleurs. Un document ne doit pas inventer son total : une facture sans TVA
+   * se corrige en base, pas au moment de l'imprimer. On fait déjà pareil pour l'avoir.
    */
   const subtotal = Number(invoice.subtotal) || 0;
   const discount = Number(invoice.discount) || 0;
@@ -478,7 +478,7 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
     });
   }
 
-  // Toujours afficher la TVA
+  // On affiche toujours la TVA
   financialSummary.push(
     { label: `TVA (${taxRate}%):`, value: `+${money(taxAmount)}`, bold: false, color: [59, 130, 246] },
     { label: t('pdf.totalLabel'), value: money(totalAmount), bold: true, size: 12 }
@@ -491,14 +491,14 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
     );
   }
 
-  // Le récapitulatif ne se coupe pas : s'il ne tient pas entier au bas de la page, il passe
-  // à la suivante d'un bloc.
+  // Le récapitulatif n'est pas coupé : s'il ne rentre pas en entier en bas de la page, il
+  // passe entièrement sur la suivante.
   const summaryHeight = financialSummary.reduce((height, item) => height + (item.bold ? 10 : 6), 0);
   let summaryY = ensureSpace(doc, company, finalY, summaryHeight);
 
-  // Coordonnées bancaires (mention légale belge pour le paiement) : en colonne de gauche, en
-  // regard des totaux, là où la moitié de la page est libre. Placées après les notes, elles
-  // finissaient au ras du pied de page et basculaient seules sur une deuxième feuille.
+  // Coordonnées bancaires (mention légale belge pour le paiement) : dans la colonne de gauche,
+  // à côté des totaux, où il y a de la place. Quand elles étaient après les notes, elles
+  // arrivaient tout en bas et passaient seules sur une deuxième page.
   drawBankDetails(doc, company, summaryY);
 
   financialSummary.forEach(item => {
@@ -518,7 +518,7 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
     }
   });
 
-  // Méthode de paiement
+  // Mode de paiement
   if (invoice.paymentMethod) {
     summaryY = ensureSpace(doc, company, summaryY + 5, invoice.paymentDate ? 10 : 5);
     doc.setFontSize(9);
@@ -552,14 +552,14 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...secondaryColor);
     doc.text(notesLines, 15, summaryY + 6);
-    // Les notes descendent d'autant de lignes qu'elles en comptent : sans cela, les
-    // coordonnées bancaires venaient s'écrire par-dessus dès qu'une note tenait sur deux lignes.
+    // On descend d'autant de lignes que les notes en ont : sinon les coordonnées bancaires
+    // s'écrivaient par-dessus dès que la note faisait deux lignes.
     summaryY += 6 + notesLines.length * 5;
   }
 
   stampFooters(doc, company, settings);
 
-  // Générer le PDF
+  // Génère le PDF
   const fileName = `${t('pdf.fileNamePrefix')}_${invoice.invoiceNumber}_${new Date().getTime()}.pdf`;
   doc.save(fileName);
 };
@@ -567,16 +567,16 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
 /**
  * Avoir d'un retour client.
  *
- * C'est la contrepartie documentaire de la facture : la vente a produit une pièce, le retour
- * en produit une autre, qui la référence. Le document reprend les articles rendus avec leur
- * motif et leur traitement — l'avoir doit dire *pourquoi* on rembourse — et ne
- * chiffre que les lignes effectivement remboursées : une remise en stock ou un échange rend
- * de la marchandise sans rendre d'argent, et figure donc au tableau sans montant.
+ * C'est l'équivalent de la facture pour un retour : la vente a donné une facture, le retour
+ * donne un avoir qui y fait référence. On y liste les articles rendus avec leur motif et
+ * leur traitement (l'avoir doit dire *pourquoi* on rembourse), mais on ne met un montant que
+ * sur les lignes remboursées : une remise en stock ou un échange rend la marchandise sans
+ * rendre d'argent, donc la ligne apparaît sans montant.
  *
- * Les montants viennent tels quels du retour enregistré (`refundAmount`, calculé au prix
- * réellement payé) : le document ne recalcule rien, sans quoi il pourrait annoncer un montant
- * différent de celui inscrit au registre. La TVA est celle de la facture d'origine, à défaut
- * celle des Réglages — les lignes de vente sont stockées hors taxe.
+ * Les montants viennent directement du retour enregistré (`refundAmount`, calculé sur le prix
+ * réellement payé) : le document ne recalcule rien, sinon il pourrait afficher un montant
+ * différent de celui en base. Aucune TVA n'est ajoutée : le montant à rembourser est le
+ * montant payé, tel quel.
  */
 export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
   await loadPdfLibs();
@@ -591,7 +591,7 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
   doc.setFont('helvetica', 'bold');
   doc.text(t('pdf.creditNote.heading'), 15, 55);
 
-  // Références : le numéro de l'avoir, sa date, et les pièces de la vente qu'il corrige.
+  // Références : numéro de l'avoir, date, et documents de la vente concernée.
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...secondaryColor);
@@ -612,7 +612,7 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
     yPos += 6;
   });
 
-  // Informations du client
+  // Infos du client
   doc.setFillColor(243, 244, 246); // bg-gray-100
   doc.rect(15, 75, 90, 35, 'F');
 
@@ -634,8 +634,8 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
         client.address,
         [client.postalCode, client.city].filter(Boolean).join(' '),
       ].filter(Boolean)
-    // Vente de passage : la commande n'a pas de client, l'avoir le dit plutôt que de laisser
-    // un cadre vide qu'on prendrait pour un oubli.
+    // Vente sans client : on l'écrit sur l'avoir plutôt que de laisser un cadre vide qui
+    // ferait penser à un oubli.
     : [t('pdf.walkInClient')];
 
   yPos = 90;
@@ -664,8 +664,8 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
         t(`stock.returns.reasons.${item.reason}`, { defaultValue: item.reason || '—' }),
         t(`stock.returns.treatments.${item.treatment}`, { defaultValue: item.treatment || '—' }),
         String(item.quantity ?? 0),
-        // Sans remboursement, la ligne n'a pas de montant : un « 0,00 € » se lirait comme un
-        // article rendu gratuitement, un tiret dit qu'il n'y a rien à rembourser.
+        // Sans remboursement, pas de montant : « 0,00 € » ferait penser à un article rendu
+        // gratuitement, un tiret dit qu'il n'y a rien à rembourser.
         amountOf(item) > 0 ? money(amountOf(item)) : '—',
       ]),
       theme: 'striped',
@@ -677,42 +677,41 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
       },
       styles: {
         fontSize: 9,
-        cellPadding: 4,
+        // Même padding horizontal réduit que la facture, pour que « Qté » / « Aant. » tienne
+        // sur une ligne.
+        cellPadding: { top: 4, bottom: 4, left: 2.5, right: 2.5 },
       },
-      // Le tableau est calé sur la laisse du document (15 → 195 mm), celle du titre et du
-      // récapitulatif : à la marge par défaut d'autoTable, les six colonnes ne tiendraient pas
-      // et leurs libellés seraient coupés.
-      // `top` place les pages de suite sous le bandeau d'en-tête, `bottom` réserve le pied.
+      // Le tableau est aligné sur les marges du document (15 → 195 mm), comme le titre et le
+      // récapitulatif : avec la marge par défaut d'autoTable, les six colonnes ne rentreraient
+      // pas et les textes seraient coupés.
+      // `top` place les pages suivantes sous le bandeau d'en-tête, `bottom` laisse la place du pied.
       margin: { top: CONTENT_TOP, left: 15, right: 15, bottom: FOOTER_ZONE },
       didDrawPage: () => drawHeader(doc, company),
       columnStyles: {
-        0: { cellWidth: 56 },
+        0: { cellWidth: 54 },
         1: { cellWidth: 38 },
         2: { cellWidth: 38 },
-        3: { cellWidth: 16, halign: 'center' },
+        3: { cellWidth: 18, halign: 'center' },
         4: { cellWidth: 32, halign: 'right' },
       },
     });
   }
 
-  // Récapitulatif : sous-total HT rendu, TVA de la vente, total à rembourser.
+  // Récapitulatif : on rembourse ce que le client a payé, sans y rajouter de TVA. Le total
+  // est le même que celui affiché à l'écran pour ce retour.
   const summaryX = 120;
 
   const subtotal = Number(stockReturn.refundAmount) || 0;
-  const taxRate = Number(stockReturn.taxRate ?? settings.taxRate ?? DEFAULT_TAX_RATE) || 0;
-  const taxAmount = subtotal * taxRate / 100;
 
   const summary = [
-    { label: t('pdf.subtotalLabel'), value: money(subtotal) },
-    { label: `TVA (${taxRate}%):`, value: `+${money(taxAmount)}`, color: [59, 130, 246] },
-    { label: t('pdf.creditNote.refundTotalLabel'), value: money(subtotal + taxAmount), bold: true, size: 12 },
+    { label: t('pdf.creditNote.refundTotalLabel'), value: money(subtotal), bold: true, size: 12 },
   ];
 
   const summaryHeight = summary.reduce((height, item) => height + (item.bold ? 10 : 6), 0);
   const tableEnd = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : tableStartY + 10;
   let summaryY = ensureSpace(doc, company, tableEnd, summaryHeight);
-  // La quantité rendue se lit en regard du montant : elle suit donc le récapitulatif de page,
-  // sans quoi elle resterait seule au bas de la feuille précédente.
+  // La quantité rendue va avec le montant : si le récapitulatif passe à la page suivante,
+  // elle suit, sinon elle resterait toute seule en bas de la page d'avant.
   const quantityY = summaryY;
 
   summary.forEach(item => {
@@ -732,8 +731,8 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
     }
   });
 
-  // Quantité rendue, en regard du montant : un avoir sans montant (remise en stock, échange)
-  // reste un document qui atteste d'articles repris.
+  // Quantité rendue, à côté du montant : un avoir sans montant (remise en stock, échange)
+  // prouve quand même que des articles ont été repris.
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...secondaryColor);
@@ -743,8 +742,8 @@ export const generateCreditNotePDF = async (stockReturn, settings = {}) => {
     quantityY
   );
 
-  // Coordonnées bancaires : c'est par là que le remboursement partira. Comme sur la facture,
-  // elles occupent la colonne de gauche laissée libre par le récapitulatif.
+  // Coordonnées bancaires : c'est par là que le remboursement sera fait. Comme sur la
+  // facture, elles sont dans la colonne de gauche, à côté du récapitulatif.
   if (subtotal > 0) {
     drawBankDetails(doc, company, quantityY + 10);
   }

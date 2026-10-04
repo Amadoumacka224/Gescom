@@ -3,9 +3,9 @@ package com.gescom.backend.dto.product;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Ajustement direct de la quantité en stock d'un produit (PATCH /products/{id}/stock).
- * La quantité est un delta signé (positif = entrée, négatif = sortie) ; elle est obligatoire
- * pour éviter un déréférencement null lors du calcul du nouveau stock.
+ * Modification directe du stock d'un produit (PATCH /products/{id}/stock).
+ * La quantité est une variation avec signe (positif = entrée, négatif = sortie). Elle est
+ * obligatoire pour éviter un NullPointerException au calcul du nouveau stock.
  */
 public record StockUpdateRequest(
         @NotNull(message = "La quantité est obligatoire")

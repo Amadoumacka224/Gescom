@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service métier des catégories de produits (CRUD).
- * Veille à l'unicité du nom et du code, aussi bien à la création qu'à la modification
- * (où l'on exclut la catégorie courante du contrôle de doublon).
+ * Service des catégories de produits (CRUD).
+ * Vérifie que le nom et le code sont uniques, à la création comme à la modification
+ * (en ignorant la catégorie elle-même dans ce cas).
  */
 @Service
 @Transactional

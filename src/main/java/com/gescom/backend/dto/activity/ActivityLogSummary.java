@@ -5,12 +5,12 @@ import com.gescom.backend.entity.ActivityLog;
 import java.util.List;
 
 /**
- * Indicateurs de l'écran Historique, agrégés en base sur la totalité du journal.
+ * Stats de l'écran Historique, calculées en base sur tout le journal.
  *
- * Existe parce que la liste est paginée : compter les lignes reçues ne donnerait que le
- * volume de la page courante, et un total qui n'en est pas un est plus trompeur qu'absent.
- * Les listes `actionTypes` / `entities` recensent les valeurs réellement présentes, afin de
- * ne proposer aucun filtre qui ne rendrait aucun résultat.
+ * Nécessaire parce que la liste est paginée : compter les lignes reçues ne donnerait que
+ * celles de la page, et un faux total est pire que pas de total.
+ * `actionTypes` / `entities` listent les valeurs qui existent vraiment, pour ne pas proposer
+ * de filtre qui ne donnerait rien.
  */
 public record ActivityLogSummary(
         long total,

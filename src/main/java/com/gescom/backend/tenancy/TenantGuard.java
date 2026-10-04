@@ -3,13 +3,12 @@ package com.gescom.backend.tenancy;
 import com.gescom.backend.entity.Company;
 
 /**
- * Verifie l'appartenance d'une entite a l'entreprise de la requete courante.
+ * Verifie qu'une entite appartient bien a l'entreprise de la requete en cours.
  *
- * Complement indispensable du filtre Hibernate : celui-ci reecrit les requetes SQL, mais
- * un chargement par identifiant ({@code em.find}) peut etre servi depuis le cache de
- * premier niveau sans qu'aucun SQL ne soit emis — donc sans filtre. Une entite d'une autre
- * entreprise remonterait alors intacte. C'est ce trou que ferme cette classe, appelee par
- * {@link TenantAwareRepositoryImpl}.
+ * Indispensable en plus du filtre Hibernate : le filtre modifie les requetes SQL, mais un
+ * chargement par id ({@code em.find}) peut venir du cache sans aucun SQL, donc sans filtre.
+ * Une entite d'une autre entreprise pourrait alors passer. C'est ce trou que bouche cette
+ * classe, appelee par {@link TenantAwareRepositoryImpl}.
  */
 public final class TenantGuard {
 
@@ -17,10 +16,10 @@ public final class TenantGuard {
     }
 
     /**
-     * Vrai si l'entite est visible dans le contexte courant.
+     * Vrai si l'entite est visible dans le contexte en cours.
      *
-     * Les objets non cloisonnes (formules, entreprises, entites sans marqueur) passent
-     * toujours : leur controle d'acces releve de {@code @PreAuthorize}, pas du tenant.
+     * Les objets pas filtres par entreprise (formules, entreprises, entites sans marqueur)
+     * passent toujours : leur acces est controle par {@code @PreAuthorize}, pas par le tenant.
      */
     public static boolean isVisible(Object entity) {
         if (!(entity instanceof TenantOwned owned)) {
@@ -28,12 +27,12 @@ public final class TenantGuard {
         }
         Long currentCompanyId = TenantContext.getCompanyId();
         if (currentCompanyId == null) {
-            // Vue plateforme : le SUPER_ADMIN voit l'ensemble du parc.
+            // Vue plateforme : le SUPER_ADMIN voit toutes les entreprises.
             return true;
         }
         Company company = owned.getOwnerCompany();
-        // Un SUPER_ADMIN charge par un ADMIN d'entreprise n'a pas d'entreprise : il ne doit
-        // etre visible d'aucun tenant.
+        // Un SUPER_ADMIN charge par l'ADMIN d'une entreprise n'a pas d'entreprise : aucune
+        // entreprise ne doit pouvoir le voir.
         return company != null && currentCompanyId.equals(company.getId());
     }
 }

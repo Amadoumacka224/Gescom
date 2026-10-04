@@ -11,9 +11,9 @@ import java.math.BigDecimal;
 /**
  * Ligne de retour : un article rendu, sa quantité, son motif et son traitement.
  *
- * Le prix unitaire est celui de la ligne de commande d'origine, toutes remises déduites (celle
- * de la ligne, plus la part de la remise globale de la vente), afin que le montant remboursé
- * reste celui réellement payé, même si le tarif du produit change ensuite.
+ * Le prix unitaire est celui de la ligne de commande d'origine, avec toutes les remises
+ * (celle de la ligne et la part de la remise globale), pour rembourser ce qui a vraiment été
+ * payé même si le prix du produit change après.
  */
 @Entity
 @Table(name = "stock_return_items")
@@ -36,9 +36,9 @@ public class StockReturnItem {
     private Product product;
 
     /**
-     * Article remis au client en échange, uniquement pour un traitement {@code EXCHANGE}.
-     * Par défaut le même produit (échange à l'identique de l'unité rendue) — c'est lui qui
-     * ressort du stock, l'article rendu y étant réintégré.
+     * Article donné au client en échange, seulement pour un traitement {@code EXCHANGE}.
+     * Par défaut c'est le même produit (échange à l'identique). C'est lui qui sort du stock,
+     * et l'article rendu y revient.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "replacement_product_id")
@@ -47,11 +47,11 @@ public class StockReturnItem {
     @Column(nullable = false)
     private Integer quantity;
 
-    // Prix unitaire net payé sur la vente d'origine (remise de ligne déduite).
+    // Prix unitaire net payé lors de la vente (remise de ligne enlevée).
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice = BigDecimal.ZERO;
 
-    // Montant remboursé pour cette ligne : quantité × prix unitaire si traitement REFUND, sinon 0.
+    // Montant remboursé pour la ligne : quantité × prix unitaire si REFUND, sinon 0.
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal refundAmount = BigDecimal.ZERO;
 
@@ -63,7 +63,7 @@ public class StockReturnItem {
     @Column(nullable = false, length = 30)
     private ReturnTreatment treatment;
 
-    /** Motif du retour. Une liste fermée plutôt qu'un texte libre : c'est ce qui rend les retours analysables. */
+    /** Motif du retour. Une liste fixe plutôt que du texte libre, pour pouvoir faire des stats. */
     public enum ReturnReason {
         DEFECTIVE,      // Produit défectueux
         DAMAGED,        // Produit endommagé (transport, manipulation)
@@ -74,17 +74,17 @@ public class StockReturnItem {
     }
 
     /**
-     * Traitement appliqué à l'article rendu. Chaque valeur décrit un effet de stock précis,
-     * appliqué par {@code StockReturnService} :
+     * Ce qu'on fait de l'article rendu. Chaque valeur a un effet précis sur le stock, appliqué
+     * par {@code StockReturnService} :
      *
      * <ul>
-     *   <li>{@code RESTOCK} — remise en stock simple : la marchandise réintègre le stock
-     *       vendable (mouvement RETURN), sans contrepartie financière.</li>
-     *   <li>{@code REFUND} — remboursement : même réintégration au stock, et le montant payé
-     *       pour la ligne est tracé sur le retour.</li>
-     *   <li>{@code EXCHANGE} — échange : l'article rendu réintègre le stock (RETURN) et
-     *       l'article de remplacement en ressort (STOCK_OUT). À l'identique, les deux
-     *       mouvements se compensent — mais restent tous deux tracés.</li>
+     *   <li>{@code RESTOCK} : simple remise en stock, la marchandise revient dans le stock
+     *       vendable (mouvement RETURN), sans remboursement.</li>
+     *   <li>{@code REFUND} : remboursement, la marchandise revient aussi en stock, et le
+     *       montant payé pour la ligne est noté sur le retour.</li>
+     *   <li>{@code EXCHANGE} : échange, l'article rendu revient en stock (RETURN) et l'article
+     *       de remplacement sort (STOCK_OUT). Pour le même article les deux s'annulent, mais
+     *       on garde les deux mouvements.</li>
      * </ul>
      */
     public enum ReturnTreatment {

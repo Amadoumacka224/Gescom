@@ -1,15 +1,14 @@
 package com.gescom.backend.dto.order;
 
 /**
- * Compteurs des tuiles de l'écran Commandes, une par statut.
+ * Compteurs des cartes de l'écran Commandes, un par statut.
  *
- * Ils décrivent l'ensemble des commandes visibles par l'appelant — cloisonnement caissier
- * compris —, jamais la page affichée : « 12 en attente » doit rester vrai quelle que soit la
- * page ouverte, et les tuiles servent justement à filtrer, donc à changer de page.
+ * Ils portent sur toutes les commandes que l'appelant peut voir (un caissier ne voit que les
+ * siennes), jamais sur la page affichée : « 12 en attente » doit rester vrai quelle que soit
+ * la page, et les cartes servent justement à filtrer.
  *
- * Ils ne tiennent en revanche PAS compte des critères de recherche en cours, exactement comme
- * avant : les tuiles annoncent le paysage complet, sur lequel on vient ensuite appliquer un
- * filtre.
+ * Par contre ils ne tiennent PAS compte de la recherche en cours, comme avant : les cartes
+ * montrent la situation globale, et on filtre ensuite.
  */
 public record OrderSummary(
         long total,

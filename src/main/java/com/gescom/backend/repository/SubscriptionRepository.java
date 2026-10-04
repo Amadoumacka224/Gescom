@@ -13,17 +13,17 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Abonnements du parc.
+ * Abonnements de toutes les entreprises.
  *
- * Toutes les mesures de revenu sont agregees en base : le MRR d'un parc de plusieurs
- * centaines de contrats n'a aucune raison de transiter par la memoire de l'application.
- * La mensualisation d'un contrat annuel (division par douze) est faite ici, en SQL, avec
- * la meme regle que {@code Subscription.monthlyAmount()}.
+ * Tous les calculs de revenus sont faits en base : pas besoin de charger plusieurs
+ * centaines de contrats en memoire pour calculer le MRR. Le passage d'un contrat annuel au
+ * mois (division par douze) est fait ici en SQL, avec la meme regle que
+ * {@code Subscription.monthlyAmount()}.
  */
 @Repository
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
 
-    /** Contrat vivant d'une entreprise ; l'index partiel en base en garantit l'unicite. */
+    /** Contrat actif d'une entreprise ; l'index partiel en base garantit qu'il n'y en a qu'un. */
     @Query("""
            SELECT s FROM Subscription s
            WHERE s.company.id = :companyId
@@ -36,9 +36,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     long countByStatus(Subscription.SubscriptionStatus status);
 
     /**
-     * Contrats rattaches a une formule, tous statuts confondus.
+     * Contrats lies a une formule, tous statuts compris.
      *
-     * Les resilies comptent : l'historique reference la formule, et c'est ce qui interdit
+     * Les resilies comptent aussi : ils font reference a la formule, et c'est ce qui empeche
      * de supprimer une formule deja vendue (voir {@code PlanService.delete}).
      */
     long countByPlanId(Long planId);
@@ -48,12 +48,12 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     Page<Subscription> findByStatusOrderByCreatedAtDesc(Subscription.SubscriptionStatus status, Pageable pageable);
 
     /**
-     * Revenu mensuel recurrent.
+     * Revenu mensuel recurrent (MRR).
      *
      * Un contrat annuel compte pour un douzieme de son montant : c'est la definition du MRR,
-     * et sans cette mensualisation un abonne annuel gonflerait l'indicateur d'un facteur
-     * douze le mois de sa souscription. Le calcul reste en precision native et n'est arrondi
-     * qu'une fois, au retour, par {@code PlatformMetricsService}.
+     * sinon un abonne annuel multiplierait l'indicateur par douze le mois ou il s'abonne. Le
+     * calcul garde toute la precision et n'est arrondi qu'une fois, a la fin, dans
+     * {@code PlatformMetricsService}.
      */
     @Query("""
            SELECT COALESCE(SUM(CASE
@@ -66,7 +66,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     java.math.BigDecimal sumMonthlyRecurringRevenue(Collection<Subscription.SubscriptionStatus> liveStatuses,
                                                     Subscription.BillingPeriod yearly);
 
-    /** Repartition des contrats vivants par formule — camembert « abonnements par formule ». */
+    /** Nombre de contrats actifs par formule, pour le graphique « abonnements par formule ». */
     @Query("""
            SELECT s.plan.code, s.plan.name, COUNT(s), COALESCE(SUM(CASE
                      WHEN s.billingPeriod = :yearly
@@ -83,13 +83,13 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     @Query("SELECT s.status, COUNT(s) FROM Subscription s GROUP BY s.status")
     List<Object[]> countGroupedByStatus();
 
-    /** Resiliations sur une periode — numerateur du churn. */
+    /** Resiliations sur une periode (le haut de la fraction du churn). */
     long countByCanceledAtBetween(LocalDateTime start, LocalDateTime end);
 
     /**
-     * Contrats vivants au debut d'une periode — denominateur du churn.
-     * Un contrat compte s'il avait demarre avant la borne et n'etait pas encore resilie a
-     * cette date, ce qui exclut ceux souscrits puis resilies a l'interieur de la periode.
+     * Contrats actifs au debut d'une periode (le bas de la fraction du churn).
+     * Un contrat compte s'il a commence avant cette date et n'etait pas encore resilie, donc
+     * on n'inclut pas ceux souscrits puis resilies pendant la periode.
      */
     @Query("""
            SELECT COUNT(s) FROM Subscription s
@@ -98,7 +98,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
            """)
     long countLiveAt(LocalDateTime moment);
 
-    /** Echeances a renouveler dans la fenetre donnee — bloc « renouvellements a venir ». */
+    /** Echeances a renouveler dans la periode donnee, pour le bloc « renouvellements a venir ». */
     @Query("""
            SELECT s FROM Subscription s
            WHERE s.status IN :liveStatuses
@@ -108,7 +108,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     List<Subscription> findRenewalsBetween(Collection<Subscription.SubscriptionStatus> liveStatuses,
                                            LocalDateTime from, LocalDateTime to);
 
-    /** Echeances depassees et toujours non renouvelees — alertes d'impaye. */
+    /** Echeances passees et pas encore renouvelees, pour les alertes d'impaye. */
     @Query("""
            SELECT s FROM Subscription s
            WHERE s.status IN :liveStatuses

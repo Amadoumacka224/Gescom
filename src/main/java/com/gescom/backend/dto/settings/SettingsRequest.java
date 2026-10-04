@@ -6,10 +6,10 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
- * Corps de PUT /settings. DTO dédié plutôt que l'entité JPA {@code Settings} pour :
- *   - empêcher le mass-assignment (id / createdAt / updatedAt non exposés) ;
- *   - valider les champs obligatoires (contraintes NOT NULL en base) en amont,
- *     de façon à renvoyer un 400 clair plutôt qu'un 409 d'intégrité.
+ * Body de PUT /settings. On utilise un DTO plutôt que l'entité JPA {@code Settings} pour :
+ *   - éviter le mass-assignment (id / createdAt / updatedAt ne sont pas exposés) ;
+ *   - valider les champs obligatoires (NOT NULL en base) avant, pour renvoyer une 400 claire
+ *     plutôt qu'une 409 d'intégrité.
  */
 public record SettingsRequest(
         // Général

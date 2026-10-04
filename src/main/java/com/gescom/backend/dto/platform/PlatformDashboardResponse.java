@@ -5,15 +5,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Tableau de bord du proprietaire de la plateforme.
+ * Tableau de bord du super admin.
  *
- * Tout ce qui suit est agrege en base a chaque appel : aucune valeur n'est figee, estimee ou
- * mise en cache. Un chiffre affiche ici est un chiffre lisible directement en SQL, ce qui
- * est la seule facon de rendre un tableau de bord commercial verifiable.
+ * Tout est calcule en base a chaque appel : rien n'est fige, estime ou mis en cache. Chaque
+ * chiffre affiche peut etre retrouve directement en SQL, c'est le seul moyen d'avoir un
+ * tableau de bord commercial qu'on peut verifier.
  *
- * La reponse est volontairement composee de sous-blocs plutot que d'une centaine de champs
- * a plat : chaque bloc correspond a une zone de l'ecran, et l'interface peut en afficher
- * une partie sans avoir a connaitre le reste.
+ * La reponse est decoupee en sous-blocs plutot qu'une centaine de champs a plat : chaque
+ * bloc correspond a une zone de l'ecran, et le front peut en afficher une partie sans
+ * connaitre le reste.
  */
 public record PlatformDashboardResponse(
         CompanyStats companies,
@@ -30,7 +30,7 @@ public record PlatformDashboardResponse(
         LocalDateTime generatedAt
 ) {
 
-    /** Etat du parc d'entreprises clientes. */
+    /** Etat des entreprises clientes. */
     public record CompanyStats(
             long total,
             long active,
@@ -39,7 +39,7 @@ public record PlatformDashboardResponse(
             long canceled,
             long newThisMonth,
             long newLastMonth,
-            /** Variation du recrutement d'un mois sur l'autre, en pourcentage. */
+            /** Evolution des nouvelles entreprises par rapport au mois d'avant, en pourcentage. */
             BigDecimal growthRate
     ) {
     }
@@ -52,33 +52,33 @@ public record PlatformDashboardResponse(
             long canceled,
             long expired,
             /**
-             * Taux de resiliation du mois : resiliations rapportees au nombre de contrats
-             * vivants au premier jour du mois. Le denominateur est bien l'effectif de debut
-             * de periode, non celui d'aujourd'hui, sans quoi un mois de forte resiliation
-             * ferait mecaniquement baisser son propre taux.
+             * Taux de resiliation du mois : nombre de resiliations divise par le nombre de
+             * contrats actifs le premier jour du mois. On divise bien par le nombre en debut
+             * de mois et pas par celui d'aujourd'hui, sinon un mois avec beaucoup de
+             * resiliations ferait baisser son propre taux.
              */
             BigDecimal churnRate,
             long canceledThisMonth,
             /**
-             * Echeances tombant dans la fenetre parametree. Le nom ne mentionne aucune duree :
-             * elle est configurable, et un champ nomme « next30Days » aurait menti des la
-             * premiere modification du reglage.
+             * Echeances dans la periode configuree. Le nom ne contient pas de duree exprès :
+             * elle est configurable, et un champ appele « next30Days » deviendrait faux des
+             * qu'on changerait le reglage.
              */
             long renewalsUpcoming,
-            /** Fenetre effectivement appliquee, pour que l'interface puisse l'annoncer. */
+            /** Periode utilisee, pour que le front puisse l'afficher. */
             int renewalWindowDays
     ) {
     }
 
     public record RevenueStats(
-            /** Revenu mensuel recurrent : contrats vivants, contrats annuels mensualises. */
+            /** Revenu mensuel recurrent : contrats actifs, les annuels ramenes au mois. */
             BigDecimal mrr,
-            /** Revenu annuel recurrent, soit douze fois le MRR. */
+            /** Revenu annuel recurrent, c'est-a-dire douze fois le MRR. */
             BigDecimal arr,
             BigDecimal revenueThisMonth,
             BigDecimal revenueLastMonth,
             BigDecimal revenueTotal,
-            /** Revenu moyen par compte actif — MRR rapporte au nombre de contrats vivants. */
+            /** Revenu moyen par compte actif : MRR divise par le nombre de contrats actifs. */
             BigDecimal arpa,
             String currency
     ) {
@@ -91,12 +91,12 @@ public record PlatformDashboardResponse(
             long refunded,
             long succeededThisMonth,
             long failedThisMonth,
-            /** Part des paiements aboutis sur le mois, en pourcentage. */
+            /** Pourcentage de paiements reussis sur le mois. */
             BigDecimal successRate
     ) {
     }
 
-    /** Activite consolidee du parc — ce que les entreprises font reellement de l'outil. */
+    /** Activite de toutes les entreprises : ce qu'elles font vraiment avec l'outil. */
     public record ActivityStats(
             long totalUsers,
             long activeUsers,
@@ -112,7 +112,7 @@ public record PlatformDashboardResponse(
             String planName,
             long subscriptions,
             BigDecimal mrr,
-            /** Part de ce plan dans le MRR total, en pourcentage. */
+            /** Part de cette formule dans le MRR total, en pourcentage. */
             BigDecimal share
     ) {
     }
@@ -127,10 +127,10 @@ public record PlatformDashboardResponse(
     }
 
     /**
-     * Evenement appelant une action de l'operateur.
+     * Evenement qui demande une action de l'operateur.
      *
-     * {@code severity} vaut CRITICAL, WARNING ou INFO ; {@code type} identifie la nature de
-     * l'alerte pour que l'interface puisse la traduire plutot que d'afficher le libelle brut.
+     * {@code severity} vaut CRITICAL, WARNING ou INFO ; {@code type} donne le type d'alerte
+     * pour que le front puisse la traduire au lieu d'afficher le texte brut.
      */
     public record PlatformAlert(
             String type,
@@ -143,11 +143,11 @@ public record PlatformDashboardResponse(
     }
 
     /**
-     * Sante generale, resumee en un score sur 100.
+     * Sante generale, resumee en une note sur 100.
      *
-     * Volontairement simple et explicable : la part des entreprises operationnelles dans le
-     * parc, moins une penalite par impaye et par echec de paiement recent. Un indicateur que
-     * l'on ne sait pas justifier ne sert a rien sur un tableau de bord de direction.
+     * Volontairement simple et facile a expliquer : le pourcentage d'entreprises qui
+     * fonctionnent, moins une penalite par impaye et par echec de paiement recent. Un
+     * indicateur qu'on ne sait pas expliquer ne sert a rien sur un tableau de bord.
      */
     public record HealthStats(
             int score,

@@ -1,12 +1,11 @@
 import { AlertCircle } from 'lucide-react';
 
 /**
- * Champ de saisie standard des formulaires.
+ * Champ de saisie standard.
  *
- * L'aide (`hint`) et l'erreur (`error`) sont rattachées au champ par `aria-describedby` :
- * un lecteur d'écran annonce la contrainte en même temps que le libellé, au lieu de laisser
- * l'utilisateur découvrir le message uniquement à l'œil. L'aide s'efface quand une erreur
- * s'affiche — les deux textes empilés sous le champ brouilleraient le message à corriger.
+ * L'aide (`hint`) et l'erreur (`error`) sont liées au champ avec `aria-describedby`, comme
+ * ça un lecteur d'écran les lit avec le label. Quand il y a une erreur, on cache l'aide pour
+ * ne pas avoir deux messages l'un sur l'autre.
  */
 const FormInput = ({
   label,

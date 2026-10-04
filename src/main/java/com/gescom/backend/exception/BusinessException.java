@@ -1,15 +1,15 @@
 package com.gescom.backend.exception;
 
 /**
- * Exception de base pour toute violation d'une règle métier (ex : transition de statut invalide,
- * paiement négatif). Non vérifiée (RuntimeException) pour ne pas alourdir les signatures.
- * Mappée en HTTP 400 par {@link GlobalExceptionHandler}.
+ * Exception de base quand une règle métier n'est pas respectée (ex : changement de statut
+ * interdit, paiement négatif). C'est une RuntimeException pour ne pas avoir de throws partout.
+ * Transformée en HTTP 400 par {@link GlobalExceptionHandler}.
  *
- * Deux façons de la lever :
- *   - {@code new BusinessException("message")} — littéral, non traduit ;
- *   - {@link #of(String, String, Object...)} — clé de traduction et repli français, résolue dans
- *     la langue de l'appelant par {@link GlobalExceptionHandler}. À préférer dès que le message
- *     remonte jusqu'à l'utilisateur.
+ * Deux façons de la lancer :
+ *   - {@code new BusinessException("message")} : texte direct, pas traduit ;
+ *   - {@link #of(String, String, Object...)} : clé de traduction + texte français de secours,
+ *     traduit dans la langue de l'appelant par {@link GlobalExceptionHandler}. À utiliser
+ *     dès que le message est affiché à l'utilisateur.
  */
 public class BusinessException extends RuntimeException implements LocalizedException {
 
@@ -24,8 +24,8 @@ public class BusinessException extends RuntimeException implements LocalizedExce
 
     /**
      * @param messageKey clé dans {@code i18n/messages*.properties}
-     * @param fallback   message français, servi si la clé est absente des catalogues
-     * @param args       arguments de substitution ({@code {0}}, {@code {1}}…)
+     * @param fallback   message en français, utilisé si la clé n'existe pas
+     * @param args       valeurs à insérer ({@code {0}}, {@code {1}}…)
      */
     public static BusinessException of(String messageKey, String fallback, Object... args) {
         return new BusinessException(messageKey, args, fallback);

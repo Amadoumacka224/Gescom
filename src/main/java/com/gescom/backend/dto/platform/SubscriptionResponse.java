@@ -4,11 +4,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Abonnement expose au back-office proprietaire.
+ * Abonnement renvoye au back-office.
  *
- * {@code monthlyAmount} accompagne {@code amount} : c'est la contribution reelle du contrat
- * au MRR, deja mensualisee pour un contrat annuel. L'afficher evite que l'interface refasse
- * ce calcul de son cote, avec le risque d'une regle d'arrondi divergente.
+ * On renvoie {@code monthlyAmount} en plus de {@code amount} : c'est ce que le contrat
+ * rapporte vraiment par mois dans le MRR (deja divise par 12 pour un contrat annuel). Comme
+ * ca le front n'a pas a refaire le calcul, avec le risque d'arrondir differemment.
  */
 public record SubscriptionResponse(
         Long id,

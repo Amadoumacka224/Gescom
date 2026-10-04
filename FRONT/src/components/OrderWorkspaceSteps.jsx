@@ -9,27 +9,25 @@ import { formatCurrency, todayISO } from '../utils/format';
 import { remainingOf } from '../utils/orderLifecycle';
 
 /**
- * Étapes du traitement d'une commande, pilotées depuis le pied du panier.
+ * Étapes du traitement d'une commande, affichées en bas du panier.
  *
- * Le principe : à un instant donné, une commande n'a qu'une seule suite logique. Le panneau
- * n'affiche donc que celle-là — valider, puis confirmer, puis facturer, puis encaisser — au
- * lieu d'aligner cinq boutons dont quatre finiraient en erreur 400. L'enchaînement reproduit
- * la machine à états du backend (`Order.OrderStatus.ALLOWED_TRANSITIONS`) et ses gardes :
+ * À chaque moment, une commande n'a qu'une seule étape suivante possible, donc on n'affiche
+ * que celle-là (valider, confirmer, facturer, encaisser) au lieu de cinq boutons dont quatre
+ * renverraient une erreur 400. L'ordre suit la machine à états du backend
+ * (`Order.OrderStatus.ALLOWED_TRANSITIONS`) :
  *
  *   Panier → PENDING → CONFIRMED → INVOICED → réglée
  *              (POST)  (stock −)   (facture)  (encaissements)
  *
- * Aucune règle n'est réimplémentée ici : les conditions affichées ne font que refléter celles
- * que le serveur applique de toute façon (modification réservée au brouillon, facturation
- * réservée à une commande confirmée, encaissement porté par la facture).
+ * Aucune règle n'est recodée ici : on affiche juste ce que le serveur vérifie de toute façon
+ * (modif seulement en brouillon, facture seulement si confirmée, paiement sur la facture).
  *
- * Le parcours n'est plus doublé d'un ruban de progression en tête de panneau : il occupait une
- * quarantaine de pixels sur toute la largeur pour redire ce que le bouton d'action annonce déjà
- * (« Confirmer la commande », « Créer la facture », « Encaisser »), et cette hauteur revient
- * aux lignes d'articles.
+ * Il y avait avant une barre de progression en haut du panneau, mais elle prenait une
+ * quarantaine de pixels pour répéter ce que dit déjà le bouton. On a rendu la place aux
+ * articles.
  */
 
-/** Bouton d'action principale de l'étape : pleine largeur, avec état d'attente explicite. */
+/** Bouton principal de l'étape : pleine largeur, avec un état de chargement. */
 const StepButton = ({ icon: Icon, label, loadingLabel, loading, disabled, onClick, title, tone = 'primary' }) => {
   const tones = {
     primary: 'bg-primary-600 hover:bg-primary-700 text-white',
@@ -83,10 +81,9 @@ const OrderWorkspaceSteps = ({
   const remaining = remainingOf(invoice);
   const settled = !!invoice && (invoice.status === 'PAID' || remaining <= 0.001);
 
-  // Les champs non encore touchés restent à `null` et prennent leur valeur par défaut au
-  // moment du rendu. C'est ce qui permet au montant proposé de suivre le reste dû après un
-  // acompte, ou au taux de TVA de refléter les réglages dès qu'ils arrivent, sans effet de
-  // synchronisation — et sans jamais écraser une saisie en cours.
+  // Tant qu'un champ n'a pas été touché il reste à `null` et prend sa valeur par défaut au
+  // rendu. Comme ça le montant proposé suit le reste à payer après un acompte, et la TVA
+  // suit les paramètres dès qu'ils sont chargés, sans écraser ce que l'utilisateur tape.
   const [invoiceForm, setInvoiceForm] = useState({
     invoiceDate: null,
     dueDate: null,
@@ -101,10 +98,9 @@ const OrderWorkspaceSteps = ({
     paymentDate: null,
   });
 
-  // Valeurs par défaut tirées des réglages de l'entreprise (taux de TVA, délai de paiement)
-  // plutôt que codées en dur : c'est l'écran Réglages qui fait foi, et les ressaisir à chaque
-  // facture était la première source d'écart entre deux caissiers. Le repli éventuel est déjà
-  // appliqué par `useSettings`, en amont — il n'y a plus qu'une valeur à reprendre ici.
+  // Valeurs par défaut prises dans les paramètres de l'entreprise (TVA, délai de paiement)
+  // plutôt qu'en dur. Les retaper à chaque facture créait des différences entre caissiers.
+  // La valeur de secours est déjà gérée par `useSettings`.
   const invoiceDate = invoiceForm.invoiceDate ?? todayISO();
   const dueDate = invoiceForm.dueDate ?? defaultDueDate;
   const taxRateValue = invoiceForm.taxRate ?? defaultTaxRate;
@@ -113,14 +109,14 @@ const OrderWorkspaceSteps = ({
   const paymentMethod = paymentForm.paymentMethod ?? invoice?.paymentMethod ?? 'CASH';
   const paymentDate = paymentForm.paymentDate ?? todayISO();
 
-  // Après un encaissement, on relâche le montant saisi : la prochaine proposition doit repartir
-  // du nouveau reliquat, pas de la somme déjà réglée.
+  // Après un paiement, on vide le montant saisi pour que la proposition suivante reparte du
+  // nouveau reste à payer.
   const submitPayment = async (payload) => {
     await onRecordPayment(payload);
     setPaymentForm((prev) => ({ ...prev, amount: null }));
   };
 
-  // ── Étape 1 : brouillon, la commande n'existe pas encore ────────────────────────────
+  // ── Étape 1 : brouillon, la commande n'est pas encore créée ─────────────────────────
   if (!order) {
     return (
       <div className="space-y-3">
@@ -130,10 +126,9 @@ const OrderWorkspaceSteps = ({
             {blockingHint}
           </p>
         )}
-        {/* Ce que fait la validation — enregistrement en attente, stock intact jusqu'à la
-            confirmation — est porté par l'infobulle du bouton plutôt que par une ligne de
-            texte permanente : l'explication ne se lit qu'une fois, la place, elle, était
-            perdue à chaque vente. */}
+        {/* L'explication (commande enregistrée en attente, stock pas touché avant la
+            confirmation) est dans l'infobulle du bouton plutôt qu'en texte permanent, pour
+            ne pas perdre une ligne à chaque vente. */}
         <StepButton
           icon={CheckCircle}
           label={t('orders.steps.validateOrder')}
@@ -147,7 +142,7 @@ const OrderWorkspaceSteps = ({
     );
   }
 
-  // ── Commande annulée : plus de suite possible, on propose de repartir ───────────────
+  // ── Commande annulée : plus rien à faire, on propose d'en recommencer une ───────────
   if (order.status === 'CANCELED') {
     return (
       <div className="space-y-3">
@@ -211,8 +206,8 @@ const OrderWorkspaceSteps = ({
         const rate = parseFloat(taxRateValue);
         const rateInvalid = Number.isNaN(rate) || rate < 0 || rate > 100;
         const commercial = parseFloat(invoiceForm.discount) || 0;
-        // La remise déjà portée par la commande se cumule à celle consentie ici : la facture
-        // déduit les deux du sous-total (cf. InvoiceService.createInvoice).
+        // La remise de la commande s'ajoute à celle saisie ici : la facture enlève les deux
+        // du sous-total (voir InvoiceService.createInvoice).
         const totalDiscount = (Number(order.discount) || 0) + commercial;
         const base = Math.max(totalHT - totalDiscount, 0);
         const tax = rateInvalid ? 0 : base * (rate / 100);
@@ -300,7 +295,7 @@ const OrderWorkspaceSteps = ({
               </div>
             </div>
 
-            {/* Aperçu du calcul, dans l'ordre exact de `InvoiceService.createInvoice` :
+            {/* Aperçu du calcul, dans le même ordre que `InvoiceService.createInvoice` :
                 HT − remise, TVA sur le net, puis TTC. */}
             <div className="flex items-center justify-between text-xs px-0.5">
               <span className="text-gray-500 dark:text-gray-400">{t('orders.steps.amountToInvoice')}</span>
@@ -340,7 +335,7 @@ const OrderWorkspaceSteps = ({
         );
       })()}
 
-      {/* ── Étape 4 : facturée, reste à encaisser ────────────────────────────────────── */}
+      {/* ── Étape 4 : facturée, paiement à encaisser ─────────────────────────────────── */}
       {['INVOICED', 'DELIVERED'].includes(order.status) && (
         <>
           {invoiceLoading && !invoice && (
@@ -443,7 +438,7 @@ const OrderWorkspaceSteps = ({
                   tone="success"
                 />
 
-                {/* Même somme, même facture : seul l'encaissement passe par le prestataire au
+                {/* Même montant et même facture, mais le paiement passe par le terminal au
                     lieu d'être saisi à la main. */}
                 <button
                   type="button"
@@ -474,7 +469,7 @@ const OrderWorkspaceSteps = ({
         </>
       )}
 
-      {/* ── Actions transverses ──────────────────────────────────────────────────────── */}
+      {/* ── Actions communes ─────────────────────────────────────────────────────────── */}
       <div className="pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
         {invoice && invoice.status !== 'CANCELED' && (
           <button
@@ -499,9 +494,9 @@ const OrderWorkspaceSteps = ({
           </button>
         )}
 
-        {/* Annulation : reproduit les gardes de `OrderService.cancelOrder` — possible tant que
-            la commande n'est pas dans un état terminal et qu'aucune facture vivante n'y est
-            rattachée. Facturée, il faut d'abord annuler la facture depuis l'écran Factures. */}
+        {/* Annulation : mêmes conditions que `OrderService.cancelOrder`. Possible tant que la
+            commande n'est pas terminée et qu'elle n'a pas de facture active. Si elle est
+            facturée, il faut d'abord annuler la facture dans l'écran Factures. */}
         {(['PENDING', 'CONFIRMED'].includes(order.status)
           || (order.status === 'INVOICED' && (invoice?.status ?? order.invoiceStatus) === 'CANCELED')) && (
           <button
@@ -521,8 +516,8 @@ const OrderWorkspaceSteps = ({
           </p>
         )}
 
-        {/* Fin de parcours : on repart sur un panier vierge sans quitter l'atelier — c'est la
-            boucle attendue en caisse, un client après l'autre. */}
+        {/* Fin du parcours : on repart sur un panier vide sans fermer l'écran, pour enchaîner
+            les clients en caisse. */}
         {(settled || order.status === 'DELIVERED') && (
           <button type="button" onClick={onReset} className="btn-secondary w-full text-sm">
             <ShoppingCart className="w-4 h-4" aria-hidden="true" />

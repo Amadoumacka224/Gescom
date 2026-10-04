@@ -1,12 +1,10 @@
 /**
- * Bloc de formulaire : intitulé et intention à gauche, champs à droite sur grand écran.
+ * Section de formulaire : titre et description à gauche, champs à droite sur grand écran.
  *
- * Cette mise en page donne au lecteur un point d'entrée par section plutôt qu'une suite
- * indifférenciée de champs, et laisse la place d'expliquer à quoi sert chaque groupe — ce
- * qu'un simple titre souligné au-dessus des champs ne permettait pas.
+ * Ça découpe le formulaire en groupes et laisse de la place pour expliquer chaque groupe.
  *
- * S'utilise dans un conteneur `divide-y` : les sections s'y séparent d'elles-mêmes, sans que
- * la première ni la dernière ne portent de trait en trop.
+ * À mettre dans un conteneur `divide-y` pour avoir les séparateurs automatiquement
+ * (sans trait en trop au début ou à la fin).
  */
 const FormSection = ({ icon: Icon, title, description, children }) => (
   <section className="grid gap-4 py-6 first:pt-0 last:pb-0 lg:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] lg:gap-8">

@@ -8,20 +8,20 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Paramètres du back-office propriétaire.
+ * Paramètres du back-office plateforme.
  *
- * Deux blocs seulement, chacun répondant à un manque concret :
+ * Seulement deux blocs, chacun pour un vrai besoin :
  *
- *  - les seuils du tableau de bord, qui étaient des constantes de `PlatformMetricsService`
- *    et exigeaient donc un redéploiement pour répondre à une question purement commerciale
- *    (« à partir de quand un renouvellement est-il "à venir" ? ») ;
- *  - le compte propriétaire, seul endroit d'où son mot de passe peut être changé :
- *    `PlatformAdminBootstrap` ne réécrit jamais un compte existant, si bien que modifier
- *    `.env` après la première création n'a aucun effet.
+ *  - les seuils du tableau de bord, qui étaient des constantes dans `PlatformMetricsService`
+ *    et demandaient un redéploiement pour une simple question commerciale (« à partir de
+ *    quand un renouvellement est "à venir" ? ») ;
+ *  - le compte super admin, seul endroit où on peut changer son mot de passe :
+ *    `PlatformAdminBootstrap` ne modifie jamais un compte qui existe déjà, donc changer le
+ *    `.env` après la première création ne sert à rien.
  *
- * Rien sur l'identité de l'éditeur ni sur la politique d'accès : le premier n'a aucun usage
- * tant qu'aucune facture d'abonnement n'est émise, la seconde suppose un ordonnanceur qui
- * n'existe pas dans le projet.
+ * Rien sur l'identité de l'éditeur ni sur la politique d'accès : la première ne sert à rien
+ * tant qu'on n'émet pas de factures d'abonnement, la seconde demanderait un planificateur de
+ * tâches qu'on n'a pas dans le projet.
  */
 
 const Section = ({ icon: Icon, title, description, children }) => (
@@ -102,8 +102,8 @@ const PlatformSettings = () => {
 
   const submitAccount = async (event) => {
     event.preventDefault();
-    // Vérifié ici parce que le serveur ne reçoit jamais la confirmation : c'est une
-    // précaution de saisie, pas une règle métier.
+    // Vérifié ici car le serveur ne reçoit pas la confirmation : c'est juste pour éviter
+    // une faute de frappe, pas une règle métier.
     if (account.newPassword && account.newPassword !== account.confirmPassword) {
       toast.error(t('platform.settings.passwordMismatch'));
       return;
@@ -116,8 +116,8 @@ const PlatformSettings = () => {
         newPassword: account.newPassword || null,
       });
       setIdentity(data.account);
-      // Les champs de mot de passe sont vidés systématiquement : les laisser remplis
-      // inviterait à un second envoi involontaire.
+      // On vide toujours les champs mot de passe, sinon on risque de renvoyer le formulaire
+      // une deuxième fois sans le vouloir.
       setAccount({ ...EMPTY_ACCOUNT, email: data.account?.email ?? '' });
       toast.success(t('platform.settings.accountSaved'));
     } catch (error) {

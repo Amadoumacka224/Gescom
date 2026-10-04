@@ -20,12 +20,11 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-/* Barre latérale du back-office propriétaire.
+/* Menu latéral du back-office plateforme.
  *
- * Volontairement distincte de `Sidebar` plutôt que pilotée par un rôle de plus : les deux
- * espaces n'ont aucun lien en commun, et la teinte ardoise signale d'emblée que l'on n'est
- * pas dans l'application métier. Confondre les deux serait la meilleure façon de croire
- * qu'on administre une entreprise alors qu'on exploite la plateforme entière. */
+ * Composant séparé de `Sidebar` (et pas juste un rôle en plus) : les deux espaces n'ont aucun
+ * lien en commun. La couleur ardoise montre tout de suite qu'on n'est pas dans l'appli métier,
+ * pour ne pas confondre la gestion d'une entreprise avec celle de toute la plateforme. */
 
 const NAV_ITEMS = [
   { path: '/platform', icon: Gauge, labelKey: 'platform.nav.dashboard', end: true },
@@ -66,8 +65,8 @@ const NavItem = ({ to, icon: Icon, label, end, count, onClick }) => (
           strokeWidth={2}
         />
         <span className="truncate">{label}</span>
-        {/* Le compteur n'apparaît qu'à partir de 1 : un « 0 » permanent devient du bruit
-            et fait perdre au badge sa valeur d'alerte. */}
+        {/* Le compteur s'affiche seulement à partir de 1. Un « 0 » tout le temps ne sert à
+            rien et le badge n'attire plus l'attention. */}
         {count > 0 && (
           <span className="ml-auto shrink-0 rounded-full bg-primary-500 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white">
             {count > 99 ? '99+' : count}
@@ -85,10 +84,9 @@ const PlatformSidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const [counts, setCounts] = useState({ support: 0, notifications: 0 });
 
-  /* Compteurs rafraîchis à chaque changement d'écran plutôt que par un intervalle : le
-   * back-office n'a qu'un utilisateur, la navigation est le seul moment où l'état a pu
-   * changer de son fait. Un sondage périodique interrogerait la base sans rien apprendre.
-   * Les échecs sont ignorés — un badge absent ne justifie pas un message d'erreur. */
+  /* Compteurs rechargés à chaque changement de page, pas avec un intervalle : il n'y a qu'un
+   * utilisateur sur le back-office, donc les chiffres ne changent que quand il navigue.
+   * Si l'appel échoue on ne fait rien, pas besoin d'un message d'erreur pour un badge. */
   useEffect(() => {
     let cancelled = false;
     Promise.all([

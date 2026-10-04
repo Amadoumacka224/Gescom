@@ -1,15 +1,15 @@
 /**
- * Correspondance unique statut métier → couleur sémantique.
+ * Couleur associée à chaque statut, au même endroit pour toute l'appli.
  *
- * Chaque page définissait auparavant sa propre table de couleurs : « Livrée » sortait en
- * `green-100/800` dans Reports, `green-50/700` via `badge-success` dans Deliveries et
- * `green-100/700` dans Orders, et seul OrderStatusBadge gérait le mode sombre. Tout écran
- * affichant un statut passe désormais par ce fichier.
+ * Avant, chaque page avait ses propres couleurs : « Livrée » était en `green-100/800` dans
+ * Reports, en `green-50/700` (`badge-success`) dans Deliveries et en `green-100/700` dans
+ * Orders, et seul OrderStatusBadge gérait le mode sombre. Maintenant tous les écrans passent
+ * par ce fichier.
  *
- * Les jetons disponibles sont décrits en tête de la section Badges de `src/index.css`.
+ * Les valeurs possibles sont décrites au début de la section Badges de `src/index.css`.
  */
 
-/** Cycle de vie d'une commande. L'indigo marque le jalon de facturation, ni succès ni alerte. */
+/** Statuts d'une commande. Indigo pour la facturation : ni un succès ni une alerte. */
 export const ORDER_STATUS_TONE = {
   PENDING: 'warning',
   CONFIRMED: 'info',
@@ -20,7 +20,7 @@ export const ORDER_STATUS_TONE = {
   CANCELED: 'danger',
 };
 
-/** Règlement d'une facture. */
+/** Paiement d'une facture. */
 export const INVOICE_STATUS_TONE = {
   UNPAID: 'danger',
   PARTIALLY_PAID: 'warning',
@@ -28,16 +28,16 @@ export const INVOICE_STATUS_TONE = {
   CANCELED: 'neutral',
 };
 
-/** Livraison : planifiée, puis livrée. Le cycle s'arrête là (cf. Delivery.DeliveryStatus). */
+/** Livraison : planifiée puis livrée, pas d'autre état (voir Delivery.DeliveryStatus). */
 export const DELIVERY_STATUS_TONE = {
   PENDING: 'warning',
   DELIVERED: 'success',
 };
 
 /**
- * Mouvements de stock : une entrée enrichit le stock, une sortie l'appauvrit.
- * Un retour est une entrée d'origine particulière (indigo, comme le jalon de facturation
- * il signale une étape à part), une casse appelle l'attention sans être bloquante.
+ * Mouvements de stock : une entrée ajoute du stock, une sortie en retire.
+ * Un retour est une entrée un peu spéciale (en indigo, comme la facturation), et la casse
+ * est mise en avant sans être bloquante.
  */
 export const STOCK_MOVEMENT_TONE = {
   STOCK_IN: 'success',
@@ -49,10 +49,10 @@ export const STOCK_MOVEMENT_TONE = {
 };
 
 /**
- * Types d'activité du journal. Table partagée entre l'historique et la fiche utilisateur,
- * qui en tenaient deux versions divergentes — « Entrée stock » y était bleue d'un côté et
- * verte de l'autre. Le libellé identifie l'action, la couleur n'en signale que la nature :
- * ce qui ajoute est vert, ce qui retire est rouge, ce qui ne fait que consulter est neutre.
+ * Types d'activité du journal. Utilisé par l'historique et la fiche utilisateur, qui avaient
+ * chacun leur version (« Entrée stock » était bleue d'un côté et verte de l'autre). Le texte
+ * dit ce qui s'est passé, la couleur juste le type : vert pour un ajout, rouge pour une
+ * suppression, neutre pour une simple consultation.
  */
 export const ACTIVITY_TONE = {
   CREATE: 'success',
@@ -70,21 +70,21 @@ export const ACTIVITY_TONE = {
 };
 
 /**
- * Classe de badge pour un jeton sémantique.
- * Un jeton inconnu retombe sur `neutral` : mieux vaut un badge gris qu'un badge sans style
- * (`badge-primary` et `badge-secondary`, jamais définis en CSS, s'affichaient sans couleur).
+ * Classe de badge pour une valeur donnée.
+ * Si la valeur est inconnue on prend `neutral` : un badge gris vaut mieux qu'un badge sans
+ * style (`badge-primary` et `badge-secondary` n'existaient pas en CSS et n'avaient pas de couleur).
  */
 export const badgeClass = (tone) =>
   `badge-${['success', 'warning', 'danger', 'info', 'accent', 'neutral'].includes(tone) ? tone : 'neutral'}`;
 
-/** Classe de tuile d'indicateur pour un jeton sémantique. */
+/** Classe de carte de statistique pour une valeur donnée. */
 export const statTileClass = (tone) =>
   `stat-tile-${['success', 'warning', 'danger', 'info', 'accent', 'neutral'].includes(tone) ? tone : 'neutral'}`;
 
 /**
- * Classe de ligne de détail d'un bloc de synthèse (même sémantique, format compact).
- * Les noms sont écrits en toutes lettres, pas construits par interpolation : le scanner de
- * Tailwind ne repère que les littéraux, et une classe qu'il ne voit pas est purgée du build.
+ * Classe d'une ligne de détail dans un bloc de résumé (même logique, en plus compact).
+ * Les noms de classes sont écrits en entier et pas construits avec une variable : Tailwind
+ * ne détecte que les chaînes complètes, sinon la classe disparaît du build.
  */
 const MINI_STAT_CLASS = {
   success: 'mini-stat-success',
@@ -98,9 +98,9 @@ const MINI_STAT_CLASS = {
 export const miniStatClass = (tone) => MINI_STAT_CLASS[tone] ?? MINI_STAT_CLASS.neutral;
 
 /**
- * Teinte de domaine d'un panneau de synthèse : médaillon d'en-tête et anneau de progression.
- * Elle identifie le panneau (commandes / factures / livraisons) et n'encode aucun état ;
- * les états passent par `metricBarClass` et `toneDotClass`.
+ * Couleur d'un panneau de résumé (icône d'en-tête et anneau).
+ * Elle sert juste à reconnaître le panneau (commandes / factures / livraisons), pas un statut.
+ * Les statuts utilisent `metricBarClass` et `toneDotClass`.
  */
 const PANEL_TONE_CLASS = {
   success: 'panel-tone-success',
@@ -113,7 +113,7 @@ const PANEL_TONE_CLASS = {
 
 export const panelToneClass = (tone) => PANEL_TONE_CLASS[tone] ?? PANEL_TONE_CLASS.neutral;
 
-/** Remplissage d'une barre de répartition, à la teinte du statut mesuré. */
+/** Couleur de remplissage d'une barre de répartition, selon le statut. */
 const METRIC_BAR_CLASS = {
   success: 'metric-bar-success',
   warning: 'metric-bar-warning',
@@ -125,7 +125,7 @@ const METRIC_BAR_CLASS = {
 
 export const metricBarClass = (tone) => METRIC_BAR_CLASS[tone] ?? METRIC_BAR_CLASS.neutral;
 
-/** Pastille de légende accolée au libellé d'un statut. */
+/** Petite pastille de couleur à côté du nom d'un statut. */
 const TONE_DOT_CLASS = {
   success: 'tone-dot-success',
   warning: 'tone-dot-warning',
@@ -138,8 +138,8 @@ const TONE_DOT_CLASS = {
 export const toneDotClass = (tone) => TONE_DOT_CLASS[tone] ?? TONE_DOT_CLASS.neutral;
 
 /**
- * Statut d'affichage d'une commande : le règlement prime sur le cycle de vie.
- * Une commande facturée puis réglée s'affiche « Payée » alors que son statut reste INVOICED
+ * Statut affiché pour une commande : le paiement passe avant le statut de la commande.
+ * Une commande facturée et payée affiche « Payée » même si son statut reste INVOICED
  * jusqu'à la livraison.
  */
 export const resolveOrderStatusKey = (order, invoice = null) => {

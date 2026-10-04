@@ -22,12 +22,12 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-/* Barre latérale : marque en tête, navigation groupée par domaine métier au centre,
- * compte utilisateur en pied. Les sections suivent le parcours de l'application
- * (pilotage → vente → catalogue → administration) et non l'ordre des routes ;
- * chacune n'apparaît que si le rôle courant a accès à au moins un de ses liens. */
+/* Menu latéral : logo en haut, liens groupés par thème au milieu, compte utilisateur en bas.
+ * Les sections suivent l'usage de l'appli (pilotage → vente → catalogue → administration)
+ * et pas l'ordre des routes. Une section n'est affichée que si le rôle a accès à au moins
+ * un de ses liens. */
 
-// Sections de navigation. `roles` filtre lien par lien : une section vide est masquée.
+// Sections du menu. `roles` filtre chaque lien, une section vide est cachée.
 const NAV_SECTIONS = [
   {
     id: 'overview',
@@ -41,7 +41,7 @@ const NAV_SECTIONS = [
     id: 'sales',
     items: [
       { path: '/caisse', icon: CreditCard, labelKey: 'nav.caisse', roles: ['CAISSIER'] },
-      // Ordre du cycle de vie d'une commande : commande → facture → livraison.
+      // Même ordre que le cycle d'une commande : commande → facture → livraison.
       { path: '/orders', icon: ShoppingCart, labelKey: 'nav.orders', roles: ['ADMIN', 'CAISSIER'] },
       { path: '/invoices', icon: FileText, labelKey: 'nav.invoices', roles: ['ADMIN', 'CAISSIER'] },
       { path: '/deliveries', icon: Truck, labelKey: 'nav.deliveries', roles: ['ADMIN', 'CAISSIER'] },
@@ -66,7 +66,7 @@ const NAV_SECTIONS = [
   },
 ];
 
-// Lien de navigation : accent latéral à l'état actif, survol et focus clavier cohérents.
+// Lien du menu : barre sur le côté quand il est actif, survol et focus clavier.
 const navLinkClass = ({ isActive }) =>
   `group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${
     isActive
@@ -79,7 +79,7 @@ const NavItem = ({ to, icon: Icon, label, onClick }) => (
     {({ isActive }) => (
       <>
         {isActive && (
-          // Accent aligné sur le bord de la barre (compense le px-5 du conteneur).
+          // Barre collée au bord du menu (compense le px-5 du conteneur).
           <span className="absolute -left-5 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-600 dark:bg-primary-400" />
         )}
         <Icon
@@ -152,7 +152,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     </nav>
   );
 
-  // Pied : carte compte + profil + déconnexion, à l'emplacement attendu dans un back-office.
+  // Bas du menu : compte, profil et déconnexion.
   const renderFooter = (onItemClick) => (
     <div className="border-t border-gray-200 px-5 py-4 dark:border-gray-700">
       <div className="mb-2 flex items-center gap-3 rounded-xl bg-gray-50 px-3 py-2.5 dark:bg-gray-700/40">
@@ -200,7 +200,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
         />
       )}
 
-      {/* Sidebar desktop — toujours visible à partir de lg */}
+      {/* Sidebar desktop, toujours visible à partir de lg */}
       <aside className="z-30 hidden border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 lg:inset-y-0 lg:left-0 lg:fixed lg:flex lg:w-64 lg:flex-col">
         <div className="flex h-16 shrink-0 items-center border-b border-gray-200 px-5 dark:border-gray-700">
           {renderBrand()}

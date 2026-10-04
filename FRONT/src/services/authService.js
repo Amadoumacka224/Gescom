@@ -5,10 +5,10 @@ const authService = {
     const response = await axios.post('/auth/login', { username, password });
 
     if (response.data && response.data.token) {
-      // Stocker le token
+      // Enregistre le token
       localStorage.setItem('token', response.data.token);
 
-      // Créer l'objet utilisateur avec toutes les informations
+      // Objet utilisateur avec toutes ses infos
       const userData = {
         id: response.data.id,
         username: response.data.username,
@@ -20,7 +20,7 @@ const authService = {
         token: response.data.token
       };
 
-      // Stocker les données utilisateur
+      // Enregistre les infos de l'utilisateur
       localStorage.setItem('user', JSON.stringify(userData));
 
       return userData;

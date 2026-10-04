@@ -22,15 +22,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Vue consolidee des utilisateurs de tout le parc, reservee au proprietaire de la plateforme.
+ * Liste des utilisateurs de toutes les entreprises, reservee au super admin.
  *
- * Ce service travaille hors cloisonnement — le contexte du SUPER_ADMIN etant vide, le filtre
- * Hibernate reste inactif et les requetes traversent toutes les entreprises. C'est voulu, et
- * c'est pourquoi son unique porte d'entree est {@code /api/platform/**}.
+ * Ce service travaille sans filtre par entreprise : le contexte du SUPER_ADMIN est vide, le
+ * filtre Hibernate n'est pas actif et les requetes portent sur toutes les entreprises. C'est
+ * voulu, et c'est pour ca qu'on n'y accede que par {@code /api/platform/**}.
  *
- * Il ne double pas {@code UserService} : celui-ci administre les comptes d'une entreprise
- * pour son propre ADMIN, celui-ci supervise le parc. Les deux ne partagent ni perimetre ni
- * droits, et les melanger reviendrait a ouvrir l'un par l'autre.
+ * Ce n'est pas un doublon de {@code UserService} : lui sert a l'ADMIN d'une entreprise pour
+ * gerer ses comptes, celui-ci sert a surveiller toutes les entreprises. Ils n'ont ni le meme
+ * perimetre ni les memes droits, et les melanger donnerait acces a l'un par l'autre.
  */
 @Service
 @Transactional(readOnly = true)
@@ -43,11 +43,11 @@ public class PlatformUserService {
     }
 
     /**
-     * Page filtrable du parc.
+     * Une page d'utilisateurs, avec filtres.
      *
-     * Les criteres absents ne participent pas a la requete — construite en Specification et
-     * non en JPQL a trous, comme {@code ActivityLogService.buildFilter} : un « :param IS NULL »
-     * sur un enum est mal digere par PostgreSQL.
+     * Les filtres absents n'apparaissent pas dans la requete : elle est faite avec une
+     * Specification et pas en JPQL avec des trous, comme {@code ActivityLogService.buildFilter},
+     * car PostgreSQL gere mal un « :param IS NULL » sur un enum.
      */
     public Page<PlatformUserResponse> search(Long companyId, String role, Boolean active,
                                              String search, Pageable pageable) {
@@ -61,8 +61,8 @@ public class PlatformUserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("user", userId));
         if (user.isPlatformOwner()) {
-            // Se desactiver soi-meme fermerait le back-office sans aucun moyen de revenir :
-            // le compte proprietaire n'est modifiable par aucun ecran, seulement en base.
+            // Se desactiver soi-meme bloquerait l'acces au back-office sans moyen de revenir :
+            // le compte super admin ne se modifie par aucun ecran, seulement en base.
             throw BusinessException.of("platform.user.ownerImmutable",
                     "Le compte proprietaire de la plateforme ne peut pas etre modifie ici");
         }
@@ -76,8 +76,8 @@ public class PlatformUserService {
     private Specification<User> filter(Long companyId, User.Role role, Boolean active, String search) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            // Le proprietaire de la plateforme n'est l'utilisateur d'aucune entreprise :
-            // il n'a pas sa place dans une liste qui decrit le parc client.
+            // Le super admin n'appartient a aucune entreprise : il n'a rien a faire dans une
+            // liste qui montre les utilisateurs des clients.
             predicates.add(cb.notEqual(root.get("role"), User.Role.SUPER_ADMIN));
 
             if (companyId != null) {
@@ -104,11 +104,11 @@ public class PlatformUserService {
     }
 
     /**
-     * Resout les dernieres connexions de la page en une requete, puis construit le mapper.
+     * Charge les dernieres connexions de la page en une seule requete, puis cree le mapper.
      *
-     * Interroger le journal par ligne serait le N+1 le plus facile a introduire ici : une
-     * page de vingt-cinq comptes vaudrait vingt-cinq requetes sur la table la plus volumineuse
-     * de la base.
+     * Chercher dans le journal pour chaque ligne serait le N+1 le plus facile a faire ici :
+     * une page de vingt-cinq comptes ferait vingt-cinq requetes sur la plus grosse table de
+     * la base.
      */
     private java.util.function.Function<User, PlatformUserResponse> withLastLogin(List<User> users) {
         if (users.isEmpty()) {

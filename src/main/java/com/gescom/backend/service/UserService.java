@@ -24,10 +24,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service métier de gestion des utilisateurs (comptes, rôles, mots de passe).
- * Distingue deux niveaux de mise à jour : updateUserAsAdmin (rôle, activation, reset mot de passe)
- * et updateSelf (l'utilisateur édite uniquement son propre profil). Les mots de passe sont
- * toujours validés (politique de robustesse) puis encodés en BCrypt avant persistance.
+ * Service de gestion des utilisateurs (comptes, rôles, mots de passe).
+ * Deux façons de modifier : updateUserAsAdmin (rôle, activation, nouveau mot de passe) et
+ * updateSelf (l'utilisateur modifie seulement son propre profil). Les mots de passe sont
+ * toujours vérifiés (règles de solidité) puis encodés en BCrypt avant d'être enregistrés.
  */
 @Service
 @Transactional
@@ -71,14 +71,14 @@ public class UserService {
     }
 
     /**
-     * Applique la politique de robustesse des mots de passe : au moins 8 caractères,
-     * une majuscule, une minuscule et un chiffre. Lève BusinessException au premier critère manqué.
+     * Vérifie que le mot de passe est assez solide : au moins 8 caractères, une majuscule,
+     * une minuscule et un chiffre. Lance une BusinessException dès qu'une règle n'est pas respectée.
      */
     /**
-     * Delegue a {@link PasswordPolicy}, source unique de la regle depuis que le back-office
-     * proprietaire applique la meme. Le controle du chiffre y gagne au passage une cle de
-     * traduction, qu'il n'avait pas ici — le message partait en francais quelle que soit la
-     * langue de l'appelant.
+     * Passe par {@link PasswordPolicy}, le seul endroit ou est definie la regle depuis que le
+     * back-office plateforme l'utilise aussi. Au passage, le controle du chiffre a maintenant
+     * une cle de traduction, qu'il n'avait pas ici (le message etait toujours en francais,
+     * peu importe la langue de l'appelant).
      */
     private void validatePassword(String password) {
         passwordPolicy.validate(password);
@@ -100,19 +100,19 @@ public class UserService {
     }
 
     /**
-     * Interdit à l'administrateur d'une entreprise de fabriquer un compte propriétaire.
+     * Empêche l'admin d'une entreprise de créer un compte super admin.
      *
-     * Sans ce garde-fou, un ADMIN pourrait s'octroyer le rôle SUPER_ADMIN et accéder à
-     * l'ensemble du parc — une élévation de privilège franchissant la frontière entre une
-     * entreprise cliente et l'exploitant du SaaS.
+     * Sans cette vérification, un ADMIN pourrait se donner le rôle SUPER_ADMIN et accéder à
+     * toutes les entreprises : une élévation de privilèges qui passerait de l'entreprise
+     * cliente à la gestion du SaaS.
      *
-     * La contrainte {@code chk_users_company_scope} rejetterait déjà l'écriture en base,
-     * puisque le compte serait rattaché à une entreprise, mais elle répondrait par un
-     * conflit d'intégrité opaque. Le refus est posé ici pour être explicite, et pour ne pas
-     * faire reposer une frontière de sécurité sur le seul effet de bord d'une contrainte.
+     * La contrainte {@code chk_users_company_scope} refuserait déjà l'écriture en base,
+     * puisque le compte aurait une entreprise, mais avec une erreur d'intégrité pas claire du
+     * tout. On refuse donc ici pour que ce soit explicite, et pour ne pas laisser une règle de
+     * sécurité reposer uniquement sur une contrainte de la base.
      *
-     * Le compte propriétaire se crée exclusivement au démarrage, via PlatformAdminBootstrap
-     * et les variables d'environnement PLATFORM_ADMIN_*.
+     * Le compte super admin se crée uniquement au démarrage, par PlatformAdminBootstrap et les
+     * variables d'environnement PLATFORM_ADMIN_*.
      */
     private void rejectPlatformRole(User.Role role) {
         if (role == User.Role.SUPER_ADMIN) {
@@ -157,7 +157,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("user", id));
 
-        // L'email ne peut pas être repris par un autre utilisateur (l'enregistrement courant est exclu).
+        // L'email ne peut pas être utilisé par un autre utilisateur (on ignore l'utilisateur modifié).
         if (userRepository.existsByEmailAndIdNot(request.email(), id)) {
             throw new DuplicateResourceException("user", "email", request.email());
         }
@@ -186,7 +186,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("user", id));
 
-        // L'email ne peut pas être repris par un autre utilisateur (l'enregistrement courant est exclu).
+        // L'email ne peut pas être utilisé par un autre utilisateur (on ignore l'utilisateur modifié).
         if (userRepository.existsByEmailAndIdNot(request.email(), id)) {
             throw new DuplicateResourceException("user", "email", request.email());
         }
@@ -248,8 +248,8 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("user", userId));
 
-        // Si l'ancien mot de passe est fourni, il doit correspondre (cas « je change mon propre
-        // mot de passe »). Un admin réinitialisant un compte peut l'omettre.
+        // Si l'ancien mot de passe est donné, il doit être bon (cas « je change mon propre mot
+        // de passe »). Un admin qui réinitialise un compte peut ne pas le donner.
         if (request.currentPassword() != null && !request.currentPassword().isEmpty()) {
             if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
                 throw new BusinessException("Mot de passe actuel incorrect");

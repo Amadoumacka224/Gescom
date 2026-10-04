@@ -23,9 +23,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Vérifie les règles métier de l'encaissement (paiement partiel et total) d'une facture.
- * Test unitaire pur (Mockito) : aucune base ni contexte Spring requis. Le log d'activité est
- * silencieux ici car aucun utilisateur n'est authentifié (getCurrentUserId() renvoie null).
+ * Vérifie les règles de paiement (partiel et total) d'une facture.
+ * Test unitaire simple (Mockito) : pas de base ni de contexte Spring. Le journal d'activité
+ * ne fait rien ici car aucun utilisateur n'est connecté (getCurrentUserId() renvoie null).
  */
 @ExtendWith(MockitoExtension.class)
 class InvoiceServicePaymentTest {
@@ -47,7 +47,7 @@ class InvoiceServicePaymentTest {
                 new CashierScope(), paymentRepository, deliveryRepository, documentNumberService);
     }
 
-    /** Facture de référence : total 100,00 €, encore due (statut UNPAID). */
+    /** Facture de test : total 100,00 €, pas encore payée (statut UNPAID). */
     private Invoice unpaidInvoiceOf100() {
         Invoice invoice = new Invoice();
         invoice.setId(1L);
@@ -74,7 +74,7 @@ class InvoiceServicePaymentTest {
 
         assertThat(result.getStatus()).isEqualTo(Invoice.InvoiceStatus.PARTIALLY_PAID);
         assertThat(result.getPaidAmount()).isEqualByComparingTo("40.00");
-        // La facture n'est pas soldée : pas de date de règlement complet.
+        // La facture n'est pas entièrement payée : pas de date de paiement.
         assertThat(result.getPaymentDate()).isNull();
     }
 
@@ -85,7 +85,7 @@ class InvoiceServicePaymentTest {
 
         // Premier acompte.
         invoiceService.recordPayment(1L, new BigDecimal("40.00"), Invoice.PaymentMethod.CASH, LocalDate.now());
-        // Solde du reste dû.
+        // Paiement du reste.
         Invoice result = invoiceService.recordPayment(
                 1L, new BigDecimal("60.00"), Invoice.PaymentMethod.CASH, LocalDate.now());
 
@@ -112,7 +112,7 @@ class InvoiceServicePaymentTest {
 
         invoiceService.recordPayment(1L, new BigDecimal("70.00"), Invoice.PaymentMethod.CASH, LocalDate.now());
 
-        // Reste dû = 30,00 € : un paiement de 50,00 € doit être refusé (pas d'écrêtage silencieux).
+        // Reste à payer = 30,00 € : un paiement de 50,00 € doit être refusé (pas réduit sans rien dire).
         assertThatThrownBy(() -> invoiceService.recordPayment(
                 1L, new BigDecimal("50.00"), Invoice.PaymentMethod.CASH, LocalDate.now()))
                 .isInstanceOf(BusinessException.class)

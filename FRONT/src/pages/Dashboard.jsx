@@ -97,15 +97,14 @@ const Dashboard = () => {
 
   const getStatusBadge = (order) => <OrderStatusBadge order={order} />;
 
-  /* --- Dérivés des panneaux de synthèse ---
+  /* --- Valeurs calculées pour les panneaux de résumé ---
    *
-   * Rien n'est reconstitué ici qui dépende d'un invariant du backend : les montants facturés
-   * (`invoicedAmount`) et le reste à planifier (`ordersToSchedule`) sont calculés côté serveur,
-   * sur les données réelles, et repris tels quels. Seules subsistent deux sommes de compteurs
-   * exacts et exhaustifs (les cinq statuts de commande couvrent la table entière) :
-   *   - `activeOrders` — hors annulées : le périmètre du taux de finalisation, identique à
-   *     celui de `totalSales` et du sous-titre « N commandes honorées » ;
-   *   - `ordersInProgress` — ni livrées ni annulées, donc encore à traiter.
+   * On ne recalcule ici rien qui dépende d'une règle du backend : le montant facturé
+   * (`invoicedAmount`) et les commandes à planifier (`ordersToSchedule`) viennent du serveur.
+   * Il reste juste deux sommes de compteurs (les cinq statuts couvrent toutes les commandes) :
+   *   - `activeOrders` : toutes sauf les annulées. C'est la base du taux de finalisation,
+   *     la même que pour `totalSales` et le sous-titre « N commandes honorées » ;
+   *   - `ordersInProgress` : ni livrées ni annulées, donc encore à traiter.
    */
   const activeOrders = stats.totalOrders - stats.canceledOrders;
   const ordersInProgress = stats.pendingOrders + stats.confirmedOrders + stats.invoicedOrders;
@@ -136,8 +135,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats principales — même grille que la supervision des caisses : quatre colonnes
-          seulement à partir de `xl`, la barre latérale mangeant 288 px dès `lg`. */}
+      {/* Stats principales, même grille que le suivi des caisses : quatre colonnes
+          seulement à partir de `xl`, car le menu prend 288 px dès `lg`. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
         <StatCard
           title={t('dashboard.totalSales')}
@@ -168,11 +167,11 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* Panneaux de synthèse : Commandes / Factures / Livraisons.
+      {/* Panneaux de résumé : Commandes / Factures / Livraisons.
        *
-       * Deux colonnes dès `md` et trois seulement à partir de `xl` : à 1024 px, la barre
-       * latérale prend 288 px et trois colonnes ne laisseraient que ~220 px par panneau,
-       * trop peu pour l'anneau et son libellé côte à côte. */}
+       * Deux colonnes à partir de `md` et trois à partir de `xl` : à 1024 px, avec le menu de
+       * 288 px, trois colonnes ne laisseraient que ~220 px par panneau, pas assez pour
+       * l'anneau et son texte côte à côte. */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         <SummaryPanel
           icon={ShoppingCart}

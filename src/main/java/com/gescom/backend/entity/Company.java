@@ -13,16 +13,16 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Entreprise cliente de la plateforme — le « tenant » du modele multi-entreprises.
+ * Entreprise cliente de la plateforme (le « tenant »).
  *
- * A ne pas confondre avec {@link Client}, qui designe les clients du magasin d'une
- * entreprise : ici il s'agit des societes qui souscrivent a GESCOM. Toutes les entites
- * metier portent une reference vers celle-ci (voir {@code TenantOwned}) et aucune
- * requete ne franchit cette frontiere, hormis pour le proprietaire de la plateforme.
+ * A ne pas confondre avec {@link Client}, qui represente les clients du magasin d'une
+ * entreprise : ici ce sont les societes qui s'abonnent a GESCOM. Toutes les entites metier
+ * ont un lien vers elle (voir {@code TenantOwned}) et aucune requete ne mélange les
+ * entreprises, sauf pour le super admin.
  *
- * Le {@code status} decrit le cycle de vie commercial du compte et se distingue du
- * statut de l'{@link Subscription} : une entreprise peut etre SUSPENDED (acces coupe
- * pour impaye) tout en conservant un abonnement PAST_DUE que l'on cherche a recouvrer.
+ * Le {@code status} represente l'etat commercial du compte, different du statut de
+ * l'{@link Subscription} : une entreprise peut etre SUSPENDED (acces bloque pour impaye)
+ * tout en ayant un abonnement PAST_DUE qu'on essaie de se faire payer.
  */
 @Entity
 @Table(name = "companies")
@@ -41,8 +41,8 @@ public class Company {
     private String name;
 
     /**
-     * Identifiant stable et lisible, fige a la creation. Il sert de reference support et
-     * d'ancrage technique : contrairement a la raison sociale, il ne change jamais.
+     * Identifiant lisible fixe, cree a la creation. Il sert de reference pour le support et
+     * cote technique : contrairement a la raison sociale, il ne change jamais.
      */
     @NotBlank(message = "L'identifiant de l'entreprise est obligatoire")
     @Pattern(regexp = "^[a-z0-9]([a-z0-9-]{1,78}[a-z0-9])$",
@@ -75,7 +75,7 @@ public class Company {
     @Column(nullable = false, length = 100)
     private String country = "Belgique";
 
-    /** Numero de TVA / BCE — format belge : BE0XXX.XXX.XXX. */
+    /** Numero de TVA / BCE, format belge : BE0XXX.XXX.XXX. */
     @Size(max = 50)
     @Column(length = 50)
     private String taxId;
@@ -85,7 +85,7 @@ public class Company {
     @Column(nullable = false, length = 20)
     private CompanyStatus status = CompanyStatus.TRIAL;
 
-    /** Echeance de la periode d'essai ; null des que l'entreprise est passee payante. */
+    /** Fin de la periode d'essai ; null des que l'entreprise est passee en payant. */
     @Column
     private LocalDateTime trialEndsAt;
 
@@ -114,9 +114,9 @@ public class Company {
     }
 
     /**
-     * Etat commercial du compte. Seules TRIAL et ACTIVE autorisent la connexion des
-     * utilisateurs de l'entreprise ; SUSPENDED et CANCELED la refusent sans rien effacer,
-     * de sorte qu'une reactivation restitue le compte intact.
+     * Etat commercial du compte. Seuls TRIAL et ACTIVE permettent aux utilisateurs de se
+     * connecter ; SUSPENDED et CANCELED bloquent sans rien supprimer, donc en reactivant on
+     * retrouve le compte tel quel.
      */
     public enum CompanyStatus {
         TRIAL,      // Periode d'essai en cours
@@ -125,7 +125,7 @@ public class Company {
         CANCELED    // Resiliee — donnees conservees pour la duree de retention legale
     }
 
-    /** Vrai si les utilisateurs de cette entreprise sont autorises a se connecter. */
+    /** Vrai si les utilisateurs de cette entreprise ont le droit de se connecter. */
     public boolean isOperational() {
         return status == CompanyStatus.TRIAL || status == CompanyStatus.ACTIVE;
     }

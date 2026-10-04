@@ -11,19 +11,18 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Reglages de la plateforme elle-meme.
+ * Parametres de la plateforme elle-meme.
  *
- * A ne pas confondre avec {@link Settings}, qui est le parametrage metier d'une entreprise
- * cliente — et qui, lui, est cloisonne. Celui-ci ne l'est pas : il n'appartient a aucune
- * entreprise, il decrit l'exploitation du SaaS.
+ * A ne pas confondre avec {@link Settings}, qui contient les parametres metier d'une
+ * entreprise cliente (et qui est filtre par entreprise). Celui-ci ne l'est pas : il
+ * n'appartient a aucune entreprise, il concerne la gestion du SaaS.
  *
- * Singleton persistant, une seule ligne d'identifiant 1, garantie par un CHECK en base.
+ * Une seule ligne en base, avec l'id 1 (impose par un CHECK).
  *
- * Les valeurs portees ici etaient auparavant des constantes de
- * {@code PlatformMetricsService}. Les sortir du code n'a d'interet que parce qu'elles
- * repondent a des questions commerciales — « a partir de quand un renouvellement est-il
- * "a venir" ? » — dont la reponse varie d'un exploitant a l'autre et n'a aucune raison
- * d'exiger un redeploiement.
+ * Ces valeurs etaient avant des constantes dans {@code PlatformMetricsService}. On les a
+ * sorties du code parce que ce sont des choix commerciaux (« a partir de quand un
+ * renouvellement est "a venir" ? ») qui peuvent changer, et ca ne devrait pas demander un
+ * redeploiement.
  */
 @Entity
 @Table(name = "platform_settings")
@@ -32,43 +31,43 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class PlatformSettings {
 
-    /** Identifiant fige : la ligne unique du singleton. */
+    /** Id fixe : la seule ligne de la table. */
     public static final Long SINGLETON_ID = 1L;
 
     @Id
     private Long id = SINGLETON_ID;
 
-    /** Horizon du bloc « renouvellements a venir » du tableau de bord. */
+    /** Periode du bloc « renouvellements a venir » du tableau de bord. */
     @NotNull
     @Min(1) @Max(365)
     @Column(nullable = false)
     private Integer renewalWindowDays = 30;
 
-    /** Anticipation de l'alerte de fin de periode d'essai. */
+    /** Combien de jours avant la fin de l'essai on affiche l'alerte. */
     @NotNull
     @Min(1) @Max(90)
     @Column(nullable = false)
     private Integer trialAlertDays = 7;
 
-    /** Profondeur de la courbe de revenus encaisses. */
+    /** Nombre de mois affiches dans la courbe des revenus. */
     @NotNull
     @Min(1) @Max(60)
     @Column(nullable = false)
     private Integer revenueHistoryMonths = 12;
 
     /**
-     * Points retires au score de sante par echeance impayee.
+     * Points enleves au score de sante pour chaque echeance impayee.
      *
-     * Le score reste volontairement explicable : part des entreprises operationnelles, moins
-     * ces penalites. Un indicateur de synthese qu'on ne sait pas justifier devant un comite
-     * n'a pas sa place sur un tableau de bord de direction.
+     * Le score reste volontairement simple a expliquer : le pourcentage d'entreprises qui
+     * fonctionnent, moins ces penalites. Un indicateur qu'on ne sait pas justifier n'a rien
+     * a faire sur un tableau de bord.
      */
     @NotNull
     @Min(0) @Max(50)
     @Column(nullable = false)
     private Integer overduePenaltyPoints = 5;
 
-    /** Points retires par echec de paiement du mois. */
+    /** Points enleves pour chaque echec de paiement du mois. */
     @NotNull
     @Min(0) @Max(50)
     @Column(nullable = false)

@@ -6,11 +6,11 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * Enveloppe de pagination des réponses de liste.
+ * Format des réponses paginées.
  *
- * DTO dédié plutôt que le {@code Page} de Spring Data : la sérialisation Jackson de ce dernier
- * n'est pas stable d'une version à l'autre (et Spring en émet un avertissement au démarrage).
- * On expose donc un contrat explicite et minimal, suffisant pour un tableau paginé.
+ * On utilise notre propre DTO plutôt que le {@code Page} de Spring Data : sa sérialisation
+ * JSON change d'une version à l'autre (Spring affiche d'ailleurs un warning au démarrage).
+ * On renvoie donc juste ce qu'il faut pour un tableau paginé.
  */
 public record PageResponse<T>(
         List<T> content,
@@ -20,7 +20,7 @@ public record PageResponse<T>(
         int totalPages
 ) {
 
-    /** Convertit une page d'entités en page de DTOs via le mapper fourni. */
+    /** Convertit une page d'entités en page de DTO avec le mapper donné. */
     public static <E, R> PageResponse<R> of(Page<E> page, Function<E, R> mapper) {
         return new PageResponse<>(
                 page.getContent().stream().map(mapper).toList(),

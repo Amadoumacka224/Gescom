@@ -28,13 +28,13 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Retours clients — module d'administration de bout en bout, écriture comme consultation.
+ * Retours clients, réservés à l'admin (création comme consultation).
  *
- * L'enregistrement était déjà réservé aux ADMIN ; la consultation l'est désormais aussi. Le
- * registre et surtout {@link #lookup} portent le détail d'une vente à partir de son seul
- * numéro : laissés ouverts au CAISSIER, ils rouvraient par la bande l'accès aux ventes des
- * collègues que le cloisonnement des commandes ferme. La barre latérale masque de toute façon
- * /stock au caissier — le contrôle est ici pour qu'un appel direct à l'API le constate aussi.
+ * La création était déjà réservée aux ADMIN, maintenant la consultation aussi. La liste et
+ * surtout {@link #lookup} donnent le détail d'une vente à partir de son simple numéro : si le
+ * CAISSIER y avait accès, il pourrait voir les ventes de ses collègues, ce que le filtrage
+ * des commandes empêche. Le menu cache de toute façon /stock au caissier, mais la
+ * vérification est ici pour bloquer aussi un appel direct à l'API.
  */
 @Tag(name = "Retours clients", description = "Retours a partir d'une vente existante")
 @RestController
@@ -51,15 +51,15 @@ public class StockReturnController {
     }
 
     /**
-     * Retrouve la vente correspondant à un numéro de commande ou de facture, avec ses lignes et
-     * la quantité encore retournable de chacune. Point d'entrée du formulaire de retour.
+     * Retrouve la vente à partir d'un numéro de commande ou de facture, avec ses lignes et la
+     * quantité qu'on peut encore retourner pour chacune. C'est le point de départ du formulaire.
      */
     @GetMapping("/lookup")
     public ResponseEntity<ReturnLookupResponse> lookup(@RequestParam String reference) {
         return ResponseEntity.ok(stockReturnService.lookup(reference));
     }
 
-    // Registre des retours : append-only, donc paginé, filtré et trié côté serveur.
+    // Liste des retours : on ne fait qu'en ajouter, donc paginée, filtrée et triée côté serveur.
     @GetMapping
     public ResponseEntity<PageResponse<StockReturnResponse>> getReturns(
             @RequestParam(required = false) Long orderId,

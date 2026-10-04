@@ -19,35 +19,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Cloisonnement des donnees entre entreprises clientes.
+ * Separation des donnees entre les entreprises clientes.
  *
- * <h2>Pourquoi ce test existe</h2>
+ * <h2>Pourquoi ce test</h2>
  *
- * C'est le seul mecanisme du projet dont la defaillance ne se voit pas : une regression n'y
- * produit ni erreur ni page blanche, seulement les donnees d'un client chez un autre. Le reste
- * de la suite est en Mockito pur et ne peut rien en dire — un mock de repository renvoie ce
- * qu'on lui demande de renvoyer, filtre ou non. Il faut une base, une session Hibernate et le
- * contexte Spring complet pour que la question ait un sens.
+ * C'est le seul mecanisme du projet dont on ne voit pas les bugs : une regression ne donne
+ * ni erreur ni page blanche, juste les donnees d'un client chez un autre. Les autres tests
+ * sont en Mockito et ne peuvent pas le verifier : un mock de repository renvoie ce qu'on lui
+ * dit, filtre ou pas. Il faut une vraie base, une session Hibernate et tout le contexte
+ * Spring pour que le test ait un sens.
  *
- * <h2>Ce qui est verifie</h2>
+ * <h2>Ce qu'on verifie</h2>
  *
- * Les trois pieces du dispositif, separement, parce qu'aucune ne se suffit a elle-meme :
+ * Les trois parties du systeme, chacune a part, parce qu'aucune ne suffit seule :
  *
  * <ol>
  *   <li>le filtre Hibernate, sur les requetes de liste ;</li>
- *   <li>{@code TenantAwareRepositoryImpl}, sur le chargement par identifiant — que le filtre
- *       ne couvre pas, Hibernate servant {@code find} depuis le cache de premier niveau ;</li>
- *   <li>le refus d'ecriture croisee, qui doit lever plutot que masquer.</li>
+ *   <li>{@code TenantAwareRepositoryImpl}, sur le chargement par id, que le filtre ne
+ *       couvre pas car Hibernate peut servir {@code find} depuis son cache ;</li>
+ *   <li>le refus d'ecrire dans une autre entreprise, qui doit lancer une exception et pas
+ *       cacher le probleme.</li>
  * </ol>
  *
- * S'y ajoutent les deux comportements dont depend tout le reste : l'estampillage automatique a
- * la persistance, et le fait qu'un contexte vide vaut « aucune restriction » — la vue du
- * SUPER_ADMIN, sans laquelle le back-office de la plateforme ne verrait rien.
+ * On verifie aussi deux comportements dont tout le reste depend : l'entreprise mise
+ * automatiquement a l'enregistrement, et le fait qu'un contexte vide veut dire « pas de
+ * restriction » (la vue du SUPER_ADMIN, sans laquelle le back-office ne verrait rien).
  *
  * <h2>Base</h2>
  *
- * H2 en memoire, schema derive des entites. Voir le commentaire de la dependance H2 dans le
- * pom pour le detail du choix.
+ * H2 en memoire, schema genere depuis les entites. Voir le commentaire de la dependance H2
+ * dans le pom pour la raison de ce choix.
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:tenancy;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
@@ -57,9 +58,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.flyway.enabled=false",
-        // Aucun compte proprietaire ne doit etre cree : PlatformAdminBootstrap le ferait si
-        // application-local.properties, present sur un poste de developpement, renseignait ces
-        // trois valeurs. Le test ne doit pas dependre de ce qui traine hors du depot.
+        // On ne veut pas creer de compte super admin : PlatformAdminBootstrap le ferait si
+        // application-local.properties (present sur un poste de dev) avait ces trois valeurs.
+        // Le test ne doit pas dependre de fichiers en dehors du depot.
         "platform.admin.username=",
         "platform.admin.email=",
         "platform.admin.password=",
@@ -69,22 +70,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TenantIsolationTest {
 
     /*
-     * @Transactional n'est pas ici une commodite de nettoyage, c'est une condition de validite.
+     * Ici @Transactional n'est pas juste pour nettoyer apres, le test en a besoin pour etre valable.
      *
-     * TenantFilterActivator active le filtre sur la session courante avant chaque appel au
-     * package repository. Hors transaction, Spring cree un EntityManager ephemere PAR
-     * operation : le filtre serait alors pose sur une session, et la requete executee dans une
-     * autre — il ne s'appliquerait jamais, et le test echouerait pour une raison etrangere au
-     * cloisonnement. En production, le @Transactional des services garantit cette session
-     * unique ; le test reproduit la meme condition.
+     * TenantFilterActivator active le filtre sur la session en cours avant chaque appel aux
+     * repositories. Sans transaction, Spring cree un EntityManager temporaire PAR operation :
+     * le filtre serait mis sur une session et la requete lancee sur une autre, donc il ne
+     * s'appliquerait jamais et le test echouerait pour une raison qui n'a rien a voir. En
+     * production, le @Transactional des services garantit une seule session ; le test fait
+     * pareil.
      *
-     * Effet secondaire utile : la session restant ouverte, les associations paresseuses sont
-     * lisibles dans les assertions, et chaque test est annule en fin d'execution.
+     * En bonus : la session reste ouverte, donc on peut lire les relations lazy dans les
+     * assertions, et chaque test est annule a la fin.
      *
-     * Effet secondaire notable, et voulu : les entites creees dans setUp restent dans le cache
-     * de premier niveau. Le test 2 interroge donc findById sur une entite deja chargee —
+     * Autre effet, voulu celui-la : les entites creees dans setUp restent dans le cache de
+     * Hibernate. Le test 2 fait donc un findById sur une entite deja chargee, c'est
      * exactement le trou que le filtre Hibernate ne couvre pas et que
-     * TenantAwareRepositoryImpl est charge de fermer.
+     * TenantAwareRepositoryImpl doit boucher.
      */
 
     @Autowired private CompanyRepository companyRepository;
@@ -97,9 +98,9 @@ class TenantIsolationTest {
     /**
      * Deux entreprises, un client chacune.
      *
-     * Le jeu est monte SANS contexte, c'est-a-dire dans la vue globale : c'est la seule facon
-     * de creer des donnees pour deux entreprises a la fois, et cela reproduit exactement ce que
-     * fait le back-office de la plateforme.
+     * Les donnees sont creees SANS contexte, donc sans filtre : c'est le seul moyen de creer
+     * des donnees pour deux entreprises en meme temps, et c'est exactement ce que fait le
+     * back-office de la plateforme.
      */
     @BeforeEach
     void setUp() {
@@ -114,7 +115,7 @@ class TenantIsolationTest {
         clientOfBetaId = clientRepository.save(clientOf(beta, "Bernard", "Beta")).getId();
     }
 
-    /** Un contexte laisse en place contaminerait le test suivant — les threads sont reutilises. */
+    /** Un contexte pas nettoye fausserait le test suivant (les threads sont reutilises). */
     @AfterEach
     void tearDown() {
         TenantContext.clear();
@@ -125,10 +126,9 @@ class TenantIsolationTest {
     void listeCloisonneeParEntreprise() {
         TenantContext.setCompanyId(alpha.getId());
 
-        // Assertions portees sur les seuls noms, jamais sur les entites : le message d'echec
-        // d'AssertJ appellerait toString() sur un Client, donc sur son entreprise chargee en
-        // paresseux — et l'on obtiendrait une LazyInitializationException a la place du
-        // diagnostic recherche.
+        // On verifie seulement les noms, jamais les entites : en cas d'echec AssertJ
+        // appellerait toString() sur un Client, donc sur son entreprise chargee en lazy, et on
+        // aurait une LazyInitializationException au lieu du vrai message d'erreur.
         List<String> visibles = clientRepository.findAll().stream().map(Client::getLastName).toList();
 
         assertThat(visibles)
@@ -143,9 +143,9 @@ class TenantIsolationTest {
 
         Optional<Client> trouve = clientRepository.findById(clientOfBetaId);
 
-        // Vide et non refuse : un identifiant etranger doit etre indiscernable d'un identifiant
-        // inexistant, sans quoi la difference entre 403 et 404 renseignerait sur l'existence de
-        // la donnee et permettrait d'en denombrer le parc en balayant les identifiants.
+        // Vide et pas refuse : un id d'une autre entreprise doit etre impossible a distinguer
+        // d'un id qui n'existe pas, sinon la difference entre 403 et 404 dirait si la donnee
+        // existe, et on pourrait compter les donnees des autres en essayant tous les ids.
         assertThat(trouve)
                 .as("le client de Beta ne doit pas etre atteignable par son identifiant")
                 .isEmpty();
@@ -156,8 +156,8 @@ class TenantIsolationTest {
     void findByIdDansSonPerimetreFonctionne() {
         TenantContext.setCompanyId(beta.getId());
 
-        // Contre-epreuve indispensable : sans elle, un findById qui renverrait TOUJOURS vide
-        // ferait passer le test precedent tout en cassant l'application.
+        // Test inverse indispensable : sans lui, un findById qui renverrait TOUJOURS vide
+        // ferait passer le test d'avant tout en cassant l'application.
         assertThat(clientRepository.findById(clientOfBetaId)).isPresent();
     }
 
@@ -170,9 +170,9 @@ class TenantIsolationTest {
         TenantContext.setCompanyId(alpha.getId());
         duBeta.setCity("Bruxelles");
 
-        // En lecture on fait disparaitre la donnee ; en ecriture on leve. Une ecriture hors
-        // perimetre traduit une anomalie franche — code fautif ou tentative deliberee — qui
-        // doit etre rejetee et tracee, jamais masquee.
+        // En lecture on fait comme si la donnee n'existait pas ; en ecriture on lance une
+        // exception. Ecrire dans une autre entreprise veut dire qu'il y a un vrai probleme
+        // (bug ou tentative volontaire), qu'on doit refuser et logger, jamais cacher.
         assertThatThrownBy(() -> clientRepository.save(duBeta))
                 .isInstanceOf(TenantViolationException.class);
     }
@@ -186,8 +186,8 @@ class TenantIsolationTest {
         nouveau.setFirstName("Camille");
         nouveau.setLastName("Nouvelle");
         nouveau.setPhone("0470000000");
-        // Aucun appel a setOwnerCompany : c'est precisement ce que TenantEntityListener evite
-        // d'imposer a chaque service et a chaque mapper.
+        // Pas de setOwnerCompany : c'est justement ce que TenantEntityListener evite de devoir
+        // faire dans chaque service et chaque mapper.
         Client enregistre = clientRepository.save(nouveau);
 
         assertThat(enregistre.getOwnerCompany()).isNotNull();
@@ -201,9 +201,9 @@ class TenantIsolationTest {
 
         List<String> tous = clientRepository.findAll().stream().map(Client::getLastName).toList();
 
-        // Un contexte nul signifie « aucune restriction » et non « aucune donnee ». C'est ce
-        // qui permet au back-office de la plateforme de voir le parc entier — et c'est aussi
-        // pourquoi les services de ce back-office doivent poser ownerCompany eux-memes.
+        // Un contexte null veut dire « pas de restriction », pas « aucune donnee ». C'est ce
+        // qui permet au back-office de la plateforme de voir toutes les entreprises, et c'est
+        // aussi pour ca que ses services doivent remplir ownerCompany eux-memes.
         assertThat(tous).containsExactlyInAnyOrder("Alpha", "Beta");
     }
 

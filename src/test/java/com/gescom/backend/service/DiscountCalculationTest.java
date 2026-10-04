@@ -38,8 +38,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Vérification du calcul des remises, de la ligne de commande jusqu'au total de la facture.
- * Test unitaire pur (Mockito) : aucune base ni contexte Spring.
+ * Vérifie le calcul des remises, de la ligne de commande jusqu'au total de la facture.
+ * Test unitaire simple (Mockito) : pas de base ni de contexte Spring.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -193,7 +193,7 @@ class DiscountCalculationTest {
 
         Invoice result = invoiceService.createInvoice(invoiceFor(order, "21", BigDecimal.ZERO));
 
-        // Sous-total 50,00 € − remise de commande 5,00 € = 45,00 €, soit le finalAmount.
+        // Sous-total 50,00 € − remise de commande 5,00 € = 45,00 €, c'est le finalAmount.
         assertThat(result.getSubtotal()).isEqualByComparingTo("50.00");
         assertThat(result.getDiscount()).isEqualByComparingTo("5.00");
         assertThat(result.getSubtotal().subtract(result.getDiscount()))
@@ -218,7 +218,7 @@ class DiscountCalculationTest {
         assertThat(result.getTotalAmount()).isEqualByComparingTo("35.00");
     }
 
-    // ── Remise commerciale de facture (en €) ──────────────────────────────────────────
+    // ── Remise sur la facture (en €) ──────────────────────────────────────────────────
 
     @Test
     void remiseDeFacture_estDeduiteAvantLaTva() {
@@ -248,7 +248,7 @@ class DiscountCalculationTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("dépasse le sous-total");
 
-        // La commande n'a pas été facturée : elle reste facturable.
+        // La commande n'a pas été facturée : on peut toujours la facturer.
         assertThat(order.getStatus()).isEqualTo(Order.OrderStatus.CONFIRMED);
     }
 
@@ -264,7 +264,7 @@ class DiscountCalculationTest {
         existing.setNotes("Livraison en main propre");
         when(orderRepository.findById(7L)).thenReturn(Optional.of(existing));
 
-        // Patch tel que l'envoie l'écran Commandes : les articles, rien d'autre.
+        // Mise à jour comme l'envoie l'écran Commandes : juste les articles.
         Order patch = draft(List.of(line(a, 6, "0")));
         patch.setDiscount(null);
         patch.setNotes(null);

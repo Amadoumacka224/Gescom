@@ -8,14 +8,14 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
-// Le statut n'est plus modifiable via cette requête : il est piloté par les actions dédiées
-// (confirmation, annulation) et par la facturation / livraison. Seul un brouillon (PENDING)
-// peut être modifié — cf. OrderService.updateOrder.
+// On ne peut plus changer le statut avec cette requête : il change via les actions prévues
+// (confirmation, annulation) et via la facturation / livraison. On ne peut modifier qu'un
+// brouillon (PENDING), voir OrderService.updateOrder.
 //
-// Hors `items` (obligatoire, la commande est remplacée par la liste envoyée), les champs sont
-// facultatifs au sens strict : `null` = « inchangé », pas « remis à zéro ». Un appelant qui
-// ne gère pas la remise n'a donc pas à la renvoyer pour la conserver. Pour effacer les notes,
-// envoyer une chaîne vide.
+// À part `items` (obligatoire, les lignes de la commande sont remplacées par cette liste),
+// tous les champs sont vraiment facultatifs : `null` = « on ne change pas », pas « on remet à
+// zéro ». Un appelant qui ne gère pas la remise n'a donc pas besoin de la renvoyer pour la
+// garder. Pour vider les notes, il faut envoyer une chaîne vide.
 public record OrderUpdateRequest(
         @NotEmpty(message = "La commande doit contenir au moins un article")
         @Valid

@@ -16,14 +16,14 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Billetterie du support.
+ * Tickets de support.
  *
- * Le ticket est ouvert par l'opérateur à partir d'un appel ou d'un courriel : il n'existe
- * pas d'écran client pour en déposer un. Le canal reste humain, GESCOM en garde la trace.
+ * Le ticket est créé par l'opérateur après un appel ou un mail : les clients n'ont pas
+ * d'écran pour en créer un. Le contact reste humain, GESCOM en garde juste une trace.
  *
- * Rien n'est envoyé au client depuis cet écran — le fil est un registre. C'est précisément
- * ce que prépare la case « note interne » : le jour où un envoi automatique sera branché,
- * la distinction existera déjà et les notes de service ne partiront pas.
+ * Rien n'est envoyé au client depuis cet écran, c'est juste un historique. C'est pour ça
+ * qu'il y a la case « note interne » : le jour où on ajoutera un envoi automatique, on saura
+ * déjà quelles notes ne doivent pas partir.
  */
 
 const STATUS_TONE = {
@@ -279,8 +279,8 @@ const PlatformSupport = () => {
       </div>
 
       <div className="card overflow-hidden">
-        {/* La ligne entière reste cliquable, mais un bouton explicite rend l'action visible :
-            un tableau dont il faut deviner que les lignes s'ouvrent ne se découvre pas. */}
+        {/* On peut toujours cliquer sur toute la ligne, mais un vrai bouton rend l'action
+            visible : sinon on ne devine pas que les lignes s'ouvrent. */}
         <Table
           columns={columns}
           data={tickets}
@@ -290,7 +290,7 @@ const PlatformSupport = () => {
             <div className="flex items-center justify-end">
               <button
                 onClick={(e) => {
-                  // Sans cela, le clic remonterait au <tr> et ouvrirait la fiche deux fois.
+                  // Sinon le clic remonte au <tr> et la fiche s'ouvre deux fois.
                   e.stopPropagation();
                   showDetail(ticket);
                 }}
@@ -317,7 +317,7 @@ const PlatformSupport = () => {
         )}
       </div>
 
-      {/* Ouverture d'un ticket */}
+      {/* Création d'un ticket */}
       <Modal
         isOpen={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -392,7 +392,7 @@ const PlatformSupport = () => {
         </form>
       </Modal>
 
-      {/* Détail : fil de discussion */}
+      {/* Détail : fil des messages */}
       <Modal
         isOpen={Boolean(detail)}
         onClose={() => setDetail(null)}

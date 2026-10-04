@@ -13,15 +13,15 @@ import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
 
 /**
- * Journal des événements de la plateforme.
+ * Historique des événements de la plateforme.
  *
- * À distinguer des alertes du tableau de bord : celles-ci décrivent l'état courant du parc
- * et disparaissent quand la situation est réglée. Ici, chaque ligne est un fait daté qui
- * reste consultable ensuite. Les deux répondent à des questions différentes — « qu'est-ce
- * qui ne va pas maintenant ? » et « que s'est-il passé pendant mon absence ? ».
+ * Ce n'est pas la même chose que les alertes du tableau de bord : les alertes montrent la
+ * situation actuelle et disparaissent quand le problème est réglé. Ici chaque ligne est un
+ * événement daté qui reste visible. En gros : « qu'est-ce qui ne va pas maintenant ? » d'un
+ * côté, et « que s'est-il passé pendant mon absence ? » de l'autre.
  *
- * Une liste plutôt qu'un tableau : la lecture se fait au fil, et l'état lu/non-lu doit se
- * voir d'un coup d'œil sans chercher dans une colonne.
+ * Une liste plutôt qu'un tableau : on lit de haut en bas, et on doit voir tout de suite ce
+ * qui est lu ou non.
  */
 
 const SEVERITY_TONE = { CRITICAL: 'danger', WARNING: 'warning', INFO: 'info' };
@@ -71,10 +71,10 @@ const PlatformNotifications = () => {
   };
 
   /**
-   * Ouvre la fiche et marque comme lue dans le même geste.
+   * Ouvre la fiche et la marque comme lue en même temps.
    *
-   * Le contenu vient de la ligne déjà chargée : la liste porte tout ce que la fiche montre,
-   * un aller-retour serveur n'apprendrait rien de plus.
+   * Le contenu vient de la ligne déjà chargée : la liste contient déjà tout ce qu'affiche la
+   * fiche, pas besoin d'appeler le serveur.
    */
   const openDetail = (notification) => {
     setDetail(notification);
@@ -141,7 +141,7 @@ const PlatformNotifications = () => {
                   n.readAt ? '' : 'bg-primary-50/40 dark:bg-primary-500/5'
                 }`}
               >
-                {/* Pastille de non-lu : l'information la plus scannée de la liste. */}
+                {/* Pastille non lu : c'est ce qu'on regarde en premier dans la liste. */}
                 <span
                   className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
                     n.readAt ? 'bg-transparent' : 'bg-primary-500'
@@ -185,7 +185,7 @@ const PlatformNotifications = () => {
 
                 <button
                   onClick={(e) => {
-                    // Le <li> est déjà cliquable ; sans cela l'ouverture se déclencherait deux fois.
+                    // Le <li> est déjà cliquable, sinon la fiche s'ouvrirait deux fois.
                     e.stopPropagation();
                     openDetail(n);
                   }}
@@ -225,8 +225,8 @@ const PlatformNotifications = () => {
               <span className={badgeClass(SEVERITY_TONE[detail.severity])}>
                 {t(`platform.severity.${detail.severity}`)}
               </span>
-              {/* Type affiché brut : c'est ce qu'on cite au support ou qu'on cherche dans
-                  les journaux, le traduire le rendrait introuvable. */}
+              {/* Type affiché tel quel : c'est ce qu'on donne au support ou qu'on cherche dans
+                  les logs, traduit on ne le retrouverait plus. */}
               <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">
                 {detail.type}
               </code>
@@ -236,7 +236,7 @@ const PlatformNotifications = () => {
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                 {detail.title}
               </h3>
-              {/* La liste tronque le message ; la fiche le montre en entier. */}
+              {/* Le message est coupé dans la liste, ici on l'affiche en entier. */}
               {detail.message && (
                 <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">
                   {detail.message}

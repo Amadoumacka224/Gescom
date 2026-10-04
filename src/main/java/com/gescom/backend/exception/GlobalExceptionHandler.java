@@ -34,14 +34,14 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Gestionnaire d'exceptions centralisé pour toute l'API (@RestControllerAdvice).
- * Convertit chaque type d'exception en une réponse HTTP cohérente ({@link ErrorResponse}),
- * ce qui évite de dupliquer la gestion d'erreurs dans chaque contrôleur :
+ * Gestion des exceptions pour toute l'API (@RestControllerAdvice).
+ * Transforme chaque type d'exception en une réponse HTTP propre ({@link ErrorResponse}),
+ * comme ça on n'a pas à gérer les erreurs dans chaque contrôleur :
  *   - métier / validation / argument invalide → 400, authentification → 401, accès refusé → 403,
- *     ressource absente → 404, méthode non supportée → 405, doublon / conflit BDD → 409,
+ *     ressource introuvable → 404, méthode pas supportée → 405, doublon / conflit en base → 409,
  *     et tout le reste → 500.
- * Le handler générique (Exception) journalise la trace complète avec un {@code traceId}
- * mais n'expose jamais le détail technique au client.
+ * Le handler générique (Exception) logge toute la stack trace avec un {@code traceId},
+ * mais n'envoie jamais le détail technique au client.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -49,9 +49,9 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
-     * Préfixes des arguments qui sont eux-mêmes des clés à traduire. Un message comme
-     * « {0} non trouvé(e) avec l'id : {1} » reçoit le nom de l'entité en argument : sans cette
-     * résolution en deux temps, il s'afficherait « resource.order non trouvé(e) ».
+     * Préfixes des arguments qui sont eux aussi des clés à traduire. Un message comme
+     * « {0} non trouvé(e) avec l'id : {1} » reçoit le nom de l'entité en argument : si on ne le
+     * traduisait pas aussi, on afficherait « resource.order non trouvé(e) ».
      */
     private static final String[] NESTED_KEY_PREFIXES = { "resource.", "field." };
 
@@ -62,11 +62,12 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Message destiné à l'utilisateur, dans la langue de la requête courante.
+     * Message pour l'utilisateur, dans la langue de la requête.
      *
-     * La locale vient de l'en-tête `Accept-Language` (cf. `LocaleConfiguration`). Une clé absente
-     * des catalogues retombe sur le littéral français porté par l'exception plutôt que de faire
-     * échouer la réponse : un catalogue incomplet dégrade le message, il ne casse pas l'API.
+     * La langue vient de l'en-tête `Accept-Language` (voir `LocaleConfiguration`). Si la clé
+     * n'existe pas dans les fichiers, on utilise le texte français de l'exception au lieu de
+     * faire planter la réponse : un fichier de traduction incomplet donne un message moins
+     * bon, mais ne casse pas l'API.
      */
     private String localize(Throwable ex) {
         if (!(ex instanceof LocalizedException localized) || localized.getMessageKey() == null) {
@@ -124,8 +125,8 @@ public class GlobalExceptionHandler {
                 "Paramètre obligatoire manquant : '" + ex.getParameterName() + "'", request);
     }
 
-    // Échec de validation des @Valid sur le corps : renvoie le détail champ par champ pour que le
-    // frontend puisse afficher le message sous le bon formulaire.
+    // Erreurs de validation @Valid sur le body : on renvoie les erreurs champ par champ pour
+    // que le front puisse afficher le message sous le bon champ.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
@@ -139,7 +140,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
-    // Échec de validation sur les paramètres (@Validated sur @RequestParam / @PathVariable).
+    // Erreurs de validation sur les paramètres (@Validated sur @RequestParam / @PathVariable).
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
@@ -170,11 +171,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Tentative d'écriture sur une donnée appartenant à une autre entreprise.
+     * Tentative de modifier une donnée d'une autre entreprise.
      *
-     * Journalisé en {@code warn} et non silencieusement : en lecture, une ressource d'autrui
-     * se comporte comme une ressource inexistante, mais une écriture hors périmètre signale
-     * soit un défaut de code, soit une tentative délibérée — les deux méritent une trace.
+     * Loggé en {@code warn} : en lecture, la donnée d'une autre entreprise est traitée comme
+     * si elle n'existait pas, mais une écriture en dehors de son entreprise veut dire soit un
+     * bug, soit une tentative volontaire. Dans les deux cas, on veut une trace.
      */
     @ExceptionHandler(TenantViolationException.class)
     public ResponseEntity<ErrorResponse> handleTenantViolation(TenantViolationException ex, HttpServletRequest request) {
@@ -183,11 +184,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Tentative d'écriture, par un caissier, sur une vente enregistrée par un autre.
+     * Un caissier essaie de modifier une vente faite par un autre caissier.
      *
-     * Tracée pour la même raison que la violation de cloisonnement d'entreprise : l'interface
-     * ne présente jamais à un caissier la vente d'un collègue, une telle requête ne peut donc
-     * venir que d'un appel direct à l'API ou d'une régression.
+     * Loggé pour la même raison que pour une autre entreprise : l'interface ne montre jamais
+     * à un caissier la vente d'un collègue, donc une telle requête vient forcément d'un appel
+     * direct à l'API ou d'un bug.
      */
     @ExceptionHandler(OwnershipViolationException.class)
     public ResponseEntity<ErrorResponse> handleOwnershipViolation(OwnershipViolationException ex, HttpServletRequest request) {
@@ -198,11 +199,11 @@ public class GlobalExceptionHandler {
     // --- 429 Too Many Requests -----------------------------------------------
 
     /**
-     * Tentatives de connexion epuisees pour un couple identifiant/adresse.
+     * Trop de tentatives de connexion pour un identifiant / une adresse IP.
      *
-     * 429 et non 401 : l'appelant ne s'est pas trompe de mot de passe cette fois-ci, on refuse
-     * de lui repondre. L'en-tete {@code Retry-After} porte le delai en secondes, ce qui permet
-     * a un client correct d'attendre plutot que de reessayer en boucle.
+     * 429 et pas 401 : cette fois ce n'est pas le mot de passe qui est faux, on refuse juste
+     * de repondre. L'en-tete {@code Retry-After} donne le delai en secondes, pour qu'un client
+     * bien fait attende au lieu de reessayer en boucle.
      */
     @ExceptionHandler(TooManyAttemptsException.class)
     public ResponseEntity<ErrorResponse> handleTooManyAttempts(TooManyAttemptsException ex, HttpServletRequest request) {
@@ -224,17 +225,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * URL qui ne correspond à aucun point d'entrée.
+     * URL qui ne correspond à aucun endpoint.
      *
-     * Sans ce cas, l'exception tombait dans le handler générique et l'API répondait **500**
-     * sur une simple faute d'adresse — `/api/platform` au lieu de `/api/platform/dashboard`,
-     * par exemple. Une adresse inconnue est une erreur du client, pas une panne du serveur :
-     * la distinction est ce qui permet de ne s'alarmer que des vraies 500, et elle évite au
-     * frontend d'afficher « une erreur interne est survenue » quand il s'est trompé de route.
+     * Sans ce cas, l'exception arrivait dans le handler générique et l'API répondait **500**
+     * pour une simple erreur d'adresse (par exemple `/api/platform` au lieu de
+     * `/api/platform/dashboard`). Une adresse inconnue est une erreur du client, pas du
+     * serveur : comme ça on ne s'inquiète que des vraies 500, et le front n'affiche pas
+     * « une erreur interne est survenue » quand il s'est trompé de route.
      *
-     * Spring lève ici {@code NoResourceFoundException} parce que la requête, faute de
-     * contrôleur, finit chez le gestionnaire de ressources statiques ; le message renvoyé ne
-     * le mentionne pas, cette mécanique interne n'apprenant rien à l'appelant.
+     * Spring lance {@code NoResourceFoundException} parce que la requête, sans contrôleur,
+     * finit dans le gestionnaire de fichiers statiques. On ne le dit pas dans le message,
+     * ça n'apporte rien à l'appelant.
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request) {
@@ -257,8 +258,8 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, localize(ex), request);
     }
 
-    // Contrainte d'intégrité violée au niveau de la base (unicité, clé étrangère...).
-    // Le détail technique est journalisé mais on renvoie un message générique au client.
+    // Contrainte de la base pas respectée (unicité, clé étrangère...).
+    // On logge le détail technique mais on renvoie un message générique au client.
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
         log.warn("Violation d'intégrité des données sur {} : {}", request.getRequestURI(), ex.getMostSpecificCause().getMessage());
@@ -280,7 +281,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
-    /** Construit la réponse standard à partir d'un statut et d'un message. */
+    /** Construit la réponse standard avec un statut et un message. */
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String message, HttpServletRequest request) {
         ErrorResponse body = ErrorResponse.of(
                 status.value(), status.getReasonPhrase(), message, request.getRequestURI());

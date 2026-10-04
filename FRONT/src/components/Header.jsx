@@ -13,7 +13,7 @@ const Header = ({ onMenuClick }) => {
   const { notifications, unreadCount, markAllRead } = useNotifications(user);
   const notifRef = useRef(null);
 
-  // Fermeture du panneau au clic en dehors.
+  // Ferme le panneau quand on clique à côté.
   useEffect(() => {
     const onClickOutside = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) {
@@ -30,7 +30,7 @@ const Header = ({ onMenuClick }) => {
     if (next) markAllRead(); // consulter = marquer comme lu
   };
 
-  // Temps relatif localisé (« il y a 5 minutes » / « 5 minutes ago »…) sans dépendance.
+  // Temps relatif traduit (« il y a 5 minutes » / « 5 minutes ago »…) sans librairie.
   const relTime = (iso) => {
     if (!iso) return '';
     const rtf = new Intl.RelativeTimeFormat(i18n.language, { numeric: 'auto' });

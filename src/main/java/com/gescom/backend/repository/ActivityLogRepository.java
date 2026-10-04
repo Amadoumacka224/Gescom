@@ -15,22 +15,21 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Le journal d'activité est le registre de l'application qui croît sans borne : ses lectures
- * de liste sont donc paginées. L'auteur (`user`) est chargé dans la même requête via
- * {@link EntityGraph} — le mapper le déréférence à chaque ligne, ce qui déclencherait sinon
- * un N+1 par page.
+ * Le journal d'activité est la table qui grossit sans limite, donc ses listes sont paginées.
+ * L'auteur (`user`) est chargé dans la même requête avec {@link EntityGraph} : le mapper le
+ * lit pour chaque ligne, sinon on aurait un N+1 par page.
  */
 @Repository
 public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long>,
         JpaSpecificationExecutor<ActivityLog> {
 
-    // Filtrage combiné (utilisateur, action, entité, période, recherche) : construit en
-    // Specification plutôt qu'en JPQL, car un critère absent ne participe alors pas du tout
-    // à la requête — pas de « :param IS NULL » à faire avaler à Postgres sur un enum.
+    // Filtres combinés (utilisateur, action, entité, période, recherche) : faits avec une
+    // Specification plutôt qu'en JPQL, car un filtre absent n'apparaît pas du tout dans la
+    // requête. Pas de « :param IS NULL » sur un enum, que Postgres n'aime pas.
     //
-    // `ownerCompany` accompagne `user` dans le graphe : le journal consolidé du back-office
-    // affiche l'entreprise d'origine à chaque ligne, et son export en tire des milliers de
-    // lignes d'un coup — chargée paresseusement, elle valait une requête par ligne.
+    // `ownerCompany` est chargé avec `user` : le journal global du back-office affiche
+    // l'entreprise sur chaque ligne, et l'export prend des milliers de lignes d'un coup. En
+    // lazy, ça faisait une requête par ligne.
     @Override
     @EntityGraph(attributePaths = {"user", "ownerCompany"})
     Page<ActivityLog> findAll(Specification<ActivityLog> spec, Pageable pageable);
@@ -51,8 +50,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long>,
     @Query("SELECT al FROM ActivityLog al WHERE al.user.role = 'CAISSIER'")
     Page<ActivityLog> findCaissierActivities(Pageable pageable);
 
-    // --- Indicateurs de l'écran Historique -----------------------------------
-    // Agrégés en base : ils décrivent la totalité du journal, jamais la seule page affichée.
+    // --- Stats de l'écran Historique -----------------------------------------
+    // Calculées en base : elles portent sur tout le journal, pas sur la page affichée.
 
     long countByCreatedAtGreaterThanEqual(LocalDateTime start);
 

@@ -11,19 +11,19 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Evenement notable de la plateforme, avec etat de lecture.
+ * Evenement important de la plateforme, avec un etat lu / non lu.
  *
- * A distinguer des alertes du tableau de bord ({@code PlatformDashboardResponse.PlatformAlert}) :
- * celles-ci decrivent l'etat courant du parc et sont recalculees a chaque affichage — une
- * echeance impayee disparait des qu'elle est reglee. Une notification consigne au contraire
- * un fait date, qui reste consultable une fois la situation resolue. Les deux repondent a
- * des questions differentes : « qu'est-ce qui ne va pas maintenant ? » et « que s'est-il
- * passe pendant mon absence ? ».
+ * Ce n'est pas la meme chose que les alertes du tableau de bord
+ * ({@code PlatformDashboardResponse.PlatformAlert}) : les alertes montrent la situation
+ * actuelle et sont recalculees a chaque affichage (une echeance impayee disparait des
+ * qu'elle est payee). Une notification garde un evenement date, qu'on peut revoir une fois
+ * le probleme regle. En gros : « qu'est-ce qui ne va pas maintenant ? » d'un cote, et
+ * « que s'est-il passe pendant mon absence ? » de l'autre.
  *
- * Aucun destinataire n'est modelise : le back-office n'a qu'un utilisateur, le proprietaire.
- * Le jour ou l'exploitation se fera a plusieurs, il faudra un etat de lecture par personne
- * — d'ou {@code readAt} porte par la ligne et non par une table de liaison, choix a revoir
- * a ce moment-la et pas avant.
+ * Pas de destinataire : le back-office n'a qu'un utilisateur, le super admin. Si un jour
+ * plusieurs personnes l'utilisent, il faudra un etat lu par personne. Pour l'instant
+ * {@code readAt} est donc sur la ligne et pas dans une table de liaison, on verra a ce
+ * moment-la.
  */
 @Entity
 @Table(name = "platform_notifications")
@@ -36,7 +36,7 @@ public class PlatformNotification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Nature de l'evenement, pour que l'interface le traduise plutot que l'afficher brut. */
+    /** Type d'evenement, pour que le front le traduise au lieu de l'afficher brut. */
     @NotBlank
     @Size(max = 40)
     @Column(nullable = false, length = 40)
@@ -56,7 +56,7 @@ public class PlatformNotification {
     @Column(length = 500)
     private String message;
 
-    /** Entreprise concernee ; nul pour un evenement qui n'en vise aucune. */
+    /** Entreprise concernee ; null si l'evenement ne concerne aucune entreprise. */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "company_id")
     private Company company;

@@ -13,14 +13,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Formule d'abonnement proposee au catalogue.
+ * Formule d'abonnement.
  *
- * Les deux tarifs cohabitent au lieu d'etre derives l'un de l'autre : l'annuel porte une
- * remise (deux mois offerts dans le catalogue livre), et c'est le montant reellement
- * facture qui doit alimenter le calcul du MRR — d'ou la mensualisation explicite operee
- * par {@code Subscription.monthlyAmount()}.
+ * On garde les deux prix au lieu de calculer l'un a partir de l'autre : l'annuel a une remise
+ * (deux mois offerts dans les formules de base), et c'est le montant vraiment facture qui
+ * doit compter dans le MRR. D'ou le calcul mensuel fait dans {@code Subscription.monthlyAmount()}.
  *
- * {@code maxUsers} / {@code maxProducts} a null signifient « illimite ».
+ * {@code maxUsers} / {@code maxProducts} a null = illimite.
  */
 @Entity
 @Table(name = "plans")
@@ -57,11 +56,11 @@ public class Plan {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal yearlyPrice;
 
-    /** Plafond d'utilisateurs ; null = illimite. */
+    /** Nombre max d'utilisateurs ; null = illimite. */
     @Column
     private Integer maxUsers;
 
-    /** Plafond d'articles au catalogue ; null = illimite. */
+    /** Nombre max de produits ; null = illimite. */
     @Column
     private Integer maxProducts;
 
@@ -70,8 +69,8 @@ public class Plan {
     private Integer trialDays = 14;
 
     /**
-     * Une formule retiree du catalogue reste en base : les abonnements souscrits
-     * continuent d'y pointer et de peser dans le MRR. Seule la souscription est fermee.
+     * Une formule desactivee reste en base : les abonnements existants pointent toujours
+     * dessus et comptent dans le MRR. On ne peut juste plus y souscrire.
      */
     @NotNull
     @Column(nullable = false)

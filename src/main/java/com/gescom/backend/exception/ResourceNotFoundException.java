@@ -1,11 +1,11 @@
 package com.gescom.backend.exception;
 
 /**
- * Levée quand une entité demandée est introuvable (par id ou par un autre champ).
- * Mappée en HTTP 404 par {@link GlobalExceptionHandler}.
+ * Lancée quand une entité n'est pas trouvée (par id ou par un autre champ).
+ * Transformée en HTTP 404 par {@link GlobalExceptionHandler}.
  *
- * Comme {@link DuplicateResourceException}, `resource` et `field` sont des clés de traduction :
- * le nom de l'entité fait partie du message vu par l'utilisateur.
+ * Comme pour {@link DuplicateResourceException}, `resource` et `field` sont des clés de
+ * traduction : le nom de l'entité apparaît dans le message vu par l'utilisateur.
  */
 public class ResourceNotFoundException extends RuntimeException implements LocalizedException {
 

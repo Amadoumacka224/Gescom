@@ -25,12 +25,12 @@ import java.math.RoundingMode;
 import java.util.List;
 
 /**
- * Conversion des entites de la plateforme vers leurs DTO de reponse.
+ * Conversion des entites de la plateforme en DTO de reponse.
  *
- * Ecrit a la main comme les autres mappers du projet, sans MapStruct, et injectant ses
- * repositories a la maniere d'{@code OrderMapper} : la fiche d'une entreprise porte son
- * abonnement courant et ses compteurs d'usage, que le mapper resout lui-meme pour que les
- * controleurs restent minces.
+ * Fait a la main comme les autres mappers du projet, sans MapStruct, et avec ses repositories
+ * injectes comme {@code OrderMapper} : la fiche d'une entreprise contient son abonnement en
+ * cours et ses compteurs, que le mapper va chercher lui-meme pour garder des controleurs
+ * simples.
  */
 @Component
 public class PlatformMapper {
@@ -48,11 +48,11 @@ public class PlatformMapper {
     }
 
     /**
-     * Fiche complete d'une entreprise : abonnement vivant et compteurs d'usage compris.
+     * Fiche complete d'une entreprise, avec son abonnement actif et ses compteurs.
      *
-     * Trois requetes par entreprise, ce qui est assume sur une fiche unitaire et sur les
-     * listes courtes du tableau de bord. La liste paginee du parc emprunte le meme chemin :
-     * a vingt-cinq lignes par page, la simplicite l'emporte sur l'optimisation.
+     * Trois requetes par entreprise, ce qui va tres bien pour une fiche seule et pour les
+     * petites listes du tableau de bord. La liste paginee des entreprises fait pareil : a
+     * vingt-cinq lignes par page, on a prefere la simplicite a l'optimisation.
      */
     public CompanyResponse toResponse(Company company) {
         if (company == null) {
@@ -111,8 +111,8 @@ public class PlatformMapper {
                 subscription.getStatus().name(),
                 subscription.getBillingPeriod().name(),
                 subscription.getAmount(),
-                // Arrondi au centime pour l'affichage seulement : les agregats de revenus
-                // somment la valeur pleine precision et n'arrondissent qu'a la fin.
+                // Arrondi au centime juste pour l'affichage : les totaux de revenus additionnent
+                // la valeur complete et n'arrondissent qu'a la fin.
                 subscription.monthlyAmount().setScale(2, RoundingMode.HALF_UP),
                 subscription.getCurrency(),
                 subscription.getStartedAt(),
@@ -148,9 +148,9 @@ public class PlatformMapper {
     }
 
     /**
-     * Fiche d'une formule, avec le nombre de contrats qui s'y rattachent — tous statuts
-     * confondus, l'historique comptant autant que les contrats vivants pour decider si la
-     * formule est encore supprimable.
+     * Fiche d'une formule, avec le nombre de contrats qui l'utilisent, tous statuts compris :
+     * les anciens contrats comptent autant que les actifs pour savoir si on peut encore la
+     * supprimer.
      */
     public PlanResponse toResponse(Plan plan) {
         if (plan == null) {
@@ -172,7 +172,7 @@ public class PlatformMapper {
         );
     }
 
-    /** Tarif catalogue correspondant a une periodicite. */
+    /** Prix de la formule pour une periodicite donnee. */
     public BigDecimal priceFor(Plan plan, Subscription.BillingPeriod period) {
         return period == Subscription.BillingPeriod.YEARLY ? plan.getYearlyPrice() : plan.getMonthlyPrice();
     }
@@ -180,16 +180,16 @@ public class PlatformMapper {
     // ── Support ──────────────────────────────────────────────────────────────
 
     /**
-     * Ticket sans son fil, pour les listes.
+     * Ticket sans ses messages, pour les listes.
      *
-     * Le fil n'est volontairement pas charge ici : l'afficher sur chaque ligne d'une page
-     * n'aurait aucun usage et couterait une requete par ticket.
+     * On ne charge pas les messages exprès : les afficher sur chaque ligne ne servirait a rien
+     * et ferait une requete par ticket.
      */
     public SupportTicketResponse toSummary(SupportTicket ticket) {
         return toResponse(ticket, null);
     }
 
-    /** Ticket avec son fil, pour l'ecran de detail. */
+    /** Ticket avec ses messages, pour l'ecran de detail. */
     public SupportTicketResponse toDetail(SupportTicket ticket) {
         List<SupportMessageResponse> messages = ticket.getMessages().stream()
                 .map(this::toResponse)

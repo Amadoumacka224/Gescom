@@ -15,54 +15,53 @@ import java.time.Year;
 import java.util.function.Function;
 
 /**
- * Attribution des numéros de documents commerciaux.
+ * Génération des numéros des documents (commandes, factures, livraisons, retours).
  *
- * <h2>Ce qui est remplacé</h2>
+ * <h2>Ce qu'on remplace</h2>
  *
- * Les numéros étaient composés d'un préfixe et de {@code System.currentTimeMillis()} :
- * {@code FACT-1786647700109}. Quatre défauts, dont le premier touche à la conformité du produit :
+ * Avant, les numéros étaient un préfixe + {@code System.currentTimeMillis()} :
+ * {@code FACT-1786647700109}. Ça posait quatre problèmes, le premier étant légal :
  *
  * <ol>
- *   <li>une facture doit porter un numéro SÉQUENTIEL et continu. Un horodatage n'est ni l'un ni
- *       l'autre : rien ne permet de constater qu'aucune facture ne manque ;</li>
- *   <li>le compteur était GLOBAL — deux entreprises clientes se partageaient la même suite, et
- *       chacune voyait donc la sienne trouée des documents de l'autre ;</li>
- *   <li>deux documents créés dans la même milliseconde recevaient le même numéro. Ce n'est pas
- *       théorique : six commandes créées d'affilée font sauter {@code uq_orders_company_number},
- *       constaté en écrivant les tests du tableau de bord ;</li>
- *   <li>un numéro à treize chiffres est illisible et incommunicable au téléphone.</li>
+ *   <li>une facture doit avoir un numéro qui se SUIT, sans trou. Un horodatage ne fait ni
+ *       l'un ni l'autre : impossible de vérifier qu'aucune facture ne manque ;</li>
+ *   <li>le compteur était GLOBAL : deux entreprises partageaient la même suite, donc chacune
+ *       avait des trous dans la sienne ;</li>
+ *   <li>deux documents créés dans la même milliseconde avaient le même numéro. Ce n'est pas
+ *       que de la théorie : en créant six commandes à la suite, on tombe sur
+ *       {@code uq_orders_company_number} (vu en écrivant les tests du tableau de bord) ;</li>
+ *   <li>un numéro de treize chiffres est illisible et impossible à donner au téléphone.</li>
  * </ol>
  *
- * La forme devient {@code FACT-2026-000042}.
+ * Maintenant le format est {@code FACT-2026-000042}.
  *
  * <h2>Sans table de compteurs</h2>
  *
- * Le dernier numéro est lu sur la table du document elle-même, par un {@code MAX} sur le
- * préfixe et l'année. Aucune structure nouvelle : la suite est déduite de ce qui existe, et il
- * n'y a donc aucun compteur à maintenir en cohérence avec les documents — c'est le document qui
- * fait foi.
+ * Le dernier numéro est lu directement dans la table du document, avec un {@code MAX} sur
+ * le préfixe et l'année. Rien de nouveau en base : la suite vient de ce qui existe déjà, donc
+ * pas de compteur à garder synchronisé avec les documents. C'est le document qui compte.
  *
- * Deux conséquences de ce choix, l'une bonne et l'autre à connaître :
+ * Ça a deux conséquences, une bonne et une à connaître :
  *
  * <ul>
- *   <li>supprimer le dernier document de l'année libère son numéro, qui sera réattribué. Sur une
- *       facture c'est même souhaitable — la suite doit rester continue —, et la suppression est
- *       de toute façon désormais interdite dès qu'un encaissement existe ;</li>
- *   <li>le {@code MAX} coûte une lecture indexable mais croissante. À l'échelle d'un
- *       back-office, l'index sur le numéro le rend négligeable ; sur des millions de documents
- *       par an, une table de compteurs redeviendrait le bon outil.</li>
+ *   <li>si on supprime le dernier document de l'année, son numéro sera réutilisé. Pour une
+ *       facture c'est même ce qu'on veut (la suite doit rester sans trou), et de toute façon
+ *       on ne peut plus supprimer une facture dès qu'il y a eu un paiement ;</li>
+ *   <li>le {@code MAX} fait une lecture qui utilise un index mais grossit avec le temps. Pour
+ *       un back-office, avec l'index sur le numéro, ce n'est rien ; avec des millions de
+ *       documents par an, une table de compteurs redeviendrait la bonne solution.</li>
  * </ul>
  *
- * <h2>Sûreté face à la concurrence</h2>
+ * <h2>Accès en même temps</h2>
  *
- * Un {@code MAX} lu par deux transactions simultanées rendrait deux fois la même valeur. La
- * sérialisation s'appuie donc sur une ligne qui existe déjà : celle de l'ENTREPRISE, lue en
- * {@code SELECT ... FOR UPDATE} avant le calcul. La seconde vente attend que la première ait
- * validé, et lit alors un maximum à jour.
+ * Si deux transactions lisaient le {@code MAX} en même temps, elles auraient la même valeur.
+ * On les fait donc passer l'une après l'autre en verrouillant une ligne qui existe déjà :
+ * celle de l'ENTREPRISE, lue en {@code SELECT ... FOR UPDATE} avant le calcul. La deuxième
+ * vente attend que la première ait fini, et lit alors le bon maximum.
  *
- * Le prix est assumé : les créations de documents d'une même entreprise se suivent au lieu de se
- * croiser. Sur un back-office où quelques postes saisissent en parallèle, cela ne se voit pas.
- * Les entreprises restent indépendantes — chacune verrouille sa propre ligne.
+ * L'inconvénient : les créations de documents d'une même entreprise passent l'une après
+ * l'autre. Sur un back-office avec quelques postes, ça ne se voit pas. Les entreprises entre
+ * elles ne se bloquent pas, chacune verrouille sa propre ligne.
  */
 @Service
 public class DocumentNumberService {
@@ -83,19 +82,19 @@ public class DocumentNumberService {
     }
 
     /**
-     * Quatre chiffres, et la largeur n'est pas libre.
+     * Quatre chiffres, et on ne peut pas choisir n'importe quelle longueur.
      *
-     * Le maximum est calculé sur la CHAÎNE : sans remplissage, l'ordre lexicographique placerait
-     * 9 après 10 et la suite repartirait en arrière. Mais surtout, la largeur doit être celle
-     * DÉJÀ EN BASE — les données de départ numérotent en {@code CMD-2026-0034}. Émettre sur six
-     * chiffres ferait cohabiter deux largeurs, et {@code CMD-2026-0034} resterait éternellement
-     * supérieur à {@code CMD-2026-000035} : le compteur ne repartirait jamais.
+     * Le maximum est calculé sur la CHAÎNE : sans les zéros devant, l'ordre alphabétique
+     * mettrait 9 après 10 et la suite repartirait en arrière. Surtout, la longueur doit être
+     * celle DÉJÀ EN BASE : les données de départ sont au format {@code CMD-2026-0034}. Avec six
+     * chiffres, on aurait deux longueurs mélangées, et {@code CMD-2026-0034} resterait toujours
+     * plus grand que {@code CMD-2026-000035} : le compteur n'avancerait jamais.
      *
-     * Constaté à l'exécution, et non déduit : la première tentative sur six chiffres a produit
+     * On l'a vu en le lançant, pas en théorie : le premier essai avec six chiffres a donné
      * deux fois {@code CMD-2026-000001}.
      *
-     * Contrepartie : 9 999 documents par an et par entreprise. Au-delà, il faudrait élargir le
-     * format ET réécrire les numéros existants d'un même exercice.
+     * Limite : 9 999 documents par an et par entreprise. Au-delà, il faudrait agrandir le
+     * format ET renuméroter les documents existants de l'année.
      */
     private static final String NUMBER_FORMAT = "%s-%d-%04d";
 
@@ -116,26 +115,26 @@ public class DocumentNumberService {
     }
 
     /**
-     * Attribue le numéro suivant pour ce type de document, dans l'entreprise du contexte.
+     * Donne le numéro suivant pour ce type de document, dans l'entreprise en cours.
      *
-     * {@code MANDATORY} : cette méthode DOIT s'exécuter dans la transaction de l'appelant. Une
-     * transaction propre libérerait le verrou dès son commit, avant même que le document ne soit
-     * écrit — deux ventes simultanées pourraient alors obtenir le même numéro, ce que tout ceci
-     * vise précisément à empêcher.
+     * {@code MANDATORY} : cette méthode DOIT tourner dans la transaction de l'appelant. Avec sa
+     * propre transaction, le verrou serait libéré à son commit, avant même que le document soit
+     * enregistré, et deux ventes en même temps pourraient avoir le même numéro (justement ce
+     * qu'on veut éviter).
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public String next(DocumentType type) {
         Long companyId = TenantContext.getCompanyId();
         if (companyId == null) {
-            // Sans entreprise, la suite n'a pas de périmètre. Le cas ne devrait pas se produire —
-            // toute écriture métier passe par un utilisateur rattaché à une entreprise — mais il
-            // doit se voir immédiatement plutôt que de produire un numéro hors-sol.
+            // Sans entreprise, on ne sait pas quelle suite utiliser. Ça ne devrait pas arriver
+            // (toute écriture passe par un utilisateur qui a une entreprise), mais si ça arrive
+            // on veut le voir tout de suite plutôt que de générer un numéro qui ne veut rien dire.
             throw BusinessException.of("document.number.noCompany",
                     "Impossible d'attribuer un numéro de document hors du contexte d'une entreprise");
         }
 
-        // Point de sérialisation : tout se joue ici. Le verrou est relâché au commit de
-        // l'appelant, donc APRÈS l'écriture du document — le prochain lecteur verra ce numéro.
+        // C'est ici que tout se joue. Le verrou est libéré au commit de l'appelant, donc APRÈS
+        // l'enregistrement du document : le suivant verra bien ce numéro.
         companyRepository.findByIdForUpdate(companyId);
 
         int year = Year.now().getValue();
@@ -156,19 +155,19 @@ public class DocumentNumberService {
     }
 
     /**
-     * Extrait le compteur d'un numéro {@code PREFIXE-ANNEE-NNNN}, ou 0 s'il n'y en a pas encore.
+     * Récupère le compteur d'un numéro {@code PREFIXE-ANNEE-NNNN}, ou 0 s'il n'y en a pas encore.
      *
-     * Découpe sur le dernier tiret plutôt que sur une longueur fixe : le compteur reste lisible
-     * quelle que soit sa largeur, et une reprise des données sur cinq chiffres n'exigerait pas
-     * de retoucher ici.
+     * On coupe sur le dernier tiret plutôt qu'à une position fixe : comme ça on lit le
+     * compteur quelle que soit sa longueur, et si on passait un jour à cinq chiffres il n'y
+     * aurait rien à changer ici.
      *
-     * Les numéros à l'ancien format ({@code FACT-} suivi d'un horodatage) n'arrivent jamais
-     * jusqu'ici : le motif {@code LIKE 'FACT-2026-%'} de la requête les écarte, un horodatage en
-     * millisecondes commençant par 17 et non par l'année.
+     * Les anciens numéros ({@code FACT-} suivi d'un horodatage) n'arrivent jamais ici : le
+     * {@code LIKE 'FACT-2026-%'} de la requête les exclut, car un horodatage en millisecondes
+     * commence par 17 et pas par l'année.
      *
-     * Tolérant plutôt que brutal : une ligne héritée qui ressemblerait au motif sans en avoir la
-     * structure ne doit pas empêcher d'enregistrer une vente. Repartir de 0 est sans danger — la
-     * contrainte d'unicité reste le dernier mot, et l'échec serait franc.
+     * On reste tolérant : une vieille ligne qui ressemble au motif sans avoir le bon format ne
+     * doit pas empêcher d'enregistrer une vente. Repartir de 0 ne pose pas de problème, la
+     * contrainte d'unicité est là en dernier recours et l'erreur serait claire.
      */
     private long parseCounter(String maxNumber) {
         if (maxNumber == null) {

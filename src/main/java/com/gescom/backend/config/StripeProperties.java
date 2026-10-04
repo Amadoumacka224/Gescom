@@ -7,19 +7,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Paramétrage de l'intégration Stripe (préfixe {@code stripe} dans application.properties).
+ * Paramètres de Stripe (préfixe {@code stripe} dans application.properties).
  *
- * L'intégration est volontairement bornée au mode test :
+ * On reste exprès en mode test :
  * <ul>
- *   <li>{@code simulated} (défaut) — passerelle locale, aucun appel réseau, aucune clé requise.
- *       C'est ce mode qui permet de démontrer le parcours complet avec une clé factice.</li>
- *   <li>{@code api} — appels réels vers l'environnement de test de Stripe, avec une clé
+ *   <li>{@code simulated} (par défaut) : passerelle locale, aucun appel réseau, pas besoin de
+ *       clé. C'est ce mode qui permet de montrer tout le parcours avec une fausse clé.</li>
+ *   <li>{@code api} : vrais appels vers l'environnement de test de Stripe, avec une clé
  *       secrète de test {@code sk_test_...}.</li>
  * </ul>
  *
- * Une clé {@code sk_live_} est refusée au démarrage : cette application n'a aucune raison
- * d'encaisser réellement, et un mauvais paramétrage doit échouer bruyamment plutôt que
- * débiter une vraie carte.
+ * Une clé {@code sk_live_} est refusée au démarrage : l'application n'a pas à encaisser de
+ * vrais paiements, et une erreur de config doit planter clairement plutôt que débiter une
+ * vraie carte.
  */
 @Component
 @ConfigurationProperties(prefix = "stripe")
@@ -27,13 +27,13 @@ public class StripeProperties {
 
     private static final Logger log = LoggerFactory.getLogger(StripeProperties.class);
 
-    /** Mode d'exécution : {@code simulated} ou {@code api}. */
+    /** Mode : {@code simulated} ou {@code api}. */
     private String mode = "simulated";
 
-    /** Clé secrète Stripe. Ignorée en mode simulé ; doit être une clé de test en mode api. */
+    /** Clé secrète Stripe. Ignorée en mode simulé ; en mode api ce doit être une clé de test. */
     private String apiKey = "";
 
-    /** Devise ISO 4217 en minuscules (Stripe l'exige ainsi). */
+    /** Devise ISO 4217 en minuscules (Stripe le demande). */
     private String currency = "eur";
 
     public boolean isSimulated() {

@@ -1,17 +1,16 @@
 /**
- * Calculs de montants d'une ligne de commande.
+ * Calcul des montants d'une ligne de commande.
  *
- * Miroir exact de `OrderService.computeLineTotal` côté backend : prix de vente × quantité,
- * diminué de la remise exprimée en pourcentage. Centralisé ici parce que trois écrans
- * l'appliquaient chacun de leur côté (création, modification, panier de traitement) — et
- * qu'un écart d'arrondi entre l'aperçu et le montant réellement enregistré est le genre de
- * divergence qu'on ne voit qu'une fois la commande facturée.
+ * Même calcul que `OrderService.computeLineTotal` côté backend : prix de vente × quantité,
+ * moins la remise en pourcentage. C'est ici parce que trois écrans le faisaient chacun de
+ * leur côté (création, modification, panier), et une différence d'arrondi entre l'aperçu et
+ * le montant enregistré, on ne la voit qu'une fois la commande facturée.
  */
 
-/** Remise de ligne bornée à [0, 100] % — le backend refuse tout ce qui sort de cet intervalle. */
+/** Remise de ligne limitée entre 0 et 100 % (le backend refuse le reste). */
 export const clampDiscount = (value) => Math.min(Math.max(parseFloat(value) || 0, 0), 100);
 
-/** Montant brut d'une ligne, remise non déduite (sert à afficher le prix barré). */
+/** Montant brut d'une ligne, sans la remise (sert pour le prix barré). */
 export const lineGrossTotal = (item) =>
   (parseFloat(item?.unitPrice) || 0) * (parseInt(item?.quantity) || 0);
 
@@ -19,21 +18,21 @@ export const lineGrossTotal = (item) =>
 export const computeLineTotal = (item) =>
   lineGrossTotal(item) * (1 - clampDiscount(item?.discount) / 100);
 
-/** Total HT d'un panier = somme des montants nets de ses lignes. */
+/** Total HT d'un panier = somme des montants nets des lignes. */
 export const computeItemsTotal = (items) =>
   (items || []).reduce((sum, item) => sum + computeLineTotal(item), 0);
 
-/** Total brut d'un panier, avant remises de ligne. */
+/** Total brut d'un panier, avant les remises des lignes. */
 export const computeItemsGross = (items) =>
   (items || []).reduce((sum, item) => sum + lineGrossTotal(item), 0);
 
 /**
- * Montant HT d'une commande, remise globale déduite — ce que le client doit hors taxes.
+ * Montant HT d'une commande après la remise globale, ce que le client doit hors taxes.
  *
- * `totalAmount` est le sous-total *avant* remise globale (cf. `OrderService.applyGlobalDiscount`,
- * qui en dérive `finalAmount`). L'afficher tel quel dans une liste revient à annoncer un montant
- * que personne ne paiera dès qu'une remise existe. On repart donc de `finalAmount`, en le
- * recalculant si le backend ne l'a pas encore renseigné.
+ * `totalAmount` est le sous-total *avant* la remise globale (voir
+ * `OrderService.applyGlobalDiscount`, qui calcule `finalAmount`). Si on l'affichait dans une
+ * liste, on montrerait un montant que personne ne paiera dès qu'il y a une remise. On part
+ * donc de `finalAmount`, et on le recalcule si le backend ne l'a pas encore rempli.
  */
 export const orderNetAmount = (order) => {
   const gross = parseFloat(order?.totalAmount) || 0;
@@ -43,17 +42,16 @@ export const orderNetAmount = (order) => {
 };
 
 /**
- * Montant TTC d'une commande — ce que le client règle réellement, et donc ce qu'une liste de
- * commandes doit annoncer pour ne pas contredire la facture.
+ * Montant TTC d'une commande, ce que le client paie vraiment. C'est ce qu'une liste de
+ * commandes doit afficher pour être d'accord avec la facture.
  *
- * Facturée, la référence est le total de la facture : c'est le seul montant émis, taux de TVA
- * et remise commerciale compris (`InvoiceService.createInvoice`). Une facture annulée ne compte
- * pas — la commande retombe alors dans le cas non facturé.
+ * Si la commande est facturée, on prend le total de la facture : c'est le seul montant
+ * officiel, avec la TVA et la remise (`InvoiceService.createInvoice`). Une facture annulée
+ * ne compte pas, la commande est alors traitée comme pas facturée.
  *
- * Pas encore facturée, ce montant n'existe pas : la TVA n'est arrêtée qu'à la facturation. On
- * l'estime au taux configuré dans les réglages, exactement comme le panier de traitement, et le
- * drapeau `estimated` permet à l'appelant de le dire plutôt que de laisser croire à un montant
- * ferme.
+ * Si elle n'est pas encore facturée, ce montant n'existe pas encore : la TVA n'est fixée
+ * qu'à la facturation. On l'estime avec le taux des paramètres, comme le panier, et le flag
+ * `estimated` permet à l'appelant de dire que c'est une estimation.
  */
 export const orderPayableAmount = (order, taxRate) => {
   const live = order?.invoiceStatus && order.invoiceStatus !== 'CANCELED';

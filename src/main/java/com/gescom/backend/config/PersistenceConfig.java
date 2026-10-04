@@ -5,15 +5,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
- * Substitue {@link TenantAwareRepositoryImpl} a l'implementation par defaut de Spring Data
- * pour l'ensemble des repositories.
+ * Remplace l'implementation par defaut des repositories Spring Data par
+ * {@link TenantAwareRepositoryImpl}.
  *
- * C'est ce reglage, et lui seul, qui applique le controle d'appartenance aux acces par
- * identifiant : sans lui, {@code findById} continuerait de servir n'importe quelle ligne
- * de la base, filtre Hibernate ou non.
+ * C'est grace a ce reglage que les acces par id verifient l'entreprise : sans lui,
+ * {@code findById} renverrait n'importe quelle ligne de la base, filtre Hibernate ou pas.
  *
- * Declarer {@code @EnableJpaRepositories} desactive l'auto-configuration equivalente de
- * Spring Boot ; le package de base doit donc etre indique explicitement.
+ * Mettre {@code @EnableJpaRepositories} desactive la config automatique de Spring Boot,
+ * il faut donc indiquer le package de base a la main.
  */
 @Configuration
 @EnableJpaRepositories(

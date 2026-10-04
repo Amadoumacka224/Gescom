@@ -8,8 +8,8 @@ public record ClientResponse(
         Long id,
         String firstName,
         String lastName,
-        // Nom complet (prénom + nom) pré-calculé pour l'affichage : figure notamment sur la facture
-        // (modal de détail, génération PDF) sans recomposition côté client.
+        // Nom complet (prénom + nom) déjà calculé pour l'affichage : utilisé par exemple sur la
+        // facture (détail, PDF) sans avoir à le reconstruire côté front.
         String name,
         String email,
         String phone,

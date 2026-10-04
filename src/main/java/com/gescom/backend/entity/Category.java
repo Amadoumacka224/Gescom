@@ -16,9 +16,9 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Entité catégorie servant à classer les produits.
- * Le nom est unique ; le drapeau active permet de retirer une catégorie de la sélection
- * sans la supprimer (et donc sans casser les produits qui y sont déjà rattachés).
+ * Catégorie de produits.
+ * Le nom est unique. Le champ active permet de retirer une catégorie des choix sans la
+ * supprimer (donc sans casser les produits qui sont déjà dedans).
  */
 @Entity
 @Table(name = "categories", uniqueConstraints = @UniqueConstraint(name = "uq_categories_company_name", columnNames = {"company_id", "name"}))
@@ -35,11 +35,11 @@ public class Category implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)

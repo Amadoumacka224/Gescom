@@ -28,11 +28,10 @@ import { extractErrorMessage } from '../utils/apiError';
 import { formatCurrency } from '../utils/format';
 import { toast } from 'react-hot-toast';
 
-// Enchaînement linéaire des étapes pilotées depuis ce tableau de bord (hors CANCELED, qui est un
-// échappatoire). La livraison est gérée ailleurs ; en revanche le paiement fait partie intégrante
-// du processus et figure désormais comme dernière étape (« Payée »). L'état de paiement n'est pas
-// porté par la commande mais par la facture liée : il est donc déduit de celle-ci (cf.
-// lifecycleIndexFor, qui reçoit la facture).
+// Les étapes gérées depuis cet écran, dans l'ordre (CANCELED n'en fait pas partie, c'est une
+// sortie). La livraison est gérée ailleurs, mais le paiement fait partie du processus et c'est
+// la dernière étape (« Payée »). Le paiement n'est pas sur la commande mais sur sa facture,
+// donc on le déduit de la facture (voir lifecycleIndexFor).
 const LIFECYCLE_STEPS = [
   { key: 'PENDING', labelKey: 'status.order.PENDING' },
   { key: 'CONFIRMED', labelKey: 'status.order.CONFIRMED' },
@@ -40,15 +39,15 @@ const LIFECYCLE_STEPS = [
   { key: 'PAID', labelKey: 'status.order.PAID' }
 ];
 
-// Position de la commande dans la timeline [En attente, Confirmée, Facturée, Payée], en croisant le
-// statut de commande et l'état de la facture liée (source de vérité du paiement) :
-//  - l'index pointe l'étape « courante » (en cours) ; les étapes d'index inférieur sont complétées ;
-//  - un index >= LIFECYCLE_STEPS.length signifie « toutes les étapes franchies » (processus terminé).
+// Position de la commande dans [En attente, Confirmée, Facturée, Payée], calculée à partir du
+// statut de la commande et de celui de sa facture (c'est la facture qui dit si c'est payé) :
+//  - l'index donne l'étape en cours ; les étapes avant sont terminées ;
+//  - un index >= LIFECYCLE_STEPS.length veut dire que tout est terminé.
 // Règles :
-//  - facturée + intégralement réglée → toutes les étapes complétées ;
-//  - facturée + paiement partiel → étape « Payée » en cours ;
-//  - facturée + impayée → étape « Facturée » en cours, « Payée » à venir ;
-//  - livrée → processus considéré complet (réglé), sauf facture connue encore impayée.
+//  - facturée + payée en entier → tout est terminé ;
+//  - facturée + payée en partie → étape « Payée » en cours ;
+//  - facturée + pas payée → étape « Facturée » en cours, « Payée » à venir ;
+//  - livrée → terminé (payé), sauf si on sait que la facture n'est pas payée.
 const lifecycleIndexFor = (status, invoice) => {
   const fullyPaid = invoice?.status === 'PAID';
   const partiallyPaid = invoice?.status === 'PARTIALLY_PAID';
@@ -68,45 +67,41 @@ const lifecycleIndexFor = (status, invoice) => {
   }
 };
 
-// Le statut affiché est résolu par `constants/statusBadges.resolveOrderStatusKey`, partagé avec
-// la caisse et le tableau de bord. Cet écran en tenait sa propre version, qui ne reconnaissait
-// que le règlement intégral : une commande partiellement réglée s'affichait « Facturée » ici et
-// « Acompte versé » à la caisse, pour la même donnée.
+// Le statut affiché vient de `constants/statusBadges.resolveOrderStatusKey`, utilisé aussi par
+// la caisse et le tableau de bord. Avant, cet écran avait sa propre version qui ne gérait que
+// le paiement complet : une commande payée en partie affichait « Facturée » ici et « Acompte
+// versé » à la caisse.
 
 /**
- * Avancement d'une commande dans son cycle de vie, en barre à segments.
+ * Avancement d'une commande, sous forme de barre en segments.
  *
- * Forme choisie : quatre segments côte à côte, un par étape du cycle
- * [En attente → Confirmée → Facturée → Payée]. C'est la représentation adéquate ICI, dans une
- * cellule de tableau répétée sur des dizaines de lignes :
- *   - un anneau de progression (`components/ProgressRing`) demande ~40 px de haut et ferait
- *     doubler la hauteur de chaque ligne, alors qu'il n'encode pas davantage ;
- *   - une barre continue dirait « 75 % » sans dire de quoi — or les étapes sont discrètes et
- *     nommées, pas un pourcentage ;
- *   - une courbe n'a pas de sens : il n'y a pas de série temporelle, mais une position dans
- *     une file d'étapes.
- * Quatre segments alignés se lisent d'un coup d'œil sur toute la colonne, et la comparaison
- * entre lignes se fait sans lire — c'est ce qu'on demande à un tableau.
+ * Quatre segments côte à côte, un par étape [En attente → Confirmée → Facturée → Payée].
+ * C'est ce qui marche le mieux dans une cellule de tableau répétée sur beaucoup de lignes :
+ *   - un anneau (`components/ProgressRing`) fait ~40 px de haut et doublerait la hauteur des
+ *     lignes sans rien apporter de plus ;
+ *   - une barre continue afficherait « 75 % » sans dire de quoi, alors que ce sont des étapes ;
+ *   - un graphique n'a pas de sens, ce n'est pas une évolution dans le temps.
+ * Avec quatre segments alignés, on compare les lignes d'un coup d'œil.
  *
- * La couleur ne porte jamais seule l'information : la légende sous la barre nomme l'étape
- * courante et son rang (« 3/4 · Facturée »), et `aria-label` la reprend pour les lecteurs
- * d'écran. Les nuances suivent l'échelle monochrome de la charte (cf. src/index.css).
+ * La couleur n'est jamais la seule info : le texte sous la barre donne l'étape en cours et
+ * son numéro (« 3/4 · Facturée »), et `aria-label` le reprend pour les lecteurs d'écran.
+ * Les couleurs suivent les nuances de bleu de la charte (voir src/index.css).
  *
- * L'avancement est calculé par `lifecycleIndexFor`, qui croise le statut de la commande et
- * celui de sa facture — le paiement n'est pas porté par la commande. Dans la liste, cette
- * facture se résume à `order.invoiceStatus`.
+ * L'avancement est calculé par `lifecycleIndexFor`, à partir du statut de la commande et de
+ * sa facture (le paiement n'est pas sur la commande). Dans la liste, la facture est résumée
+ * par `order.invoiceStatus`.
  */
-// `compact` : la même barre en 96 px au lieu de 128, pour tenir sous le badge de statut quand
-// la colonne « Progression » n'est pas affichée.
+// `compact` : la même barre en 96 px au lieu de 128, pour passer sous le badge de statut quand
+// la colonne « Progression » est cachée.
 const OrderProgress = ({ order, compact = false }) => {
   const { t } = useTranslation();
   const index = lifecycleIndexFor(order.status, { status: order.invoiceStatus });
   const canceled = index < 0;
   const done = index >= LIFECYCLE_STEPS.length;
 
-  // La dernière étape s'intitule « Payée » : c'est son objectif, pas l'état atteint. Sur un
-  // règlement partiel, la légende annonçait donc « 4/4 · Payée » pour une facture à moitié
-  // réglée. On y nomme l'état réel, dans les mêmes termes que le badge de la colonne voisine.
+  // La dernière étape s'appelle « Payée », c'est le but, pas forcément l'état actuel. Avec un
+  // paiement partiel, on affichait « 4/4 · Payée » pour une facture à moitié payée. On affiche
+  // donc le vrai état, avec les mêmes mots que le badge à côté.
   const stepLabel = order.invoiceStatus === 'PARTIALLY_PAID'
     ? t('status.order.PARTIALLY_PAID')
     : t(LIFECYCLE_STEPS[index]?.labelKey ?? 'status.order.PENDING');
@@ -135,14 +130,13 @@ const OrderProgress = ({ order, compact = false }) => {
     <div className={compact ? 'w-24' : 'w-32'} role="img" aria-label={t('orders.progress.regionAria', { detail: ariaLabel })}>
       <div className="flex items-center gap-1" aria-hidden="true">
         {LIFECYCLE_STEPS.map((step, i) => {
-          // Trois états par segment : franchi (dense), en cours (médian), à venir (piste).
-          // Une commande annulée n'a plus d'étape en cours : tout retombe en piste neutre.
-          // Les crans sont choisis pour que « en cours » se détache à la fois du franchi et de
-          // la piste, dans les deux thèmes : en sombre, un bleu trop foncé pour l'étape courante
-          // se confondrait avec le gris bleuté de la piste.
-          // `gray-500` et non `gray-600` en sombre : la piste est posée sur une carte
-          // `gray-800`, et il faut deux crans d'écart pour qu'un filet de 6 px de haut se
-          // détache du bleu nuit du fond.
+          // Trois états par segment : fait (foncé), en cours (moyen), à venir (clair).
+          // Une commande annulée n'a plus d'étape en cours, tout passe en neutre.
+          // Les nuances sont choisies pour que « en cours » se distingue bien de « fait » et de
+          // « à venir » dans les deux thèmes : en mode sombre, un bleu trop foncé se confondait
+          // avec le gris bleuté du fond.
+          // `gray-500` et pas `gray-600` en mode sombre : la barre est sur une carte `gray-800`,
+          // il faut deux nuances d'écart pour qu'une barre de 6 px de haut se voie.
           let tone = 'bg-gray-200 dark:bg-gray-500';
           if (!canceled && i < index) tone = 'bg-primary-600 dark:bg-primary-300';
           else if (!canceled && i === index) tone = 'bg-primary-400 dark:bg-primary-500';
@@ -166,16 +160,14 @@ const OrderProgress = ({ order, compact = false }) => {
   );
 };
 
-// Palettes des cartes KPI, indexées par jeton (cf. section Tuiles d'indicateurs de index.css).
-// Comme les tuiles du tableau de bord, ce bandeau suit l'échelle MONOCHROME de la charte et
-// non les teintes sémantiques des badges : c'est la profondeur du bleu qui ordonne les cartes,
-// dans l'ordre neutral < success < accent < info < warning < danger. Les badges de la colonne
-// « Statut », eux, gardent vert / ambre / rouge — un bandeau porte l'identité de l'écran, une
-// ligne de tableau doit se lire sans réfléchir.
-// Chaque carte est teintée en entier — surface, bordure, libellé, valeur, disque d'icône —
-// et non plus blanche avec une seule icône colorée. Le jeton `neutral` a été retiré : aucune
-// carte de ce bandeau ne doit tomber en gris, la teinte est ce qui rend le statut lisible
-// d'un coup d'œil. Classes écrites en toutes lettres, sinon Tailwind les purge du build.
+// Couleurs des cartes de stats, par valeur (voir la section des cartes dans index.css).
+// Comme sur le tableau de bord, ces cartes utilisent les nuances de BLEU de la charte et pas
+// les couleurs des badges : c'est l'intensité du bleu qui les distingue, dans l'ordre
+// neutral < success < accent < info < warning < danger. Les badges de la colonne « Statut »
+// gardent vert / orange / rouge, car une ligne de tableau doit se lire sans réfléchir.
+// Chaque carte est entièrement colorée (fond, bordure, texte, icône), plus seulement l'icône.
+// La valeur `neutral` a été retirée : aucune carte ici ne doit être grise.
+// Les classes sont écrites en entier, sinon Tailwind les supprime du build.
 const KPI_ACCENTS = {
   success: {
     tile: 'bg-primary-50 border-primary-200/70', label: 'text-primary-800', value: 'text-primary-900',
@@ -199,37 +191,35 @@ const KPI_ACCENTS = {
   }
 };
 
-// Nombre de lignes par page par défaut. Doit rester une des valeurs proposées par le sélecteur
-// de `components/Pagination` (5/10/20/50/100), sinon celui-ci s'affiche vide au chargement.
+// Nombre de lignes par page par défaut. Doit être une des valeurs du sélecteur de
+// `components/Pagination` (5/10/20/50/100), sinon il s'affiche vide au chargement.
 const ORDERS_PER_PAGE = 20;
 
-/** Mémorise le mode d'affichage entre deux visites, comme les autres tableaux de bord. */
+/** Garde le mode d'affichage d'une visite à l'autre, comme sur les autres écrans. */
 const VIEW_MODE_KEY = 'ordersViewMode';
 
-/** Nombre de commandes mises en avant dans la vue d'aperçu (les dernières créées). */
+/** Nombre de commandes affichées dans l'aperçu (les dernières créées). */
 const RECENT_COUNT = 5;
 
 /**
  * En-tête de colonne triable.
  *
- * Déclaré au niveau du module et non dans le corps de `Orders` : un composant redéfini à
- * chaque rendu est démonté puis remonté par React, et le bouton perdrait le focus au clavier
- * juste après le clic qui a déclenché le tri.
+ * Défini en dehors de `Orders` : un composant redéfini à chaque rendu est démonté puis
+ * remonté par React, et le bouton perdrait le focus clavier juste après le clic.
  *
- * `aria-sort` porte au lecteur d'écran la même information que l'icône.
+ * `aria-sort` donne au lecteur d'écran la même info que l'icône.
  */
 /**
- * Colonnes triables, traduites en clé de tri pour le serveur.
+ * Colonnes triables, avec la clé de tri envoyée au serveur.
  *
- * Deux colonnes ont perdu leur tri, et c'est délibéré : « Articles » est une somme des
- * quantités des lignes, « Avancement » se déduit du statut ET de celui de la facture. Ni l'un
- * ni l'autre n'est une colonne que la base sait ordonner, et les trier au sein de la seule page
- * affichée produirait un tableau qui se prétend trié sans l'être — le piège même que la
- * pagination serveur est censée fermer. Mieux vaut retirer l'affordance que mentir.
+ * Deux colonnes ne sont plus triables, exprès : « Articles » est une somme des quantités, et
+ * « Avancement » dépend du statut ET de la facture. La base ne sait trier ni l'un ni l'autre,
+ * et les trier seulement dans la page affichée donnerait un faux tri. Donc on enlève le tri
+ * plutôt que d'afficher quelque chose de faux.
  *
- * `payableAmount` n'est pas non plus un champ : c'est le montant TTC reconstruit en SQL, que le
- * serveur sait ordonner parce qu'il pose l'ORDER BY sur l'expression elle-même. Le tri suit
- * donc exactement les chiffres de la colonne, y compris quand une facture change la donne.
+ * `payableAmount` n'est pas non plus un champ : c'est le montant TTC calculé en SQL, et le
+ * serveur fait l'ORDER BY directement sur ce calcul. Le tri correspond donc bien aux montants
+ * affichés, même quand il y a une facture.
  */
 const SORT_FIELDS = {
   orderNumber: 'orderNumber',
@@ -246,9 +236,9 @@ const SortHeader = ({ label, sortKey, sort, onSort, align = 'left', className = 
     <th
       scope="col"
       aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      // `px-4` resserre le rembourrage de `.table-th` (px-6) : la couche `utilities` de Tailwind
-      // passe après `components`, l'utilitaire l'emporte donc sans `!`. Huit colonnes à px-6
-      // suffisaient à pousser la colonne « Actions » hors de l'écran.
+      // `px-4` réduit le padding de `.table-th` (px-6) : dans Tailwind `utilities` passe après
+      // `components`, donc ça marche sans `!`. Avec huit colonnes en px-6, la colonne
+      // « Actions » sortait de l'écran.
       className={`${align === 'right' ? 'table-th-right' : 'table-th'} px-4 ${className}`}
     >
       <button
@@ -265,10 +255,9 @@ const SortHeader = ({ label, sortKey, sort, onSort, align = 'left', className = 
   );
 };
 
-// Teintes des actions en icône, graduées par gravité et prises dans la palette sémantique :
-// consultation neutre, modification informative, annulation en avertissement, suppression
-// en danger. L'orange et l'émeraude d'origine sortaient de la palette et mettaient
-// « Annuler » et « Supprimer » sur un pied d'égalité visuelle.
+// Couleurs des boutons icône, selon la gravité : voir en neutre, modifier en info, annuler
+// en avertissement, supprimer en danger. Avant, l'orange et le vert utilisés n'étaient pas
+// dans la charte et « Annuler » ressemblait autant que « Supprimer ».
 const ICON_ACTION_STYLES = {
   neutral: 'text-gray-600 hover:bg-gray-100',
   info: 'text-blue-600 hover:bg-blue-50',
@@ -276,10 +265,10 @@ const ICON_ACTION_STYLES = {
   danger: 'text-red-600 hover:bg-red-50',
 };
 
-// Bouton d'action secondaire (icône) de la barre d'actions d'une commande.
-// `onClick` reçoit l'évènement : on stoppe la propagation pour ne pas déclencher
-// le clic de la ligne (ouverture du détail). `disabled` couvre les actions asynchrones
-// (génération de PDF) pour empêcher le double déclenchement.
+// Bouton icône pour les actions secondaires d'une commande.
+// `onClick` reçoit l'événement : on arrête la propagation pour ne pas ouvrir le détail
+// (clic sur la ligne). `disabled` sert pendant les actions async (génération du PDF)
+// pour éviter le double clic.
 const IconAction = ({ icon: Icon, title, color = 'neutral', onClick, disabled = false }) => (
   <button
     type="button"
@@ -302,57 +291,57 @@ const Orders = () => {
   const [clients, setClients] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  // Critères de recherche regroupés dans un seul objet : la liste en compte quinze, et un
-  // `useState` par critère rendait impossible une réinitialisation ou un comptage global.
+  // Tous les filtres dans un seul objet : il y en a quinze, et avec un `useState` par filtre
+  // on ne pouvait pas tout réinitialiser ou compter les filtres actifs facilement.
   const [filters, setFilters] = useState(EMPTY_ORDER_FILTERS);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
-  // Tri du tableau. `dir` bascule asc/desc sur la colonne déjà active.
+  // Tri du tableau. `dir` passe de asc à desc si on reclique sur la même colonne.
   const [sort, setSort] = useState({ key: 'createdAt', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(ORDERS_PER_PAGE);
-  // Vue par défaut : seules les dernières commandes créées sont mises en avant. La liste
-  // complète s'obtient par la bascule d'affichage — ou d'office dès qu'un filtre est actif.
+  // Par défaut on n'affiche que les dernières commandes. La liste complète s'affiche avec le
+  // bouton de bascule, ou automatiquement dès qu'un filtre est actif.
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_MODE_KEY) || 'recent');
-  // Cardinalité du résultat courant, renvoyée par le serveur : elle n'est plus déductible de
-  // `orders`, qui ne porte que la page affichée.
+  // Nombre total de résultats, renvoyé par le serveur (on ne peut plus le déduire de
+  // `orders`, qui ne contient que la page affichée).
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
-  // Décompte par statut des tuiles. Il décrit tout le périmètre de l'utilisateur, jamais la
-  // page : les tuiles servent justement à filtrer, donc à changer de page.
+  // Nombre de commandes par statut pour les cartes. Porte sur toutes les commandes de
+  // l'utilisateur, pas sur la page : les cartes servent justement à filtrer.
   const [summary, setSummary] = useState({
     total: 0, pending: 0, confirmed: 0, invoiced: 0, delivered: 0, canceled: 0,
   });
-  // Opérateurs et villes des listes déroulantes. Ils doivent rester exhaustifs : un opérateur
-  // qui n'apparaît qu'en page 3 doit être proposé depuis la page 1.
+  // Utilisateurs et villes des listes déroulantes. Il faut la liste complète : quelqu'un qui
+  // n'apparaît qu'en page 3 doit être proposé dès la page 1.
   const [filterOptions, setFilterOptions] = useState({ operators: [], cities: [] });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  // Panier de traitement : poste de travail unique du cycle de vie (articles → validation →
-  // confirmation → facturation → encaissement → PDF). Ouvert vierge pour une nouvelle vente,
-  // ou sur une commande existante pour en reprendre le cours là où il en est.
+  // Panier : tout le traitement de la commande se fait là (articles → validation →
+  // confirmation → facturation → encaissement → PDF). Ouvert vide pour une nouvelle vente,
+  // ou sur une commande existante pour continuer là où elle en est.
   const [showWorkspace, setShowWorkspace] = useState(false);
   const [workspaceOrder, setWorkspaceOrder] = useState(null);
-  // Paiement d'une commande facturée : on encaisse sur la facture liée (GET /invoices/order/:id).
+  // Paiement d'une commande facturée : on paie sur sa facture (GET /invoices/order/:id).
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  // Facture liée à la commande ouverte dans le modal de détail : sert à n'afficher l'action de
-  // paiement que si un reliquat existe réellement (et à montrer un statut « réglée » sinon).
+  // Facture de la commande ouverte dans le détail : sert à n'afficher le bouton de paiement
+  // que s'il reste vraiment quelque chose à payer (sinon on affiche « réglée »).
   const [detailInvoice, setDetailInvoice] = useState(null);
   const [detailInvoiceLoading, setDetailInvoiceLoading] = useState(false);
-  // Commande dont le PDF de facture est en cours de génération (verrou anti double-clic + retour
-  // visuel : le document est produit côté navigateur après un ou deux appels réseau).
+  // Commande dont le PDF est en cours de génération (évite le double clic et affiche un
+  // chargement : le PDF est généré dans le navigateur après un ou deux appels réseau).
   const [downloadingOrderId, setDownloadingOrderId] = useState(null);
-  // Facturation en ligne : on crée la facture directement depuis ce tableau de bord (sans renvoi
-  // vers la page Factures). La commande passe alors à INVOICED et l'action « Paiement » apparaît ici.
+  // Facturation directement depuis cet écran (sans passer par la page Factures). La commande
+  // passe en INVOICED et le bouton « Paiement » apparaît ici.
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
-  // Taux de TVA et échéance viennent des réglages de l'entreprise, comme dans l'atelier de
-  // commande : deux écrans qui facturent la même commande doivent proposer le même taux.
+  // TVA et échéance viennent des paramètres de l'entreprise, comme dans le panier : deux
+  // écrans qui facturent la même commande doivent proposer le même taux.
   const { settings, defaultTaxRate, defaultDueDate } = useSettings();
-  // Taux retenu pour estimer le TTC des commandes pas encore facturées, dans la liste comme
-  // dans les filtres et le tri : un seul et même chiffre pour les trois.
+  // Taux utilisé pour estimer le TTC des commandes pas encore facturées (liste, filtres et
+  // tri) : le même partout.
   const listTaxRate = defaultTaxRate();
   const blankInvoiceForm = () => ({
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -373,8 +362,8 @@ const Orders = () => {
     orderItems: []
   });
 
-  // Modifier un critère renvoie systématiquement en page 1 : rester en page 4 d'un jeu de
-  // résultats qui vient d'en perdre trois affiche une liste vide et se lit comme un bug.
+  // Quand on change un filtre on revient à la page 1 : rester en page 4 alors qu'il n'y a
+  // plus qu'une page afficherait une liste vide, on croirait à un bug.
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
     setPage(1);
@@ -385,22 +374,22 @@ const Orders = () => {
     setPage(1);
   };
 
-  // Ouverture du panier de traitement. Sans commande : nouvelle vente. Avec commande : reprise
-  // du traitement là où il en est (confirmation, facturation, encaissement).
+  // Ouvre le panier. Sans commande : nouvelle vente. Avec une commande : on reprend là où
+  // elle en est (confirmation, facturation, encaissement).
   const openWorkspace = (order = null) => {
     setWorkspaceOrder(order);
     setShowWorkspace(true);
   };
 
-  // Après une action du panier, la liste et le stock des produits ont bougé.
+  // Après une action dans le panier, la liste et le stock des produits ont changé.
   const refreshAfterWorkspaceAction = () => {
     refreshOrders();
     fetchProducts();
   };
 
-  // Référentiels et agrégats : chargés une fois, ils ne dépendent pas de la page affichée.
-  // Le chargement de la page elle-même est déclaré plus bas, après `queryParams` dont il
-  // dépend — le référencer ici le lirait avant son initialisation.
+  // Données de référence et compteurs : chargés une fois, ils ne dépendent pas de la page.
+  // Le chargement de la page est plus bas, après `queryParams` dont il dépend (si on
+  // l'utilisait ici, il ne serait pas encore initialisé).
   useEffect(() => {
     fetchProducts();
     fetchClients();
@@ -410,8 +399,8 @@ const Orders = () => {
   }, []);
 
   useEffect(() => {
-    // Commande à ouvrir au chargement : soit ?orderId= dans l'URL (caisse, supervision — le
-    // lien reste partageable et ouvrable dans un nouvel onglet), soit l'ancien relais par
+    // Commande à ouvrir au chargement : soit ?orderId= dans l'URL (caisse, suivi des caisses ;
+    // le lien peut être partagé ou ouvert dans un nouvel onglet), soit l'ancien passage par
     // localStorage encore utilisé par la page Rapports.
     const selectedOrderId = searchParams.get('orderId') || localStorage.getItem('selectedOrderId');
     if (selectedOrderId && orders.length > 0) {
@@ -419,7 +408,7 @@ const Orders = () => {
       if (order) {
         setSelectedOrder(order);
         setShowDetailsModal(true);
-        // Scroll to the order in the list
+        // Scroll jusqu'à la commande dans la liste
         setTimeout(() => {
           const element = document.getElementById(`order-${selectedOrderId}`);
           if (element) {
@@ -427,7 +416,7 @@ const Orders = () => {
           }
         }, 100);
       }
-      // Consommé : on nettoie les deux canaux pour ne pas rouvrir le détail au rechargement.
+      // Une fois utilisé, on nettoie les deux pour ne pas rouvrir le détail au rechargement.
       localStorage.removeItem('selectedOrderId');
       if (searchParams.has('orderId')) {
         setSearchParams({}, { replace: true });
@@ -435,9 +424,9 @@ const Orders = () => {
     }
   }, [orders, searchParams, setSearchParams]);
 
-  // À l'ouverture du détail d'une commande facturable, on récupère sa facture pour connaître
-  // l'état réel du paiement (réglée / reliquat / annulée) et adapter l'action proposée. On ignore
-  // un 404 (pas encore de facture) : la section paiement reste alors masquée.
+  // Quand on ouvre le détail d'une commande facturée, on charge sa facture pour connaître
+  // l'état du paiement (payée / reste à payer / annulée) et proposer le bon bouton. Un 404
+  // (pas encore de facture) est ignoré : la partie paiement reste cachée.
   useEffect(() => {
     if (!showDetailsModal || !selectedOrder || !canPayOrder(selectedOrder)) {
       setDetailInvoice(null);
@@ -464,9 +453,9 @@ const Orders = () => {
     }
   };
 
-  // Catégories : on charge la liste complète (et non celles déduites des produits) afin que la
-  // colonne de gauche du POS affiche aussi les catégories encore vides — des produits pourront y
-  // être rattachés plus tard. On masque les catégories désactivées (active === false).
+  // Catégories : on charge toute la liste (pas seulement celles des produits) pour que la
+  // colonne de gauche affiche aussi les catégories vides, où on ajoutera peut-être des produits
+  // plus tard. Les catégories désactivées (active === false) sont cachées.
   const fetchCategories = async () => {
     try {
       const response = await api.get('/categories');
@@ -497,9 +486,9 @@ const Orders = () => {
         totalPages: Math.max(1, data.totalPages ?? 1),
       });
     } catch (error) {
-      // Un échec de chargement laisse la liste vide et le signale. L'écran retombait
-      // auparavant sur un jeu de commandes fictives, que rien ne distinguait de vraies
-      // ventes : l'application paraissait fonctionner alors que l'API était injoignable.
+      // Si le chargement échoue, la liste reste vide et on affiche une erreur. Avant, l'écran
+      // affichait des fausses commandes de démo qu'on ne pouvait pas distinguer des vraies :
+      // l'appli avait l'air de marcher alors que l'API ne répondait pas.
       console.error('Error fetching orders:', error);
       toast.error(t('orders.loadError'));
       setOrders([]);
@@ -508,7 +497,7 @@ const Orders = () => {
     }
   };
 
-  /** Décompte des tuiles : à rafraîchir après toute écriture, un changement de statut le déplaçant. */
+  /** Compteurs des cartes : à recharger après chaque modif, un changement de statut les fait bouger. */
   const fetchSummary = async () => {
     try {
       const { data } = await api.get('/orders/summary');
@@ -518,7 +507,7 @@ const Orders = () => {
     }
   };
 
-  /** Options des filtres. Endpoint dédié : /users est réservé à l'ADMIN, pas ce périmètre-ci. */
+  /** Options des filtres. Endpoint à part car /users est réservé à l'ADMIN. */
   const fetchFilterOptions = async () => {
     try {
       const { data } = await api.get('/orders/filter-options');
@@ -528,27 +517,27 @@ const Orders = () => {
     }
   };
 
-  /** Recharge page, tuiles et options — à appeler après toute écriture sur une commande. */
+  /** Recharge la page, les cartes et les options. À appeler après chaque modif d'une commande. */
   const refreshOrders = async () => {
     await Promise.all([fetchOrders(), fetchSummary(), fetchFilterOptions()]);
   };
 
   const handleViewDetails = (order) => {
-    // Optimisation: Utiliser directement les données si disponibles
+    // On utilise directement les données si on les a déjà
     setSelectedOrder(order);
     setShowDetailsModal(true);
   };
 
   const handleEdit = (order) => {
-    // Une commande n'est modifiable qu'au stade brouillon (PENDING). Une fois confirmée,
-    // ses lignes sont figées (elles ont sorti du stock et servent de base à la facture).
+    // Une commande ne se modifie qu'en brouillon (PENDING). Une fois confirmée, les lignes
+    // sont figées (le stock est sorti et elles servent pour la facture).
     if (order.status !== 'PENDING') {
       toast(t('orders.page.onlyPendingEditable'), { icon: 'ℹ️' });
       handleViewDetails(order);
       return;
     }
     setSelectedOrder(order);
-    // Transformer les items pour avoir le bon format avec productId
+    // Met les lignes au bon format, avec productId
     const formattedItems = (order.items || []).map(item => ({
       productId: item.product?.id?.toString() || '',
       unitPrice: item.unitPrice || 0,
@@ -568,7 +557,7 @@ const Orders = () => {
 
   const handleUpdateOrder = async () => {
     try {
-      // Vérifier que tous les articles ont un produit sélectionné
+      // Vérifie que chaque ligne a bien un produit
       const hasEmptyProduct = editForm.orderItems.some(item => !item.productId);
       if (hasEmptyProduct) {
         toast.error(t('orders.selectProductForItem'));
@@ -580,21 +569,21 @@ const Orders = () => {
         return;
       }
 
-      // Garde de stock : éviter d'enregistrer une commande qui ne pourra pas être confirmée.
+      // Contrôle du stock : pas la peine d'enregistrer une commande qu'on ne pourra pas confirmer.
       if (editHasStockIssue) {
         toast.error(t('orders.page.linesExceedStock'));
         return;
       }
 
-      // Transformer les items pour le backend (nouveau format DTO)
+      // Lignes au format attendu par le backend (DTO)
       const transformedItems = editForm.orderItems.map(item => ({
         productId: parseInt(item.productId),
         quantity: parseInt(item.quantity),
         discount: parseFloat(item.discount) || 0
       }));
 
-      // Préparer les données pour la mise à jour. Le statut n'est plus envoyé : il est piloté
-      // par les actions dédiées (confirmation, annulation) côté backend.
+      // Données pour la mise à jour. On n'envoie pas le statut : il change seulement via les
+      // actions prévues (confirmation, annulation) côté backend.
       const updateData = {
         items: transformedItems
       };
@@ -638,9 +627,9 @@ const Orders = () => {
     }
   };
 
-  // Étape suivante du cycle : facturation en ligne, sans quitter le tableau de bord. On ouvre un
-  // modal pré-rempli (mêmes réglages par défaut que la page Factures) ; la création se fait via
-  // l'API puis la liste est rafraîchie.
+  // Étape suivante : facturer sans quitter cet écran. On ouvre un modal pré-rempli (mêmes
+  // valeurs par défaut que la page Factures), on crée la facture via l'API puis on recharge
+  // la liste.
   const handleInvoiceOrder = (order) => {
     setInvoiceOrder(order);
     setInvoiceForm(blankInvoiceForm());
@@ -649,12 +638,12 @@ const Orders = () => {
 
   const handleSubmitInvoice = async () => {
     if (!invoiceOrder) return;
-    // Validations alignées sur le contrat backend (InvoiceCreateRequest) + cohérence métier :
+    // Mêmes contrôles que le backend (InvoiceCreateRequest), plus quelques vérifs métier :
     if (!invoiceForm.invoiceDate || !invoiceForm.dueDate) {
       toast.error(t('orders.page.invoiceDatesRequired'));
       return;
     }
-    // L'échéance ne peut pas précéder l'émission de la facture.
+    // L'échéance ne peut pas être avant la date d'émission.
     if (invoiceForm.dueDate < invoiceForm.invoiceDate) {
       toast.error(t('orders.steps.dueBeforeInvoice'));
       return;
@@ -685,20 +674,20 @@ const Orders = () => {
     }
   };
 
-  // Bouton principal : décrit l'unique « prochaine étape » cohérente du cycle de vie selon le
-  // statut courant — Confirmer → Facturer → Encaisser. La livraison se gère ailleurs ; une commande
-  // déjà livrée (DELIVERED), hors-flux (CANCELED) ou déjà soldée n'expose donc pas d'action
-  // principale (null). La clé `key` permet d'éviter d'afficher en double l'action « Paiement »
-  // là où elle est déjà proposée comme action secondaire (cf. canRecordPayment).
-  // `invoice` est optionnelle : quand elle n'est pas chargée, on retombe sur le statut de facture
-  // porté par la liste (`order.invoiceStatus`).
+  // Bouton principal : la seule étape suivante possible selon le statut (Confirmer → Facturer
+  // → Encaisser). La livraison est gérée ailleurs, donc une commande livrée (DELIVERED),
+  // annulée (CANCELED) ou déjà payée n'a pas de bouton principal (null). `key` sert à ne pas
+  // afficher deux fois « Paiement » quand il est déjà en action secondaire (voir
+  // canRecordPayment).
+  // `invoice` est optionnelle : si elle n'est pas chargée, on utilise le statut de facture
+  // renvoyé par la liste (`order.invoiceStatus`).
   const getPrimaryAction = (order, invoice) => {
     switch (order?.status) {
       case 'PENDING':
         return {
           key: 'CONFIRM',
           label: t('orders.steps.confirmOrder'), shortLabel: t('orders.page.confirmShort'), icon: CheckCircle,
-          // Teinte du statut d'arrivée : confirmer mène à CONFIRMED (info).
+          // Couleur du statut d'arrivée : confirmer donne CONFIRMED (info).
           className: 'bg-blue-600 hover:bg-blue-700', onClick: () => handleConfirmOrder(order)
         };
       case 'CONFIRMED':
@@ -708,10 +697,10 @@ const Orders = () => {
           className: 'bg-violet-600 hover:bg-violet-700', onClick: () => handleInvoiceOrder(order)
         };
       case 'INVOICED': {
-        // Facture soldée (ou annulée) : plus rien à encaisser, on n'expose aucune action.
+        // Facture payée (ou annulée) : plus rien à encaisser, pas de bouton.
         if (paymentSettled(order, invoice)) return null;
-        // Un acompte déjà versé change la nature de l'action : il ne s'agit plus d'encaisser
-        // la facture mais d'en solder le reliquat. Le libellé le dit.
+        // Si un acompte a déjà été payé, on ne parle plus d'encaisser la facture mais de payer
+        // le reste. Le libellé change en conséquence.
         const partial = (invoice?.status ?? order?.invoiceStatus) === 'PARTIALLY_PAID';
         return {
           key: 'PAY',
@@ -726,52 +715,52 @@ const Orders = () => {
     }
   };
 
-  // Règles métier (miroir du backend) garantissant la cohérence des transitions :
-  //  - modification autorisée uniquement au stade brouillon (OrderService.updateOrder exige PENDING) ;
-  //  - annulation possible tant que la commande n'est pas dans un état terminal (livrée/annulée)
-  //    ET qu'aucune facture vivante ne lui est rattachée.
+  // Règles métier (les mêmes que côté backend) :
+  //  - modification seulement en brouillon (OrderService.updateOrder demande PENDING) ;
+  //  - annulation possible tant que la commande n'est pas livrée ou déjà annulée,
+  //    ET qu'elle n'a pas de facture active.
   const canEditOrder = (order) => order?.status === 'PENDING';
 
-  // Annulation : reproduit fidèlement les deux gardes de OrderService.cancelOrder, pour ne jamais
-  // proposer un bouton qui finirait en erreur 400 :
-  //  1. la machine à états autorise CANCELED depuis PENDING / CONFIRMED / INVOICED uniquement
-  //     (DELIVERED et CANCELED sont terminaux) ;
-  //  2. une commande facturée ne s'annule qu'une fois sa facture elle-même annulée (cohérence
-  //     financière). Une commande payée — ou seulement facturée en attente de règlement — n'expose
-  //     donc pas l'action : le parcours passe d'abord par l'annulation de la facture.
-  // `invoice` est optionnelle : à défaut on lit le statut de facture porté par la liste.
+  // Annulation : mêmes conditions que OrderService.cancelOrder, pour ne jamais afficher un
+  // bouton qui finirait en erreur 400 :
+  //  1. on ne peut passer à CANCELED que depuis PENDING / CONFIRMED / INVOICED
+  //     (DELIVERED et CANCELED sont des états finaux) ;
+  //  2. une commande facturée ne peut être annulée qu'après avoir annulé sa facture. Donc
+  //     une commande payée ou facturée en attente de paiement n'a pas le bouton : il faut
+  //     d'abord annuler la facture.
+  // `invoice` est optionnelle : sinon on lit le statut de facture renvoyé par la liste.
   const canCancelOrder = (order, invoice = null) => {
     if (!['PENDING', 'CONFIRMED', 'INVOICED'].includes(order?.status)) return false;
     if (order?.status !== 'INVOICED') return true;
     return (invoice?.status ?? order?.invoiceStatus) === 'CANCELED';
   };
-  // Une commande est *concernée* par le paiement dès qu'elle est facturée : c'est ce prédicat qui
-  // déclenche le chargement de la facture et l'affichage de la section paiement du détail (laquelle
-  // sait montrer « réglée » aussi bien qu'un reliquat).
+  // Une commande est concernée par le paiement dès qu'elle est facturée : c'est ce qui
+  // déclenche le chargement de la facture et l'affichage de la partie paiement dans le détail
+  // (qui peut afficher « réglée » ou un reste à payer).
   const canPayOrder = (order) => ['INVOICED', 'DELIVERED'].includes(order?.status);
 
-  // Le statut de paiement vit sur la facture. La liste /orders en porte une copie
-  // (`order.invoiceStatus`), ce qui permet de masquer l'action sans attendre un chargement.
+  // Le statut de paiement est sur la facture. La liste /orders en renvoie une copie
+  // (`order.invoiceStatus`), ce qui permet de cacher le bouton sans attendre de chargement.
   const paymentSettled = (order, invoice) => {
     const status = invoice?.status ?? order?.invoiceStatus;
     return status === 'PAID' || status === 'CANCELED';
   };
 
-  // Action « Paiement » réellement proposable : facturée et pas encore soldée/annulée.
+  // Bouton « Paiement » affiché seulement si la commande est facturée et pas encore payée / annulée.
   const canRecordPayment = (order, invoice) =>
     canPayOrder(order) && !paymentSettled(order, invoice);
 
-  // Reste-t-il une étape à traiter ? C'est ce qui décide d'ouvrir — ou non — le panier de
-  // traitement depuis le détail : proposer de « poursuivre » une commande close n'a pas de
-  // suite à offrir, et donne au caissier l'impression d'avoir manqué quelque chose.
+  // Est-ce qu'il reste une étape à faire ? Ça décide si on propose d'ouvrir le panier depuis
+  // le détail. Proposer de « continuer » une commande terminée ne mènerait à rien et ferait
+  // croire au caissier qu'il a oublié quelque chose.
   //
-  // Sont closes : la commande annulée, celle qui est facturée puis intégralement réglée, et la
-  // commande livrée sans reliquat. Une facture *annulée* ne clôt rien en revanche : la commande
-  // reste à annuler à son tour (cf. canCancelOrder), il y a donc bien une suite.
+  // Sont terminées : la commande annulée, la commande facturée et payée en entier, et la
+  // commande livrée sans reste à payer. Par contre une facture annulée ne termine rien : il
+  // faut encore annuler la commande (voir canCancelOrder).
   //
-  // `invoice` est optionnelle : à défaut on lit le statut de facture porté par la liste. En cas
-  // de statut inconnu on considère qu'il reste du travail — mieux vaut une action de trop qu'un
-  // dossier qu'on ne peut plus reprendre.
+  // `invoice` est optionnelle : sinon on lit le statut de facture de la liste. Si le statut
+  // est inconnu, on considère qu'il reste quelque chose à faire (mieux vaut un bouton en trop
+  // qu'une commande qu'on ne peut plus reprendre).
   const hasNextStep = (order, invoice = null) => {
     if (order?.status === 'CANCELED') return false;
     if (!canPayOrder(order)) return true; // PENDING / CONFIRMED : confirmation ou facturation
@@ -781,19 +770,18 @@ const Orders = () => {
     return true;
   };
 
-  // Génère et télécharge le PDF de la facture liée à une commande. `invoice` est passée quand
-  // elle est déjà chargée (détail, carte vedette) pour éviter un aller-retour ; depuis la liste
-  // on la résout par commande. Tous les points d'entrée /invoices renvoient le même
-  // InvoiceResponse, qui porte la commande, son client et ses lignes — soit tout ce dont le
-  // générateur a besoin.
+  // Génère et télécharge le PDF de la facture d'une commande. On passe `invoice` quand elle
+  // est déjà chargée (détail, carte) pour éviter un appel ; depuis la liste on la cherche par
+  // commande. Tous les endpoints /invoices renvoient le même InvoiceResponse, avec la
+  // commande, le client et les lignes, donc tout ce qu'il faut pour le PDF.
   const handleDownloadInvoice = async (order, invoice = null) => {
     if (downloadingOrderId) return;
     setDownloadingOrderId(order.id);
     try {
       const fullInvoice = invoice ?? (await api.get(`/invoices/order/${order.id}`)).data;
       // Coordonnées de l'entreprise (en-tête + mentions légales), déjà chargées par
-      // `useSettings` : leur indisponibilité ne bloque pas l'édition du document, le
-      // générateur applique ses propres valeurs par défaut.
+      // `useSettings`. Si elles manquent, on génère quand même le PDF avec les valeurs par
+      // défaut.
       await generateInvoicePDF(fullInvoice, settings || {});
     } catch (error) {
       console.error('Error generating invoice PDF:', error);
@@ -808,16 +796,16 @@ const Orders = () => {
   const remainingOf = (invoice) =>
     Number(invoice?.remainingAmount ?? ((invoice?.totalAmount || 0) - (invoice?.paidAmount || 0))) || 0;
 
-  // Téléchargement du PDF : proposé dès qu'un règlement est intervenu — facture soldée (PAID)
-  // comme partiellement payée (PARTIALLY_PAID). Le document produit reflète fidèlement l'état du
-  // règlement — bandeau « PARTIELLEMENT PAYÉE », montant déjà réglé et reste à payer — il vaut
-  // donc justificatif d'acompte et ne risque pas d'être pris pour une facture soldée.
-  // Restent exclues :
-  //  - la facture annulée, document caduc qui n'a pas à circuler ;
-  //  - la facture encore impayée, qui relève du suivi de facturation plutôt que du tableau de bord
-  //    des commandes — l'écran Factures la fournit à tout stade, aucune capacité n'est perdue.
-  // Le reliquat nul est accepté au même titre que le statut PAID : c'est la règle déjà retenue
-  // par la section paiement du détail, qui tolère les arrondis au centime.
+  // Le PDF est proposé dès qu'il y a eu un paiement : facture payée (PAID) ou payée en
+  // partie (PARTIALLY_PAID). Le PDF montre l'état du paiement (bandeau « PARTIELLEMENT
+  // PAYÉE », montant déjà payé et reste à payer), donc il sert de justificatif d'acompte et
+  // on ne peut pas le confondre avec une facture payée.
+  // Pas de PDF pour :
+  //  - une facture annulée, qui n'a plus de valeur ;
+  //  - une facture pas encore payée : ça relève de l'écran Factures, qui permet de la
+  //    télécharger à tout moment, donc on ne perd rien.
+  // Un reste à payer de zéro compte comme PAID : c'est la même règle que la partie paiement
+  // du détail, qui accepte les arrondis au centime.
   const canDownloadInvoice = (order, invoice = null) => {
     if (!canPayOrder(order)) return false;
     const status = invoice?.status ?? order?.invoiceStatus;
@@ -826,7 +814,7 @@ const Orders = () => {
     return !!invoice && remainingOf(invoice) <= 0.001;
   };
 
-  // Récupère la facture liée à la commande puis ouvre le modal de paiement.
+  // Charge la facture de la commande puis ouvre le modal de paiement.
   const handleOpenPayment = async (order) => {
     try {
       const { data: invoice } = await api.get(`/invoices/order/${order.id}`);
@@ -862,7 +850,7 @@ const Orders = () => {
       toast.error(t('orders.page.enterValidAmount'));
       return;
     }
-    // Petite tolérance flottante pour autoriser le solde exact.
+    // Petite marge pour les arrondis des flottants, pour accepter le montant exact.
     if (amount > remaining + 0.001) {
       toast.error(t('orders.steps.amountExceeds', { amount: formatCurrency(remaining) }));
       return;
@@ -889,9 +877,9 @@ const Orders = () => {
   const handleEditItemChange = (index, field, value) => {
     const updatedItems = [...editForm.orderItems];
 
-    // Si on change le produit, mettre à jour le prix automatiquement
+    // Si le produit change, on met à jour le prix
     if (field === 'productId') {
-      // Une ligne par produit : on refuse un produit déjà présent ailleurs dans la commande.
+      // Une ligne par produit : on refuse un produit déjà présent dans la commande.
       const isDuplicate = value &&
         editForm.orderItems.some((it, i) => i !== index && String(it.productId) === String(value));
       if (isDuplicate) {
@@ -912,7 +900,7 @@ const Orders = () => {
       updatedItems[index] = { ...updatedItems[index], [field]: value };
     }
 
-    // Recalculer le total
+    // Recalcule le total
     const newTotal = computeItemsTotal(updatedItems);
 
     setEditForm(prev => ({
@@ -951,15 +939,15 @@ const Orders = () => {
         refreshOrders();
       } catch (error) {
         console.error('Error deleting order:', error);
-        // Le refus est motivé côté serveur (retour client rattaché, par exemple) : afficher le
-        // message reçu plutôt qu'un « échec » qui n'apprend rien, comme pour l'annulation.
+        // Le serveur donne la raison du refus (par exemple un retour client lié) : on affiche
+        // son message plutôt qu'un simple « échec », comme pour l'annulation.
         toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
       }
     }
   };
 
-  // L'icône est le seul apport local : le libellé vient de la table canonique `status.order.*`,
-  // partagée avec les badges des autres écrans.
+  // Seule l'icône est définie ici : le texte vient de `status.order.*`, utilisé aussi par
+  // les badges des autres écrans.
   const getStatusBadge = (status) => {
     const icons = {
       PENDING: Clock,
@@ -980,7 +968,7 @@ const Orders = () => {
     );
   };
 
-  /** Date et heure dans la convention de la langue active. */
+  /** Date et heure au format de la langue choisie. */
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString(t('export.locale'), {
@@ -992,7 +980,7 @@ const Orders = () => {
     });
   };
 
-  // Rend une ligne de commande. Extraite pour être réutilisée dans chaque groupe de statut.
+  // Affiche une ligne de commande. Fonction à part pour la réutiliser dans chaque groupe de statut.
   const renderOrderRow = (order) => {
     const isHighlighted = selectedOrder?.id === order.id && showDetailsModal;
     return (
@@ -1020,13 +1008,12 @@ const Orders = () => {
             <span>{formatDate(order.createdAt)}</span>
           </div>
         </td>
-        {/* Le client se replie sur deux lignes plutôt que de réclamer 266 px d'un seul tenant :
-            c'est la colonne la plus large du tableau, et la seule dont le contenu accepte d'être
-            plié sans perte de lecture. */}
+        {/* Le client passe sur deux lignes au lieu de prendre 266 px d'un coup : c'est la
+            colonne la plus large, et la seule qu'on peut couper sans gêner la lecture. */}
         <td className="max-w-[11rem] px-4 py-3">
           {order.client ? (
-            /* Société affichée sous le nom quand elle existe : c'est souvent elle qu'on cherche
-               dans une liste B2B, et elle départage les homonymes. */
+            /* Société affichée sous le nom si elle existe : en B2B c'est souvent elle qu'on
+               cherche, et ça aide à distinguer deux clients qui ont le même nom. */
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400 shrink-0" />
               <div className="min-w-0">
@@ -1046,7 +1033,7 @@ const Orders = () => {
         </td>
         <td className="hidden min-[1720px]:table-cell px-4 py-3 whitespace-nowrap">
           {/* Nombre d'articles = somme des quantités, pas nombre de lignes : c'est ce qui est
-              réellement sorti du stock. */}
+              vraiment sorti du stock. */}
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Package className="w-4 h-4 text-gray-400 shrink-0" />
             <span className="tabular-nums">
@@ -1055,13 +1042,12 @@ const Orders = () => {
           </div>
         </td>
         <td className="px-4 py-3 whitespace-nowrap">
-          {/* Total TTC, le montant réellement réclamé — celui de la facture dès qu'elle existe,
-              donc le même chiffre que sur l'écran Factures. C'est le sous-total HT *avant*
-              remise globale qui figurait ici : il ne correspondait ni à la facture, ni même à
-              ce que la commande valait une fois remisée. */}
+          {/* Total TTC, le montant à payer : celui de la facture dès qu'elle existe, donc le
+              même que sur l'écran Factures. Avant on affichait le sous-total HT avant remise,
+              qui ne correspondait ni à la facture ni au montant après remise. */}
           {(() => {
             const { amount, estimated } = orderPayableAmount(order, listTaxRate);
-            // Sous-ligne : la nature du chiffre puis la remise, seulement si elles existent.
+            // Ligne en dessous : le type de montant puis la remise, seulement s'il y en a.
             const notes = [
               estimated ? t('orders.page.amountEstimated') : null,
               (parseFloat(order.discount) || 0) > 0
@@ -1088,26 +1074,24 @@ const Orders = () => {
           })()}
         </td>
         <td className="px-4 py-3 whitespace-nowrap">
-          {/* La liste /orders porte le statut de la facture liée : une commande facturée puis
-              réglée s'affiche « Payée » — et « Acompte versé » si le règlement est partiel. */}
+          {/* La liste /orders renvoie le statut de la facture : une commande facturée et payée
+              affiche « Payée », et « Acompte versé » si elle est payée en partie. */}
           {getStatusBadge(resolveOrderStatusKey(order))}
-          {/* Sous le badge tant que la colonne « Progression » n'a pas la place d'exister :
-              la barre reste lisible à toutes les largeurs sans coûter une colonne de 160 px,
-              et le badge qu'elle complète est juste au-dessus. */}
+          {/* Affiché sous le badge tant que la colonne « Progression » est cachée : la barre
+              reste visible à toutes les tailles sans prendre une colonne de 160 px. */}
           <div className="mt-2 min-[1720px]:hidden">
             <OrderProgress order={order} compact />
           </div>
         </td>
         <td className="hidden min-[1720px]:table-cell px-4 py-3 whitespace-nowrap">
-          {/* Complémentaire du badge, pas redondant : le badge nomme l'état courant, la barre
-              situe la commande dans le cycle et montre ce qu'il reste à faire. */}
+          {/* Le badge donne l'état actuel, la barre montre où en est la commande et ce qu'il
+              reste à faire. Les deux se complètent. */}
           <OrderProgress order={order} />
         </td>
         <td className="px-3 py-3 whitespace-nowrap text-sm">
-          {/* Barre d'actions : bouton principal (prochaine étape du cycle
-              PENDING→Confirmer→Facturer→Livrer) + paiement, puis actions
-              secondaires en icônes (détail, modification, annulation, suppression),
-              séparées par un trait fin pour une lecture plus claire. */}
+          {/* Boutons : l'action principale (étape suivante PENDING→Confirmer→Facturer→Livrer)
+              + paiement, puis les actions secondaires en icônes (détail, modifier, annuler,
+              supprimer), séparées par un trait. */}
           <div className="flex items-center justify-end gap-1">
             {(() => {
               const primary = getPrimaryAction(order);
@@ -1125,9 +1109,9 @@ const Orders = () => {
               );
             })()}
 
-            {/* Cas d'une commande livrée dont la facture garde un reliquat : l'action principale
-                est vide, l'encaissement reste proposé ici. Même vocabulaire que le bouton
-                principal — « Solde » dès qu'un acompte a été versé. */}
+            {/* Commande livrée mais facture pas entièrement payée : pas d'action principale,
+                donc on propose le paiement ici. Même libellé que le bouton principal
+                (« Solde » si un acompte a déjà été payé). */}
             {canRecordPayment(order) && getPrimaryAction(order)?.key !== 'PAY' && (
               <button
                 onClick={(e) => { e.stopPropagation(); handleOpenPayment(order); }}
@@ -1170,7 +1154,7 @@ const Orders = () => {
             {order.status === 'CANCELED' && (
               <IconAction icon={Trash2} title={t('common.delete')} color="danger" onClick={() => handleDelete(order)} />
             )}
-            {/* DELIVERED : statut terminal — consultation (et paiement si reliquat) uniquement. */}
+            {/* DELIVERED : état final, on peut seulement consulter (et payer s'il reste un montant). */}
           </div>
         </td>
       </motion.tr>
@@ -1180,32 +1164,32 @@ const Orders = () => {
   // ---------------------------------------------------------------------------------------
   // Recherche, tri, pagination
   //
-  // Tout est appliqué EN BASE, par GET /orders/search : cet écran ne reçoit qu'une page.
-  // Les critères sont donc traduits en paramètres de requête (voir `queryParams` plus bas) et
-  // non plus évalués sur une liste chargée en entier.
+  // Tout est fait EN BASE par GET /orders/search : l'écran ne reçoit qu'une page.
+  // Les filtres sont donc envoyés en paramètres de requête (voir `queryParams` plus bas)
+  // au lieu d'être appliqués sur une liste complète.
   //
-  // Ajouter un critère se fait désormais des deux côtés : son champ dans `OrderFilters`, sa
-  // clé dans `EMPTY_ORDER_FILTERS`, son paramètre dans `queryParams`, et sa condition dans
-  // `OrderService.buildFilter`. L'évaluer ici ne porterait que sur la page reçue.
+  // Pour ajouter un filtre, il faut modifier les deux côtés : le champ dans `OrderFilters`,
+  // la clé dans `EMPTY_ORDER_FILTERS`, le paramètre dans `queryParams` et la condition dans
+  // `OrderService.buildFilter`. Le faire seulement ici ne filtrerait que la page reçue.
   // ---------------------------------------------------------------------------------------
 
-  // Options des filtres, servies par /orders/filter-options. Les déduire de `orders` ne
-  // proposerait plus que les valeurs de la page affichée, et un critère disparaîtrait de la
-  // liste dès qu'on change de page. L'endpoint reste dans le périmètre des commandes : lister
-  // les utilisateurs par /users est réservé à l'ADMIN, alors que ce filtre sert aussi au caissier.
+  // Options des filtres, renvoyées par /orders/filter-options. Si on les tirait de `orders`,
+  // on n'aurait que celles de la page affichée et un filtre disparaîtrait en changeant de
+  // page. On passe par cet endpoint plutôt que /users, qui est réservé à l'ADMIN alors que ce
+  // filtre sert aussi au caissier.
   const orderUsers = filterOptions.operators;
   const orderCities = filterOptions.cities;
 
-  // Un critère actif force la liste complète : filtrer pour n'en voir que six premières
-  // n'aurait aucun sens — et les tuiles d'indicateurs sont elles-mêmes des filtres de statut.
+  // Si un filtre est actif on affiche toute la liste : filtrer seulement les six premières
+  // n'aurait pas de sens (et les cartes de stats sont elles-mêmes des filtres de statut).
   const hasActiveFilters = useMemo(
     () => Object.keys(EMPTY_ORDER_FILTERS).some((key) => filters[key] !== EMPTY_ORDER_FILTERS[key]),
     [filters],
   );
   const showFullList = hasActiveFilters || viewMode === 'all';
 
-  // Frappe temporisée sur les deux champs libres : sans cela, chaque caractère partirait au
-  // serveur. Les autres critères sont des listes ou des dates, choisis d'un coup.
+  // Debounce sur les deux champs texte, sinon chaque caractère partirait au serveur. Les
+  // autres filtres sont des listes ou des dates, choisis en une fois.
   const [debouncedQ, setDebouncedQ] = useState('');
   const [debouncedNotes, setDebouncedNotes] = useState('');
   useEffect(() => {
@@ -1217,11 +1201,10 @@ const Orders = () => {
   }, [filters.q, filters.notes]);
 
   /**
-   * Critères envoyés au serveur.
+   * Paramètres envoyés au serveur.
    *
-   * La vue « dernières commandes » n'est plus un découpage de la liste chargée mais une requête
-   * à part entière : la première page triée par date décroissante. La même chose, exprimée là
-   * où sont les données.
+   * La vue « dernières commandes » est maintenant une vraie requête : la première page triée
+   * par date décroissante.
    */
   const queryParams = useMemo(() => {
     if (!showFullList) {
@@ -1235,7 +1218,7 @@ const Orders = () => {
     if (debouncedQ) params.q = debouncedQ;
     if (debouncedNotes) params.notes = debouncedNotes;
     if (filters.status !== 'ALL') params.status = filters.status;
-    // « Pas encore facturée » est l'ABSENCE de facture vivante, pas un statut de facture.
+    // « Pas encore facturée » veut dire pas de facture active, ce n'est pas un statut de facture.
     if (filters.payment === 'NONE') params.notInvoiced = true;
     else if (filters.payment !== 'ALL') params.payment = filters.payment;
     if (filters.clientId) params.clientId = filters.clientId;
@@ -1252,21 +1235,21 @@ const Orders = () => {
     return params;
   }, [showFullList, page, perPage, sort, debouncedQ, debouncedNotes, filters]);
 
-  // Le filtrage, le tri et la pagination sont faits en base : `orders` porte déjà la page
-  // demandée, dans l'ordre demandé. Refiltrer ou retrier ici ne porterait que sur les lignes
-  // reçues, et donnerait un tableau qui se prétend trié sans l'être.
+  // Le filtrage, le tri et la pagination sont faits en base : `orders` contient déjà la bonne
+  // page dans le bon ordre. Refiltrer ou retrier ici ne porterait que sur les lignes reçues
+  // et donnerait un faux tri.
   const displayedOrders = orders;
   const totalPages = pageMeta.totalPages;
   const currentPage = page;
 
-  // Rechargement de la page à chaque changement de critère, de tri ou de numéro de page.
+  // Recharge la page quand un filtre, le tri ou le numéro de page change.
   useEffect(() => {
     fetchOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryParams]);
 
-  // Toute modification du périmètre ramène à la première page : rester en page 5 d'un résultat
-  // qui n'en compte plus que 2 afficherait un tableau vide.
+  // Dès que les filtres changent on revient à la page 1 : rester en page 5 alors qu'il n'y en
+  // a plus que 2 afficherait un tableau vide.
   useEffect(() => {
     setPage(1);
   }, [debouncedQ, debouncedNotes, filters, sort, perPage, viewMode]);
@@ -1287,14 +1270,14 @@ const Orders = () => {
   };
 
   // Stats
-  // Décompte du périmètre entier, agrégé en base (cf. /api/orders/summary). Le recalculer sur
-  // `orders` ne décrirait que la page — et ces tuiles sont elles-mêmes des filtres de statut :
-  // annoncer « 3 en attente » d'après la page ouverte, puis en afficher douze après un clic,
-  // ferait douter de l'un comme de l'autre.
+  // Compteurs sur toutes les commandes, calculés en base (voir /api/orders/summary). Si on
+  // les calculait sur `orders`, ils ne porteraient que sur la page. Et comme ces cartes
+  // servent de filtres, afficher « 3 en attente » puis en montrer douze après le clic serait
+  // assez déroutant.
   const stats = summary;
 
-  // Cartes KPI cliquables (chacune filtre la liste sur son statut).
-  // Chaque carte reprend le jeton du statut qu'elle filtre (cf. ORDER_STATUS_TONE).
+  // Cartes de stats cliquables (chacune filtre la liste sur son statut).
+  // Chaque carte prend la couleur du statut qu'elle filtre (voir ORDER_STATUS_TONE).
   const kpiCards = [
     { key: 'ALL', label: t('orders.page.kpiTotal'), value: stats.total, icon: ShoppingCart, accent: 'success' },
     { key: 'PENDING', label: t('dashboard.status.pending'), value: stats.pending, icon: Clock, accent: ORDER_STATUS_TONE.PENDING },
@@ -1304,14 +1287,14 @@ const Orders = () => {
     { key: 'CANCELED', label: t('dashboard.status.canceled'), value: stats.canceled, icon: XCircle, accent: ORDER_STATUS_TONE.CANCELED }
   ];
 
-  // Valeurs dérivées du formulaire d'édition (le client est figé : seuls les articles comptent).
+  // Valeurs calculées du formulaire de modification (le client ne change pas, seuls les articles comptent).
   const editGrossTotal = editForm.orderItems.reduce(
     (sum, item) => sum + (parseFloat(item.unitPrice) || 0) * (parseInt(item.quantity) || 0), 0);
   const editDiscountTotal = editGrossTotal - editForm.totalAmount;
   const editItemCount = editForm.orderItems.length;
-  // Mêmes garde-fous que la création : une commande PENDING dont une ligne dépasse le stock
-  // serait enregistrée mais ne pourrait jamais être confirmée (confirmOrder lève alors une
-  // InsufficientStockException). On bloque donc en amont.
+  // Mêmes contrôles qu'à la création : une commande PENDING avec une ligne qui dépasse le
+  // stock serait enregistrée mais ne pourrait jamais être confirmée (confirmOrder lancerait
+  // une InsufficientStockException). On bloque donc avant.
   const editHasStockIssue = editForm.orderItems.some((item) => {
     const product = products.find((p) => p.id === parseInt(item.productId));
     return product && parseInt(item.quantity) > product.stockQuantity;
@@ -1348,11 +1331,11 @@ const Orders = () => {
         </div>
       </div>
 
-      {/* ---- Étage 1 : indicateurs, qui servent aussi de filtres rapides sur le statut ---- */}
+      {/* ---- Niveau 1 : cartes de stats, qui servent aussi de filtres sur le statut ---- */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {kpiCards.map((kpi, i) => {
-          // Repli sur `info` plutôt que sur un gris : un jeton inconnu ne doit pas
-          // réintroduire une carte neutre dans le bandeau.
+          // Par défaut `info` et pas du gris : une valeur inconnue ne doit pas remettre une
+          // carte grise dans la rangée.
           const accent = KPI_ACCENTS[kpi.accent] ?? KPI_ACCENTS.info;
           const active = filters.status === kpi.key;
           const Icon = kpi.icon;
@@ -1383,7 +1366,7 @@ const Orders = () => {
         })}
       </div>
 
-      {/* ---- Étage 2 : recherche et filtres ---- */}
+      {/* ---- Niveau 2 : recherche et filtres ---- */}
       <OrderFilters
         filters={filters}
         onChange={handleFilterChange}
@@ -1397,9 +1380,9 @@ const Orders = () => {
         cities={orderCities}
       />
 
-      {/* ---- Étage 3 : la liste de travail, toujours visible ---- */}
+      {/* ---- Niveau 3 : la liste, toujours visible ---- */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-card overflow-hidden">
-        {/* En-tête du répertoire : ce qu'on regarde, et l'étendue de ce qu'on regarde. */}
+        {/* En-tête de la liste : ce qu'on affiche et combien. */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div>
             <h2 className="section-title">{t('orders.page.directoryTitle')}</h2>
@@ -1409,8 +1392,8 @@ const Orders = () => {
                 : t('orders.page.directoryPreview', { count: RECENT_COUNT })}
             </p>
           </div>
-          {/* La bascule disparaît quand un filtre est actif : la liste est alors complète
-              d'office, un sélecteur sans effet se lirait comme une panne. */}
+          {/* Le bouton de bascule disparaît quand un filtre est actif : la liste est alors
+              forcément complète, et un bouton qui ne fait rien ferait penser à un bug. */}
           {!hasActiveFilters && orders.length > 0 && (
             <SegmentedFilter
               label={t('orders.page.viewModeLabel')}
@@ -1428,35 +1411,32 @@ const Orders = () => {
           <table className="w-full">
             <thead className="bg-gray-50/80 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700">
               {/*
-                Dévoilement progressif des colonnes — le tableau porte huit colonnes et faisait
-                1643 px de large, quelle que soit la fenêtre. La zone visible valant la largeur
-                d'écran moins la barre latérale (1126 px à 1440, 1052 px à 1366), la colonne
-                « Actions » tombait hors champ sur tout écran de moins de 1957 px : elle n'était
-                atteignable qu'en faisant défiler le tableau latéralement, sans rien qui le
-                laisse deviner.
+                Les colonnes s'affichent selon la largeur de l'écran. Le tableau a huit
+                colonnes et faisait 1643 px de large quelle que soit la fenêtre. Avec la place
+                disponible (largeur moins le menu : 1126 px en 1440, 1052 px en 1366), la
+                colonne « Actions » sortait de l'écran sous 1957 px, et il fallait scroller
+                horizontalement pour la trouver, sans que rien ne l'indique.
 
-                Le secondaire s'efface donc au fur et à mesure, comme le fait déjà `Table.jsx` :
-                « Articles » et « Progression » ne reprennent leur colonne qu'à partir de
-                1720 px, « Date & heure » à partir de 1536 px. En dessous, les cinq colonnes qui
-                portent la décision — numéro, client, montant, statut, actions — tiennent dans
-                l'écran.
+                Donc les colonnes secondaires se cachent au fur et à mesure, comme dans
+                `Table.jsx` : « Articles » et « Progression » apparaissent à partir de 1720 px,
+                « Date & heure » à partir de 1536 px. En dessous, les cinq colonnes importantes
+                (numéro, client, montant, statut, actions) tiennent dans l'écran.
 
-                La barre de progression, elle, ne disparaît jamais : quand sa colonne s'efface,
-                elle se replie sous le badge de statut (voir la cellule « Statut »), qu'elle
-                complète de toute façon. Ce n'est que sa colonne qui cède la place, pas elle.
+                La barre de progression reste toujours visible : quand sa colonne est cachée,
+                elle passe sous le badge de statut (voir la cellule « Statut »).
               */}
               <tr>
                 <SortHeader label={t('orders.orderNumber')} sortKey="orderNumber" sort={sort} onSort={toggleSort} />
                 <SortHeader label={t('orders.page.columnDateTime')} sortKey="createdAt" sort={sort} onSort={toggleSort} className="hidden 2xl:table-cell" />
                 <SortHeader label={t('orders.client')} sortKey="client" sort={sort} onSort={toggleSort} />
-                {/* Non triable : somme des quantités des lignes, que la base n'ordonne pas —
-                    voir SORT_FIELDS. */}
+                {/* Pas triable : c'est une somme des quantités, la base ne sait pas trier
+                    dessus (voir SORT_FIELDS). */}
                 <th className="hidden min-[1720px]:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {t('orders.items')}
                 </th>
                 <SortHeader label={t('orders.page.columnAmount')} sortKey="totalAmount" sort={sort} onSort={toggleSort} />
                 <SortHeader label={t('orders.status')} sortKey="status" sort={sort} onSort={toggleSort} />
-                {/* Non triable : dérivé du statut ET de celui de la facture — voir SORT_FIELDS. */}
+                {/* Pas triable : dépend du statut ET de la facture (voir SORT_FIELDS). */}
                 <th className="hidden min-[1720px]:table-cell px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {t('orders.page.columnProgress')}
                 </th>
@@ -1465,8 +1445,8 @@ const Orders = () => {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {loading ? (
-                /* Lignes squelettes plutôt qu'un « Chargement… » centré : la structure du tableau
-                   reste visible, et rien ne peut se lire à tort comme « aucun résultat ». */
+                /* Lignes squelettes plutôt qu'un « Chargement… » au milieu : on voit la
+                   structure du tableau et on ne confond pas avec « aucun résultat ». */
                 Array.from({ length: 5 }).map((_, rowIndex) => (
                   <tr key={`skeleton-${rowIndex}`}>
                     {Array.from({ length: 8 }).map((__, cellIndex) => (
@@ -1479,8 +1459,8 @@ const Orders = () => {
               ) : displayedOrders.length === 0 ? (
                 <tr>
                   <td colSpan={8}>
-                    {/* Deux vides différents : « aucune commande » et « aucun résultat » n'appellent
-                        pas la même action, le second doit proposer de relâcher les filtres. */}
+                    {/* Deux messages différents : « aucune commande » et « aucun résultat ».
+                        Le second propose d'enlever les filtres. */}
                     <div className="text-center py-12">
                       <ShoppingCart className="empty-state-icon mb-4" />
                       {orders.length === 0 ? (
@@ -1512,8 +1492,8 @@ const Orders = () => {
           </table>
         </div>
 
-        {/* Pagination : seulement en liste complète — la vue d'aperçu n'affiche que six lignes,
-            un pied de pagination y serait trompeur. */}
+        {/* Pagination seulement quand toute la liste est affichée (l'aperçu n'a que six
+            lignes, une pagination n'aurait pas de sens). */}
         {showFullList && !loading && pageMeta.totalElements > 0 && (
           <Pagination
             currentPage={currentPage}
@@ -1529,8 +1509,8 @@ const Orders = () => {
       {/* Order Details Modal */}
       <AnimatePresence>
         {showDetailsModal && selectedOrder && (() => {
-          /* Montants et décisions dérivés une seule fois : le même chiffre ne doit pas pouvoir
-             diverger entre l'en-tête, le récapitulatif et le pied d'actions. */
+          /* Montants et conditions calculés une seule fois, pour avoir le même chiffre dans
+             l'en-tête, le récapitulatif et les boutons. */
           const client = selectedOrder.client;
           const items = selectedOrder.items || [];
           const grossTotal = Number(selectedOrder.totalAmount || 0);
@@ -1542,8 +1522,8 @@ const Orders = () => {
           const paid = Number(liveInvoice?.paidAmount || 0);
           const invoiceRemaining = liveInvoice ? remainingOf(liveInvoice) : 0;
           const settled = !!liveInvoice && invoiceRemaining <= 0.001;
-          // Une fois la facture émise, le montant de référence est le total TTC : c'est lui
-          // qui est encaissé. Sans facture vivante, la commande se lit en HT.
+          // Une fois la facture créée, le montant de référence est le TTC (c'est lui qu'on
+          // encaisse). Sans facture active, on affiche le HT.
           const headlineAmount = liveInvoice ? liveInvoice.totalAmount : netTotal;
           const primary = getPrimaryAction(selectedOrder, detailInvoice);
           const showPayment = canPayOrder(selectedOrder) && !!liveInvoice && !settled;
@@ -1561,9 +1541,9 @@ const Orders = () => {
             size="lg"
           >
             <div className="space-y-6">
-              {/* ---- En-tête : de quelle commande parle-t-on, pour combien, et où en est-elle.
-                   L'avancement figure ici et non au fond de la fiche parmi les boutons : c'est
-                   la première question qu'on se pose en ouvrant une commande. ---- */}
+              {/* ---- En-tête : quelle commande, quel montant, et où elle en est.
+                   L'avancement est ici et pas en bas avec les boutons, car c'est la première
+                   chose qu'on veut savoir en ouvrant une commande. ---- */}
               <header className="-mx-6 -mt-6 border-b border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-700 dark:bg-gray-900/40">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
                   <div className="min-w-0">
@@ -1576,8 +1556,8 @@ const Orders = () => {
                         : t('orders.walkInClient')}
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-                      {/* Statut effectif : reflète le paiement réel porté par la facture —
-                          « Payée » une fois soldée, « Acompte versé » tant qu'un reliquat subsiste. */}
+                      {/* Statut réel, selon le paiement de la facture : « Payée » une fois tout
+                          payé, « Acompte versé » tant qu'il reste un montant. */}
                       {getStatusBadge(resolveOrderStatusKey(selectedOrder, detailInvoice))}
                       <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                         <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1615,8 +1595,8 @@ const Orders = () => {
                 ) : (
                   (() => {
                     const currentIndex = lifecycleIndexFor(selectedOrder.status, detailInvoice);
-                    // Même nuance que dans la liste : sur un règlement partiel, l'étape en cours
-                    // s'appelle « Payée » par destination, pas par état. On nomme l'état atteint.
+                    // Comme dans la liste : en cas de paiement partiel, l'étape en cours
+                    // s'appelle « Payée » mais ce n'est pas encore le cas. On affiche l'état réel.
                     const partiallyPaid =
                       (detailInvoice?.status ?? selectedOrder.invoiceStatus) === 'PARTIALLY_PAID';
                     return (
@@ -1669,8 +1649,8 @@ const Orders = () => {
                   {t('orders.clientInfoTitle')}
                 </h4>
                 {client ? (
-                  /* Bloc compact, identique à celui du détail de facture : le client se lit
-                     comme sur l'enveloppe, avec de quoi le joindre sans quitter l'écran. */
+                  /* Bloc compact, le même que dans le détail d'une facture : le client comme
+                     sur une enveloppe, avec ses coordonnées pour le contacter. */
                   <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-700">
                     <div className="min-w-0 space-y-1">
                       <p className="flex flex-wrap items-center gap-2">
@@ -1766,9 +1746,9 @@ const Orders = () => {
                 </section>
               )}
 
-              {/* ---- Récapitulatif : aligné à droite sous les lignes, comme sur un document
-                   commercial. Le règlement y figure aussi — c'est un montant, sa place est dans
-                   la colonne des montants, pas au milieu des boutons. ---- */}
+              {/* ---- Récapitulatif : aligné à droite sous les lignes, comme sur une facture.
+                   Le paiement est aussi ici, c'est un montant donc il va avec les autres
+                   montants et pas au milieu des boutons. ---- */}
               <section className="space-y-3">
                 <h4 className="subsection-title">{t('invoices.sectionSummary')}</h4>
                 <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 sm:ml-auto sm:max-w-sm dark:divide-gray-700/60 dark:border-gray-700">
@@ -1820,9 +1800,9 @@ const Orders = () => {
                 )}
               </section>
 
-              {/* ---- Situation : les constats du dossier. Les boutons, eux, sont regroupés au
-                   pied de la fiche — ils étaient jusqu'ici mêlés à ces messages, en une pile de
-                   six boutons pleine largeur aux styles tous différents. ---- */}
+              {/* ---- Situation : les messages sur la commande. Les boutons sont regroupés en
+                   bas de la fiche (avant ils étaient mélangés à ces messages, six boutons
+                   pleine largeur avec des styles tous différents). ---- */}
               {(detailInvoiceLoading || settled || invoiceCanceled
                 || (selectedOrder.status === 'DELIVERED' && (!primary || primary.key === 'PAY'))) && (
                 <div className="space-y-2">
@@ -1858,25 +1838,25 @@ const Orders = () => {
                 </div>
               )}
 
-              {/* Sortie du cul-de-sac de l'annulation : « Annuler » est masqué tant que la facture
-                  est vivante (cf. canCancelOrder), et la seule marche à suivre est de l'annuler
-                  d'abord depuis l'écran Factures. La note ne s'affiche donc que dans ce cas. */}
+              {/* « Annuler » est caché tant que la facture est active (voir canCancelOrder),
+                  il faut d'abord annuler la facture dans l'écran Factures. Ce message
+                  s'affiche seulement dans ce cas, pour expliquer quoi faire. */}
               {selectedOrder.status === 'INVOICED' && !canCancelOrder(selectedOrder, detailInvoice) && (
                 <p className="text-xs text-gray-400 dark:text-gray-500">
                   {t('orders.steps.cancelInvoiceFirst')}
                 </p>
               )}
 
-              {/* ---- Actions, collées au bas de la modale : le détail dépasse la hauteur d'écran
-                   dès quelques lignes d'articles, et l'étape suivante doit rester sous la main.
-                   Ordre de lecture : sortie, puis pièces jointes, puis ce qui fait avancer. ---- */}
+              {/* ---- Boutons collés en bas du modal : avec quelques articles le détail
+                   dépasse la hauteur de l'écran, et l'étape suivante doit rester visible.
+                   Ordre : fermer, puis documents, puis l'action qui fait avancer. ---- */}
               <div className="sticky -bottom-6 -mx-6 -mb-6 flex flex-wrap items-center gap-3 border-t border-gray-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-gray-700 dark:bg-gray-800/95">
                 <Button variant="secondary" onClick={() => setShowDetailsModal(false)}>
                   {t('common.close')}
                 </Button>
 
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
-                  {/* L'écran Factures ouvre directement le détail via `state.invoiceId`. */}
+                  {/* L'écran Factures ouvre directement le détail grâce à `state.invoiceId`. */}
                   {detailInvoice && (
                     <Button
                       variant="secondary"
@@ -1890,8 +1870,8 @@ const Orders = () => {
                     </Button>
                   )}
 
-                  {/* Le PDF sert de justificatif au client : proposé dès qu'il y a une facture
-                      exploitable, mais en retrait de l'action attendue à ce stade. */}
+                  {/* Le PDF sert de justificatif pour le client : proposé dès qu'il y a une
+                      facture utilisable, mais moins mis en avant que l'action principale. */}
                   {canDownloadInvoice(selectedOrder, detailInvoice) && (
                     <Button
                       variant="secondary"
@@ -1905,9 +1885,9 @@ const Orders = () => {
                     </Button>
                   )}
 
-                  {/* Le panier répond à « qu'est-ce que j'en fais maintenant ? », là où le détail
-                      répond à « où en est cette commande ? ». La question ne se pose plus sur un
-                      dossier clos : le panier n'est proposé que s'il reste une étape à traiter. */}
+                  {/* Le panier sert à continuer le traitement, le détail à voir où on en est.
+                      Pour une commande terminée il n'y a plus rien à faire, donc le panier
+                      n'est proposé que s'il reste une étape. */}
                   {hasNextStep(selectedOrder, detailInvoice) && (
                     <Button
                       variant="outline"
@@ -1918,8 +1898,8 @@ const Orders = () => {
                     </Button>
                   )}
 
-                  {/* Une seule action principale : encaisser dès qu'un montant reste dû, sinon
-                      l'étape suivante du cycle (confirmer, facturer). */}
+                  {/* Une seule action principale : encaisser s'il reste un montant à payer,
+                      sinon l'étape suivante (confirmer, facturer). */}
                   {showPayment ? (
                     <Button
                       variant="success"
@@ -1957,7 +1937,7 @@ const Orders = () => {
             size="fullscreen"
           >
             <div className="max-w-3xl mx-auto space-y-4">
-              {/* Méta commande (lecture seule) + client, regroupés dans une seule carte compacte. */}
+              {/* Infos de la commande (lecture seule) + client, dans une seule carte compacte. */}
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
@@ -1969,7 +1949,7 @@ const Orders = () => {
                     <p className="font-semibold text-gray-700 text-sm">{formatDate(selectedOrder.createdAt)}</p>
                   </div>
                   <div>
-                    {/* Statut en lecture seule : il évolue via la confirmation, la facturation et la livraison. */}
+                    {/* Statut en lecture seule : il change via la confirmation, la facturation et la livraison. */}
                     <p className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide mb-0.5">{t('orders.status')}</p>
                     {getStatusBadge(selectedOrder.status)}
                   </div>
@@ -2042,7 +2022,7 @@ const Orders = () => {
                   </button>
                 ) : (
                   <div className="space-y-2">
-                    {/* En-tête de colonnes (desktop) : labels affichés une seule fois ici. */}
+                    {/* En-tête des colonnes (desktop) : les labels ne sont affichés qu'ici. */}
                     <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
                       <span className="col-span-5">{t('common.product')}</span>
                       <span className="col-span-2 text-right">{t('orders.page.discountPercent')}</span>
@@ -2183,7 +2163,7 @@ const Orders = () => {
                 </div>
               </div>
 
-              {/* Avertissement bloquant : explique pourquoi l'enregistrement est désactivé. */}
+              {/* Message bloquant : explique pourquoi on ne peut pas enregistrer. */}
               {editHasStockIssue && (
                 <div className="flex items-center gap-2 p-2.5 bg-red-50 text-red-700 rounded-lg text-xs font-medium border border-red-200">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -2216,8 +2196,8 @@ const Orders = () => {
         )}
       </AnimatePresence>
 
-      {/* Panier de traitement : création d'une commande et suite de son cycle de vie au même
-          endroit (articles, remises, validation, confirmation, facturation, encaissement, PDF). */}
+      {/* Panier : création de la commande et toute la suite au même endroit (articles,
+          remises, validation, confirmation, facturation, encaissement, PDF). */}
       <OrderWorkspace
         isOpen={showWorkspace}
         onClose={() => setShowWorkspace(false)}
@@ -2234,7 +2214,7 @@ const Orders = () => {
         }}
       />
 
-      {/* Invoice Modal — facturation en ligne, sans renvoi vers la page Factures */}
+      {/* Invoice Modal : facturation directement ici, sans passer par la page Factures */}
       <AnimatePresence>
         {showInvoiceModal && invoiceOrder && (
           <Modal
@@ -2243,8 +2223,8 @@ const Orders = () => {
             title={t('orders.page.invoiceOrderTitle', { number: invoiceOrder.orderNumber })}
           >
             {(() => {
-              // Aperçu du calcul (miroir de InvoiceService) : HT − remise + TVA = TTC. La remise n'est
-              // pas saisie ici (gérée au niveau des lignes de commande), elle vaut donc 0.
+              // Aperçu du calcul (comme dans InvoiceService) : HT − remise + TVA = TTC. Pas de
+              // remise saisie ici (elle est sur les lignes de commande), donc elle vaut 0.
               const subtotal = Number(invoiceOrder.totalAmount || 0);
               const parsedRate = parseFloat(invoiceForm.taxRate);
               const rate = Number.isNaN(parsedRate) ? 0 : parsedRate;
@@ -2399,7 +2379,7 @@ const Orders = () => {
         )}
       </AnimatePresence>
 
-      {/* Payment Modal — encaissement sur la facture liée à la commande */}
+      {/* Payment Modal : paiement sur la facture de la commande */}
       <AnimatePresence>
         {showPaymentModal && paymentInvoice && (
           <Modal

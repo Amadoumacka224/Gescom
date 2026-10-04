@@ -21,10 +21,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Filtre exécuté une seule fois par requête (OncePerRequestFilter) qui assure
- * l'authentification stateless par JWT : il lit le token de l'en-tête Authorization,
- * le valide et place l'utilisateur dans le SecurityContext pour la durée de la requête.
- * Placé avant le filtre d'authentification standard de Spring (voir SecurityConfig).
+ * Filtre exécuté une fois par requête (OncePerRequestFilter) pour l'authentification JWT
+ * sans session : il lit le token dans l'en-tête Authorization, le vérifie et met
+ * l'utilisateur dans le SecurityContext pour la durée de la requête.
+ * Il est placé avant le filtre d'authentification standard de Spring (voir SecurityConfig).
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -41,22 +41,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            // Si un token valide est présent, on reconstruit l'authentification et on la
-            // dépose dans le contexte de sécurité ; sinon la requête poursuit en anonyme.
+            // Si le token est valide, on recrée l'authentification et on la met dans le
+            // contexte de sécurité ; sinon la requête continue en anonyme.
             String jwt = parseJwt(request);
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
                 String username = jwtUtils.getUsernameFromJwtToken(jwt);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                // isEnabled() n'est vérifié par Spring Security qu'à la connexion, via le
-                // DaoAuthenticationProvider. L'authentification par jeton étant reconstruite
-                // à la main, la vérification doit être refaite ici — sans quoi un jeton émis
-                // avant la suspension d'une entreprise resterait valable jusqu'à son
-                // expiration, et la suspension ne prendrait effet qu'avec des heures de retard.
+                // Spring Security ne vérifie isEnabled() qu'à la connexion, dans le
+                // DaoAuthenticationProvider. Comme ici on recrée l'authentification nous-mêmes
+                // à partir du token, il faut refaire la vérification. Sinon un token créé
+                // avant la suspension d'une entreprise marcherait jusqu'à son expiration, et
+                // la suspension ne s'appliquerait que des heures plus tard.
                 //
-                // Le compte refusé n'interrompt pas la chaîne : la requête poursuit en
-                // anonyme et se heurtera au point d'entrée d'authentification, qui répond 401.
+                // Si le compte est refusé on ne coupe pas la chaîne : la requête continue en
+                // anonyme et tombera sur le point d'entrée d'authentification, qui renvoie 401.
                 if (userDetails.isEnabled()) {
                     UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
@@ -76,23 +76,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            // Nettoyage impératif : les threads du conteneur sont recyclés, et un contexte
-            // oublié serait hérité par la requête suivante — donc potentiellement par un
-            // utilisateur d'une autre entreprise.
+            // À ne surtout pas oublier : les threads du serveur sont réutilisés, et un contexte
+            // pas nettoyé passerait à la requête suivante, peut-être celle d'un utilisateur
+            // d'une autre entreprise.
             TenantContext.clear();
         }
     }
 
     /**
-     * Fixe l'entreprise de la requête à partir de l'utilisateur chargé en base.
+     * Définit l'entreprise de la requête à partir de l'utilisateur chargé en base.
      *
-     * Le rattachement est délibérément lu sur l'entité et non sur un claim du jeton :
-     * un identifiant d'entreprise transporté dans le JWT serait une donnée fournie par le
-     * client, et un jeton forgé ou simplement périmé ouvrirait les données d'autrui. Ici,
-     * la seule chose que le client fournit est son identité, déjà vérifiée par signature.
+     * On la lit exprès dans l'entité et pas dans un claim du token : un id d'entreprise dans
+     * le JWT serait une donnée venant du client, et un token fabriqué ou trop vieux pourrait
+     * donner accès aux données d'une autre entreprise. Ici le client ne fournit que son
+     * identité, déjà vérifiée par la signature.
      *
      * Le SUPER_ADMIN n'a pas d'entreprise : son contexte reste vide, ce qui désactive le
-     * filtre de cloisonnement et lui donne la vue globale du parc.
+     * filtre par entreprise et lui donne accès à toutes les entreprises.
      */
     private void applyTenantScope(UserDetails userDetails) {
         if (userDetails instanceof User user && user.getOwnerCompany() != null) {
@@ -102,7 +102,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    /** Extrait le token de l'en-tête « Authorization: Bearer <token> », ou null s'il est absent. */
+    /** Récupère le token dans l'en-tête « Authorization: Bearer <token> », ou null s'il n'y en a pas. */
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
 

@@ -45,21 +45,20 @@ import {
 } from '../utils/format';
 
 /**
- * Supervision des caisses (administrateur).
+ * Suivi des caisses (admin).
  *
- * Cet écran lisait auparavant `/users` et `/orders` — soit la table des commandes ENTIÈRE —
- * puis réagrégeait tout dans le navigateur. Il en découlait deux problèmes de fond :
+ * Avant, cet écran chargeait `/users` et `/orders` (donc TOUTES les commandes) et faisait
+ * les calculs dans le navigateur. Ça posait deux problèmes :
  *
- *   1. Fiabilité. L'agrégation locale comptait les commandes annulées dans le chiffre
+ *   1. Les chiffres étaient faux : les commandes annulées étaient comptées dans le chiffre
  *      d'affaires, alors que le backend les exclut partout ailleurs (`buildDayMetrics`,
- *      `/dashboard/overview`). Un responsable et son caissier lisaient donc deux totaux
- *      différents pour la même journée, sans qu'aucun des deux écrans ne signale l'écart.
- *      L'encaissé réel (factures réglées) n'était pas affiché du tout.
- *   2. Volume. Superviser une journée demandait de rapatrier tout l'historique.
+ *      `/dashboard/overview`). L'admin et le caissier voyaient donc deux totaux différents
+ *      pour la même journée. Et le montant réellement encaissé n'était pas affiché.
+ *   2. Il fallait charger tout l'historique pour voir une seule journée.
  *
- * La page consomme désormais `/dashboard/cashiers`, qui existait déjà et que rien n'appelait :
- * une requête bornée à la date, et les mêmes chiffres que la vue caissier puisque les deux
- * passent par `buildDayMetrics`. Aucune règle métier n'est recalculée ici.
+ * Maintenant la page utilise `/dashboard/cashiers` (qui existait déjà mais n'était pas
+ * appelé) : une requête sur une date, avec les mêmes chiffres que la vue caissier puisque
+ * les deux passent par `buildDayMetrics`. Aucun calcul métier n'est refait ici.
  */
 
 const EMPTY_SUPERVISION = {
@@ -93,12 +92,12 @@ const cashierName = (cashier) =>
   `${cashier.firstName || ''} ${cashier.lastName || ''}`.trim() || cashier.email || '—';
 
 /**
- * Médaillon de classement. Or / argent / bronze est une convention de rang, pas un statut :
- * ces trois teintes ne peuvent être confondues avec un succès ou une alerte. Hors podium, on
- * reste neutre — le bleu y signalait « info » alors qu'il ne portait aucune information.
+ * Médaille de classement. Or / argent / bronze indiquent un rang, pas un statut, donc on ne
+ * peut pas les confondre avec un succès ou une alerte. Après le podium, on reste en gris
+ * (le bleu faisait penser à une info).
  *
- * Le médaillon n'apparaît QUE sur le classement par ventes : trié par nom, une médaille
- * décernée à la troisième ligne ne voudrait plus rien dire.
+ * La médaille n'est affichée QUE quand on trie par ventes : triée par nom, une médaille sur
+ * la troisième ligne ne voudrait rien dire.
  */
 const RANK_STYLE = [
   'bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10 dark:text-yellow-400',
@@ -138,8 +137,8 @@ const Caisses = () => {
   const isToday = selectedDate === today;
 
   /**
-   * Le rang est figé sur le classement par ventes renvoyé par le backend, puis transporté
-   * par la ligne : changer l'ordre d'affichage ne doit pas renuméroter les caissiers.
+   * Le rang vient du classement par ventes renvoyé par le backend et reste attaché à la
+   * ligne : changer le tri ne doit pas renuméroter les caissiers.
    */
   const rankedCashiers = useMemo(
     () => data.cashiers.map((cashier, index) => ({ ...cashier, rank: index + 1 })),
@@ -159,7 +158,7 @@ const Caisses = () => {
     return sorted;
   }, [rankedCashiers, scope, sortKey]);
 
-  /** Colonnes partagées par les deux formats : l'export ne peut pas diverger du tableau. */
+  /** Colonnes communes aux deux exports, pour que l'export corresponde au tableau. */
   const exportColumns = useMemo(() => [
     { header: t('caisse.columns.cashier'), value: (c) => cashierName(c) },
     { header: t('common.email'), value: (c) => c.email || '' },
@@ -190,9 +189,9 @@ const Caisses = () => {
     toast.success(t('caisse.exportDone'));
   };
 
-  // `exportToPdf` charge jspdf au premier appel : la confirmation attend que le document soit
-  // réellement produit. Le try/catch n'est pas décoratif — le chargement passe par le réseau
-  // et peut échouer, là où la bibliothèque était auparavant déjà en mémoire.
+  // `exportToPdf` charge jspdf au premier appel, donc on attend que le PDF soit vraiment
+  // généré avant de confirmer. Le try/catch est utile : le chargement passe par le réseau et
+  // peut échouer.
   const handleExportPdf = async () => {
     try {
       await exportToPdf({
@@ -246,8 +245,8 @@ const Caisses = () => {
             <label htmlFor="supervision-date" className="sr-only">
               {t('caisse.selectDate')}
             </label>
-            {/* `max` borne à aujourd'hui : une journée future n'a par définition aucune vente,
-                et l'écran affichait sinon des zéros qu'on pouvait lire comme un incident. */}
+            {/* `max` = aujourd'hui : un jour futur n'a forcément aucune vente, et les zéros
+                affichés pouvaient faire croire à un problème. */}
             <input
               id="supervision-date"
               type="date"
@@ -278,8 +277,8 @@ const Caisses = () => {
             {t('caisse.refresh')}
           </button>
 
-          {/* Exports désactivés tant qu'il n'y a rien à exporter : un fichier à en-tête seul
-              se lit comme une journée vide plutôt que comme une absence de sélection. */}
+          {/* Exports désactivés quand il n'y a rien : un fichier avec juste l'en-tête ferait
+              penser à une journée vide. */}
           <button
             type="button"
             onClick={handleExportCsv}
@@ -302,8 +301,8 @@ const Caisses = () => {
         </div>
       </div>
 
-      {/* Indicateurs de la journée — mêmes libellés, mêmes jetons et même ordre que « Ma
-          caisse » : le responsable et le caissier lisent la même grille de lecture. */}
+      {/* Chiffres de la journée : mêmes libellés, mêmes couleurs et même ordre que « Ma
+          caisse », pour que l'admin et le caissier lisent la même chose. */}
       <section aria-labelledby="supervision-totals-heading">
         <h2
           id="supervision-totals-heading"
@@ -351,8 +350,8 @@ const Caisses = () => {
         </div>
       </section>
 
-      {/* Affluence de la journée, tous caissiers confondus. Le backend l'exposait déjà
-          (`hourlySales`) sans que la supervision l'affiche. */}
+      {/* Ventes par heure, tous caissiers confondus. Le backend renvoyait déjà
+          `hourlySales` mais ce n'était pas affiché. */}
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -367,8 +366,8 @@ const Caisses = () => {
           <span className="text-xs text-gray-400 dark:text-gray-500">{t('caisse.hourlySalesHint')}</span>
         </div>
 
-        {/* « En cours de chargement » et « aucune vente » sont deux états distincts : afficher
-            le second pendant la requête annonce à tort une journée sans activité. */}
+        {/* « Chargement » et « aucune vente » sont deux cas différents : afficher le second
+            pendant la requête ferait croire à une journée sans ventes. */}
         {loading ? (
           <div className="h-60 rounded-lg bg-gray-100 dark:bg-gray-700/40 animate-pulse" />
         ) : data.hourlySales.length === 0 ? (
@@ -389,8 +388,8 @@ const Caisses = () => {
                 tickFormatter={formatCompactCurrency}
               />
               <Tooltip content={<HourlyTooltip t={t} />} cursor={{ fill: 'rgba(33,150,243,0.08)' }} />
-              {/* Même bleu de marque que la caisse et les rapports : une série de ventes
-                  horaires ne porte pas d'état, elle n'emprunte donc pas le vert de `success`. */}
+              {/* Même bleu que la caisse et les rapports : des ventes par heure ne sont pas
+                  un statut, donc pas le vert de `success`. */}
               <Bar dataKey="sales" fill="#2196f3" radius={[4, 4, 0, 0]} maxBarSize={48} />
             </BarChart>
           </ResponsiveContainer>
@@ -447,8 +446,8 @@ const Caisses = () => {
         </div>
 
         {loading ? (
-          // Squelettes plutôt qu'un libellé « chargement » : la page garde sa silhouette et
-          // ne saute pas quand les lignes arrivent.
+          // Squelettes plutôt qu'un texte « chargement », pour que la page ne saute pas
+          // quand les lignes arrivent.
           <div className="space-y-4" aria-busy="true">
             {[0, 1, 2].map((index) => (
               <div key={index} className="skeleton h-24 rounded-xl" />
@@ -468,8 +467,8 @@ const Caisses = () => {
             const rankStyle = isPodium ? RANK_STYLE[cashier.rank - 1] : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
             const share = safeRatio(cashier.daySales, data.daySales);
             const panelId = `cashier-orders-${cashier.cashierId}`;
-            // Le backend expose le rôle pour que l'UI puisse signaler une ligne non-caissier
-            // (un admin en renfort) plutôt que de la présenter comme un caissier ordinaire.
+            // Le backend renvoie le rôle pour qu'on puisse signaler une ligne qui n'est pas
+            // un caissier (un admin qui a aidé en caisse).
             const isCashierRole = cashier.role === 'CAISSIER';
 
             return (
@@ -480,17 +479,15 @@ const Caisses = () => {
                 transition={{ delay: Math.min(index * 0.04, 0.2) }}
                 className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
               >
-                {/* En-tête dépliable.
+                {/* En-tête qu'on peut déplier.
                  *
-                 * Le déclencheur est un vrai <button> — la version précédente n'était qu'un
-                 * <div onClick>, hors du parcours clavier et muet pour un lecteur d'écran.
-                 * Il ne porte QUE le libellé de bascule : un <button> n'accepte que du contenu
-                 * de phrasé, et y enfermer le titre et la grille de chiffres (comme le ferait
-                 * une ligne entièrement cliquable) produisait un nom accessible récitant tous
-                 * les montants de la ligne à chaque tabulation.
+                 * Le bouton est un vrai <button> (avant c'était un <div onClick>, pas
+                 * accessible au clavier ni au lecteur d'écran). Il ne contient QUE le texte
+                 * du bouton : si on mettait le titre et tous les chiffres dedans, le lecteur
+                 * d'écran lirait tous les montants à chaque tabulation.
                  *
-                 * La ligne reste cliquable à la souris par commodité ; le clavier et les
-                 * technologies d'assistance passent par le bouton, qui est le chemin complet. */}
+                 * On peut toujours cliquer sur toute la ligne à la souris ; au clavier on
+                 * passe par le bouton. */}
                 <div
                   onClick={() => toggleCashier(cashier.cashierId)}
                   className="p-5 sm:p-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
@@ -519,8 +516,8 @@ const Caisses = () => {
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{cashier.email}</p>
 
-                      {/* Part du chiffre de la journée : la comparaison entre caissiers se lit
-                          d'un coup d'œil, sans reprendre les montants un par un. */}
+                      {/* Part du chiffre de la journée : on compare les caissiers d'un coup
+                          d'œil sans relire tous les montants. */}
                       <div className="mt-2 flex items-center gap-2 max-w-xs">
                         <div className="metric-track">
                           <div className="metric-bar-info" style={{ width: `${share * 100}%` }} />
@@ -531,8 +528,8 @@ const Caisses = () => {
                       </div>
                     </div>
 
-                    {/* Métriques repliées sous `lg` : quatre colonnes de chiffres derrière une
-                        barre latérale de 288 px se chevauchaient. */}
+                    {/* Chiffres cachés sous `lg` : quatre colonnes à côté d'un menu de 288 px
+                        se chevauchaient. */}
                     <dl className="hidden lg:grid grid-cols-4 gap-6 flex-1">
                       <div className="text-center">
                         <dt className="text-xs text-gray-500 dark:text-gray-400">{t('caisse.collected')}</dt>
@@ -565,11 +562,10 @@ const Caisses = () => {
                       </div>
                     </dl>
 
-                    {/* `stopPropagation` : sans lui, le clic remonterait au conteneur qui
-                        porte la même bascule et l'annulerait aussitôt.
-                        `aria-label` explicite car le libellé visible disparaît sous `sm`
-                        (`display:none` le retire aussi de l'arbre d'accessibilité) — le bouton
-                        y resterait sans nom. */}
+                    {/* `stopPropagation` : sinon le clic remonte au conteneur qui fait la même
+                        chose, et ça s'annule.
+                        `aria-label` car le texte visible est caché sous `sm` (`display:none`
+                        l'enlève aussi pour les lecteurs d'écran), le bouton n'aurait plus de nom. */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -591,7 +587,7 @@ const Caisses = () => {
                     </button>
                   </div>
 
-                  {/* Rappel des chiffres sous `lg`, où la grille ci-dessus est masquée. */}
+                  {/* Les chiffres sont répétés ici sous `lg`, où la grille au-dessus est cachée. */}
                   <dl className="lg:hidden mt-4 grid grid-cols-2 gap-3">
                     <div className="mini-stat-success">
                       <dt>{t('caisse.collected')}</dt>
@@ -688,10 +684,10 @@ const Caisses = () => {
                                         {order.itemsCount ?? 0}
                                       </td>
                                       <td className="px-6 py-3 whitespace-nowrap">
-                                        {/* Résolution partagée : une commande facturée puis réglée
-                                            s'affiche « Payée » ici comme sur l'écran du caissier.
-                                            Cette page tenait sa propre table de libellés, qui
-                                            ignorait le règlement. */}
+                                        {/* Même calcul que l'écran caissier : une commande
+                                            facturée et payée s'affiche « Payée ». Avant, cette
+                                            page avait sa propre liste de libellés qui ne tenait
+                                            pas compte du paiement. */}
                                         <OrderStatusBadge order={order} />
                                       </td>
                                       <td

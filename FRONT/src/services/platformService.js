@@ -1,20 +1,20 @@
 import axios from './axios';
 
 /**
- * Back-office du propriétaire de la plateforme.
+ * Back-office du super admin.
  *
- * Toutes les routes vivent sous `/platform` et sont réservées au rôle SUPER_ADMIN : le
- * backend les refuse à tout autre rôle, y compris à l'ADMIN d'une entreprise cliente.
- * C'est un espace d'exploitation du SaaS, pas un niveau supérieur des écrans métier.
+ * Toutes les routes sont sous `/platform` et réservées à SUPER_ADMIN : le backend les refuse
+ * à tous les autres rôles, même à l'ADMIN d'une entreprise. C'est l'espace de gestion du SaaS,
+ * pas un niveau au-dessus des écrans métier.
  *
- * Les listes sont paginées côté serveur et répondent `{ content, page, size, totalElements,
- * totalPages }`. La pagination est indexée à partir de zéro côté API, là où le composant
- * `Pagination` compte à partir de un — la conversion est faite dans les pages.
+ * Les listes sont paginées côté serveur et renvoient `{ content, page, size, totalElements,
+ * totalPages }`. Les pages commencent à 0 dans l'API mais à 1 dans le composant `Pagination`,
+ * la conversion est faite dans les pages.
  */
 
 const platformService = {
-  // Indicateurs consolidés : entreprises, abonnements, MRR/ARR, paiements, churn,
-  // alertes et santé. Une seule requête alimente tout le tableau de bord.
+  // Stats globales : entreprises, abonnements, MRR/ARR, paiements, churn, alertes et
+  // santé. Une seule requête pour tout le tableau de bord.
   getDashboard: () => axios.get('/platform/dashboard'),
 
   // --- Entreprises clientes -------------------------------------------------
@@ -26,27 +26,27 @@ const platformService = {
   getCompanySubscriptions: (id) => axios.get(`/platform/companies/${id}/subscriptions`),
 
   /**
-   * Ouvre un compte client complet : entreprise, administrateur initial et abonnement.
-   * Le serveur traite les trois en une transaction — pas de compte à moitié créé.
+   * Crée un compte client complet : entreprise, premier admin et abonnement.
+   * Le serveur fait les trois dans une transaction, pas de compte à moitié créé.
    */
   provisionCompany: (payload) => axios.post('/platform/companies', payload),
 
   updateCompany: (id, payload) => axios.put(`/platform/companies/${id}`, payload),
 
-  // Coupe l'accès de tous les utilisateurs de l'entreprise, sans rien supprimer.
+  // Bloque l'accès de tous les utilisateurs de l'entreprise, sans rien supprimer.
   suspendCompany: (id, reason) => axios.patch(`/platform/companies/${id}/suspend`, { reason }),
 
   reactivateCompany: (id) => axios.patch(`/platform/companies/${id}/reactivate`),
 
-  // Résilie : clôture l'abonnement et coupe l'accès ; les données sont conservées.
+  // Résilie : ferme l'abonnement et bloque l'accès, mais on garde les données.
   cancelCompany: (id, reason) => axios.patch(`/platform/companies/${id}/cancel`, { reason }),
 
   // --- Abonnements ----------------------------------------------------------
 
   getSubscriptions: (params = {}) => axios.get('/platform/subscriptions', { params }),
 
-  // Souscrire alors qu'un contrat court déjà vaut changement de formule : le serveur
-  // clôture l'ancien et ouvre le nouveau, une entreprise n'ayant qu'un contrat vivant.
+  // Souscrire alors qu'il y a déjà un contrat en cours = changement de formule : le serveur
+  // ferme l'ancien et crée le nouveau (une entreprise n'a qu'un contrat actif).
   subscribe: (payload) => axios.post('/platform/subscriptions', payload),
 
   renewSubscription: (id) => axios.patch(`/platform/subscriptions/${id}/renew`),
@@ -54,27 +54,27 @@ const platformService = {
   cancelSubscription: (id, reason) =>
     axios.patch(`/platform/subscriptions/${id}/cancel`, { reason }),
 
-  // --- Encaissements d'abonnement ------------------------------------------
+  // --- Paiements des abonnements --------------------------------------------
 
   getPayments: (params = {}) => axios.get('/platform/payments', { params }),
 
   getPayment: (id) => axios.get(`/platform/payments/${id}`),
 
-  // Un succès renouvelle la période de l'abonnement, un échec le passe en impayé.
+  // Un succès renouvelle la période de l'abonnement, un échec le met en impayé.
   recordPayment: (payload) => axios.post('/platform/payments', payload),
 
-  // --- Utilisateurs du parc -------------------------------------------------
+  // --- Utilisateurs de toutes les entreprises -------------------------------
 
-  /** Liste consolidée, filtrable par entreprise, rôle, statut et recherche libre. */
+  /** Liste globale, filtrable par entreprise, rôle, statut et recherche. */
   getUsers: (params = {}) => axios.get('/platform/users', { params }),
 
   /**
-   * Coupe ou rétablit l'accès d'un compte précis — le levier du support, là où suspendre
-   * l'entreprise couperait tous ses utilisateurs d'un coup.
+   * Bloque ou débloque un seul compte. Pratique pour le support, alors que suspendre
+   * l'entreprise bloquerait tous ses utilisateurs.
    */
   setUserActive: (id, active) => axios.patch(`/platform/users/${id}/active`, { active }),
 
-  // --- Catalogue des formules -----------------------------------------------
+  // --- Formules -------------------------------------------------------------
 
   getPlans: () => axios.get('/platform/plans'),
 
@@ -82,28 +82,28 @@ const platformService = {
 
   updatePlan: (id, payload) => axios.put(`/platform/plans/${id}`, payload),
 
-  /** Retire ou remet une formule au catalogue. Sans effet sur les contrats en cours. */
+  /** Active ou désactive une formule. Ne change rien aux contrats en cours. */
   setPlanActive: (id, active) => axios.patch(`/platform/plans/${id}/active`, { active }),
 
-  /** Refusé par le serveur dès qu'un abonnement, même résilié, s'y rattache. */
+  /** Refusé par le serveur si un abonnement (même résilié) utilise cette formule. */
   deletePlan: (id) => axios.delete(`/platform/plans/${id}`),
 
-  // --- Activité consolidée --------------------------------------------------
+  // --- Activité globale -----------------------------------------------------
 
   /**
-   * Page du journal du parc. `params` accepte companyId, platformScope, actionType, entity,
-   * start, end et search — tous optionnels et cumulables. Le filtrage est fait en base : sur
-   * une liste paginée, filtrer les lignes reçues ne porterait que sur la page affichée.
+   * Une page du journal global. `params` accepte companyId, platformScope, actionType,
+   * entity, start, end et search, tous optionnels et combinables. Le filtrage est fait en
+   * base : sur une liste paginée, filtrer les lignes reçues ne porterait que sur la page.
    */
   getActivity: (params = {}) => axios.get('/platform/activity', { params }),
 
-  /** Valeurs présentes au journal (types d'action, entités), pour les listes de filtres. */
+  /** Valeurs qui existent dans le journal (types d'action, entités), pour les filtres. */
   getActivityFilters: () => axios.get('/platform/activity/filters'),
 
   /**
-   * Export CSV du résultat filtré complet, assemblé par le serveur — réponse binaire, d'où
-   * `responseType: 'blob'`. Passer les mêmes critères que `getActivity` : c'est le périmètre
-   * affiché qui est exporté, pas la seule page visible.
+   * Export CSV de tout le résultat filtré, généré par le serveur. Réponse binaire, d'où
+   * `responseType: 'blob'`. Il faut passer les mêmes filtres que `getActivity` : on exporte
+   * tout le résultat, pas seulement la page visible.
    */
   exportActivity: (params = {}) =>
     axios.get('/platform/activity/export', { params, responseType: 'blob' }),
@@ -114,13 +114,13 @@ const platformService = {
 
   getTicket: (id) => axios.get(`/platform/support/${id}`),
 
-  /** Compteur du badge : tickets encore à traiter. */
+  /** Nombre affiché sur le badge : tickets encore à traiter. */
   getOpenTicketCount: () => axios.get('/platform/support/open-count'),
 
-  /** La description devient le premier message du fil, pas un champ séparé. */
+  /** La description devient le premier message du fil, ce n'est pas un champ à part. */
   openTicket: (payload) => axios.post('/platform/support', payload),
 
-  /** `internal: true` marque une note de service, jamais destinée au client. */
+  /** `internal: true` pour une note interne, jamais envoyée au client. */
   addTicketMessage: (id, payload) => axios.post(`/platform/support/${id}/messages`, payload),
 
   setTicketStatus: (id, status) => axios.patch(`/platform/support/${id}/status`, { status }),
@@ -140,15 +140,15 @@ const platformService = {
 
   // --- Paramètres de la plateforme ------------------------------------------
 
-  /** Seuils du tableau de bord + identité du compte propriétaire connecté. */
+  /** Seuils du tableau de bord + infos du compte super admin connecté. */
   getSettings: () => axios.get('/platform/settings'),
 
   updateSettings: (payload) => axios.put('/platform/settings', payload),
 
   /**
-   * Modifie l'email ou le mot de passe du propriétaire. Le mot de passe actuel est exigé
-   * dans les deux cas — c'est le seul chemin pour faire tourner ce secret, le bootstrap ne
-   * réécrivant jamais un compte existant.
+   * Change l'email ou le mot de passe du super admin. Le mot de passe actuel est demandé dans
+   * les deux cas. C'est le seul moyen de changer ce mot de passe, car le bootstrap ne modifie
+   * jamais un compte existant.
    */
   updateAccount: (payload) => axios.patch('/platform/settings/account', payload),
 };

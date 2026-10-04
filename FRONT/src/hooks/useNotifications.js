@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
 
-// L'état « lu » n'a pas de backend dédié : on le mémorise côté navigateur.
+// Pas de backend pour l'état « lu », on le garde dans le navigateur.
 const SEEN_KEY = 'gescom:notifications:seen';
 
 const loadSeen = () => {
@@ -22,17 +22,17 @@ const orderNumber = (order) =>
   order.orderNumber || `CMD${String(order.id).padStart(5, '0')}`;
 
 /**
- * Notifications dérivées des données métier déjà exposées par l'API (aucun système
- * de notification dédié côté serveur) :
- *   - commandes en attente de confirmation (statut PENDING) — tous les rôles ;
- *   - produits en rupture ou sous le seuil d'alerte — ADMIN uniquement, car la page
+ * Notifications calculées à partir des données déjà fournies par l'API (il n'y a pas de
+ * système de notifications côté serveur) :
+ *   - commandes en attente de confirmation (statut PENDING), pour tous les rôles ;
+ *   - produits en rupture ou sous le seuil d'alerte, seulement pour l'ADMIN car la page
  *     /stock lui est réservée.
  *
- * Le hook renvoie des notifications *structurées* (kind + data) : la mise en forme et la
- * traduction sont laissées au composant (react-i18next), pour rester multilingue.
+ * Le hook renvoie des objets (kind + data) : le texte et la traduction sont faits dans le
+ * composant (react-i18next), pour garder le multilingue.
  *
- * L'état « lu » est conservé dans localStorage : une notification est non lue tant que
- * son identifiant (déterministe, ex. `order-42`) n'a pas été marqué comme vu.
+ * L'état « lu » est gardé dans le localStorage : une notification est non lue tant que son id
+ * (toujours le même, ex. `order-42`) n'a pas été marqué comme vu.
  */
 export const useNotifications = (user, { pollMs = 60000 } = {}) => {
   const isAdmin = user?.role === 'ADMIN';
@@ -82,7 +82,7 @@ export const useNotifications = (user, { pollMs = 60000 } = {}) => {
         }
       });
 
-    // Rupture d'abord, puis commandes à confirmer (récentes en tête), puis stock bas.
+    // D'abord les ruptures, puis les commandes à confirmer (les plus récentes en premier), puis le stock bas.
     list.sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
       return new Date(b.time || 0) - new Date(a.time || 0);
@@ -102,7 +102,7 @@ export const useNotifications = (user, { pollMs = 60000 } = {}) => {
       const [ordersRes, productsRes] = await Promise.all(requests);
       setNotifications(build(ordersRes.data, productsRes?.data));
     } catch (error) {
-      // Une notification qui échoue ne doit pas polluer l'UI : on log sans toaster.
+      // Si les notifications échouent, on log juste l'erreur sans afficher de toast.
       console.error('Notifications: échec du chargement', error);
     } finally {
       setLoading(false);
@@ -121,15 +121,15 @@ export const useNotifications = (user, { pollMs = 60000 } = {}) => {
     [notifications, seen]
   );
 
-  // « Consulter = marquer comme lu » : on mémorise les identifiants actuellement présents
-  // (les notifications résolues disparaissent d'elles-mêmes, ce qui borne le stockage).
+  // Ouvrir le panneau = tout marquer comme lu. On enregistre les ids présents
+  // (les notifications traitées disparaissent toutes seules, donc ça ne grossit pas).
   const markAllRead = useCallback(() => {
     const ids = notifications.map((n) => n.id);
     setSeen(ids);
     try {
       localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
     } catch {
-      /* stockage indisponible : on ignore, l'état « lu » sera simplement non persistant */
+      /* localStorage indisponible : tant pis, l'état « lu » ne sera pas sauvegardé */
     }
   }, [notifications]);
 

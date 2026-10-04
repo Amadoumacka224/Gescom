@@ -19,30 +19,30 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agrégats du tableau de bord.
+ * Calculs du tableau de bord.
  *
- * <h2>Pourquoi ce service existe</h2>
+ * <h2>Pourquoi ce service</h2>
  *
- * Ces calculs vivaient dans {@code DashboardController}, qui atteignait 539 lignes. Outre
- * l'entorse à la règle du projet — les contrôleurs sont fins, ils appellent le service puis
- * mappent —, la méthode chargeait EN MÉMOIRE toutes les commandes, toutes les factures, toutes
- * les livraisons et tous les produits du locataire, à chaque affichage, pour n'en tirer qu'une
+ * Avant, ces calculs étaient dans {@code DashboardController}, qui faisait 539 lignes. En
+ * plus de ne pas respecter la règle du projet (les contrôleurs appellent le service puis
+ * convertissent, c'est tout), la méthode chargeait EN MÉMOIRE toutes les commandes, factures,
+ * livraisons et tous les produits de l'entreprise à chaque affichage, juste pour sortir une
  * vingtaine de chiffres et trois listes de cinq lignes.
  *
- * Tout est désormais agrégé en base, comme le fait {@code PlatformMetricsService} pour le
- * back-office de la plateforme — les deux écrans du même genre suivent enfin la même méthode.
+ * Maintenant tout est calculé en base, comme {@code PlatformMetricsService} le fait pour le
+ * back-office de la plateforme. Les deux écrans du même type fonctionnent enfin pareil.
  *
- * <h2>Une requête par bloc, et non une par chiffre</h2>
+ * <h2>Une requête par bloc, pas une par chiffre</h2>
  *
- * Les décomptes d'un même bloc viennent d'une seule requête. Ce n'est pas une optimisation :
- * l'écran les affiche côte à côte comme une répartition, et deux requêtes séparées pourraient
- * lire des états différents de la base — le total ne tomberait plus juste, sans qu'aucune ligne
- * ne soit fausse.
+ * Les compteurs d'un même bloc viennent d'une seule requête. Ce n'est pas pour les
+ * performances : l'écran les affiche côte à côte comme une répartition, et avec deux
+ * requêtes séparées on pourrait lire la base à deux moments différents. Le total ne
+ * tomberait plus juste, sans qu'aucune ligne soit fausse.
  */
 @Service
 public class DashboardService {
 
-    /** Longueur des trois listes courtes de l'aperçu. */
+    /** Nombre de lignes des trois petites listes du tableau de bord. */
     private static final int SHORT_LIST_SIZE = 5;
 
     private final OrderRepository orderRepository;
@@ -62,11 +62,11 @@ public class DashboardService {
     }
 
     /**
-     * Aperçu complet.
+     * Toutes les données du tableau de bord.
      *
-     * Réservé à l'ADMIN par le contrôleur : les agrégats portent donc sur toute l'entreprise, et
-     * les synthèses sont appelées sans restriction d'opérateur. Le cloisonnement PAR ENTREPRISE,
-     * lui, reste assuré — le filtre Hibernate couvre ces requêtes comme les autres.
+     * Le contrôleur le réserve à l'ADMIN : les calculs portent donc sur toute l'entreprise,
+     * sans limiter à un caissier. Le filtrage PAR ENTREPRISE, lui, marche toujours : le
+     * filtre Hibernate s'applique à ces requêtes comme aux autres.
      */
     @Transactional(readOnly = true)
     public DashboardOverview getOverview() {
@@ -101,9 +101,9 @@ public class DashboardService {
 
                 invoices.getTotal(),
                 collected,
-                // Facturé = encaissé + reliquat, sur le même ensemble. Reconstruit ici plutôt
-                // que demandé à la base : l'identité affichée par l'écran devient vraie par
-                // construction, et non par la coïncidence de deux sommes.
+                // Facturé = encaissé + reste, sur les mêmes factures. On le calcule ici au lieu
+                // de le demander à la base : comme ça l'égalité affichée à l'écran est toujours
+                // vraie, et pas seulement parce que deux sommes tombent juste.
                 collected.add(pending),
                 pending,
                 invoices.getUnpaid(),
@@ -154,7 +154,7 @@ public class DashboardService {
                 .toList();
     }
 
-    /** SUM rend NULL sur un ensemble vide ; un montant nul hérité faisait tomber l'aperçu en 500. */
+    /** SUM renvoie NULL quand il n'y a rien ; ce null faisait planter le tableau de bord en 500. */
     private BigDecimal orZero(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
     }

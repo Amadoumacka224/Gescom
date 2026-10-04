@@ -12,17 +12,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Cree le compte du proprietaire de la plateforme au premier demarrage, a partir de
- * variables d'environnement.
+ * Cree le compte super admin au premier demarrage, a partir de variables d'environnement.
  *
- * Ce compte n'est deliberement pas seme par une migration Flyway : il faudrait y inscrire
- * une empreinte de mot de passe en dur, versionnee et identique sur toutes les installations
- * — soit exactement le genre d'identifiant par defaut qui finit par ne jamais etre change.
- * Le faire ici permet d'encoder avec le {@code PasswordEncoder} du projet un secret fourni
- * par l'exploitant, au meme titre que {@code DB_PASSWORD} ou {@code JWT_SECRET}.
+ * On ne le cree pas dans une migration Flyway exprès : il faudrait y mettre un hash de mot
+ * de passe en dur, versionne et le meme sur toutes les installations. C'est typiquement le
+ * mot de passe par defaut que personne ne change jamais. Ici on encode avec le
+ * {@code PasswordEncoder} du projet un mot de passe fourni a l'installation, comme
+ * {@code DB_PASSWORD} ou {@code JWT_SECRET}.
  *
- * Sans les variables, rien n'est cree et l'application demarre normalement : une
- * installation qui n'a pas encore besoin du back-office proprietaire n'y est pas contrainte.
+ * Si les variables ne sont pas definies, rien n'est cree et l'application demarre
+ * normalement : on n'est pas oblige d'avoir un back-office plateforme.
  */
 @Component
 public class PlatformAdminBootstrap implements ApplicationRunner {
@@ -54,8 +53,8 @@ public class PlatformAdminBootstrap implements ApplicationRunner {
             return;
         }
         if (userRepository.existsByUsername(username)) {
-            // Idempotent : le mot de passe n'est jamais réécrit au redémarrage, sans quoi
-            // une rotation faite depuis l'application serait annulée au prochain déploiement.
+            // On ne réécrit jamais le mot de passe au redémarrage, sinon un changement fait
+            // depuis l'application serait écrasé au déploiement suivant.
             log.debug("Compte propriétaire « {} » déjà présent.", username);
             return;
         }
@@ -68,8 +67,8 @@ public class PlatformAdminBootstrap implements ApplicationRunner {
         owner.setLastName("GESCOM");
         owner.setRole(User.Role.SUPER_ADMIN);
         owner.setActive(true);
-        // Aucune entreprise : c'est ce rattachement vide qui ouvre la vue globale du parc,
-        // et la contrainte chk_users_company_scope en base le rend obligatoire pour ce rôle.
+        // Pas d'entreprise : c'est ce qui donne la vue sur toutes les entreprises, et la
+        // contrainte chk_users_company_scope l'impose en base pour ce rôle.
         owner.setOwnerCompany(null);
         userRepository.save(owner);
 

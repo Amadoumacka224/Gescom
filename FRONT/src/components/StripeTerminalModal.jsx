@@ -7,19 +7,19 @@ import paymentService, { TEST_CARDS } from '../services/paymentService';
 import { formatCurrency } from '../utils/format';
 
 /**
- * Terminal de paiement carte, adossé à Stripe en mode test.
+ * Terminal de paiement par carte, avec Stripe en mode test.
  *
- * Il déroule le parcours réel d'un paiement carte, dans l'ordre où il se produit :
- *   1. ouverture d'une intention de paiement chez le prestataire ;
- *   2. présentation d'une carte de test, que le prestataire accepte ou refuse ;
- *   3. mise à jour de la facture — faite par le serveur, jamais ici.
+ * Il suit les étapes d'un vrai paiement par carte :
+ *   1. création d'une intention de paiement chez Stripe ;
+ *   2. choix d'une carte de test, acceptée ou refusée par Stripe ;
+ *   3. mise à jour de la facture, faite par le serveur et pas ici.
  *
- * Les trois étapes restent affichées pendant toute la session : c'est ce qui distingue un
- * refus de carte (étape 2) d'un encaissement qui n'a pas abouti (étape 3), deux situations
- * que le caissier ne traite pas de la même façon.
+ * Les trois étapes restent affichées pendant toute la session pour voir si c'est la carte
+ * qui a été refusée (étape 2) ou l'encaissement qui a échoué (étape 3). Le caissier ne
+ * réagit pas pareil dans les deux cas.
  *
- * Aucune donnée de carte ne transite : on n'envoie que des jetons de test Stripe, comme une
- * intégration réelle où la saisie a lieu chez le prestataire.
+ * Aucune donnée de carte n'est envoyée : seulement des tokens de test Stripe, comme dans une
+ * vraie intégration où la saisie se fait chez Stripe.
  */
 
 const STEPS = [
@@ -37,14 +37,13 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
   const [phase, setPhase] = useState('creating'); // creating | ready | confirming | succeeded | failed
   const [error, setError] = useState(null);
 
-  // Une session = une intention. Le compteur sert à en redemander une après un refus : c'est
-  // la seule façon de rejouer l'effet, une intention refusée étant close chez le prestataire.
+  // Une session = une intention. Le compteur sert à en recréer une après un refus (une
+  // intention refusée est fermée chez Stripe, il faut relancer l'effet).
   const [session, setSession] = useState(0);
 
-  // L'intention s'ouvre à l'affichage du terminal : le caissier n'a rien à déclencher de plus
-  // que le choix de la carte. `ignore` couvre la fermeture du terminal avant la réponse — et
-  // dans ce cas la session doit être abandonnée ici : `handleClose` ne peut pas s'en charger,
-  // il n'a encore aucun identifiant à annuler.
+  // L'intention est créée à l'ouverture du terminal, le caissier n'a plus qu'à choisir la
+  // carte. `ignore` gère le cas où on ferme le terminal avant la réponse : il faut alors
+  // annuler la session ici, car `handleClose` n'a pas encore d'id à annuler.
   useEffect(() => {
     if (!isOpen) return undefined;
     let ignore = false;
@@ -73,7 +72,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
     };
   }, [isOpen, invoice.id, amount, session]);
 
-  /** Nouvelle tentative après un refus : l'intention précédente est close, il en faut une autre. */
+  /** Nouvel essai après un refus : l'ancienne intention est fermée, on en crée une nouvelle. */
   const handleRetry = () => {
     setPayment(null);
     setError(null);
@@ -92,11 +91,11 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
         toast.success(t('payment.terminal.accepted'));
         onPaid?.(data);
       } else {
-        // Refus de l'émetteur : la facture est intacte, une nouvelle tentative est possible.
+        // Carte refusée : la facture n'a pas changé, on peut réessayer.
         setPhase('failed');
         setError(data.failureMessage || t('payment.terminal.declined'));
-        // CANCELED, en revanche, signifie que le serveur a clos la session parce que la facture
-        // avait bougé entre-temps : la liste affichée n'est plus à jour.
+        // CANCELED veut dire que le serveur a fermé la session parce que la facture a changé
+        // entre-temps : la liste affichée n'est plus à jour.
         if (data.status === 'CANCELED') {
           onPaid?.(null);
         }
@@ -105,15 +104,15 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
       console.error('Error confirming payment:', err);
       setError(readMessage(err));
       setPhase('failed');
-      // Le serveur a pu clore la session (facture réglée entre-temps) : on rafraîchit la liste
-      // pour que le caissier voie l'état réel de la facture.
+      // Le serveur a peut-être fermé la session (facture payée entre-temps) : on recharge la
+      // liste pour afficher le vrai état de la facture.
       onPaid?.(null);
     }
   };
 
   /**
-   * Fermer avec une intention encore ouverte la laisserait bloquer la facture : le serveur
-   * n'autorise qu'une session à la fois. On l'abandonne donc explicitement.
+   * Si on ferme avec une intention encore ouverte, elle bloquerait la facture (le serveur
+   * n'accepte qu'une session à la fois). Donc on l'annule.
    */
   const handleClose = async () => {
     if (payment?.id && payment.status === 'REQUIRES_CONFIRMATION') {
@@ -134,14 +133,14 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
     if (key === 'confirm') {
       if (phase === 'confirming') return 'running';
       if (phase === 'succeeded') return 'done';
-      // FAILED = carte refusée ; CANCELED = session close par le serveur (facture modifiée).
-      // Dans les deux cas c'est à cette étape que le parcours s'est arrêté.
+      // FAILED = carte refusée ; CANCELED = session fermée par le serveur (facture modifiée).
+      // Dans les deux cas, le paiement s'est arrêté à cette étape.
       if (phase === 'failed' && (payment?.status === 'FAILED' || payment?.status === 'CANCELED')) {
         return 'error';
       }
       return 'idle';
     }
-    // La facture n'est mise à jour qu'après un paiement accepté.
+    // La facture est mise à jour seulement si le paiement est accepté.
     if (phase === 'succeeded') return 'done';
     return 'idle';
   };
@@ -151,7 +150,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={t('payment.terminal.title')} size="md">
       <div className="space-y-6">
-        {/* Ce que le terminal s'apprête à encaisser */}
+        {/* Montant à encaisser */}
         <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <div className="min-w-0">
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -161,7 +160,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
               {formatCurrency(amount)}
             </p>
           </div>
-          {/* Dire franchement si le débit est réel : en mode simulé, rien ne part chez Stripe. */}
+          {/* On indique clairement si le paiement est réel : en mode simulé rien n'est envoyé à Stripe. */}
           <span className={payment?.simulated === false ? 'badge-info' : 'badge-neutral'}>
             {payment?.simulated === false
               ? t('payment.terminal.modeTest')
@@ -169,7 +168,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
           </span>
         </div>
 
-        {/* Progression du parcours */}
+        {/* Étapes du paiement */}
         <ol className="space-y-3" aria-live="polite">
           {STEPS.map((step) => {
             const state = stepState(step.key);
@@ -211,7 +210,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
           </p>
         )}
 
-        {/* Choix de la carte présentée au terminal */}
+        {/* Choix de la carte */}
         {(phase === 'ready' || phase === 'confirming') && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -244,7 +243,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
           </div>
         )}
 
-        {/* Issue de la transaction */}
+        {/* Résultat du paiement */}
         {phase === 'succeeded' && (
           <div className="rounded-xl bg-green-50 border border-green-200 p-4 space-y-1">
             <p className="flex items-center gap-2 font-semibold text-green-800">
@@ -289,7 +288,7 @@ const StripeTerminalModal = ({ isOpen, onClose, invoice, amount, onPaid }) => {
             {phase === 'succeeded' ? t('common.close') : t('common.cancel')}
           </button>
           {phase === 'failed' && (
-            // Une intention refusée est close côté prestataire : réessayer en ouvre une neuve.
+            // Une intention refusée est fermée chez Stripe : réessayer en crée une nouvelle.
             <button type="button" onClick={handleRetry} className="btn-primary flex-1">
               {t('payment.terminal.retry')}
             </button>

@@ -21,12 +21,11 @@ import SearchableSelect from './SearchableSelect';
 import { formatCurrency, formatDate } from '../utils/format';
 import { ORDER_STATUS_TONE, badgeClass } from '../constants/statusBadges';
 
-/* Motifs de retour : liste fermée, alignée sur StockReturnItem.ReturnReason. Un motif libre
- * ne se compte pas — c'est cette liste qui rend les retours analysables. Les précisions vont
- * dans les notes du retour. */
+/* Motifs de retour : liste fixe, la même que StockReturnItem.ReturnReason. Un motif en texte
+ * libre ne permet pas de faire des stats. Les précisions vont dans les notes du retour. */
 const REASONS = ['DEFECTIVE', 'DAMAGED', 'WRONG_ITEM', 'NOT_SATISFIED', 'ORDER_ERROR', 'OTHER'];
 
-/* Traitements, avec l'effet de stock que le backend leur applique (cf. ReturnTreatment). */
+/* Traitements, avec leur effet sur le stock côté backend (voir ReturnTreatment). */
 const TREATMENTS = [
   { value: 'RESTOCK', icon: PackagePlus },
   { value: 'REFUND', icon: Banknote },
@@ -36,12 +35,11 @@ const TREATMENTS = [
 const DEFAULT_LINE = { selected: false, quantity: 1, reason: 'DEFECTIVE', treatment: 'RESTOCK', replacementProductId: '' };
 
 /**
- * Saisie d'un retour client, adossée à la vente d'origine.
+ * Saisie d'un retour client à partir de la vente d'origine.
  *
- * Le formulaire n'est jamais une saisie libre : on part d'un numéro de commande ou de facture,
- * le serveur renvoie la vente et ses lignes, et seules les quantités encore retournables sont
- * saisissables. Le récapitulatif montre en permanence l'effet sur le stock et le montant
- * remboursé — l'utilisateur valide ce qu'il a vu.
+ * On part toujours d'un numéro de commande ou de facture : le serveur renvoie la vente et
+ * ses lignes, et on ne peut saisir que les quantités encore retournables. Le récapitulatif
+ * montre en direct l'effet sur le stock et le montant remboursé avant de valider.
  */
 const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
   const { t } = useTranslation();
@@ -51,15 +49,15 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
   const [lookupError, setLookupError] = useState('');
   const [sale, setSale] = useState(null);
 
-  // État de saisie par produit. Séparé de `sale` : recharger une vente ne doit pas
-  // conserver des quantités saisies pour une autre.
+  // Saisie par produit. Séparée de `sale` pour ne pas garder les quantités d'une autre
+  // vente quand on en recharge une.
   const [lines, setLines] = useState({});
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Repartir d'un formulaire vierge à chaque ouverture : une modale rouverte doit poser la
-  // même question qu'à la première fois, pas rejouer le dernier retour saisi.
+  // On remet le formulaire à zéro à chaque ouverture, pour ne pas retrouver le dernier
+  // retour saisi.
   useEffect(() => {
     if (!isOpen) return;
     setReference('');
@@ -88,8 +86,8 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
       setLookupError('');
       const { data } = await api.get('/stock/returns/lookup', { params: { reference: query } });
       setSale(data);
-      // Pré-remplir chaque ligne retournable avec la quantité maximale : le cas courant est
-      // le retour intégral d'un article, l'utilisateur n'a plus qu'à décocher ou réduire.
+  // On pré-remplit chaque ligne avec la quantité max : le plus souvent on rend l'article
+  // en entier, il reste juste à décocher ou diminuer.
       setLines(
         Object.fromEntries(
           data.items.map((item) => [
@@ -134,8 +132,8 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
     });
   };
 
-  /* Appliquer un motif ou un traitement à toutes les lignes retenues : un colis abîmé produit
-   * six lignes avec le même motif, qu'on ne veut pas saisir six fois. */
+  /* Applique un motif ou un traitement à toutes les lignes cochées : par exemple un colis
+   * abîmé donne six lignes avec le même motif, pas envie de le saisir six fois. */
   const applyToSelection = (patch) =>
     setLines((prev) => {
       const next = { ...prev };
@@ -151,10 +149,10 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
   );
 
   /**
-   * Montant remboursé pour une quantité rendue, calculé comme le serveur le fera : la part du
-   * total payé qui revient aux unités rendues. Multiplier le prix unitaire — arrondi au centime
-   * pour l'affichage — perdrait un centime sur les lignes qui ne se divisent pas en parts
-   * entières, et l'aperçu annoncerait alors autre chose que le retour enregistré.
+   * Montant remboursé pour une quantité rendue, calculé comme côté serveur : la part du total
+   * payé qui correspond aux unités rendues. Si on multipliait le prix unitaire (arrondi au
+   * centime), on pourrait perdre un centime et l'aperçu ne correspondrait pas au retour
+   * enregistré.
    */
   const refundFor = (item, quantity) => {
     const sold = item.quantitySold || 0;
@@ -175,10 +173,9 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
   }, [selectedItems, lines]);
 
   /**
-   * Effets de stock d'une ligne, tels que le backend les appliquera : l'article rendu revient
-   * toujours en stock, et l'échange en ressort l'article de remplacement. À l'identique, les
-   * deux mouvements se compensent — le récapitulatif le montre plutôt que d'annoncer une
-   * hausse qui n'aura pas lieu.
+   * Effets sur le stock d'une ligne, comme le backend les appliquera : l'article rendu revient
+   * toujours en stock, et pour un échange l'article de remplacement sort. Pour un échange du
+   * même article, les deux s'annulent, et le récapitulatif l'affiche comme ça.
    */
   const stockEffects = (item, line) => {
     const quantity = Number(line.quantity) || 0;
@@ -214,8 +211,8 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
           max: item.quantityReturnable,
         });
       }
-      // Un échange contre un autre article sort ce dernier du stock : le refuser ici évite
-      // un aller-retour serveur pour une InsufficientStockException prévisible.
+      // Un échange contre un autre article le fait sortir du stock : on vérifie ici pour
+      // éviter un appel serveur qui finirait en InsufficientStockException.
       if (line.treatment === 'EXCHANGE' && line.replacementProductId) {
         const replacement = productById[String(line.replacementProductId)];
         if (
@@ -306,7 +303,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
     );
   }
 
-  /* ---- Étape 2 : sélectionner les articles rendus ---- */
+  /* ---- Étape 2 : choisir les articles rendus ---- */
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -372,7 +369,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
         </div>
       ) : (
         <>
-          {/* Actions groupées : une même cause produit souvent plusieurs lignes identiques. */}
+          {/* Actions groupées : un même problème donne souvent plusieurs lignes pareilles. */}
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
               <input
@@ -414,8 +411,8 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
             </select>
           </div>
 
-          {/* Articles de la vente. Une fiche par ligne plutôt qu'un tableau : la saisie ouvre
-              trois contrôles par article, plus le remplaçant en cas d'échange. */}
+          {/* Articles de la vente. Une carte par ligne plutôt qu'un tableau, car il y a trois
+              champs par article (plus le remplaçant en cas d'échange). */}
           <div className="space-y-3">
             {sale.items.map((item) => {
               const line = lines[item.productId] ?? DEFAULT_LINE;
@@ -471,7 +468,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                   {selected && (
                     <div className="mt-4 pl-7 space-y-3">
                       <div className="flex flex-wrap items-end gap-4">
-                        {/* Quantité rendue, bornée au retournable côté saisie comme côté serveur. */}
+                        {/* Quantité rendue, limitée au retournable (ici et côté serveur). */}
                         <div className="space-y-1.5">
                           <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
                             {t('stock.returns.quantityLabel')}
@@ -539,8 +536,8 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                           </select>
                         </div>
 
-                        {/* Traitement en segments : trois choix exclusifs, visibles d'un coup
-                            d'œil et atteignables en un clic. */}
+                        {/* Traitement en boutons segmentés : trois choix, visibles directement
+                            et en un clic. */}
                         <div className="space-y-1.5">
                           <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
                             {t('stock.returns.treatmentLabel')}
@@ -610,7 +607,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                         </div>
                       )}
 
-                      {/* Effet exact de la ligne : ce qui bouge en stock, ce qui est remboursé. */}
+                      {/* Effet de la ligne : mouvement de stock et montant remboursé. */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400 tabular-nums">
                         {stockEffects(item, line).map((effect) => (
                           <span key={effect.name} className="inline-flex items-center gap-1.5">
@@ -657,7 +654,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
             maxLength={500}
           />
 
-          {/* Récapitulatif : le chiffre que l'utilisateur vient vérifier avant de valider. */}
+          {/* Récapitulatif : ce qu'on vérifie avant de valider. */}
           <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700">
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {t('stock.returns.summary', { lines: totals.lines, quantity: totals.quantity })}

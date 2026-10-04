@@ -40,10 +40,10 @@ public class InvoiceController {
     }
 
     /**
-     * Toutes les factures du périmètre, sans pagination.
+     * Toutes les factures, sans pagination.
      *
-     * Conservé pour les écrans qui s'en servent de référentiel — le tableau de bord y puise ses
-     * agrégats. Le tableau de l'écran Factures, lui, passe par {@link #searchInvoices}.
+     * Gardé pour les écrans qui ont besoin de toute la liste (le tableau de bord pour ses
+     * chiffres). Le tableau de l'écran Factures utilise {@link #searchInvoices}.
      */
     @GetMapping
     public ResponseEntity<List<InvoiceResponse>> getAllInvoices() {
@@ -52,11 +52,11 @@ public class InvoiceController {
     }
 
     /**
-     * Page de factures, filtrée et triée en base.
+     * Une page de factures, filtrée et triée en base.
      *
-     * {@code overdue} est un critère à part et non un statut : c'est une échéance dépassée sur
-     * une facture ni soldée ni annulée. L'écran le présente pourtant dans la même liste que les
-     * statuts, d'où ce paramètre distinct.
+     * {@code overdue} n'est pas un statut : c'est une facture ni payée ni annulée dont
+     * l'échéance est passée. L'écran l'affiche dans la même liste que les statuts, d'où ce
+     * paramètre à part.
      */
     @GetMapping("/search")
     public ResponseEntity<PageResponse<InvoiceResponse>> searchInvoices(
@@ -80,13 +80,13 @@ public class InvoiceController {
                 invoiceService.searchInvoices(criteria, pageable), salesMapper::toResponse));
     }
 
-    /** Compteurs d'en-tête : ils portent sur tout le périmètre, pas sur la page affichée. */
+    /** Compteurs en haut de page : sur toutes les factures, pas sur la page affichée. */
     @GetMapping("/summary")
     public ResponseEntity<InvoiceSummary> getSummary() {
         return ResponseEntity.ok(invoiceService.getSummary());
     }
 
-    /** Clients proposés par le filtre : ceux qui ont réellement une facture. */
+    /** Clients proposés dans le filtre : seulement ceux qui ont une facture. */
     @GetMapping("/filter-options")
     public ResponseEntity<InvoiceSummary.FilterOptions> getFilterOptions() {
         return ResponseEntity.ok(invoiceService.getFilterOptions());

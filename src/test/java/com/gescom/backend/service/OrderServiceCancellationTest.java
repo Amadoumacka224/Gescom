@@ -33,11 +33,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Annulation et suppression d'une commande sur laquelle un retour client a été enregistré.
+ * Annulation et suppression d'une commande qui a un retour client.
  *
- * {@code restoreStock} restitue la quantité vendue entière : sur une vente partiellement rendue,
- * elle recréditerait le stock d'articles déjà réintégrés par le retour. Ces deux opérations sont
- * donc refusées dès qu'un retour existe.
+ * {@code restoreStock} remet toute la quantité vendue : sur une vente rendue en partie, il
+ * remettrait en stock des articles déjà remis par le retour. Ces deux opérations sont donc
+ * refusées dès qu'il y a un retour.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -69,7 +69,7 @@ class OrderServiceCancellationTest {
         product.setName("Clavier");
         product.setStockQuantity(10);
 
-        // Commande confirmée de 5 claviers : son stock est sorti, une annulation le restituerait.
+        // Commande confirmée de 5 claviers : le stock est sorti, une annulation le remettrait.
         order = new Order();
         order.setId(3L);
         order.setOrderNumber("CMD-TEST");
@@ -105,7 +105,7 @@ class OrderServiceCancellationTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("CMD-TEST");
 
-        // Ni statut ni stock touchés : les articles rendus l'ont déjà été par le retour.
+        // Ni le statut ni le stock n'ont bougé : les articles rendus ont déjà été remis par le retour.
         assertThat(order.getStatus()).isEqualTo(Order.OrderStatus.CONFIRMED);
         assertThat(product.getStockQuantity()).isEqualTo(10);
         verify(stockMovementRepository, never()).save(any(StockMovement.class));

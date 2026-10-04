@@ -16,14 +16,14 @@ import java.util.Set;
 /**
  * Abonnement d'une entreprise a une formule.
  *
- * Le montant est fige a la souscription plutot que relu depuis {@link Plan} : une revision
- * du catalogue ne doit pas reecrire retroactivement le MRR des contrats en cours ni les
- * encaissements deja journalises. C'est {@code amount} qui fait foi, pas le tarif courant.
+ * Le montant est fixe a la souscription au lieu d'etre relu dans {@link Plan} : si on change
+ * un prix, ca ne doit pas modifier apres coup le MRR des contrats en cours ni les paiements
+ * deja enregistres. C'est {@code amount} qui compte, pas le prix actuel.
  *
- * Resilier ne supprime pas la ligne : le statut bascule et {@code canceledAt} est
- * renseigne. Sans cette trace, le churn ne serait pas calculable — c'est la raison d'etre
- * de l'index partiel {@code uq_subscriptions_active_per_company}, qui n'impose l'unicite
- * qu'aux contrats vivants et laisse l'historique s'accumuler.
+ * Resilier ne supprime pas la ligne : on change le statut et on remplit {@code canceledAt}.
+ * Sans ca on ne pourrait pas calculer le churn. C'est pour ca que l'index partiel
+ * {@code uq_subscriptions_active_per_company} n'impose l'unicite que sur les contrats actifs
+ * et laisse l'historique s'accumuler.
  */
 @Entity
 @Table(name = "subscriptions")
@@ -32,7 +32,7 @@ import java.util.Set;
 @AllArgsConstructor
 public class Subscription {
 
-    /** Statuts qui comptent comme un abonnement vivant — miroir de l'index partiel en base. */
+    /** Statuts qui comptent comme un abonnement actif (les memes que l'index partiel en base). */
     public static final Set<SubscriptionStatus> LIVE_STATUSES =
             Set.of(SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE);
 
@@ -74,7 +74,7 @@ public class Subscription {
     @Column(nullable = false)
     private LocalDateTime currentPeriodStart;
 
-    /** Date de renouvellement ; sert aussi a reperer les echeances depassees. */
+    /** Date de renouvellement ; sert aussi a trouver les echeances depassees. */
     @NotNull
     @Column(nullable = false)
     private LocalDateTime currentPeriodEnd;
@@ -107,13 +107,13 @@ public class Subscription {
     }
 
     /**
-     * Contribution de cet abonnement au revenu mensuel recurrent.
+     * Ce que cet abonnement rapporte par mois (MRR).
      *
-     * Un contrat annuel est ramene au douzieme : c'est la definition meme du MRR, et sans
-     * cette mensualisation un client annuel ferait bondir l'indicateur d'un facteur douze
-     * le mois de sa souscription. Le resultat garde six decimales et n'est arrondi qu'une
-     * fois, apres sommation, par {@code PlatformMetricsService} — arrondir chaque ligne au
-     * centime derive de plusieurs euros sur un parc de quelques centaines d'abonnes.
+     * Un contrat annuel est divise par douze : c'est la definition du MRR, et sinon un client
+     * annuel multiplierait l'indicateur par douze le mois ou il s'abonne. On garde six
+     * decimales et on n'arrondit qu'une fois, apres la somme, dans
+     * {@code PlatformMetricsService} : si on arrondissait chaque ligne au centime, on
+     * pourrait perdre plusieurs euros sur quelques centaines d'abonnes.
      */
     public BigDecimal monthlyAmount() {
         if (amount == null) return BigDecimal.ZERO;
@@ -128,10 +128,10 @@ public class Subscription {
     }
 
     /**
-     * Cycle de vie du contrat.
+     * Statuts du contrat.
      *
-     * PAST_DUE est distinct de CANCELED a dessein : l'echeance est impayee mais le contrat
-     * court toujours, il pese donc encore dans le MRR et n'est pas comptabilise en churn.
+     * PAST_DUE est different de CANCELED exprès : l'echeance n'est pas payee mais le contrat
+     * continue, donc il compte encore dans le MRR et pas dans le churn.
      */
     public enum SubscriptionStatus {
         TRIALING,  // Periode d'essai, pas encore facturee

@@ -18,9 +18,9 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Entité client (destinataire des commandes).
- * Distingue les particuliers des entreprises via le type, et applique des contraintes de
- * validation sur les coordonnées (email unique et valide, format de téléphone, champs requis).
+ * Client (celui qui passe les commandes).
+ * Peut être un particulier ou une entreprise (champ type), avec des contrôles sur les
+ * coordonnées (email unique et valide, format du téléphone, champs obligatoires).
  */
 @Entity
 @Table(name = "clients", uniqueConstraints = @UniqueConstraint(name = "uq_clients_company_email", columnNames = {"company_id", "email"}))
@@ -37,11 +37,11 @@ public class Client implements TenantOwned {
     private Long id;
 
     /**
-     * Entreprise proprietaire de la ligne - cle du cloisonnement multi-entreprises.
+     * Entreprise a qui appartient la ligne, c'est ce qui separe les donnees des entreprises.
      *
-     * Renseignee automatiquement a la creation par TenantEntityListener : aucun service ni
-     * mapper n'a a s'en occuper, ce qui evite qu'un oubli produise une ligne orpheline.
-     * Ecartee de la serialisation JSON, les controleurs ne renvoyant que des DTO.
+     * Remplie automatiquement a la creation par TenantEntityListener : ni les services ni
+     * les mappers n'ont a s'en occuper, donc pas de risque d'oubli. Pas envoyee en JSON
+     * (les controleurs ne renvoient que des DTO).
      */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)

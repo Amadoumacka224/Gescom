@@ -23,12 +23,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Propriété du stock : la fiche produit ne le réécrit pas.
+ * Le stock ne doit pas être modifié par la fiche produit.
  *
- * Le formulaire d'édition part de la fiche telle qu'elle était à son ouverture. Si la mise à jour
- * recopiait {@code stockQuantity}, toute correction de prix ou de libellé ramènerait le stock à sa
- * valeur d'alors — effaçant en silence les ventes de l'intervalle, sans mouvement pour l'expliquer.
- * Le stock ne bouge que par une opération tracée (vente, retour, ajustement).
+ * Le formulaire de modification part de la fiche telle qu'elle était à l'ouverture. Si la mise
+ * à jour recopiait {@code stockQuantity}, une simple correction de prix ou de nom remettrait le
+ * stock de ce moment-là, et effacerait sans rien dire les ventes faites entre-temps, sans
+ * aucun mouvement pour l'expliquer. Le stock ne change que par une opération enregistrée
+ * (vente, retour, ajustement).
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -46,7 +47,7 @@ class ProductServiceUpdateTest {
     void setUp() {
         service = new ProductService(productRepository, activityLogService, stockService);
 
-        // Fiche en base : 170 en stock, après une vente de 10 sur les 180 d'origine.
+        // Fiche en base : 170 en stock, après une vente de 10 sur les 180 de départ.
         stored = new Product();
         stored.setId(4L);
         stored.setName("Clavier");
@@ -60,7 +61,7 @@ class ProductServiceUpdateTest {
 
     @Test
     void update_ignoresTheStockCarriedByTheRequest() {
-        // Le formulaire avait été ouvert avant la vente : il repose encore 180.
+        // Le formulaire avait été ouvert avant la vente : il renvoie encore 180.
         Product details = new Product();
         details.setName("Clavier mécanique");
         details.setSellingPrice(new BigDecimal("29.00"));
@@ -77,8 +78,8 @@ class ProductServiceUpdateTest {
 
     @Test
     void update_withoutStockInTheRequest_leavesTheStockIntact() {
-        // Client à jour : il n'envoie plus le stock du tout. La colonne est NOT NULL — recopier
-        // ce null ferait échouer l'enregistrement.
+        // Client à jour : il n'envoie plus du tout le stock. La colonne est NOT NULL, donc
+        // recopier ce null ferait échouer l'enregistrement.
         Product details = new Product();
         details.setName("Clavier");
         details.setSellingPrice(new BigDecimal("25.00"));
@@ -99,15 +100,15 @@ class ProductServiceUpdateTest {
 
         service.updateProduct(4L, details);
 
-        // Un stock qui bouge sans mouvement rendrait le grand livre irréconciliable :
-        // la fiche produit ne peut donc pas être un chemin d'écriture du stock.
+        // Un stock qui change sans mouvement rendrait l'historique impossible à vérifier :
+        // la fiche produit ne doit donc pas pouvoir modifier le stock.
         verifyNoInteractions(stockService);
     }
 
     @Test
     void updateStock_stillGoesThroughTheTracedPath() {
-        // Le chemin légitime d'un ajustement : il passe par StockService, qui journalise
-        // le mouvement correspondant.
+        // La bonne façon de faire un ajustement : passer par StockService, qui enregistre
+        // le mouvement.
         service.updateStock(4L, -3);
 
         verify(stockService).removeStock(anyLong(), anyInt(), any(), any(), any());

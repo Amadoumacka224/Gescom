@@ -8,15 +8,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Retour client tel qu'affiché dans le registre.
+ * Retour client tel qu'il apparaît dans la liste.
  *
- * La vente d'origine est représentée par ses seuls numéros et non par un {@code OrderResponse}
- * complet : le registre a besoin de savoir de quelle vente il s'agit, pas d'en réembarquer
- * toutes les lignes. Les lignes de retour, elles, sont détaillées — elles sont l'objet du
- * document. Elles sont absentes des réponses de liste, où seul l'entête est chargé.
+ * La vente d'origine est donnée juste par ses numéros et pas par un {@code OrderResponse}
+ * complet : on a besoin de savoir de quelle vente il s'agit, pas de renvoyer toutes ses
+ * lignes. Les lignes du retour, par contre, sont détaillées, c'est le contenu du document.
+ * Elles ne sont pas dans les réponses de liste, où on ne charge que l'en-tête.
  *
- * Le client est porté en entier — et pas seulement par son libellé — parce que la note de
- * crédit éditée depuis la fiche en reprend l'adresse, comme la facture le fait de son côté.
+ * Le client est renvoyé en entier (pas juste son nom) parce que l'avoir généré depuis la
+ * fiche reprend son adresse, comme la facture.
  */
 public record StockReturnResponse(
         Long id,
@@ -27,8 +27,8 @@ public record StockReturnResponse(
         String invoiceNumber,
         ClientResponse client,
         String clientName,
-        // Taux de TVA de la facture d'origine, pour que l'avoir applique celui de la vente et
-        // non le taux courant des réglages. Null si la vente n'a jamais été facturée.
+        // Taux de TVA de la facture d'origine, pour que l'avoir utilise celui de la vente et
+        // pas le taux actuel des paramètres. Null si la vente n'a jamais été facturée.
         BigDecimal taxRate,
         Integer totalQuantity,
         BigDecimal refundAmount,

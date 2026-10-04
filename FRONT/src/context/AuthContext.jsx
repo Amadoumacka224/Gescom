@@ -4,13 +4,13 @@ import authService from '../services/authService';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // La session est lue au premier rendu, pas dans un effet. Le faire dans un useEffect
-  // imposait un rendu initial à `user = null, loading = true` suivi d'un second rendu en
-  // cascade — soit un clignotement de l'écran de chargement à chaque montage, alors que
-  // authService.getCurrentUser() ne fait que lire le stockage local, de façon synchrone.
+  // La session est lue directement au premier rendu, pas dans un useEffect. Avec un effet,
+  // on avait d'abord un rendu avec `user = null, loading = true` puis un deuxième, donc
+  // l'écran de chargement clignotait. Or authService.getCurrentUser() lit juste le
+  // localStorage, c'est synchrone.
   const [user, setUser] = useState(() => authService.getCurrentUser() || null);
-  // Conservé dans le contexte : ProtectedRoute et consorts le lisent. Il n'y a plus rien
-  // d'asynchrone à attendre au démarrage, la valeur reste donc false.
+  // Gardé dans le contexte car ProtectedRoute et d'autres le lisent. Comme il n'y a plus
+  // rien d'asynchrone au démarrage, il reste à false.
   const [loading] = useState(false);
 
   const login = async (username, password) => {
@@ -25,16 +25,16 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Met à jour l'utilisateur connecté après une modification de son propre profil.
+   * Met à jour l'utilisateur connecté après qu'il a modifié son profil.
    *
-   * La barre latérale et l'en-tête lisent ce contexte : sans lui, la page Profil devait
-   * recharger la fenêtre entière (`window.location.reload()`) pour que le nouveau nom
-   * s'y affiche. Le token n'est jamais touché — seules les données d'affichage le sont.
+   * Le menu et l'en-tête lisent ce contexte. Avant, la page Profil devait recharger toute la
+   * page (`window.location.reload()`) pour afficher le nouveau nom. On ne touche pas au token,
+   * seulement aux infos affichées.
    */
   const updateUser = (changes) => {
     setUser((prev) => {
       const next = { ...(prev || {}), ...changes };
-      // Le stockage local reste la source consultée au prochain démarrage (cf. authService).
+      // On met aussi à jour le localStorage, relu au prochain démarrage (voir authService).
       localStorage.setItem('user', JSON.stringify(next));
       return next;
     });
