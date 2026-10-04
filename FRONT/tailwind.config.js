@@ -5,10 +5,8 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  // Les classes sémantiques sont construites dynamiquement (`badge-${tone}` dans
-  // `src/constants/statusBadges.js`) : Tailwind ne peut pas les repérer dans le source et
-  // élaguerait les jetons jamais écrits littéralement — `badge-accent` avait ainsi perdu sa
-  // règle en thème clair. On les déclare donc explicitement.
+  // Ces classes sont construites dynamiquement (`badge-${tone}`) : Tailwind ne les
+  // voit pas dans le code, on les déclare donc ici pour qu'il les garde.
   safelist: [
     'badge-success', 'badge-warning', 'badge-danger',
     'badge-info', 'badge-accent', 'badge-neutral',
@@ -30,30 +28,20 @@ export default {
         ],
       },
       boxShadow: {
-        // Ombres feutrées et étagées, façon Stripe / Linear.
-        // Teintées au bleu nuit de la charte (#1a2740) plutôt qu'au noir : une ombre neutre
-        // grise le blanc cassé du fond.
+        // Ombres légères, teintées au bleu nuit de la charte plutôt qu'au noir.
         card: '0 1px 2px 0 rgba(26, 39, 64, 0.04), 0 1px 3px 0 rgba(26, 39, 64, 0.06)',
         'card-hover': '0 4px 12px -2px rgba(26, 39, 64, 0.08), 0 2px 6px -2px rgba(26, 39, 64, 0.05)',
         soft: '0 2px 8px -2px rgba(26, 39, 64, 0.08)',
         elevated: '0 12px 32px -8px rgba(26, 39, 64, 0.16), 0 4px 12px -4px rgba(26, 39, 64, 0.08)',
       },
-      /* ---- Palette de marque ----
-       *
-       * Quatre couleurs de référence, déclinées ici en rampes complètes :
-       *   #2196f3 bleu vif    → `primary-500` (teinte d'action)
-       *   #1f77b4 bleu acier  → `primary-600` (survol, aplats denses)
+      /* Couleurs de la charte :
+       *   #2196f3 bleu vif    → `primary-500` (boutons, liens)
+       *   #1f77b4 bleu acier  → `primary-600` (survol)
        *   #26395e bleu nuit   → `secondary-700` et `gray-800` (surfaces sombres)
-       *   #f4f6fa blanc cassé → `gray-50` (fond d'application)
+       *   #f4f6fa blanc cassé → `gray-50` (fond de l'application)
        *
-       * `blue` et `gray` sont volontairement REDÉFINIS plutôt que laissés aux valeurs
-       * Tailwind : les pages écrites avant l'arrivée de la charte utilisent `blue-*` en dur
-       * pour les éléments interactifs et `gray-*` pour tous les fonds et textes neutres.
-       * Les remapper ici aligne l'existant sans toucher aux pages, et garde les gris
-       * légèrement bleutés — un gris neutre à côté du bleu nuit paraît verdâtre.
-       *
-       * Les teintes sémantiques (vert / ambre / rouge / violet) ne sont PAS touchées :
-       * elles portent un sens métier documenté dans `src/index.css`, pas l'identité visuelle.
+       * `blue` et `gray` sont redéfinis pour que les pages qui les utilisent
+       * suivent la charte sans avoir à les modifier.
        */
       colors: {
         primary: {
@@ -69,7 +57,7 @@ export default {
           900: '#1a4463',
           950: '#0f2b42',
         },
-        // Alias de `primary` : neutralise les `blue-*` écrits en dur dans les pages.
+        // Copie de `primary`, pour les `blue-*` utilisés dans les pages.
         blue: {
           50: '#eef7fe',
           100: '#d8ecfd',
@@ -83,10 +71,7 @@ export default {
           900: '#1a4463',
           950: '#0f2b42',
         },
-        /* Jeton `accent` des badges, tuiles et graphiques (jalon de facturation). Basculé du
-         * violet vers l'indigo pour rentrer dans la charte : la teinte reste franchement
-         * distincte du bleu vif de marque, et l'écart de clarté avec lui est plus net qu'avec
-         * l'ancien violet — ce qui aide aussi les vision deutan. */
+        // Couleur `accent` des badges et graphiques : de l'indigo, bien distinct du bleu de marque.
         violet: {
           50: '#eef2ff',
           100: '#e0e7ff',
@@ -113,10 +98,8 @@ export default {
           900: '#1b2740',
           950: '#111a2c',
         },
-        /* Gris bleutés. L'ordre des nuances sombres est ce qui fait tenir le thème sombre :
-         * 900 = fond de page, 800 = cartes et barre latérale (le bleu nuit de la charte),
-         * 700 = champs de saisie et bordures. Garder cet écart croissant, sans quoi les
-         * cartes se confondent avec leur fond. */
+        /* Gris bleutés. En thème sombre : 900 = fond, 800 = cartes, 700 = champs et bordures.
+         * Garder cet ordre, sinon les cartes se confondent avec le fond. */
         gray: {
           50: '#f4f6fa',
           100: '#e8ecf4',
