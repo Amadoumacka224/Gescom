@@ -7,13 +7,9 @@
     <meta name="theme-color" content="#1d6fa5" />
 
     <!--
-      Référencement — l'application est une SPA : hormis la page de connexion, tout
-      est derrière l'authentification et n'a pas vocation à être indexé. Ces balises
-      décrivent donc la page publique, la seule que rencontre un moteur.
-
-      L'adresse ci-dessous est celle du service statique décrit dans render.yaml.
-      À reprendre ici, dans robots.txt et dans sitemap.xml le jour où le site est
-      publié sous un domaine propre : une URL canonique fausse est pire qu'absente.
+      Référencement : seule la page de connexion est publique, ces balises la décrivent.
+      Si le site change de domaine, mettre à jour l'adresse ici, dans robots.txt
+      et dans sitemap.xml.
     -->
     <title>GESCOM — Ventes, stocks et facturation en un seul outil</title>
     <meta
@@ -57,13 +53,7 @@
   <body>
     <div id="root"></div>
 
-    <!--
-      Le contenu de la page est rendu par React : un lecteur qui n'exécute pas le
-      JavaScript — certains robots, un navigateur où il est désactivé — ne verrait
-      qu'une coquille vide. Ce repli donne la proposition de valeur et le contact
-      en HTML servi tel quel. Il est retiré du rendu dès que le script s'exécute,
-      il ne peut donc pas se retrouver affiché en double.
-    -->
+    <!-- Affiché seulement si JavaScript est désactivé (certains robots, par exemple). -->
     <noscript>
       <h1>GESCOM — Gestion commerciale</h1>
       <p>
