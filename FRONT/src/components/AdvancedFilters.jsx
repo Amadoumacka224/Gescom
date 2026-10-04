@@ -3,46 +3,34 @@ import { SlidersHorizontal, X, Calendar, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /**
- * Barre de recherche et de filtres, utilisée par plusieurs écrans de liste.
+ * Barre de recherche et de filtres des écrans de liste, en quatre parties :
+ *   1. la recherche et le bouton « Filtres avancés » ;
+ *   2. les filtres rapides de la page ;
+ *   3. le panneau des filtres détaillés (fermé par défaut) ;
+ *   4. les pastilles des filtres actifs, pour ne pas oublier un filtre caché.
  *
- * Même disposition que la page Commandes, sur quatre niveaux (du plus utilisé au moins utilisé) :
- *   1. la recherche texte sur toute la largeur, avec le bouton « Filtres avancés » à droite ;
- *   2. les filtres rapides (boutons segmentés fournis par la page) ;
- *   3. le panneau des filtres détaillés, fermé par défaut ;
- *   4. les pastilles qui montrent les filtres actifs.
- *
- * Les pastilles sont importantes : sans elles, on peut oublier un filtre dans le panneau fermé
- * et croire qu'on voit toute la liste.
- *
- * Le composant n'a pas d'état et ne connaît pas les données. Il reçoit la liste des champs
- * (`fields`) et les valeurs, et appelle `onChange(clé, valeur)` à chaque modification.
- * C'est la page qui filtre. `search` et `quickFilters` permettent à la page de placer
- * son propre `SearchBox` et ses boutons de filtres rapides.
+ * Le composant ne filtre rien lui-même : il affiche les champs et appelle
+ * `onChange(clé, valeur)`. C'est la page qui filtre.
  *
  * Format d'un champ :
  *   { key, label, type: 'select' | 'text' | 'number' | 'date' | 'checkbox' | 'custom',
  *     options?: [{ value, label }], placeholder?, min?, max?, step?,
- *     render?: ({ id, value, onChange }) => node,   // requis pour `custom`
- *     chipValue?: (value) => string }               // libellé lisible dans la pastille
+ *     render?: ({ id, value, onChange }) => node,   // obligatoire pour `custom`
+ *     chipValue?: (value) => string }               // texte affiché dans la pastille
  *
- * Le type `custom` sert quand un `<select>` ne suffit pas, par exemple une liste de plusieurs
- * centaines de clients où il faut une combobox avec recherche. Comme il est déclaré comme les
- * autres champs, il est compté dans le badge du bouton et a sa pastille.
+ * `custom` sert quand un simple `<select>` ne suffit pas (ex. liste de clients avec recherche).
  */
 
 const FIELD_CLASS =
   'w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:border-primary-500 focus:ring-4 focus:ring-primary-500/15 outline-none transition-all';
 
-/** `input type="date"` attend un `yyyy-MM-dd` : on formate en local, pas en UTC. */
+/** Formate une date en `yyyy-MM-dd` (heure locale) pour un champ date. */
 const toDateInput = (date) => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
-/**
- * Raccourcis de période. Ils remplissent les deux mêmes champs que la saisie manuelle, donc
- * on peut ensuite les modifier à la main et il n'y a qu'une paire de valeurs à gérer.
- */
+/** Raccourcis de période : ils remplissent les champs « du » et « au », modifiables ensuite. */
 const buildDateShortcuts = () => {
   const today = new Date();
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -95,8 +83,7 @@ const AdvancedFilters = ({
   defaults,
   onChange,
   onReset = null,
-  // true dès qu'un filtre est actif, recherche texte comprise : le bouton de remise à zéro
-  // doit aussi s'afficher quand il n'y a que la recherche.
+  // true si un filtre ou une recherche est actif : affiche le bouton « Réinitialiser ».
   resettable = false,
   expanded,
   onToggleExpanded,
@@ -105,7 +92,7 @@ const AdvancedFilters = ({
   toggleLabel,
 }) => {
   const { t } = useTranslation();
-  // Calculé une seule fois : dépend de la date du jour, pas des props.
+  // Calculé une seule fois, au montage.
   const shortcuts = useMemo(() => buildDateShortcuts(), []);
 
   const activeFields = fields.filter((field) => values[field.key] !== defaults[field.key]);
@@ -113,8 +100,7 @@ const AdvancedFilters = ({
   const chipLabel = (field) => {
     const value = values[field.key];
     if (field.type === 'checkbox') return field.label;
-    // `chipValue` transforme la valeur brute en texte lisible (un id client ou une date ISO
-    // ne veulent rien dire dans une pastille).
+    // Texte lisible plutôt que la valeur brute (ex. nom du client au lieu de son id).
     if (field.chipValue) return `${field.label} : ${field.chipValue(value)}`;
     if (field.type === 'select') {
       const option = field.options?.find((o) => String(o.value) === String(value));
@@ -152,8 +138,7 @@ const AdvancedFilters = ({
       );
     }
 
-    // Contrôle fourni par la page. Pas de `htmlFor` car ce n'est pas forcément un champ natif
-    // (ex. combobox), le label pointerait sur rien.
+    // Champ fourni par la page. Pas de `htmlFor` : ce n'est pas forcément un vrai input.
     if (field.type === 'custom') {
       return (
         <Field key={field.key} label={field.label}>
@@ -195,7 +180,7 @@ const AdvancedFilters = ({
 
   return (
     <div className="space-y-4">
-      {/* Niveau 1 : recherche + bouton qui ouvre les filtres */}
+      {/* 1. Recherche et bouton des filtres */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">{search}</div>
         <div className="flex items-center gap-2 shrink-0">
@@ -228,10 +213,10 @@ const AdvancedFilters = ({
         </div>
       </div>
 
-      {/* Niveau 2 : filtres rapides de la page */}
+      {/* 2. Filtres rapides */}
       {quickFilters && <div className="flex flex-wrap items-center gap-2">{quickFilters}</div>}
 
-      {/* Niveau 3 : filtres détaillés, fermés par défaut */}
+      {/* 3. Filtres détaillés */}
       {expanded && (
         <div id={`${id}-advanced-filters`} className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700/60">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -264,7 +249,7 @@ const AdvancedFilters = ({
         </div>
       )}
 
-      {/* Niveau 4 : pastilles des filtres actifs (même quand le panneau est fermé) */}
+      {/* 4. Filtres actifs (visibles même panneau fermé) */}
       {activeFields.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mr-1">

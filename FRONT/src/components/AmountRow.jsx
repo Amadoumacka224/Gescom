@@ -1,12 +1,9 @@
 /**
- * Une ligne de totaux : sous-total, remise, TVA, total, reste à payer.
+ * Une ligne de totaux (sous-total, remise, TVA, total…) dans le détail d'une facture
+ * ou d'une commande.
  *
- * Utilisée dans le détail d'une facture et d'une commande pour qu'ils aient le même rendu
- * (mêmes graisses, montants alignés). `emphasis` est à garder pour les montants vraiment
- * importants (total, reste à payer), sinon plus rien ne ressort.
- *
- * `tone` sert seulement pour les montants qui ont un sens (une remise en moins, un paiement
- * déjà reçu), pas pour les lignes neutres.
+ * `emphasis` : met en avant un montant important (total, reste à payer).
+ * `tone` : couleur pour un montant particulier (remise, paiement reçu).
  */
 const AmountRow = ({ label, value, emphasis = false, tone = '' }) => (
   <div className={`flex items-baseline justify-between gap-6 px-4 ${emphasis ? 'py-3' : 'py-2.5'}`}>

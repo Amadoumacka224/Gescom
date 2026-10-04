@@ -17,11 +17,8 @@ const cameraErrorKey = (err) => {
 };
 
 /**
- * Scanner de code-barres avec la caméra, pour ajouter des produits à une commande.
- *
- * Ce composant s'occupe seulement de la caméra, du décodage (ZXing) et de l'aperçu du produit.
- * La recherche du produit et l'ajout au panier sont faits par le parent via `resolveProduct`
- * et `onConfirm`.
+ * Scanner de code-barres (caméra) pour ajouter des produits à une commande.
+ * Le parent cherche le produit (`resolveProduct`) et l'ajoute au panier (`onConfirm`).
  *
  * @param {boolean} isOpen
  * @param {() => void} onClose
@@ -31,18 +28,17 @@ const cameraErrorKey = (err) => {
 const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => {
   const { t } = useTranslation();
   const videoRef = useRef(null);
-  const controlsRef = useRef(null);      // IScannerControls ZXing (pour arrêter le flux)
-  const scanningRef = useRef(false);     // true tant qu'on accepte une nouvelle lecture
+  const controlsRef = useRef(null);      // pour arrêter la caméra
+  const scanningRef = useRef(false);     // true = prêt à lire un code
   const lastCodeRef = useRef({ code: null, at: 0 });
 
   const [phase, setPhase] = useState('starting'); // starting | scanning | looking | preview | error
   const [errorKey, setErrorKey] = useState('');
-  const [notice, setNotice] = useState('');        // message transitoire (code inconnu, produit désactivé…)
+  const [notice, setNotice] = useState('');        // message (code inconnu, produit désactivé…)
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
 
-  // getUserMedia ne marche qu'en HTTPS (ou localhost) et s'il y a une caméra.
-  // Calculé au rendu plutôt que mis dans un state depuis l'effet.
+  // La caméra ne marche qu'en HTTPS (ou localhost).
   const cameraSupported = typeof window !== 'undefined'
     && window.isSecureContext
     && !!navigator.mediaDevices?.getUserMedia;
@@ -54,8 +50,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
     scanningRef.current = true;
   }, []);
 
-  // Traitement d'un code scanné. On le passe par une ref pour que le callback ZXing appelle
-  // toujours la dernière version, sans relancer la caméra (l'effet ne dépend que de `isOpen`).
+  // Traite un code scanné. Passé par une ref pour ne pas relancer la caméra.
   const handleCode = useCallback(async (code) => {
     setNotice('');
     setPhase('looking');
@@ -84,8 +79,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
   const handleCodeRef = useRef(handleCode);
   useEffect(() => { handleCodeRef.current = handleCode; }, [handleCode]);
 
-  // Allume / éteint la caméra selon l'ouverture du modal. Les dépendances sont limitées à
-  // `isOpen` exprès, sinon chaque re-rendu du parent relancerait le flux.
+  // Allume la caméra à l'ouverture, l'éteint à la fermeture.
   useEffect(() => {
     if (!isOpen || !cameraSupported) return undefined;
 
@@ -99,10 +93,10 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
       { video: { facingMode: 'environment' } }, // caméra arrière de préférence
       videoRef.current,
       (result) => {
-        if (!scanningRef.current || !result) return; // erreurs "NotFound" entre lectures ignorées
+        if (!scanningRef.current || !result) return;
         const code = result.getText();
         const now = Date.now();
-        // Anti-rebond : on ignore le même code s'il est relu dans les 1,2 s.
+        // Ignore le même code relu dans les 1,2 s.
         if (lastCodeRef.current.code === code && now - lastCodeRef.current.at < 1200) return;
         lastCodeRef.current = { code, at: now };
         scanningRef.current = false;
@@ -129,7 +123,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
 
   if (!isOpen) return null;
 
-  // Erreur affichée : caméra non disponible (pas de HTTPS / pas de caméra) ou accès refusé.
+  // Pas de caméra, pas de HTTPS ou accès refusé.
   const showError = phase === 'error' || !cameraSupported;
   const displayError = !cameraSupported
     ? t('scanner.errors.unsupported')
@@ -140,7 +134,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
 
   const handleAdd = () => {
     if (onConfirm?.(product, quantity)) {
-      resumeScanning(); // ajout réussi → on enchaîne sur l'article suivant
+      resumeScanning(); // ajouté : on passe à l'article suivant
     }
   };
 
@@ -181,7 +175,7 @@ const BarcodeScannerModal = ({ isOpen, onClose, resolveProduct, onConfirm }) => 
               </div>
             )}
 
-            {/* Aperçu du produit avant l'ajout, par-dessus la vidéo. */}
+            {/* Aperçu du produit scanné */}
             {phase === 'preview' && product && (
               <div className="absolute inset-0 bg-white/97 p-4 flex flex-col gap-3 overflow-y-auto">
                 <div className="flex items-start gap-3">
