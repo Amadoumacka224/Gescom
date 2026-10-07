@@ -547,7 +547,7 @@
       "pdfError": "Error while generating the PDF",
       "clientCreated": "Client created",
       "registeredClient": "Registered client",
-      "confirmCreateMessage": "{{client}} — {{count}} line(s) for a total of {{total}} excl. VAT. Create the order?",
+      "confirmCreateMessage": "{{client}}: {{count}} line(s) for a total of {{total}} excl. VAT. Create the order?",
       "confirmOrderMessage": "Confirm {{number}}? {{count}} unit(s) will be deducted from stock. Canceling later would return them.",
       "newClientTitle": "Create a new client",
       "companyPlaceholder": "Company name (if a business)",
@@ -615,7 +615,7 @@
       "searchPlaceholder": "Search for a product, or scan a barcode then press Enter…",
       "searchLabel": "Search for a product",
       "noMatch": "No product matches your search",
-      "outOfStockTooltip": "{{name}} — out of stock",
+      "outOfStockTooltip": "{{name}} (out of stock)",
       "addTooltip": "Add {{name}}"
     },
     "cart": {
@@ -624,7 +624,7 @@
       "itemCount_other": "{{count}} items",
       "clientRegistered": "Registered",
       "clientGuest": "Walk-in",
-      "guestHint": "Unregistered client — no details required.",
+      "guestHint": "Unregistered client, no details required.",
       "clientSearchPlaceholder": "Name, company, email or phone…",
       "noClientFound": "No client found",
       "addNote": "Add a note",
@@ -646,9 +646,9 @@
       "lineDiscounts": "Line discounts",
       "commercialDiscount": "Commercial discount",
       "estimatedSuffix": " · estimated",
-      "invoicedAmount": "Invoiced amount — invoice {{number}}",
+      "invoicedAmount": "Invoiced amount (invoice {{number}})",
       "taxSetBelow": "VAT set by the invoicing form below",
-      "taxEstimatedNote": "VAT estimated at the configured rate — fixed at invoicing"
+      "taxEstimatedNote": "VAT estimated at the configured rate, fixed at invoicing"
     },
     "recap": {
       "createdOn": "Created on",

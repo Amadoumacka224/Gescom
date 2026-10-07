@@ -547,7 +547,7 @@
       "pdfError": "Fout bij het aanmaken van de pdf",
       "clientCreated": "Klant aangemaakt",
       "registeredClient": "Geregistreerde klant",
-      "confirmCreateMessage": "{{client}} — {{count}} regel(s) voor een totaal van {{total}} excl. btw. Bestelling aanmaken?",
+      "confirmCreateMessage": "{{client}}: {{count}} regel(s) voor een totaal van {{total}} excl. btw. Bestelling aanmaken?",
       "confirmOrderMessage": "{{number}} bevestigen? {{count}} eenhe(i)d(en) worden uit de voorraad gehaald. Een latere annulering zou ze teruggeven.",
       "newClientTitle": "Een nieuwe klant aanmaken",
       "companyPlaceholder": "Naam van de onderneming (indien onderneming)",
@@ -615,7 +615,7 @@
       "searchPlaceholder": "Zoek een product of scan een streepjescode en druk op Enter…",
       "searchLabel": "Een product zoeken",
       "noMatch": "Geen enkel product komt overeen met uw zoekopdracht",
-      "outOfStockTooltip": "{{name}} — niet op voorraad",
+      "outOfStockTooltip": "{{name}} (niet op voorraad)",
       "addTooltip": "{{name}} toevoegen"
     },
     "cart": {
@@ -624,7 +624,7 @@
       "itemCount_other": "{{count}} artikelen",
       "clientRegistered": "Geregistreerd",
       "clientGuest": "Niet geregistreerd",
-      "guestHint": "Niet-geregistreerde klant — geen gegevens vereist.",
+      "guestHint": "Niet-geregistreerde klant, geen gegevens vereist.",
       "clientSearchPlaceholder": "Naam, onderneming, e-mail of telefoon…",
       "noClientFound": "Geen klant gevonden",
       "addNote": "Een notitie toevoegen",
@@ -646,9 +646,9 @@
       "lineDiscounts": "Regelkortingen",
       "commercialDiscount": "Handelskorting",
       "estimatedSuffix": " · geraamd",
-      "invoicedAmount": "Gefactureerd bedrag — factuur {{number}}",
+      "invoicedAmount": "Gefactureerd bedrag (factuur {{number}})",
       "taxSetBelow": "Btw bepaald via het facturatieformulier hieronder",
-      "taxEstimatedNote": "Btw geraamd tegen het ingestelde tarief — vastgelegd bij facturatie"
+      "taxEstimatedNote": "Btw geraamd tegen het ingestelde tarief, vastgelegd bij facturatie"
     },
     "recap": {
       "createdOn": "Aangemaakt op",

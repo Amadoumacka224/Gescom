@@ -547,7 +547,7 @@
       "pdfError": "Erreur lors de la génération du PDF",
       "clientCreated": "Client créé",
       "registeredClient": "Client enregistré",
-      "confirmCreateMessage": "{{client}} — {{count}} ligne(s) pour un total de {{total}} HT. Créer la commande ?",
+      "confirmCreateMessage": "{{client}} : {{count}} ligne(s) pour un total de {{total}} HT. Créer la commande ?",
       "confirmOrderMessage": "Confirmer {{number}} ? {{count}} unité(s) seront déduites du stock. L'annulation ultérieure les restituerait.",
       "newClientTitle": "Créer un nouveau client",
       "companyPlaceholder": "Nom de la société (si entreprise)",
@@ -615,7 +615,7 @@
       "searchPlaceholder": "Rechercher un produit, ou scanner un code-barres puis Entrée…",
       "searchLabel": "Rechercher un produit",
       "noMatch": "Aucun produit ne correspond à votre recherche",
-      "outOfStockTooltip": "{{name}} — rupture de stock",
+      "outOfStockTooltip": "{{name}} (rupture de stock)",
       "addTooltip": "Ajouter {{name}}"
     },
     "cart": {
@@ -624,7 +624,7 @@
       "itemCount_other": "{{count}} articles",
       "clientRegistered": "Enregistré",
       "clientGuest": "Non enregistré",
-      "guestHint": "Client non enregistré — aucune information requise.",
+      "guestHint": "Client non enregistré, aucune information requise.",
       "clientSearchPlaceholder": "Nom, société, email ou téléphone…",
       "noClientFound": "Aucun client trouvé",
       "addNote": "Ajouter une note",
@@ -646,9 +646,9 @@
       "lineDiscounts": "Remises de ligne",
       "commercialDiscount": "Remise commerciale",
       "estimatedSuffix": " · estimée",
-      "invoicedAmount": "Montant facturé — facture {{number}}",
+      "invoicedAmount": "Montant facturé (facture {{number}})",
       "taxSetBelow": "TVA fixée par le formulaire de facturation ci-dessous",
-      "taxEstimatedNote": "TVA estimée au taux configuré — figée à la facturation"
+      "taxEstimatedNote": "TVA estimée au taux configuré, figée à la facturation"
     },
     "recap": {
       "createdOn": "Créée le",

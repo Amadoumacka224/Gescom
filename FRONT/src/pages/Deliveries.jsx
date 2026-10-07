@@ -1236,7 +1236,7 @@ const Deliveries = () => {
                   required
                   options={orders.map(order => ({
                     value: order.id.toString(),
-                    label: `${order.orderNumber} — ${order.client ? `${order.client.firstName} ${order.client.lastName}` : t('deliveries.guestClient')} (${order.totalAmount.toFixed(2)} €)`,
+                    label: `${order.orderNumber} · ${order.client ? `${order.client.firstName} ${order.client.lastName}` : t('deliveries.guestClient')} (${order.totalAmount.toFixed(2)} €)`,
                   }))}
                   placeholder={t('deliveries.orderPlaceholder')}
                 />

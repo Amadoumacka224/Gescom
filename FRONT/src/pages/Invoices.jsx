@@ -1256,7 +1256,7 @@ const Invoices = () => {
               placeholder={orders.length ? t('invoices.selectOrderPlaceholder') : t('invoices.noOrderAvailable')}
               options={orders.map((order) => ({
                 value: String(order.id),
-                label: `${order.orderNumber} — ${order.client?.name || t('deliveries.guestClient')} (${formatCurrency(order.totalAmount)})`,
+                label: `${order.orderNumber} · ${order.client?.name || t('deliveries.guestClient')} (${formatCurrency(order.totalAmount)})`,
               }))}
             />
 
