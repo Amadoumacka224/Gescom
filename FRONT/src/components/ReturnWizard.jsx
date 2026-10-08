@@ -434,7 +434,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                       checked={selected}
                       disabled={exhausted}
                       onChange={(e) => updateLine(item.productId, { selected: e.target.checked })}
-                      aria-label={`${t('stock.returns.selectArticle')} — ${item.productName}`}
+                      aria-label={`${t('stock.returns.selectArticle')} - ${item.productName}`}
                       className="mt-1 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50"
                     />
                     <div className="min-w-0 flex-1">
@@ -493,7 +493,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                               max={item.quantityReturnable}
                               value={line.quantity}
                               onChange={(e) => updateLine(item.productId, { quantity: e.target.value })}
-                              aria-label={`${t('stock.returns.quantityLabel')} — ${item.productName}`}
+                              aria-label={`${t('stock.returns.quantityLabel')} - ${item.productName}`}
                               className="w-16 text-center bg-transparent tabular-nums font-semibold text-gray-900 dark:text-gray-100 focus:outline-none"
                             />
                             <button
@@ -544,7 +544,7 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
                           </span>
                           <div
                             role="radiogroup"
-                            aria-label={`${t('stock.returns.treatmentLabel')} — ${item.productName}`}
+                            aria-label={`${t('stock.returns.treatmentLabel')} - ${item.productName}`}
                             className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 p-0.5 gap-0.5"
                           >
                             {TREATMENTS.map((treatment) => {

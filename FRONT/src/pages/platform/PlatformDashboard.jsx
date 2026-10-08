@@ -258,7 +258,7 @@ const PlatformDashboard = () => {
                 <div
                   key={`${point.year}-${point.month}`}
                   className="flex flex-1 flex-col items-center gap-2"
-                  title={`${point.label} — ${formatCurrency(point.amount)}`}
+                  title={`${point.label} - ${formatCurrency(point.amount)}`}
                 >
                   <div className="flex w-full flex-1 items-end">
                     <div

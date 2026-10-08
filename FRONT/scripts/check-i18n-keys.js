@@ -55,9 +55,9 @@ walk(srcDir);
 const missing = [];
 const used = new Set();
 
-// t('clé') / t("clé") / i18nKey="clé" — clés littérales.
+// t('clé') / t("clé") / i18nKey="clé" - clés littérales.
 const literalPattern = /(?:\bt\(\s*['"]([\w.-]+)['"]|i18nKey=["']([\w.-]+)["'])/g;
-// t(`préfixe.${…}`) — clés dynamiques, vérifiées sur leur partie fixe.
+// t(`préfixe.${…}`) - clés dynamiques, vérifiées sur leur partie fixe.
 const dynamicPattern = /\bt\(\s*`([\w.-]*?)\$\{/g;
 
 for (const file of sourceFiles) {
@@ -74,7 +74,7 @@ for (const file of sourceFiles) {
     const prefix = match[1];
     if (!prefix) continue;
     const hits = [...known].filter((k) => k.startsWith(prefix));
-    if (hits.length === 0) missing.push(`${relative}: t(\`${prefix}\${…}\`) — aucun préfixe`);
+    if (hits.length === 0) missing.push(`${relative}: t(\`${prefix}\${…}\`) - aucun préfixe`);
     hits.forEach((k) => used.add(k));
   }
 }

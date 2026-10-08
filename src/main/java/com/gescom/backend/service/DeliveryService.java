@@ -270,10 +270,10 @@ public class DeliveryService {
         // mais on vérifie quand même pour refuser le cas d'une facture annulée.
         Invoice invoice = invoiceRepository.findByOrderId(order.getId())
                 .orElseThrow(() -> new BusinessException(
-                        "Aucune facture n'a été émise pour cette commande — impossible de créer la livraison"));
+                        "Aucune facture n'a été émise pour cette commande - impossible de créer la livraison"));
         if (invoice.getStatus() == Invoice.InvoiceStatus.CANCELED) {
             throw new BusinessException(
-                    "La facture associée à cette commande est annulée — impossible de créer la livraison");
+                    "La facture associée à cette commande est annulée - impossible de créer la livraison");
         }
 
         // Une seule livraison par commande.

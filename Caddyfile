@@ -1,9 +1,9 @@
 # ==============================================================================
-# GESCOM — configuration du frontal web
+# GESCOM - configuration du frontal web
 #
 # Caddy remplit trois rôles :
 #   1. terminaison TLS, avec obtention et renouvellement automatiques du
-#      certificat Let's Encrypt — il n'y a aucune clé à gérer à la main ;
+#      certificat Let's Encrypt - il n'y a aucune clé à gérer à la main ;
 #   2. service des fichiers statiques du SPA compilé ;
 #   3. relais des appels /api vers l'API Spring Boot.
 #
@@ -17,13 +17,13 @@
 	#
 	# Elle doit être réelle et relevée : ce n'est pas un champ de courtoisie.
 	# Une adresse en example.com fait rejeter la création du compte par
-	# Let's Encrypt — « HTTP 400 urn:ietf:params:acme:error:invalidContact -
-	# contact email has forbidden domain "example.com" » — et Caddy bascule
+	# Let's Encrypt - « HTTP 400 urn:ietf:params:acme:error:invalidContact -
+	# contact email has forbidden domain "example.com" » - et Caddy bascule
 	# alors silencieusement sur l'émetteur de repli (ZeroSSL).
 	#
 	# ACME_EMAIL vient de .env. La valeur après ':' n'est un repli que si la
 	# variable est absente de l'environnement : Caddy ne la substitue pas
-	# lorsqu'elle est présente et vide. Or docker-compose la définit toujours —
+	# lorsqu'elle est présente et vide. Or docker-compose la définit toujours -
 	# c'est pourquoi le repli est doublé côté compose, en ${ACME_EMAIL:-...}.
 	# Celui-ci ne sert donc qu'à un lancement de Caddy hors compose.
 	email {$ACME_EMAIL:mackaldine22@gmail.com}
@@ -42,8 +42,8 @@
 	# Le préfixe /api n'est pas retiré : les contrôleurs Spring sont mappés sur
 	# /api/... et le context-path de l'application est resté '/'.
 	#
-	# Seul /api/* est relayé. Tout le reste de l'API — dont /swagger-ui/** et
-	# /v3/api-docs — est par construction injoignable depuis l'extérieur, en plus
+	# Seul /api/* est relayé. Tout le reste de l'API - dont /swagger-ui/** et
+	# /v3/api-docs - est par construction injoignable depuis l'extérieur, en plus
 	# d'être déjà couvert par le `anyRequest().authenticated()` de SecurityConfig.
 	# --------------------------------------------------------------------------
 	handle /api/* {
@@ -80,7 +80,7 @@
 		# tape l'adresse sans schéma.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		# Interdit au navigateur de deviner un type MIME différent de celui
-		# annoncé — parade classique au contenu téléversé rejoué en script.
+		# annoncé - parade classique au contenu téléversé rejoué en script.
 		X-Content-Type-Options "nosniff"
 		# L'application n'a pas vocation à être embarquée dans une iframe.
 		X-Frame-Options "DENY"
@@ -91,7 +91,7 @@
 		# hostile parvenait jusqu'au DOM, le navigateur refuserait d'exécuter le
 		# script ou de joindre le serveur du tiers. Directive par directive :
 		#
-		#   script-src 'self'   Vite ne produit aucun script en ligne — le seul
+		#   script-src 'self'   Vite ne produit aucun script en ligne - le seul
 		#                       <script> d'index.html est un module externe
 		#                       empreinté. Ni 'unsafe-inline' ni nonce à prévoir.
 		#   style-src           'unsafe-inline' est ici incompressible : React

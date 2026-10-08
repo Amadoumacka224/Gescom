@@ -115,7 +115,7 @@ public class Payment implements TenantOwned {
      */
     public enum PaymentStatus {
         REQUIRES_CONFIRMATION,  // Intention créée, en attente de confirmation par le terminal
-        SUCCEEDED,              // Paiement accepté — la facture a été encaissée
+        SUCCEEDED,              // Paiement accepté - la facture a été encaissée
         FAILED,                 // Refusé par l'émetteur (ou non traitable par le terminal)
         CANCELED                // Session abandonnée depuis le terminal
     }

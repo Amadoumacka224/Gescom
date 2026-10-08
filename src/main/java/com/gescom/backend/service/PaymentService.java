@@ -212,7 +212,7 @@ public class PaymentService {
             abandonAtGateway(payment);
             payment.setStatus(Payment.PaymentStatus.CANCELED);
             payment.setFailureMessage("La facture a changé depuis l'ouverture du paiement "
-                    + "(reste dû : " + remaining + " €) — relancez le paiement");
+                    + "(reste dû : " + remaining + " €) - relancez le paiement");
             Payment stale = paymentRepository.save(payment);
             logActivity(ActivityLog.ActionType.UPDATE, stale.getId(),
                     "Paiement " + stale.getIntentId() + " abandonné : facture "

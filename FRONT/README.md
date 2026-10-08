@@ -1,4 +1,4 @@
-# GESCOM — Client web
+# GESCOM - Client web
 
 Interface de gestion commerciale : SPA React servie par Vite, qui consomme l'API Spring Boot
 du dépôt parent. Le README de la racine documente l'API, le déploiement et la configuration
@@ -7,14 +7,14 @@ d'ensemble ; celui-ci ne couvre que le client.
 ## Technologies
 
 - **React 19** et **React Router 7**
-- **Vite 7** — serveur de développement et build
-- **TailwindCSS 3.4** — thème maison, mode sombre par classe (`darkMode: 'class'`)
-- **Axios** — client HTTP, avec injection du JWT et de l'en-tête `Accept-Language`
-- **i18next / react-i18next** — français, anglais et néerlandais
-- **Recharts** — graphiques du tableau de bord et des rapports
-- **jsPDF** et **jspdf-autotable** — factures, bons de livraison et bons de retour
-- **@zxing/browser** — lecture de codes-barres à la caisse
-- **Lucide React**, **Framer Motion**, **react-hot-toast** — icônes, animations, notifications
+- **Vite 7** - serveur de développement et build
+- **TailwindCSS 3.4** - thème maison, mode sombre par classe (`darkMode: 'class'`)
+- **Axios** - client HTTP, avec injection du JWT et de l'en-tête `Accept-Language`
+- **i18next / react-i18next** - français, anglais et néerlandais
+- **Recharts** - graphiques du tableau de bord et des rapports
+- **jsPDF** et **jspdf-autotable** - factures, bons de livraison et bons de retour
+- **@zxing/browser** - lecture de codes-barres à la caisse
+- **Lucide React**, **Framer Motion**, **react-hot-toast** - icônes, animations, notifications
 
 ## Démarrage
 
@@ -28,7 +28,7 @@ Le serveur écoute sur `http://localhost:5173`. Il relaie `/api` vers l'API Spri
 racine). L'adresse est écrite en `127.0.0.1` et non `localhost` : ce dernier peut se résoudre
 en IPv6 alors que Spring Boot n'écoute qu'en IPv4.
 
-En déploiement, le SPA et l'API sortent sous le même domaine et `/api` reste relatif — il n'y
+En déploiement, le SPA et l'API sortent sous le même domaine et `/api` reste relatif - il n'y
 a aucune variable de build à définir. `VITE_API_URL` n'existe que pour le cas contraire, où le
 backend est joignable à une autre origine.
 
@@ -40,7 +40,7 @@ backend est joignable à une autre origine.
 | `npm run build` | Build de production dans `dist/` |
 | `npm run preview` | Sert le build localement, avec le même relais `/api` |
 | `npm run lint` | ESLint sur l'ensemble des sources |
-| `npm run check:i18n` | Contrôle des traductions — **à lancer après toute retouche d'un catalogue** |
+| `npm run check:i18n` | Contrôle des traductions - **à lancer après toute retouche d'un catalogue** |
 
 `check:i18n` enchaîne deux vérifications complémentaires : `check-i18n.js` compare les trois
 catalogues entre eux (une clé présente en français doit l'être en anglais et en néerlandais),
@@ -63,7 +63,7 @@ FRONT/
 │   ├── components/      # Composants partagés entre écrans
 │   ├── layouts/         # Ossature applicative (MainLayout) et back-office (PlatformLayout)
 │   ├── services/        # Appels HTTP, un module par domaine ; axios.js porte les intercepteurs
-│   ├── context/         # AuthContext — session, rôle et déconnexion
+│   ├── context/         # AuthContext - session, rôle et déconnexion
 │   ├── hooks/           # Thème, paramètres, notifications
 │   ├── constants/       # Libellés et correspondances de statuts
 │   ├── utils/           # Formatage, totaux, génération des PDF, export CSV
@@ -78,5 +78,5 @@ FRONT/
 
 `npm run build` découpe les dépendances en paquets séparés plutôt que de tout empiler dans le
 point d'entrée : socle React, graphiques, scanner, icônes, animations et i18n. Les modules
-lourds mais rarement atteints — jsPDF en tête — sont chargés à la demande. Les commentaires de
+lourds mais rarement atteints - jsPDF en tête - sont chargés à la demande. Les commentaires de
 `vite.config.js` détaillent pourquoi certaines dépendances sont nommées et d'autres non.

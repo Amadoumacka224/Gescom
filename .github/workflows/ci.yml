@@ -1,5 +1,5 @@
 # ==============================================================================
-# GESCOM — intégration continue
+# GESCOM - intégration continue
 #
 # Ce fichier existe d'abord pour rendre vraie une affirmation qui ne l'était pas :
 # le Dockerfile déclare que les tests « tournent au poste de développement et en
@@ -13,7 +13,7 @@
 #
 # AUCUNE BASE DE DONNÉES N'EST NÉCESSAIRE, et ce n'est pas un hasard : les tests
 # d'intégration (cloisonnement, cohérence du tableau de bord) tournent sur H2 en
-# mémoire. Le choix d'écarter Testcontainers se paie ici en simplicité — pas de
+# mémoire. Le choix d'écarter Testcontainers se paie ici en simplicité - pas de
 # service PostgreSQL à démarrer, pas de démon Docker à supposer disponible.
 # ==============================================================================
 name: CI
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   backend:
-    name: API — tests
+    name: API - tests
     runs-on: ubuntu-latest
 
     steps:
@@ -65,7 +65,7 @@ jobs:
           if-no-files-found: ignore
 
   frontend:
-    name: SPA — lint, i18n et build
+    name: SPA - lint, i18n et build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -76,7 +76,7 @@ jobs:
 
       # Node 24 et non la version par défaut : @zxing/library, tiré par le scanner
       # de codes-barres, déclare engines.node >= 24. Même version que le Dockerfile
-      # et que render.yaml — les trois doivent rester alignés.
+      # et que render.yaml - les trois doivent rester alignés.
       - name: Installer Node 24
         uses: actions/setup-node@v4
         with:

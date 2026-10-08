@@ -40,9 +40,9 @@ const loadPdfLibs = () => {
 };
 
 // Couleurs, prises dans la charte (voir `tailwind.config.js`)
-const primaryColor = [31, 119, 180]; // #1F77B4 — bleu acier (primary-600)
-const secondaryColor = [100, 118, 151]; // #647697 — gris bleuté (gray-500)
-const darkColor = [26, 39, 64]; // #1A2740 — bleu nuit (gray-900)
+const primaryColor = [31, 119, 180]; // #1F77B4 - bleu acier (primary-600)
+const secondaryColor = [100, 118, 151]; // #647697 - gris bleuté (gray-500)
+const darkColor = [26, 39, 64]; // #1A2740 - bleu nuit (gray-900)
 
 /**
  * Logo de l'en-tête : la flèche d'entrée de l'appli, recopiée de l'icône `log-in` de lucide
@@ -195,7 +195,7 @@ const drawFooter = (doc, company, settings, page, pageCount) => {
 
   const legalParts = [company.name];
   if (company.vat) legalParts.push(t('pdf.vatLine', { vat: company.vat }));
-  const footerText = `${legalParts.join(' — ')} | ${settings.footerText || t('settings.footerText')}`;
+  const footerText = `${legalParts.join(' - ')} | ${settings.footerText || t('settings.footerText')}`;
   // Le texte du pied de page vient des Paramètres et peut être long : limité à 145 mm pour
   // ne pas passer sous le numéro de page, et seulement la première ligne, car le bas de page
   // n'a pas la place pour deux sans toucher le bandeau.

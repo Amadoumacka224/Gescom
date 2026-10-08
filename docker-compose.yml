@@ -1,5 +1,5 @@
 # ==============================================================================
-# GESCOM — déploiement
+# GESCOM - déploiement
 #
 #     cp .env.example .env    puis renseigner les secrets
 #     chmod 600 .env
@@ -31,7 +31,7 @@ services:
   # ----------------------------------------------------------------------------
   # Base de données
   #
-  # Aucune section `ports:` — c'est volontaire. Publier 5432 exposerait la base
+  # Aucune section `ports:` - c'est volontaire. Publier 5432 exposerait la base
   # à tout l'Internet ; les autres conteneurs l'atteignent par le réseau interne
   # sous le nom d'hôte `db`. Pour une session psql : `docker compose exec db psql`.
   # ----------------------------------------------------------------------------
@@ -95,7 +95,7 @@ services:
     # les migrations Flyway : le voir répondre vaut « application démarrée », pas
     # seulement « conteneur lancé ». La sonde passe par bash et son /dev/tcp car
     # l'image ne contient ni curl ni wget, et le /bin/sh d'Ubuntu (dash) ne sait
-    # pas ouvrir de socket — d'où CMD et non CMD-SHELL.
+    # pas ouvrir de socket - d'où CMD et non CMD-SHELL.
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8085"]
       interval: 15s
@@ -117,7 +117,7 @@ services:
   #
   # `service_started` et non `service_healthy` : le frontal ne doit dépendre de
   # la santé de l'API en aucune façon. Attendre qu'elle soit saine fermerait bien
-  # la fenêtre de 502 au démarrage, mais au prix d'un couplage inacceptable — une
+  # la fenêtre de 502 au démarrage, mais au prix d'un couplage inacceptable - une
   # migration Flyway en échec empêcherait Caddy de prendre les ports, donc de
   # servir le SPA *et* de répondre à la validation ACME. Une API cassée doit
   # dégrader /api en 502, pas éteindre le site et bloquer le renouvellement du
@@ -141,7 +141,7 @@ services:
       # Le repli est posé ici et pas seulement dans le Caddyfile : cette ligne
       # *définit* toujours la variable dans le conteneur, à vide si .env ne la
       # renseigne pas, et {$VAR:defaut} de Caddy ne substitue son défaut que
-      # lorsque la variable est absente — pas lorsqu'elle est présente et vide.
+      # lorsque la variable est absente - pas lorsqu'elle est présente et vide.
       # Sans ce ${VAR:-defaut}, le chemin documenté produit un `email` sans
       # argument.
       ACME_EMAIL: ${ACME_EMAIL:-mackaldine22@gmail.com}

@@ -39,7 +39,7 @@
   /* ---- En-tête de page ----
    *
    * Un seul gabarit pour tous les écrans, quel que soit le rôle. La caisse du caissier et le
-   * tableau de bord de l'administrateur — les deux pages d'accueil de la même application —
+   * tableau de bord de l'administrateur - les deux pages d'accueil de la même application -
    * partaient sinon sur deux traitements différents : médaillon d'icône d'un côté, titre nu de
    * l'autre, et deux nuances de gris pour le même niveau de titre.
    *
@@ -75,7 +75,7 @@
    *
    * Deux niveaux, pas davantage : `.section-title` pour l'en-tête d'une carte ou d'un panneau,
    * `.subsection-title` pour un bloc à l'intérieur d'une carte. Des cartes de même rang
-   * portaient jusqu'ici `text-lg`, `text-xl`, `text-2xl` ou aucune taille selon la page —
+   * portaient jusqu'ici `text-lg`, `text-xl`, `text-2xl` ou aucune taille selon la page -
    * y compris entre deux sections voisines d'un même écran.
    *
    * La classe ne fixe pas le niveau de titre : `<h2>` ou `<h3>` reste choisi selon
@@ -164,12 +164,12 @@
   /* ---- Badges ----
    *
    * Palette sémantique unique de l'application. Chaque teinte porte un sens et un seul :
-   *   success (vert)   — état final positif : payée, livrée, actif, entrée de stock
-   *   warning (ambre)  — en cours / demande attention : en attente, partiellement payée, stock bas
-   *   danger  (rouge)  — état négatif ou bloquant : annulée, non payée, rupture de stock
-   *   info    (bleu)   — étape intermédiaire neutre : confirmée
-   *   accent  (indigo) — jalon de facturation : facturée
-   *   neutral (gris)   — inactif, inconnu, hors cycle
+   *   success (vert)   - état final positif : payée, livrée, actif, entrée de stock
+   *   warning (ambre)  - en cours / demande attention : en attente, partiellement payée, stock bas
+   *   danger  (rouge)  - état négatif ou bloquant : annulée, non payée, rupture de stock
+   *   info    (bleu)   - étape intermédiaire neutre : confirmée
+   *   accent  (indigo) - jalon de facturation : facturée
+   *   neutral (gris)   - inactif, inconnu, hors cycle
    *
    * `info` reprend le bleu de marque et `neutral` les gris bleutés de la charte
    * (cf. `tailwind.config.js`) : les jetons `blue-*`, `violet-*` et `gray-*` employés ici
@@ -238,7 +238,7 @@
    * d'accueil portent l'identité bleue plutôt qu'un arc-en-ciel vert/ambre/rouge/indigo.
    *
    * Ce qui remplace la teinte comme porteur du sens, c'est la PROFONDEUR du bleu. L'ordre
-   * ci-dessous est le contrat à ne pas casser — il est repris à l'identique par les tuiles,
+   * ci-dessous est le contrat à ne pas casser - il est repris à l'identique par les tuiles,
    * les barres de répartition, les pastilles et les anneaux, chacun à sa propre intensité :
    *
    *   neutral  <  success  <  accent  <  info  <  warning  <  danger
@@ -257,7 +257,7 @@
    * (3,1:1) ne tiendrait pas pour le libellé et la légende.
    */
   /* La tuile est déclarée conteneur de requête : son contenu se dimensionne sur SA largeur,
-   * pas sur celle de la fenêtre. C'est le seul repère juste ici — derrière la barre latérale
+   * pas sur celle de la fenêtre. C'est le seul repère juste ici - derrière la barre latérale
    * de 288 px, une grille à quatre colonnes ne laissait que ~150 px par tuile à 1024 px alors
    * que le point de rupture `lg` était bien franchi, et le chiffre s'y retrouvait rogné.
    * (Le rembourrage reste sur les points de rupture classiques : une tuile ne peut pas
@@ -423,7 +423,7 @@
    * un anneau de progression (le taux qui résume le domaine) et une barre par statut (la
    * répartition). D'où la séparation des rôles de couleur, qui est le point à ne pas casser :
    *
-   *   - la PROFONDEUR DE DOMAINE (`.panel-tone-*`) identifie le panneau — un cran de bleu par
+   *   - la PROFONDEUR DE DOMAINE (`.panel-tone-*`) identifie le panneau - un cran de bleu par
    *     domaine, commandes / factures / livraisons. Elle habille le médaillon et l'anneau,
    *     et rien d'autre ;
    *   - la PROFONDEUR DE STATUT (`.metric-bar-*`, `.tone-dot-*`) suit l'échelle monochrome
@@ -436,7 +436,7 @@
    * Les statuts ne sont volontairement PAS empilés dans une barre unique : sur une échelle
    * monochrome, deux crans voisins collés l'un à l'autre sont indissociables. Une barre par
    * ligne, chacune accompagnée de son libellé, de son effectif et de sa part, ne fait jamais
-   * reposer la lecture sur la couleur — c'est ce qui rend l'échelle monochrome acceptable ici.
+   * reposer la lecture sur la couleur - c'est ce qui rend l'échelle monochrome acceptable ici.
    */
   .panel-icon {
     @apply w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0;
@@ -451,7 +451,7 @@
    * Nuances -600 en clair / -400 en sombre : les deux dépassent 3:1 sur leur fond. */
   /* Le jeton de domaine sert de trait à l'anneau SVG : il lui faut 3:1 minimum sur son fond,
    * seuil des éléments non textuels. Les crans clairs de l'échelle (`primary-200/300`) n'y
-   * arrivent pas en thème clair — l'anneau reprend donc la même PROGRESSION, décalée vers le
+   * arrivent pas en thème clair - l'anneau reprend donc la même PROGRESSION, décalée vers le
    * bas de la rampe, tous crans confondus au-dessus du seuil. */
   .panel-tone-neutral { @apply text-gray-500; }
   .panel-tone-success { @apply text-primary-500; }
@@ -483,7 +483,7 @@
   html.dark .panel-icon.panel-tone-warning { @apply bg-primary-400/20; }
   html.dark .panel-icon.panel-tone-danger  { @apply bg-primary-400/25; }
 
-  /* Anneau de progression. Piste et arc partagent `currentColor` — la piste est la même
+  /* Anneau de progression. Piste et arc partagent `currentColor` - la piste est la même
    * teinte à faible opacité, jamais un gris neutre : l'état se lit sur tout l'anneau. */
   .ring-track {
     stroke: currentColor;
@@ -534,7 +534,7 @@
     @apply w-2 h-2 rounded-full flex-shrink-0;
   }
 
-  /* La pastille reprend exactement la barre de sa ligne — c'est ce qui permet de relier la
+  /* La pastille reprend exactement la barre de sa ligne - c'est ce qui permet de relier la
    * légende à la barre sans compter les lignes. */
   .tone-dot-neutral { @apply tone-dot bg-gray-300; }
   .tone-dot-success { @apply tone-dot bg-primary-300; }
@@ -589,10 +589,10 @@
    * fenêtre. C'est le seul repère juste : le catalogue ne reçoit qu'une fraction de l'écran
    * (le panier lui en prend 380 px, le panneau de filtres 176 à 208 px de plus), si bien
    * qu'un jeu de points de rupture classiques promettait quatre colonnes à 768 px alors que
-   * la grille n'en mesurait que 168 — des vignettes de 35 px, illisibles et rognées.
+   * la grille n'en mesurait que 168 - des vignettes de 35 px, illisibles et rognées.
    *
    * La formule dit les deux bornes à la fois :
-   *   - plancher 7,5 rem (120 px) par vignette — en dessous, ni le nom ni le prix ne se
+   *   - plancher 7,5 rem (120 px) par vignette - en dessous, ni le nom ni le prix ne se
    *     lisent, et la grille préfère retirer une colonne ;
    *   - plafond de cinq colonnes, via la part `(100% - 4 gouttières) / 5` : au-delà les
    *     vignettes redeviennent trop petites pour être identifiées de loin, ce que

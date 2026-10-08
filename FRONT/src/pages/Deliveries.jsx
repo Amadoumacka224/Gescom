@@ -1024,7 +1024,7 @@ const Deliveries = () => {
                   onClick={(e) => { e.stopPropagation(); setSelectedDelivery(delivery); }}
                   className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   title={t('deliveries.viewDetails')}
-                  aria-label={`${t('deliveries.viewDetails')} — ${delivery.deliveryNumber}`}
+                  aria-label={`${t('deliveries.viewDetails')} - ${delivery.deliveryNumber}`}
                 >
                   <Eye className="w-4 h-4" aria-hidden="true" />
                 </button>
@@ -1034,7 +1034,7 @@ const Deliveries = () => {
                   onClick={(e) => { e.stopPropagation(); handleEdit(delivery); }}
                   className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   title={terminal ? t('deliveries.terminalHint') : t('common.edit')}
-                  aria-label={`${t('common.edit')} — ${delivery.deliveryNumber}`}
+                  aria-label={`${t('common.edit')} - ${delivery.deliveryNumber}`}
                   disabled={terminal}
                 >
                   <Edit className="w-4 h-4" aria-hidden="true" />
@@ -1043,7 +1043,7 @@ const Deliveries = () => {
                   onClick={(e) => { e.stopPropagation(); setDeliveryToDelete(delivery); }}
                   className="text-red-600 hover:text-red-900 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   title={terminal ? t('deliveries.terminalHint') : t('common.delete')}
-                  aria-label={`${t('common.delete')} — ${delivery.deliveryNumber}`}
+                  aria-label={`${t('common.delete')} - ${delivery.deliveryNumber}`}
                   disabled={terminal}
                 >
                   <Trash2 className="w-4 h-4" aria-hidden="true" />

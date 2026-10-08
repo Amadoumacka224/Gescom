@@ -121,8 +121,8 @@ public class Company {
     public enum CompanyStatus {
         TRIAL,      // Periode d'essai en cours
         ACTIVE,     // Abonnement en regle
-        SUSPENDED,  // Acces coupe (impaye, litige) — donnees conservees
-        CANCELED    // Resiliee — donnees conservees pour la duree de retention legale
+        SUSPENDED,  // Acces coupe (impaye, litige) - donnees conservees
+        CANCELED    // Resiliee - donnees conservees pour la duree de retention legale
     }
 
     /** Vrai si les utilisateurs de cette entreprise ont le droit de se connecter. */

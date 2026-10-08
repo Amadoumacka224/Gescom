@@ -1,8 +1,8 @@
-# GESCOM — directives d'exploration
+# GESCOM - directives d'exploration
 #
 # La page de connexion est la seule page publique : elle porte la présentation de
 # la solution et peut être indexée. Tout le reste est derrière l'authentification.
-# Un robot n'y accède pas — l'API répond 401 —, mais l'y envoyer ne sert à rien
+# Un robot n'y accède pas - l'API répond 401 - , mais l'y envoyer ne sert à rien
 # et fait apparaître des URLs vides dans les rapports d'indexation, d'où ces
 # interdictions explicites.
 #

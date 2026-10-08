@@ -117,7 +117,7 @@ public class SupportTicketService {
         notificationService.record("SUPPORT_TICKET_OPENED",
                 severityOf(saved.getPriority()),
                 "Ticket " + saved.getReference() + " ouvert",
-                company.getName() + " — " + saved.getSubject(),
+                company.getName() + " - " + saved.getSubject(),
                 company, "SupportTicket", saved.getId());
 
         return saved;

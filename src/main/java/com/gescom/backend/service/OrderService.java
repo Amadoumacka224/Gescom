@@ -652,7 +652,7 @@ public class OrderService {
                 throw new InsufficientStockException(product.getName(), product.getStockQuantity(), entry.getValue());
             }
             recordMovement(product, StockMovement.MovementType.STOCK_OUT, -entry.getValue(),
-                    "Vente — commande " + order.getOrderNumber(), order.getOrderNumber());
+                    "Vente - commande " + order.getOrderNumber(), order.getOrderNumber());
         }
 
         return transitionTo(order, Order.OrderStatus.CONFIRMED);
@@ -777,7 +777,7 @@ public class OrderService {
                 .filter(inv -> inv.getStatus() != Invoice.InvoiceStatus.CANCELED)
                 .ifPresent(inv -> {
                     throw BusinessException.of("order.cancel.invoiceAttached",
-                            "Une facture est associée à cette commande — "
+                            "Une facture est associée à cette commande - "
                                     + "annulez d'abord la facture " + inv.getInvoiceNumber(),
                             inv.getInvoiceNumber());
                 });
@@ -790,7 +790,7 @@ public class OrderService {
         // On remet le stock seulement s'il avait été pris (à la confirmation). Une commande
         // restée PENDING n'a jamais sorti de stock, rien à remettre. Le retour est enregistré (STOCK_IN).
         if (stockWasConsumed(order.getStatus())) {
-            restoreStock(order, "Annulation — commande " + order.getOrderNumber());
+            restoreStock(order, "Annulation - commande " + order.getOrderNumber());
         }
 
         order.setStatus(Order.OrderStatus.CANCELED);
@@ -812,7 +812,7 @@ public class OrderService {
         // On remet le stock seulement s'il avait été pris et que la commande n'est pas déjà
         // annulée (dans ce cas le stock a déjà été remis lors de l'annulation).
         if (order.getStatus() != Order.OrderStatus.CANCELED && stockWasConsumed(order.getStatus())) {
-            restoreStock(order, "Suppression — commande " + order.getOrderNumber());
+            restoreStock(order, "Suppression - commande " + order.getOrderNumber());
         }
 
         String orderNumber = order.getOrderNumber();

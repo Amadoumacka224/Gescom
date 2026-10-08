@@ -574,7 +574,7 @@ const Caisses = () => {
                       }}
                       aria-expanded={isExpanded}
                       aria-controls={panelId}
-                      aria-label={`${isExpanded ? t('caisse.hideOrders') : t('caisse.showOrders')} — ${cashierName(cashier)}`}
+                      aria-label={`${isExpanded ? t('caisse.hideOrders') : t('caisse.showOrders')} - ${cashierName(cashier)}`}
                       className="flex items-center gap-1 text-sm text-gray-400 dark:text-gray-500 flex-shrink-0 rounded-lg px-2 py-1 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <span className="hidden sm:inline">

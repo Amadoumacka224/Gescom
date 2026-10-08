@@ -556,7 +556,7 @@ const Clients = () => {
                 type="button"
                 onClick={() => openOrder(order.id)}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40"
-                aria-label={`${t('clients.openOrder')} — ${order.orderNumber}`}
+                aria-label={`${t('clients.openOrder')} - ${order.orderNumber}`}
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -1031,7 +1031,7 @@ const Clients = () => {
                 onClick={(e) => { e.stopPropagation(); setSelectedClient(client); }}
                 className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title={t('clients.viewProfile')}
-                aria-label={`${t('clients.viewProfile')} — ${fullName(client)}`}
+                aria-label={`${t('clients.viewProfile')} - ${fullName(client)}`}
               >
                 <Eye className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -1039,7 +1039,7 @@ const Clients = () => {
                 onClick={(e) => { e.stopPropagation(); handleEdit(client); }}
                 className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
                 title={t('common.edit')}
-                aria-label={`${t('common.edit')} — ${fullName(client)}`}
+                aria-label={`${t('common.edit')} - ${fullName(client)}`}
               >
                 <Edit className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -1048,7 +1048,7 @@ const Clients = () => {
                   onClick={(e) => { e.stopPropagation(); setClientToDelete(client); }}
                   className="text-red-600 hover:text-red-900 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                   title={t('common.delete')}
-                  aria-label={`${t('common.delete')} — ${fullName(client)}`}
+                  aria-label={`${t('common.delete')} - ${fullName(client)}`}
                 >
                   <Trash2 className="w-4 h-4" aria-hidden="true" />
                 </button>

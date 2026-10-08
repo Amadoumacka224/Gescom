@@ -55,7 +55,7 @@ public class SimulatedStripeGateway implements StripeGateway {
     public StripeIntent createIntent(long amountInCents, String currency, String description,
                                      Map<String, String> metadata) {
         String id = ID_PREFIX + randomToken(16);
-        log.info("[Stripe simulé] Intention {} créée : {} {} — {}", id, amountInCents, currency, description);
+        log.info("[Stripe simulé] Intention {} créée : {} {} - {}", id, amountInCents, currency, description);
         return StripeIntent.created(id, id + "_secret_" + randomToken(16));
     }
 

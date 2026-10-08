@@ -382,7 +382,7 @@ public class StockReturnService {
                 .orElseThrow(() -> new ResourceNotFoundException("product", line.productId()));
 
         recordMovement(product, StockMovement.MovementType.RETURN, line.quantity(),
-                "Retour " + stockReturn.getReturnNumber() + " — commande " + order.getOrderNumber()
+                "Retour " + stockReturn.getReturnNumber() + " - commande " + order.getOrderNumber()
                         + " (" + line.reason() + ")",
                 stockReturn.getReturnNumber());
 
@@ -415,7 +415,7 @@ public class StockReturnService {
                         replacement.getStockQuantity(), line.quantity());
             }
             recordMovement(replacement, StockMovement.MovementType.STOCK_OUT, -line.quantity(),
-                    "Échange — retour " + stockReturn.getReturnNumber()
+                    "Échange - retour " + stockReturn.getReturnNumber()
                             + " (remplace " + product.getName() + ")",
                     stockReturn.getReturnNumber());
             item.setReplacementProduct(replacement);
@@ -508,7 +508,7 @@ public class StockReturnService {
             currentUser().ifPresent(user -> activityLogService.logActivity(
                     user.getId(), ActivityLog.ActionType.STOCK_IN, "StockReturn", stockReturn.getId(),
                     "Retour " + stockReturn.getReturnNumber() + " sur la commande " + order.getOrderNumber()
-                            + " — " + stockReturn.getTotalQuantity() + " article(s)"
+                            + " - " + stockReturn.getTotalQuantity() + " article(s)"
                             + (stockReturn.getRefundAmount().signum() > 0
                                     ? ", remboursement " + stockReturn.getRefundAmount() + " €" : ""),
                     null, null));

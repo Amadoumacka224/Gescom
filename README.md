@@ -4,7 +4,7 @@
 
 Application de gestion commerciale développée avec Spring Boot.
 
-Chaque poussée sur `main` déclenche l'intégration continue : `mvn clean install` pour l'API — compilation, 113 tests, rapport de couverture — puis lint, contrôle des traductions et build du SPA. Aucune base de données n'est nécessaire : les tests d'intégration tournent sur H2 en mémoire.
+Chaque poussée sur `main` déclenche l'intégration continue : `mvn clean install` pour l'API - compilation, 113 tests, rapport de couverture - puis lint, contrôle des traductions et build du SPA. Aucune base de données n'est nécessaire : les tests d'intégration tournent sur H2 en mémoire.
 
 ## Technologies
 
@@ -25,7 +25,7 @@ Pour le développement :
 - PostgreSQL 12 ou supérieur
 - Maven 3.6 ou supérieur
 
-Pour un déploiement, Docker suffit — voir [Déploiement](#déploiement).
+Pour un déploiement, Docker suffit - voir [Déploiement](#déploiement).
 
 ## Configuration
 
@@ -37,9 +37,9 @@ Créer la base de données PostgreSQL (le nom par défaut attendu est `GESCOM_2`
 CREATE DATABASE "GESCOM_2";
 ```
 
-Le schéma est construit par Flyway au démarrage, à partir des migrations de `src/main/resources/db/migration` : il suffit que la base existe, l'application joue les scripts elle-même. Hibernate ne fait plus que vérifier la correspondance avec les entités (`spring.jpa.hibernate.ddl-auto=validate`) — une entité modifiée sans migration correspondante fait échouer le démarrage.
+Le schéma est construit par Flyway au démarrage, à partir des migrations de `src/main/resources/db/migration` : il suffit que la base existe, l'application joue les scripts elle-même. Hibernate ne fait plus que vérifier la correspondance avec les entités (`spring.jpa.hibernate.ddl-auto=validate`) - une entité modifiée sans migration correspondante fait échouer le démarrage.
 
-Une base qui porte déjà le schéma — celles en service avant le passage à Flyway — n'a pas à être vidée : `baseline-on-migrate` la marque au niveau `baseline-version=14.2`, c'est-à-dire « à jour », et aucun script n'est rejoué. **Ne recréez jamais une base d'exploitation pour faire démarrer l'application** : les migrations n'amorcent que les données de référence (clients, produits, catégories, comptes), pas les commandes, factures, livraisons ni paiements, qui seraient perdus.
+Une base qui porte déjà le schéma - celles en service avant le passage à Flyway - n'a pas à être vidée : `baseline-on-migrate` la marque au niveau `baseline-version=14.2`, c'est-à-dire « à jour », et aucun script n'est rejoué. **Ne recréez jamais une base d'exploitation pour faire démarrer l'application** : les migrations n'amorcent que les données de référence (clients, produits, catégories, comptes), pas les commandes, factures, livraisons ni paiements, qui seraient perdus.
 
 Les migrations chargent aussi un jeu de données de départ (110 clients, 180 produits, 12 catégories) et quatre comptes de démonstration :
 
@@ -50,7 +50,7 @@ Les migrations chargent aussi un jeu de données de départ (110 clients, 180 pr
 
 Leurs mots de passe ne sont pas publiés ici. Ce sont des valeurs de développement, versionnées sous forme d'empreinte bcrypt dans `V1_2__insert_users_table.sql` : elles n'ont de sens que sur une base locale jetable, et doivent être considérées comme connues de quiconque a accès au dépôt.
 
-> ⚠️ **Une installation en service ne doit jamais conserver ces comptes en l'état.** Changez leur mot de passe dès la première connexion (`POST /api/users/me/change-password`), ou supprimez-les une fois vos propres comptes créés. Tant que ce n'est pas fait, l'application est ouverte à qui a lu le dépôt.
+> **Une installation en service ne doit jamais conserver ces comptes en l'état.** Changez leur mot de passe dès la première connexion (`POST /api/users/me/change-password`), ou supprimez-les une fois vos propres comptes créés. Tant que ce n'est pas fait, l'application est ouverte à qui a lu le dépôt.
 
 Toute évolution du schéma passe par un nouveau fichier `V15__....sql` : Flyway vérifie la somme de contrôle des scripts déjà joués, en modifier un fait échouer le démarrage suivant.
 
@@ -63,10 +63,10 @@ L'application lit l'ensemble de ses paramètres sensibles depuis l'environnement
 | `DB_URL`          | URL JDBC PostgreSQL                                                |
 | `DB_USERNAME`     | Utilisateur PostgreSQL                                             |
 | `DB_PASSWORD`     | Mot de passe PostgreSQL                                            |
-| `JWT_SECRET`      | Secret JWT — **64 caractères aléatoires minimum en production**    |
+| `JWT_SECRET`      | Secret JWT - **64 caractères aléatoires minimum en production**    |
 | `JWT_EXPIRATION`  | Durée de validité du token (ms)                                    |
 | `CORS_ORIGINS`    | Origines CORS autorisées (séparées par virgule)                    |
-| `PLATFORM_ADMIN_USERNAME` | Compte propriétaire du back-office SaaS — voir ci-dessous  |
+| `PLATFORM_ADMIN_USERNAME` | Compte propriétaire du back-office SaaS - voir ci-dessous  |
 | `PLATFORM_ADMIN_EMAIL`    | Adresse de ce compte                                       |
 | `PLATFORM_ADMIN_PASSWORD` | Mot de passe initial de ce compte                          |
 
@@ -82,7 +82,7 @@ export CORS_ORIGINS=https://app.example.com
 
 #### Compte propriétaire et développement local
 
-Le compte `SUPER_ADMIN` du back-office n'est semé par aucune migration : il faudrait y versionner une empreinte de mot de passe en dur, identique sur toutes les installations. Il est créé au premier démarrage par `PlatformAdminBootstrap`, à partir des trois variables `PLATFORM_ADMIN_*`, et jamais réécrit ensuite — une rotation faite depuis le back-office survit donc aux redéploiements.
+Le compte `SUPER_ADMIN` du back-office n'est semé par aucune migration : il faudrait y versionner une empreinte de mot de passe en dur, identique sur toutes les installations. Il est créé au premier démarrage par `PlatformAdminBootstrap`, à partir des trois variables `PLATFORM_ADMIN_*`, et jamais réécrit ensuite - une rotation faite depuis le back-office survit donc aux redéploiements.
 
 Conséquence en local : `docker compose up` lit `.env` et fournit ces variables, mais **`mvn spring-boot:run` ne lit pas `.env`**. Sans elles, aucun compte n'est créé et le back-office reste inaccessible après chaque recréation de la base.
 
@@ -111,7 +111,7 @@ L'API sera accessible sur `http://localhost:8085/`.
 
 Le dépôt porte de quoi déployer les deux applications sur une machine unique : un `Dockerfile`
 multi-étapes, un `docker-compose.yml` et un `Caddyfile`. Seuls Docker et un nom de domaine
-pointant sur la machine sont requis — ni Java, ni Node, ni PostgreSQL à installer sur l'hôte.
+pointant sur la machine sont requis - ni Java, ni Node, ni PostgreSQL à installer sur l'hôte.
 
 ### Principe
 
@@ -143,7 +143,7 @@ Remplacer `gescom.example.com` par le domaine réel dans `Caddyfile` (bloc de si
 
 L'adresse `email` du bloc global du `Caddyfile` doit être réelle et relevée : c'est là que
 Let's Encrypt signale les expirations, et une adresse en `example.com` fait carrément rejeter
-la création du compte (`invalidContact — contact email has forbidden domain`), après quoi Caddy
+la création du compte (`invalidContact - contact email has forbidden domain`), après quoi Caddy
 bascule sans le dire sur l'émetteur de repli.
 
 ```bash
@@ -170,7 +170,7 @@ docker compose up -d --build       # redéployer après un git pull
 Les variables du tableau de la section [Variables d'environnement](#2-variables-denvironnement)
 sont fournies par le fichier `.env`, décrit dans `.env.example`. Deux rappels :
 
-- `JWT_SECRET` signe l'ensemble des sessions — qui le connaît peut forger un jeton
+- `JWT_SECRET` signe l'ensemble des sessions - qui le connaît peut forger un jeton
   d'administrateur sans mot de passe. Le générer (`openssl rand -hex 64`), jamais l'inventer.
   Le changer révoque toutes les sessions en cours, ce qui en fait le geste d'urgence en cas de
   doute.
@@ -192,7 +192,7 @@ Le déploiement ne couvre pas ces deux points, qui relèvent de l'exploitation :
    docker compose exec -T db pg_dump -U gescom gescom | gzip > gescom-$(date +%F).sql.gz
    ```
 
-   Prévoir une rotation et une copie hors de la machine — une sauvegarde qui ne vit que sur le
+   Prévoir une rotation et une copie hors de la machine - une sauvegarde qui ne vit que sur le
    serveur sauvegardé ne protège de rien.
 
 ### Hôte
@@ -206,7 +206,7 @@ et à la redirection vers HTTPS, que Caddy met en place de lui-même.
 
 ### Documentation interactive
 
-L'application démarrée, la référence complète — et essayable — se trouve sur
+L'application démarrée, la référence complète - et essayable - se trouve sur
 **<http://localhost:8085/swagger-ui.html>**. La liste ci-dessous en reste un résumé de lecture,
 elle n'est pas engendrée et peut retarder sur le code ; le document OpenAPI, lui, est produit
 depuis les contrôleurs eux-mêmes (`/v3/api-docs`).
@@ -215,7 +215,7 @@ Pour dérouler un appel authentifié depuis l'interface :
 
 1. `POST /api/auth/login` avec un compte existant ;
 2. copier la valeur du champ `token` de la réponse ;
-3. la coller dans **Authorize**, en haut à droite — sans le préfixe `Bearer`, ajouté par l'interface.
+3. la coller dans **Authorize**, en haut à droite - sans le préfixe `Bearer`, ajouté par l'interface.
 
 Les essais passent alors par exactement les mêmes contrôles que n'importe quel appel : un
 CAISSIER se verra refuser les routes réservées à l'ADMIN, et le cloisonnement par entreprise
@@ -228,139 +228,139 @@ s'applique aussi.
 > tout son travail de reconnaissance.
 
 ### Authentification (`/api/auth`)
-- `POST /login` — Connexion (retourne un token JWT)
-- `POST /logout` — Déconnexion
+- `POST /login` - Connexion (retourne un token JWT)
+- `POST /logout` - Déconnexion
 
-### Utilisateurs (`/api/users`) — ADMIN
-- `GET /` — Liste des utilisateurs
-- `GET /me` — Profil de l'utilisateur connecté
-- `PUT /me` — Modifier son profil
-- `POST /me/change-password` — Changer son mot de passe
-- `GET /{id}` — Détails d'un utilisateur
-- `GET /username/{username}` — Recherche par nom d'utilisateur
-- `GET /role/{role}` — Filtrer par rôle
-- `GET /caissiers` — Liste des caissiers
-- `GET /active` — Utilisateurs actifs
-- `POST /` — Créer un utilisateur
-- `PUT /{id}` — Modifier un utilisateur
-- `PATCH /{id}/deactivate` — Désactiver un utilisateur
-- `DELETE /{id}` — Supprimer un utilisateur
+### Utilisateurs (`/api/users`) - ADMIN
+- `GET /` - Liste des utilisateurs
+- `GET /me` - Profil de l'utilisateur connecté
+- `PUT /me` - Modifier son profil
+- `POST /me/change-password` - Changer son mot de passe
+- `GET /{id}` - Détails d'un utilisateur
+- `GET /username/{username}` - Recherche par nom d'utilisateur
+- `GET /role/{role}` - Filtrer par rôle
+- `GET /caissiers` - Liste des caissiers
+- `GET /active` - Utilisateurs actifs
+- `POST /` - Créer un utilisateur
+- `PUT /{id}` - Modifier un utilisateur
+- `PATCH /{id}/deactivate` - Désactiver un utilisateur
+- `DELETE /{id}` - Supprimer un utilisateur
 
 ### Clients (`/api/clients`)
-- `GET /` — Liste des clients
-- `GET /active` — Clients actifs
-- `GET /{id}` — Détails d'un client
-- `GET /email/{email}` — Recherche par email
-- `GET /type/{type}` — Filtrer par type
-- `POST /` — Créer un client
-- `PUT /{id}` — Modifier un client
-- `PATCH /{id}/deactivate` — Désactiver un client
-- `DELETE /{id}` — Supprimer un client
-- `GET /export` — Export des clients
+- `GET /` - Liste des clients
+- `GET /active` - Clients actifs
+- `GET /{id}` - Détails d'un client
+- `GET /email/{email}` - Recherche par email
+- `GET /type/{type}` - Filtrer par type
+- `POST /` - Créer un client
+- `PUT /{id}` - Modifier un client
+- `PATCH /{id}/deactivate` - Désactiver un client
+- `DELETE /{id}` - Supprimer un client
+- `GET /export` - Export des clients
 
 ### Catégories (`/api/categories`)
-- `GET /` — Liste des catégories
-- `GET /active` — Catégories actives
-- `GET /{id}` — Détails d'une catégorie
-- `POST /` — Créer une catégorie
-- `PUT /{id}` — Modifier une catégorie
-- `PATCH /{id}/toggle-status` — Activer/désactiver
-- `DELETE /{id}` — Supprimer une catégorie
+- `GET /` - Liste des catégories
+- `GET /active` - Catégories actives
+- `GET /{id}` - Détails d'une catégorie
+- `POST /` - Créer une catégorie
+- `PUT /{id}` - Modifier une catégorie
+- `PATCH /{id}/toggle-status` - Activer/désactiver
+- `DELETE /{id}` - Supprimer une catégorie
 
 ### Produits (`/api/products`)
-- `GET /` — Liste des produits
-- `GET /active` — Produits actifs
-- `GET /{id}` — Détails d'un produit
-- `GET /code/{code}` — Recherche par code
-- `GET /category/{categoryId}` — Produits d'une catégorie
-- `GET /low-stock` — Produits en rupture / stock faible
-- `GET /{id}/check-stock/{quantity}` — Vérifier disponibilité
-- `POST /` — Créer un produit
-- `PUT /{id}` — Modifier un produit
-- `PATCH /{id}/stock` — Mettre à jour le stock
-- `DELETE /{id}` — Supprimer un produit
-- `GET /export` — Export des produits
-- `POST /import` — Import en lot
+- `GET /` - Liste des produits
+- `GET /active` - Produits actifs
+- `GET /{id}` - Détails d'un produit
+- `GET /code/{code}` - Recherche par code
+- `GET /category/{categoryId}` - Produits d'une catégorie
+- `GET /low-stock` - Produits en rupture / stock faible
+- `GET /{id}/check-stock/{quantity}` - Vérifier disponibilité
+- `POST /` - Créer un produit
+- `PUT /{id}` - Modifier un produit
+- `PATCH /{id}/stock` - Mettre à jour le stock
+- `DELETE /{id}` - Supprimer un produit
+- `GET /export` - Export des produits
+- `POST /import` - Import en lot
 
 ### Commandes (`/api/orders`)
-- `GET /` — Liste des commandes
-- `GET /{id}` — Détails d'une commande
-- `GET /number/{orderNumber}` — Recherche par numéro
-- `GET /client/{clientId}` — Commandes par client
-- `GET /user/{userId}` — Commandes par utilisateur
-- `GET /status/{status}` — Filtrer par statut
-- `GET /date-range` — Filtrer par plage de dates
-- `POST /` — Créer une commande
-- `PUT /{id}` — Modifier une commande
-- `PATCH /{id}/status` — Changer le statut
-- `PATCH /{id}/cancel` — Annuler la commande
-- `DELETE /{id}` — Supprimer la commande
-- `GET /export` — Export des commandes
+- `GET /` - Liste des commandes
+- `GET /{id}` - Détails d'une commande
+- `GET /number/{orderNumber}` - Recherche par numéro
+- `GET /client/{clientId}` - Commandes par client
+- `GET /user/{userId}` - Commandes par utilisateur
+- `GET /status/{status}` - Filtrer par statut
+- `GET /date-range` - Filtrer par plage de dates
+- `POST /` - Créer une commande
+- `PUT /{id}` - Modifier une commande
+- `PATCH /{id}/status` - Changer le statut
+- `PATCH /{id}/cancel` - Annuler la commande
+- `DELETE /{id}` - Supprimer la commande
+- `GET /export` - Export des commandes
 
 ### Livraisons (`/api/deliveries`)
-- `GET /` — Liste des livraisons
-- `GET /{id}` — Détails d'une livraison
-- `GET /number/{deliveryNumber}` — Recherche par numéro
-- `GET /order/{orderId}` — Livraisons d'une commande
-- `GET /status/{status}` — Filtrer par statut
-- `GET /date-range` — Filtrer par plage de dates
-- `POST /` — Créer une livraison
-- `PUT /{id}` — Modifier une livraison
-- `PATCH /{id}/status` — Changer le statut
-- `PATCH /{id}/mark-delivered` — Marquer comme livrée
-- `POST /{id}/create-invoice` — Générer la facture associée
-- `DELETE /{id}` — Supprimer la livraison
-- `GET /export` — Export des livraisons
+- `GET /` - Liste des livraisons
+- `GET /{id}` - Détails d'une livraison
+- `GET /number/{deliveryNumber}` - Recherche par numéro
+- `GET /order/{orderId}` - Livraisons d'une commande
+- `GET /status/{status}` - Filtrer par statut
+- `GET /date-range` - Filtrer par plage de dates
+- `POST /` - Créer une livraison
+- `PUT /{id}` - Modifier une livraison
+- `PATCH /{id}/status` - Changer le statut
+- `PATCH /{id}/mark-delivered` - Marquer comme livrée
+- `POST /{id}/create-invoice` - Générer la facture associée
+- `DELETE /{id}` - Supprimer la livraison
+- `GET /export` - Export des livraisons
 
 ### Factures (`/api/invoices`)
-- `GET /` — Liste des factures
-- `GET /{id}` — Détails d'une facture
-- `GET /number/{invoiceNumber}` — Recherche par numéro
-- `GET /order/{orderId}` — Factures d'une commande
-- `GET /status/{status}` — Filtrer par statut
-- `GET /date-range` — Filtrer par plage de dates
-- `GET /overdue` — Factures en retard
-- `POST /` — Créer une facture
-- `PATCH /{id}/payment` — Enregistrer un paiement
-- `PATCH /{id}/cancel` — Annuler une facture
-- `DELETE /{id}` — Supprimer une facture
+- `GET /` - Liste des factures
+- `GET /{id}` - Détails d'une facture
+- `GET /number/{invoiceNumber}` - Recherche par numéro
+- `GET /order/{orderId}` - Factures d'une commande
+- `GET /status/{status}` - Filtrer par statut
+- `GET /date-range` - Filtrer par plage de dates
+- `GET /overdue` - Factures en retard
+- `POST /` - Créer une facture
+- `PATCH /{id}/payment` - Enregistrer un paiement
+- `PATCH /{id}/cancel` - Annuler une facture
+- `DELETE /{id}` - Supprimer une facture
 
 ### Stock (`/api/stock`)
-- `GET /movements` — Liste des mouvements
-- `GET /movements/{id}` — Détails d'un mouvement
-- `GET /movements/product/{productId}` — Mouvements d'un produit
-- `GET /movements/type/{type}` — Filtrer par type de mouvement
-- `GET /movements/date-range` — Filtrer par plage de dates
-- `POST /add` — Entrée de stock
-- `POST /remove` — Sortie de stock
-- `POST /adjust` — Ajustement de stock
-- `POST /damage` — Déclarer une casse
-- `GET /low-stock` — Produits en stock faible
-- `GET /out-of-stock` — Produits en rupture
-- `GET /statistics` — Statistiques de stock
-- `DELETE /movements/{id}` — Supprimer un mouvement
-- `GET /export` — Export des mouvements
+- `GET /movements` - Liste des mouvements
+- `GET /movements/{id}` - Détails d'un mouvement
+- `GET /movements/product/{productId}` - Mouvements d'un produit
+- `GET /movements/type/{type}` - Filtrer par type de mouvement
+- `GET /movements/date-range` - Filtrer par plage de dates
+- `POST /add` - Entrée de stock
+- `POST /remove` - Sortie de stock
+- `POST /adjust` - Ajustement de stock
+- `POST /damage` - Déclarer une casse
+- `GET /low-stock` - Produits en stock faible
+- `GET /out-of-stock` - Produits en rupture
+- `GET /statistics` - Statistiques de stock
+- `DELETE /movements/{id}` - Supprimer un mouvement
+- `GET /export` - Export des mouvements
 
 ### Journal d'activité (`/api/activities`)
-- `GET /` — Liste des activités
-- `GET /{id}` — Détails d'une activité
-- `GET /user/{userId}` — Activités d'un utilisateur
-- `GET /action/{actionType}` — Filtrer par type d'action
-- `GET /entity/{entity}` — Filtrer par entité
-- `GET /date-range` — Filtrer par plage de dates
-- `GET /caissiers` — Activités des caissiers
-- `POST /` — Créer une entrée
-- `DELETE /{id}` — Supprimer une entrée
+- `GET /` - Liste des activités
+- `GET /{id}` - Détails d'une activité
+- `GET /user/{userId}` - Activités d'un utilisateur
+- `GET /action/{actionType}` - Filtrer par type d'action
+- `GET /entity/{entity}` - Filtrer par entité
+- `GET /date-range` - Filtrer par plage de dates
+- `GET /caissiers` - Activités des caissiers
+- `POST /` - Créer une entrée
+- `DELETE /{id}` - Supprimer une entrée
 
 ### Tableau de bord (`/api/dashboard`)
-- `GET /stats` — Indicateurs clés
-- `GET /recent-orders` — Dernières commandes
-- `GET /top-products` — Meilleures ventes
-- `GET /overview` — Vue d'ensemble
+- `GET /stats` - Indicateurs clés
+- `GET /recent-orders` - Dernières commandes
+- `GET /top-products` - Meilleures ventes
+- `GET /overview` - Vue d'ensemble
 
 ### Paramètres (`/api/settings`)
-- `GET /` — Lire les paramètres applicatifs
-- `PUT /` — Mettre à jour les paramètres
+- `GET /` - Lire les paramètres applicatifs
+- `PUT /` - Mettre à jour les paramètres
 
 ## Authentification JWT
 
@@ -372,8 +372,8 @@ Authorization: Bearer <votre_token_jwt>
 
 ## Rôles utilisateurs
 
-- **ADMIN** — Accès complet à toutes les fonctionnalités
-- **CAISSIER** — Accès aux opérations courantes (clients, produits, commandes, livraisons, factures)
+- **ADMIN** - Accès complet à toutes les fonctionnalités
+- **CAISSIER** - Accès aux opérations courantes (clients, produits, commandes, livraisons, factures)
 
 ## Support multi-langue
 

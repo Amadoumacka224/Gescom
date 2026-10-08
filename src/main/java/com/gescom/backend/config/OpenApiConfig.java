@@ -46,7 +46,7 @@ public class OpenApiConfig {
 
         return new OpenAPI()
                 .info(new Info()
-                        .title("GESCOM — API de gestion commerciale")
+                        .title("GESCOM - API de gestion commerciale")
                         .version("1.0.0")
                         .description("""
                                 API REST du back-office GESCOM : ventes, stocks, facturation, \
@@ -55,7 +55,7 @@ public class OpenApiConfig {
 
                                 Authentification par jeton JWT. Trois rôles : ADMIN et CAISSIER \
                                 pour les écrans métier d'une entreprise, SUPER_ADMIN pour le \
-                                back-office de la plateforme — les périmètres sont disjoints, un \
+                                back-office de la plateforme - les périmètres sont disjoints, un \
                                 SUPER_ADMIN n'accède à aucune route métier.
 
                                 Les données sont cloisonnées par entreprise : une requête ne voit \

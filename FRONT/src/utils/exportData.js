@@ -103,9 +103,9 @@ export const exportToCsv = ({ filename, columns, rows }) => {
 };
 
 /** Couleurs de la charte (voir `tailwind.config.js`), comme pour la facture PDF. */
-const PRIMARY_COLOR = [31, 119, 180]; // #1F77B4 — primary-600
-const DARK_COLOR = [26, 39, 64]; // #1A2740 — gray-900
-const MUTED_COLOR = [100, 118, 151]; // #647697 — gray-500
+const PRIMARY_COLOR = [31, 119, 180]; // #1F77B4 - primary-600
+const DARK_COLOR = [26, 39, 64]; // #1A2740 - gray-900
+const MUTED_COLOR = [100, 118, 151]; // #647697 - gray-500
 
 /**
  * Exporte des lignes en PDF paysage, avec un en-tête et un pied de page numéroté.

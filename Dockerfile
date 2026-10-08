@@ -1,6 +1,6 @@
 
 # ==============================================================================
-# GESCOM — image de l'API et image du frontal web
+# GESCOM - image de l'API et image du frontal web
 #
 # Ce Dockerfile porte les deux applications du dépôt, en quatre étapes et deux
 # cibles finales que docker-compose construit séparément :
@@ -13,8 +13,8 @@
 #
 # L'ordre des étapes n'est pas indifférent : l'API est écrite en dernier parce
 # qu'une construction sans cible explicite s'arrête sur la dernière étape du
-# fichier. Render ne sait pas désigner d'étape intermédiaire — il n'y a pas
-# d'équivalent de `--target` dans render.yaml — donc l'API doit être ce que
+# fichier. Render ne sait pas désigner d'étape intermédiaire - il n'y a pas
+# d'équivalent de `--target` dans render.yaml - donc l'API doit être ce que
 # `docker build .` produit par défaut. docker-compose, lui, nomme ses deux
 # cibles et n'est pas concerné. Ne pas remonter les étapes de l'API sans
 # reprendre le déploiement Render.
@@ -22,7 +22,7 @@
 
 
 # ------------------------------------------------------------------------------
-# Étape 1 — compilation du SPA
+# Étape 1 - compilation du SPA
 #
 # `npm ci` et non `npm install` : l'installation suit strictement le
 # package-lock.json, aucune dépendance n'est promue à une version plus récente
@@ -47,7 +47,7 @@ RUN npm run build
 
 
 # ------------------------------------------------------------------------------
-# Étape 2 — frontal web
+# Étape 2 - frontal web
 #
 # Caddy sert les fichiers statiques et relaie /api vers le conteneur de l'API.
 # Le Caddyfile n'est pas copié dans l'image : docker-compose le monte en lecture
@@ -58,7 +58,7 @@ COPY --from=front-build /build/dist /srv
 
 
 # ------------------------------------------------------------------------------
-# Étape 3 — compilation de l'API
+# Étape 3 - compilation de l'API
 #
 # Le pom est copié seul dans un premier temps : tant qu'il ne change pas, la
 # couche de téléchargement des dépendances est réutilisée et un build qui ne
@@ -79,14 +79,14 @@ RUN mvn -B -q clean package -DskipTests
 
 
 # ------------------------------------------------------------------------------
-# Étape 4 — image d'exécution de l'API (étape par défaut, voir l'en-tête)
+# Étape 4 - image d'exécution de l'API (étape par défaut, voir l'en-tête)
 #
 # JRE seul (pas de JDK) et utilisateur non privilégié : une exécution du
 # conteneur en root donnerait à une faille applicative les pleins pouvoirs sur
 # le système de fichiers de l'image.
 #
 # spring-boot-devtools est déclaré `optional` dans le pom, le plugin Spring Boot
-# l'exclut donc du jar exécutable — rien à neutraliser ici.
+# l'exclut donc du jar exécutable - rien à neutraliser ici.
 # ------------------------------------------------------------------------------
 FROM eclipse-temurin:17-jre-jammy AS api
 

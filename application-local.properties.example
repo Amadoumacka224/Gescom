@@ -1,4 +1,4 @@
-# Surcharge locale du poste de developpement — modele.
+# Surcharge locale du poste de developpement - modele.
 #
 # Copier ce fichier en `application-local.properties` (a la racine du projet, a cote du
 # pom.xml) et renseigner les valeurs. La copie est ignoree par .gitignore : les secrets
@@ -11,7 +11,7 @@
 
 # ── Compte proprietaire de la plateforme (back-office SaaS) ──────────────────
 #
-# Cree au premier demarrage par PlatformAdminBootstrap, puis jamais reecrit — une rotation
+# Cree au premier demarrage par PlatformAdminBootstrap, puis jamais reecrit - une rotation
 # de mot de passe faite depuis le back-office survit donc aux redemarrages.
 #
 # Sans ces trois valeurs, aucun compte n'est cree et l'application demarre normalement : le

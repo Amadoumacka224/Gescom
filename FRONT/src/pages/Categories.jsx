@@ -549,7 +549,7 @@ const Categories = () => {
                   onClick={(e) => { e.stopPropagation(); setSelectedCategoryId(category.id); }}
                   className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   title={t('categories.viewDetail')}
-                  aria-label={`${t('categories.viewDetail')} — ${category.name}`}
+                  aria-label={`${t('categories.viewDetail')} - ${category.name}`}
                 >
                   <Eye className="w-4 h-4" aria-hidden="true" />
                 </button>
@@ -559,7 +559,7 @@ const Categories = () => {
                       onClick={(e) => { e.stopPropagation(); handleEdit(category); }}
                       className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
                       title={t('common.edit')}
-                      aria-label={`${t('common.edit')} — ${category.name}`}
+                      aria-label={`${t('common.edit')} - ${category.name}`}
                     >
                       <Edit className="w-4 h-4" aria-hidden="true" />
                     </button>
@@ -569,7 +569,7 @@ const Categories = () => {
                       title={category.active ? t('categories.deactivate') : t('categories.activate')}
                       aria-label={`${
                         category.active ? t('categories.deactivate') : t('categories.activate')
-                      } — ${category.name}`}
+                      } - ${category.name}`}
                     >
                       {category.active ? (
                         <ToggleRight className="w-4 h-4" aria-hidden="true" />
@@ -581,7 +581,7 @@ const Categories = () => {
                       onClick={(e) => { e.stopPropagation(); requestDelete(category); }}
                       className="text-red-600 hover:text-red-900 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                       title={t('common.delete')}
-                      aria-label={`${t('common.delete')} — ${category.name}`}
+                      aria-label={`${t('common.delete')} - ${category.name}`}
                     >
                       <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </button>

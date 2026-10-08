@@ -59,7 +59,7 @@ public class Settings implements TenantOwned {
     private String companyCity;
     private String companyPostalCode;
     private String companyCountry;
-    private String companyTaxId;   // N° de TVA / n° d'entreprise (BCE) — format belge : BE0XXX.XXX.XXX
+    private String companyTaxId;   // N° de TVA / n° d'entreprise (BCE) - format belge : BE0XXX.XXX.XXX
     private String companyIban;    // Compte bancaire (mention légale belge pour le paiement)
     private String companyBic;
 

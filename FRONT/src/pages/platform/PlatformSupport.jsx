@@ -396,7 +396,7 @@ const PlatformSupport = () => {
       <Modal
         isOpen={Boolean(detail)}
         onClose={() => setDetail(null)}
-        title={detail ? `${detail.reference} — ${detail.subject}` : ''}
+        title={detail ? `${detail.reference} - ${detail.subject}` : ''}
         size="lg"
       >
         {detail && (

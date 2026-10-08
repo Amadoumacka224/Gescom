@@ -110,7 +110,7 @@ public class Delivery implements TenantOwned {
 
     public enum DeliveryStatus {
         PENDING,    // Planifiée
-        DELIVERED;  // Livrée — terminal
+        DELIVERED;  // Livrée - terminal
 
         private static final Map<DeliveryStatus, Set<DeliveryStatus>> ALLOWED_TRANSITIONS;
 

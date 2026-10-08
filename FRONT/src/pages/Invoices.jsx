@@ -907,7 +907,7 @@ const Invoices = () => {
                 onClick={(e) => { e.stopPropagation(); handleViewDetails(invoice); }}
                 className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title={t('invoices.viewDetails')}
-                aria-label={`${t('invoices.viewDetails')} — ${invoice.invoiceNumber}`}
+                aria-label={`${t('invoices.viewDetails')} - ${invoice.invoiceNumber}`}
               >
                 <Eye className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -915,7 +915,7 @@ const Invoices = () => {
                 onClick={(e) => { e.stopPropagation(); handleDownloadPDF(invoice); }}
                 className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
                 title={t('invoices.downloadPdfTooltip')}
-                aria-label={`${t('invoices.downloadPdfTooltip')} — ${invoice.invoiceNumber}`}
+                aria-label={`${t('invoices.downloadPdfTooltip')} - ${invoice.invoiceNumber}`}
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
               </button>

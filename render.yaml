@@ -1,7 +1,7 @@
 # ==============================================================================
-# GESCOM — plan d'infrastructure Render
+# GESCOM - plan d'infrastructure Render
 #
-# Décrit les deux services — l'API et le SPA. La base, elle, est extérieure au
+# Décrit les deux services - l'API et le SPA. La base, elle, est extérieure au
 # blueprint : voir la note en fin de fichier. Render lit ce fichier à la création
 # du blueprint puis à chaque modification poussée sur la branche suivie.
 #
@@ -11,7 +11,7 @@
 # Caddy en frontal. Les deux construisent la même image d'API.
 #
 # Différence structurante entre les deux : sous docker-compose, Caddy sert le SPA
-# et relaie /api sous un seul et même domaine — aucune requête inter-origines.
+# et relaie /api sous un seul et même domaine - aucune requête inter-origines.
 # Ici, le SPA est un service statique publié sous SON propre domaine, distinct de
 # celui de l'API. Deux conséquences dont ni l'une ni l'autre n'est facultative :
 # le front doit être construit avec VITE_API_URL pointant sur l'API en absolu,
@@ -33,7 +33,7 @@ services:
     # Render ne sait pas construire une étape intermédiaire d'un Dockerfile
     # multi-étapes : il n'existe pas d'équivalent de `--target`, la dernière
     # étape du fichier est toujours celle qui est déployée. C'est la raison pour
-    # laquelle l'API est écrite en dernier dans le Dockerfile — voir le
+    # laquelle l'API est écrite en dernier dans le Dockerfile - voir le
     # commentaire d'en-tête de celui-ci avant d'en réordonner les étapes.
 
     # Francfort plutôt qu'Oregon : l'application et ses utilisateurs sont en
@@ -45,7 +45,7 @@ services:
     # conséquences à connaître avant de s'en étonner en démonstration.
     #
     # L'instance est mise en veille après quinze minutes sans trafic, et le
-    # démarrage à froid qui suit demande une à trois minutes — le temps que la
+    # démarrage à froid qui suit demande une à trois minutes - le temps que la
     # JVM démarre et que Flyway vérifie le schéma. La première requête après une
     # période creuse semble donc bloquée alors qu'elle attend simplement le
     # réveil du conteneur.
@@ -70,7 +70,7 @@ services:
         value: render
 
       # ------------------------------------------------------------------------
-      # Base de données — hébergée chez Neon, pas chez Render
+      # Base de données - hébergée chez Neon, pas chez Render
       #
       # La base managée de Render n'est gratuite qu'un mois : passé ce délai
       # elle est supprimée, sans sauvegarde conservée. Inacceptable pour une
@@ -84,13 +84,13 @@ services:
       # DB_URL est une URL JDBC, pas l'URL de connexion PostgreSQL que Neon
       # affiche par défaut (postgresql://…), que le pilote rejette. La composer
       # depuis l'onglet Connection Details, en prenant l'hôte *avec* le suffixe
-      # -pooler — le pool de Neon encaisse les connexions du conteneur bien
+      # -pooler - le pool de Neon encaisse les connexions du conteneur bien
       # mieux que l'accès direct, lequel est à réserver aux restaurations de
       # dump :
       #
       #   jdbc:postgresql://<hôte>-pooler.<région>.aws.neon.tech/<base>?sslmode=require
       #
-      # Le nom de base doit être celui réellement créé chez Neon — `neondb` par
+      # Le nom de base doit être celui réellement créé chez Neon - `neondb` par
       # défaut. Le pilote refuse la connexion en clair, sslmode=require n'est
       # pas facultatif.
       # ------------------------------------------------------------------------
@@ -109,7 +109,7 @@ services:
 
       # Origine autorisée à appeler l'API depuis un navigateur : celle du service
       # statique `gescom-front` déclaré plus bas, schéma compris et sans barre
-      # oblique finale — par exemple https://gescom-front.onrender.com.
+      # oblique finale - par exemple https://gescom-front.onrender.com.
       #
       # Demandée à la création plutôt que dérivée du service : `fromService` avec
       # la propriété `host` ne rend que le nom d'hôte, sans schéma, et
@@ -123,7 +123,7 @@ services:
       # PlatformAdminBootstrap puis jamais réécrit. Renseigné à la main : un
       # mot de passe engendré par la plateforme resterait illisible pour son
       # titulaire, et ces identifiants ouvrent le back-office SaaS complet.
-      # Les omettre est un choix valable — aucun compte n'est alors créé.
+      # Les omettre est un choix valable - aucun compte n'est alors créé.
       #
       # Elles ne servent à rien si la base a été peuplée depuis un dump qui
       # contient déjà un SUPER_ADMIN : le bootstrap ne réécrit pas un compte
@@ -142,13 +142,13 @@ services:
         value: simulated
 
   # ----------------------------------------------------------------------------
-  # SPA — service statique
+  # SPA - service statique
   #
   # Pas de conteneur : Render exécute la commande de construction puis sert le
   # contenu de staticPublishPath depuis son réseau de diffusion.
   #
   # Node 24 et non la version par défaut de la plateforme : @zxing/library, tiré
-  # par le scanner de codes-barres, déclare engines.node >= 24 — même raison que
+  # par le scanner de codes-barres, déclare engines.node >= 24 - même raison que
   # dans le Dockerfile, à garder alignée avec lui.
   # ----------------------------------------------------------------------------
   - type: web
@@ -164,22 +164,22 @@ services:
 
       # Sans cette variable, src/services/axios.js retombe sur '/api' en relatif,
       # qui viserait l'hôte statique et non l'API : toutes les requêtes feraient
-      # 404. Elle est lue à la construction, pas à l'exécution — la modifier
+      # 404. Elle est lue à la construction, pas à l'exécution - la modifier
       # impose donc de reconstruire le service, pas seulement de le redémarrer.
       # Valeur attendue : https://<hôte de gescom-app>/api
       - key: VITE_API_URL
         sync: false
 
     # Même politique de sécurité du contenu que sous docker-compose, où elle est
-    # posée par Caddy — voir le bloc `header` du Caddyfile pour le détail de
+    # posée par Caddy - voir le bloc `header` du Caddyfile pour le détail de
     # chaque directive.
     #
     # Une seule diffère, et c'est la conséquence directe du découpage décrit en
     # tête de fichier : ici le SPA et l'API sont sur deux domaines distincts, si
     # bien qu'un connect-src 'self' couperait tous les appels métier. L'origine
     # de l'API doit donc y figurer en toutes lettres. Elle ne peut pas être
-    # dérivée de VITE_API_URL — un blueprint n'interpole pas de variable dans la
-    # valeur d'un en-tête —, d'où la valeur écrite en dur ci-dessous : à tenir
+    # dérivée de VITE_API_URL - un blueprint n'interpole pas de variable dans la
+    # valeur d'un en-tête - , d'où la valeur écrite en dur ci-dessous : à tenir
     # alignée sur l'hôte réel du service gescom-app, et à remplacer si celui-ci
     # est publié sous un domaine personnalisé.
     headers:
@@ -197,7 +197,7 @@ services:
         destination: /index.html
 
 # ------------------------------------------------------------------------------
-# Pas de section `databases:` — c'est délibéré.
+# Pas de section `databases:` - c'est délibéré.
 #
 # La base vit chez Neon et non chez Render, parce que l'offre gratuite de Render
 # est détruite au bout d'un mois. Elle n'est donc pas décrite ici : Render ne
@@ -206,6 +206,6 @@ services:
 #
 # Conséquence à ne pas perdre de vue : la base n'est plus dans le cycle de vie du
 # blueprint. Supprimer les services ne la supprime pas, et les sauvegardes sont à
-# la charge de Neon et de son offre — vérifier la fenêtre de restauration avant
+# la charge de Neon et de son offre - vérifier la fenêtre de restauration avant
 # de considérer les données comme protégées.
 # ------------------------------------------------------------------------------

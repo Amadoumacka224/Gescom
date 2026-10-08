@@ -195,7 +195,7 @@ class TenantIsolationTest {
     }
 
     @Test
-    @DisplayName("5. Sans contexte, la vue est globale — c'est celle du SUPER_ADMIN")
+    @DisplayName("5. Sans contexte, la vue est globale - c'est celle du SUPER_ADMIN")
     void contexteVideDonneLaVueGlobale() {
         TenantContext.clear();
 

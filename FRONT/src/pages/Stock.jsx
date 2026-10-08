@@ -1063,8 +1063,8 @@ const Stock = () => {
                 </select>
               </div>
             ) : null
-            /* Rien pour le registre des retours : pas de facette à filtrer — la recherche porte
-               déjà sur le n° de retour, la vente, la facture et le client — et l'ouverture de
+            /* Rien pour le registre des retours : pas de facette à filtrer - la recherche porte
+               déjà sur le n° de retour, la vente, la facture et le client - et l'ouverture de
                l'assistant est le bouton « Retour client » de la barre d'opérations, qui reste
                à l'écran quel que soit l'onglet. */}
             {hasActiveFilters && (
@@ -1091,7 +1091,7 @@ const Stock = () => {
                       onClick={() => openReturnDetails(item)}
                       className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                       title={t('stock.returns.viewDetails')}
-                      aria-label={`${t('stock.returns.viewDetails')} — ${item.returnNumber}`}
+                      aria-label={`${t('stock.returns.viewDetails')} - ${item.returnNumber}`}
                     >
                       <Eye className="w-4 h-4" aria-hidden="true" />
                     </button>
@@ -1103,7 +1103,7 @@ const Stock = () => {
                         onClick={() => openDetails(product)}
                         className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                         title={t('stock.viewDetails')}
-                        aria-label={`${t('stock.viewDetails')} — ${product.name}`}
+                        aria-label={`${t('stock.viewDetails')} - ${product.name}`}
                       >
                         <Eye className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -1113,7 +1113,7 @@ const Stock = () => {
                         onClick={() => openOperation('add', product)}
                         className="text-green-600 hover:text-green-800 dark:hover:text-green-300 p-2 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors"
                         title={t('stock.opAdd')}
-                        aria-label={`${t('stock.opAdd')} — ${product.name}`}
+                        aria-label={`${t('stock.opAdd')} - ${product.name}`}
                       >
                         <Plus className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -1121,7 +1121,7 @@ const Stock = () => {
                         onClick={() => openOperation('remove', product)}
                         className="text-red-600 hover:text-red-800 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                         title={t('stock.opRemove')}
-                        aria-label={`${t('stock.opRemove')} — ${product.name}`}
+                        aria-label={`${t('stock.opRemove')} - ${product.name}`}
                       >
                         <Minus className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -1129,7 +1129,7 @@ const Stock = () => {
                         onClick={() => openOperation('adjust', product)}
                         className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
                         title={t('stock.opAdjust')}
-                        aria-label={`${t('stock.opAdjust')} — ${product.name}`}
+                        aria-label={`${t('stock.opAdjust')} - ${product.name}`}
                       >
                         <Edit2 className="w-4 h-4" aria-hidden="true" />
                       </button>

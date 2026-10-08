@@ -128,7 +128,7 @@ public class SaasPaymentService {
             notificationService.record("PAYMENT_FAILED", PlatformNotification.Severity.CRITICAL,
                     "Paiement refuse : " + company.getName(),
                     saved.getReference() + (request.failureMessage() != null
-                            ? " — " + request.failureMessage() : ""),
+                            ? " - " + request.failureMessage() : ""),
                     company, "SaasPayment", saved.getId());
         }
         return saved;

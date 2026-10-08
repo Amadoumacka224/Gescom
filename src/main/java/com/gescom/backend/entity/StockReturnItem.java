@@ -70,7 +70,7 @@ public class StockReturnItem {
         WRONG_ITEM,     // Article livré ne correspondant pas à la commande
         NOT_SATISFIED,  // Client non satisfait
         ORDER_ERROR,    // Erreur de saisie de la commande
-        OTHER           // Autre motif — à préciser dans les notes du retour
+        OTHER           // Autre motif - à préciser dans les notes du retour
     }
 
     /**

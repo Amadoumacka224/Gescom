@@ -559,7 +559,7 @@ const Users = () => {
                 onClick={() => handleViewActivities(user)}
                 className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title={t('users.viewActivitiesTooltip')}
-                aria-label={`${t('users.viewActivitiesTooltip')} — ${fullName(user)}`}
+                aria-label={`${t('users.viewActivitiesTooltip')} - ${fullName(user)}`}
               >
                 <Activity className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -567,7 +567,7 @@ const Users = () => {
                 onClick={() => handleOpenModal(user)}
                 className="text-primary-600 hover:text-primary-900 dark:hover:text-primary-300 p-2 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg transition-colors"
                 title={t('common.edit')}
-                aria-label={`${t('common.edit')} — ${fullName(user)}`}
+                aria-label={`${t('common.edit')} - ${fullName(user)}`}
               >
                 <Edit className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -585,7 +585,7 @@ const Users = () => {
                       ? t('users.deactivate')
                       : t('users.activate')
                 }
-                aria-label={`${user.active ? t('users.deactivate') : t('users.activate')} — ${fullName(user)}`}
+                aria-label={`${user.active ? t('users.deactivate') : t('users.activate')} - ${fullName(user)}`}
               >
                 {user.active ? (
                   <ToggleRight className="w-4 h-4" aria-hidden="true" />
@@ -598,7 +598,7 @@ const Users = () => {
                 disabled={isSelf(user)}
                 className="text-red-600 hover:text-red-900 dark:hover:text-red-300 p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 title={isSelf(user) ? t('users.selfActionHint') : t('common.delete')}
-                aria-label={`${t('common.delete')} — ${fullName(user)}`}
+                aria-label={`${t('common.delete')} - ${fullName(user)}`}
               >
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
               </button>

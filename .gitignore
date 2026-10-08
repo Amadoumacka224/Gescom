@@ -1,5 +1,5 @@
 # ==============================================================================
-# GESCOM — fichiers exclus du versionnement
+# GESCOM - fichiers exclus du versionnement
 #
 # Ce dépôt héberge deux applications : l'API Spring Boot (Maven, à la racine) et
 # le client React/Vite sous FRONT/, qui conserve son propre .gitignore pour ses

@@ -119,10 +119,10 @@ public class Order implements TenantOwned {
         // ── Valeurs (dans l'ordre du cycle de vie) ───────────────────
         // Ordre strict : on ne peut créer la livraison qu'après la facturation.
         PENDING,    // Créée, en attente de confirmation
-        CONFIRMED,  // Confirmée — peut être facturée
-        INVOICED,   // Facturée — peut être livrée
-        DELIVERED,  // Livrée — état commercial final
-        CANCELED;   // Annulée — terminal
+        CONFIRMED,  // Confirmée - peut être facturée
+        INVOICED,   // Facturée - peut être livrée
+        DELIVERED,  // Livrée - état commercial final
+        CANCELED;   // Annulée - terminal
 
         // ── Machine à états : changements autorisés ──────────────────
         private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS;

@@ -1,7 +1,7 @@
 /**
  * Ligne label / valeur des fiches de détail (client, livraison, facture).
  *
- * Si la valeur est vide on affiche « — », sinon on pourrait croire à un bug d'affichage.
+ * Si la valeur est vide on affiche « - », sinon on pourrait croire à un bug d'affichage.
  *
  * À utiliser dans un `<dl>` : le composant génère `<dt>` / `<dd>`, ce qui aide les lecteurs
  * d'écran.

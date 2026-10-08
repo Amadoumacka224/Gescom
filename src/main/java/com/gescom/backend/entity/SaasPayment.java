@@ -92,7 +92,7 @@ public class SaasPayment {
 
     public enum SaasPaymentStatus {
         PENDING,    // Emis, en attente de reglement
-        SUCCEEDED,  // Encaisse — seul statut qui alimente le revenu
+        SUCCEEDED,  // Encaisse - seul statut qui alimente le revenu
         FAILED,     // Rejete (prelevement refuse, virement non recu)
         REFUNDED    // Rembourse apres coup
     }
