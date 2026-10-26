@@ -60,7 +60,7 @@ jobs:
       # la couverture se lit, et l'ouvrir après coup évite de rejouer le build.
       - name: Publier le rapport de couverture
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rapport-jacoco
           path: target/site/jacoco/
