@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Java 17, la version déclarée par le pom et employée par l'image d'exécution.
       # `cache: maven` conserve le dépôt local entre deux exécutions : sans lui,
@@ -92,7 +92,7 @@ jobs:
           --health-retries 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Installer le JDK 17
         uses: actions/setup-java@v4
@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Comparer pom.xml et FRONT/package.json
         run: |
@@ -150,7 +150,7 @@ jobs:
         working-directory: FRONT
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 24 et non la version par défaut : @zxing/library, tiré par le scanner
       # de codes-barres, déclare engines.node >= 24. Même version que le Dockerfile
