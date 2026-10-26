@@ -73,7 +73,7 @@ COPY --from=front-build /build/dist /srv
 # intégration continue (`mvn clean install`), pas à la construction de l'image,
 # qui doit rester une simple mise en boîte d'un code déjà validé.
 # ------------------------------------------------------------------------------
-FROM maven:3.9-eclipse-temurin-17@sha256:1a352420f7aba21f5ad08df31bab55f74c013fb491f1ae8ab1dd7ff9ed698584 AS api-build
+FROM maven:3.9-eclipse-temurin-26@sha256:b2c1ad85954592f9928e84327c65201f308ad9b5d8ed7d5b823717c97bf23fbb AS api-build
 WORKDIR /build
 
 COPY pom.xml ./
