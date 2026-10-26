@@ -1,0 +1,45 @@
+# ==============================================================================
+# GESCOM - mises à jour automatiques des dépendances
+#
+# Dependabot ouvre une pull request par mise à jour ; la CI la vérifie avant
+# toute fusion. Une fois par semaine suffit pour un outil interne, et les
+# correctifs de sécurité, eux, arrivent dès leur publication quel que soit ce
+# calendrier.
+#
+# Les montées de version majeures sont écartées : elles demandent une
+# migration (Spring Boot 4, Tailwind 4…) et se décident, elles ne se fusionnent
+# pas d'un clic.
+# ==============================================================================
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /FRONT
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Les outils de build bougent souvent et ensemble : une seule PR pour eux.
+      outillage:
+        dependency-type: development
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

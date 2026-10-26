@@ -18,6 +18,11 @@
 # `docker build .` produit par défaut. docker-compose, lui, nomme ses deux
 # cibles et n'est pas concerné. Ne pas remonter les étapes de l'API sans
 # reprendre le déploiement Render.
+#
+# Chaque image de base est épinglée par son empreinte (@sha256:…) : le tag seul
+# est mobile, et deux constructions du même commit à un mois d'écart
+# partiraient sinon de bases différentes. Le tag reste écrit pour la lecture ;
+# Dependabot propose les nouvelles empreintes (voir .github/dependabot.yml).
 # ==============================================================================
 
 
@@ -33,7 +38,7 @@
 # avertissement EBADENGINE et le build aboutit, mais rien ne garantit que la
 # bibliothèque se comporte comme prévu sur un moteur qu'elle exclut.
 # ------------------------------------------------------------------------------
-FROM node:24-alpine AS front-build
+FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS front-build
 WORKDIR /build
 
 COPY FRONT/package.json FRONT/package-lock.json ./
@@ -53,7 +58,7 @@ RUN npm run build
 # Le Caddyfile n'est pas copié dans l'image : docker-compose le monte en lecture
 # seule, de façon à pouvoir ajuster la configuration du proxy sans reconstruire.
 # ------------------------------------------------------------------------------
-FROM caddy:2-alpine AS web
+FROM caddy:2-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f AS web
 COPY --from=front-build /build/dist /srv
 
 
@@ -68,7 +73,7 @@ COPY --from=front-build /build/dist /srv
 # intégration continue (`mvn clean install`), pas à la construction de l'image,
 # qui doit rester une simple mise en boîte d'un code déjà validé.
 # ------------------------------------------------------------------------------
-FROM maven:3.9-eclipse-temurin-17 AS api-build
+FROM maven:3.9-eclipse-temurin-17@sha256:1a352420f7aba21f5ad08df31bab55f74c013fb491f1ae8ab1dd7ff9ed698584 AS api-build
 WORKDIR /build
 
 COPY pom.xml ./
@@ -88,7 +93,7 @@ RUN mvn -B -q clean package -DskipTests
 # spring-boot-devtools est déclaré `optional` dans le pom, le plugin Spring Boot
 # l'exclut donc du jar exécutable - rien à neutraliser ici.
 # ------------------------------------------------------------------------------
-FROM eclipse-temurin:17-jre-jammy AS api
+FROM eclipse-temurin:17-jre-jammy@sha256:b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1 AS api
 
 RUN groupadd --system gescom \
     && useradd --system --gid gescom --home-dir /app --shell /usr/sbin/nologin gescom
