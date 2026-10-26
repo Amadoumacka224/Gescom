@@ -4,7 +4,30 @@
 
 Application de gestion commerciale développée avec Spring Boot.
 
-Chaque poussée sur `main` déclenche l'intégration continue : `mvn clean install` pour l'API - compilation, 113 tests, rapport de couverture - puis lint, contrôle des traductions et build du SPA. Aucune base de données n'est nécessaire : les tests d'intégration tournent sur H2 en mémoire.
+Chaque poussée sur `main` ou `develop` déclenche l'intégration continue : `mvn clean install` pour l'API - compilation, 113 tests, rapport de couverture -, rejeu des migrations Flyway sur PostgreSQL, contrôle des versions, puis lint, contrôle des traductions et build du SPA.
+
+## Branches et versions
+
+Le dépôt n'a que deux branches permanentes :
+
+| Branche | Rôle |
+|---|---|
+| `develop` | Intégration du développement en cours. Tout le travail y est committé, et les mises à jour de Dependabot y arrivent. |
+| `main` | Production. Render la redéploie à chaque poussée : elle ne reçoit que des versions terminées, par fusion de `develop`. |
+
+Mettre une version en production :
+
+```bash
+# Sur develop : monter la version dans pom.xml et FRONT/package.json,
+# puis déplacer la section « Non publiée » de CHANGELOG.md sous ce numéro.
+git checkout main
+git merge --no-ff develop -m "Version X.Y.Z"
+git tag -a vX.Y.Z -m "GESCOM X.Y.Z"
+git push origin main vX.Y.Z
+git checkout develop
+```
+
+Les deux branches sont protégées sur GitHub contre le force-push et la suppression. La version suit le [versionnage sémantique](https://semver.org/lang/fr/) et chaque mise en production est consignée dans [CHANGELOG.md](CHANGELOG.md).
 
 ## Technologies
 

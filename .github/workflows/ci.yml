@@ -6,23 +6,27 @@
 # intégration continue (mvn clean install) », alors qu'aucune intégration
 # continue n'existait. La commande ci-dessous est donc littéralement celle citée.
 #
-# Deux tâches indépendantes, une par application du dépôt. Elles sont séparées
-# pour que l'échec de l'une n'empêche pas de connaître le sort de l'autre : voir
-# d'un coup d'œil que le backend passe et que le frontend casse, c'est la moitié
-# du diagnostic.
+# Quatre tâches indépendantes : tests de l'API, migrations Flyway sur
+# PostgreSQL, cohérence des versions et SPA. Elles sont séparées pour que
+# l'échec de l'une n'empêche pas de connaître le sort des autres : voir d'un
+# coup d'œil que le backend passe et que le frontend casse, c'est la moitié du
+# diagnostic.
 #
-# AUCUNE BASE DE DONNÉES N'EST NÉCESSAIRE, et ce n'est pas un hasard : les tests
-# d'intégration (cloisonnement, cohérence du tableau de bord) tournent sur H2 en
-# mémoire. Le choix d'écarter Testcontainers se paie ici en simplicité - pas de
-# service PostgreSQL à démarrer, pas de démon Docker à supposer disponible.
+# Les tests d'intégration (cloisonnement, cohérence du tableau de bord) tournent
+# sur H2 en mémoire ; seule la tâche des migrations démarre un PostgreSQL.
+#
+# Deux branches, deux rôles : `develop` reçoit le travail en cours, `main` ne
+# reçoit que ce qui part en production (Render la déploie à chaque poussée). La
+# CI tourne sur les deux, et sur toute pull request qui les vise : develop est
+# vérifiée avant d'être fusionnée dans main.
 # ==============================================================================
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 # Une série de poussées rapides n'a pas à faire tourner la CI sur chaque état
 # intermédiaire : seule la dernière compte. Les exécutions déjà lancées sur la

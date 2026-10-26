@@ -5,6 +5,10 @@
 # toutes les mises à jour disponibles ; la CI la vérifie avant toute fusion.
 # Les correctifs de sécurité, eux, arrivent dès leur publication.
 #
+# Toutes les pull requests visent `develop`, jamais `main` : une mise à jour
+# rejoint la production avec le reste du travail en cours, lors de la fusion de
+# develop dans main, et non d'un clic isolé qui déclencherait un déploiement.
+#
 # Les montées de version majeures sont écartées partout : elles demandent une
 # migration (Spring Boot 4, Tailwind 4, Java 25…) et se décident, elles ne se
 # fusionnent pas d'un clic.
@@ -13,6 +17,7 @@ version: 2
 updates:
   - package-ecosystem: maven
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
     groups:
@@ -30,6 +35,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /FRONT
+    target-branch: develop
     schedule:
       interval: weekly
     groups:
@@ -44,6 +50,7 @@ updates:
   # doit rester celui de la CI, de Render et du pom, et ne change que par décision.
   - package-ecosystem: docker
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
     groups:
@@ -59,6 +66,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
     groups:
