@@ -8,26 +8,24 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
     <groupId>com.gescom</groupId>
     <artifactId>gescom-backend</artifactId>
-    <version>1.0.0</version>
+    <!-- Version unique de l'application (SemVer) : reprise par FRONT/package.json, par le
+         document OpenAPI via build-info, et verifiee par la CI. Voir CHANGELOG.md. -->
+    <version>1.0.1</version>
     <name>GESCOM - Backend</name>
     <description>Gestion Commerciale - Application Backend</description>
 
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.12.3</jjwt.version>
-        <springdoc.version>2.3.0</springdoc.version>
+        <springdoc.version>2.8.17</springdoc.version>
         <stripe.version>24.22.0</stripe.version>
-        <jacoco.version>0.8.11</jacoco.version>
-        <!-- Surcharge la version pilotee par Spring Boot 3.2 (9.22.3), qui ne connait
-             PostgreSQL que jusqu'a la 15 et le signale a chaque demarrage. La 10.20.1
-             gere PostgreSQL 17, celui de la machine de dev. -->
-        <flyway.version>10.20.1</flyway.version>
+        <jacoco.version>0.8.16</jacoco.version>
     </properties>
 
     <dependencies>
@@ -87,8 +85,7 @@
              les scripts de src/main/resources/db/migration.
              Depuis Flyway 10, le support de chaque SGBD est sorti de flyway-core : sans le
              module flyway-database-postgresql, le demarrage echoue sur "Unsupported Database".
-             Sa version n'est pas geree par Spring Boot 3.2 (le module n'existait pas en 9.x),
-             d'ou le ${flyway.version} explicite. -->
+             Les deux versions sont pilotees par Spring Boot, qui les garde alignees. -->
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
@@ -96,7 +93,6 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
-            <version>${flyway.version}</version>
         </dependency>
 
         <!-- JWT -->
@@ -188,6 +184,15 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- build-info produit META-INF/build-info.properties, d'ou OpenApiConfig tire
+                     la version publiee : le pom reste la seule source de verite. -->
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
                     <excludes>
                         <exclude>

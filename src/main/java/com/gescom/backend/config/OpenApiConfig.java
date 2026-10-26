@@ -7,6 +7,8 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -32,8 +34,16 @@ public class OpenApiConfig {
     /** Nom du schéma, repris tel quel dans le document OpenAPI généré. */
     private static final String SCHEME_NAME = "bearerAuth";
 
+    /**
+     * La version vient du pom, via le build-info produit par Maven. Un lancement depuis l'IDE
+     * sans passer par Maven n'a pas ce fichier : on affiche alors « dev » plutôt qu'un numéro
+     * qui pourrait être faux.
+     */
     @Bean
-    public OpenAPI gescomOpenAPI() {
+    public OpenAPI gescomOpenAPI(ObjectProvider<BuildProperties> buildProperties) {
+        BuildProperties build = buildProperties.getIfAvailable();
+        String version = build != null ? build.getVersion() : "dev";
+
         SecurityScheme bearerScheme = new SecurityScheme()
                 .type(SecurityScheme.Type.HTTP)
                 .scheme("bearer")
@@ -47,7 +57,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("GESCOM - API de gestion commerciale")
-                        .version("1.0.0")
+                        .version(version)
                         .description("""
                                 API REST du back-office GESCOM : ventes, stocks, facturation, \
                                 livraisons et retours clients, ainsi que le plan de contrôle SaaS \
