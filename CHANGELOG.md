@@ -19,6 +19,9 @@ ce que la CI vérifie. Chaque version mise en production reçoit un tag Git `vX.
   springdoc passe en 2.8.17 et Flyway en 11, désormais piloté par Spring Boot.
 - Dépendances du frontal mises à jour (`npm audit fix`) : 13 vulnérabilités → 3
   modérées, limitées à l'outillage de build (Tailwind 3).
+- Mises à jour mineures groupées par Dependabot : jjwt 0.12.7, springdoc 2.9.1,
+  stripe-java 24.24.0 (#17) ; React 19.3, react-router 7.18.4, recharts 3.10, i18next
+  et l'outillage de lint et de build (#18).
 
 ### Ajouté
 - CI : rejeu des migrations Flyway sur PostgreSQL 17 vierge, suivi d'un démarrage
