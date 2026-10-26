@@ -93,7 +93,7 @@ RUN mvn -B -q clean package -DskipTests
 # spring-boot-devtools est déclaré `optional` dans le pom, le plugin Spring Boot
 # l'exclut donc du jar exécutable - rien à neutraliser ici.
 # ------------------------------------------------------------------------------
-FROM eclipse-temurin:17-jre-jammy@sha256:b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1 AS api
+FROM eclipse-temurin:25-jre-jammy@sha256:e0d8c47eccd7ec82d635542dfcd1f2b1293add6bdd7ffbeb650f8ec1b1335425 AS api
 
 RUN groupadd --system gescom \
     && useradd --system --gid gescom --home-dir /app --shell /usr/sbin/nologin gescom
