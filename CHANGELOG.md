@@ -12,7 +12,9 @@ applique le [versionnage sémantique](https://semver.org/lang/fr/) :
 La version de référence est celle du `pom.xml`. `FRONT/package.json` porte la même,
 ce que la CI vérifie. Chaque version mise en production reçoit un tag Git `vX.Y.Z`.
 
-## [1.0.1] - Non publiée
+## [Non publiée]
+
+## [1.0.1] - 2026-10-26
 
 ### Sécurité
 - Spring Boot 3.2.0 → 3.5.16 : la branche 3.2 ne recevait plus de correctifs.
@@ -47,5 +49,6 @@ Version en production sur Render et Neon, présentée au jury.
 - Schéma versionné par Flyway (migrations V1 à V22), interface en français, anglais
   et néerlandais.
 
-[1.0.1]: https://github.com/Amadoumacka224/Gescom/compare/v1.0.0...HEAD
+[Non publiée]: https://github.com/Amadoumacka224/Gescom/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/Amadoumacka224/Gescom/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Amadoumacka224/Gescom/releases/tag/v1.0.0
