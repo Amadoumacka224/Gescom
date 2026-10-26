@@ -8,7 +8,7 @@ Chaque poussée sur `main` déclenche l'intégration continue : `mvn clean insta
 
 ## Technologies
 
-- **Spring Boot 3.2.0**
+- **Spring Boot 3.5.16**
 - **Java 17**
 - **PostgreSQL**
 - **Spring Security + JWT** (jjwt 0.12.3)
@@ -52,7 +52,7 @@ Leurs mots de passe ne sont pas publiés ici. Ce sont des valeurs de développem
 
 > **Une installation en service ne doit jamais conserver ces comptes en l'état.** Changez leur mot de passe dès la première connexion (`POST /api/users/me/change-password`), ou supprimez-les une fois vos propres comptes créés. Tant que ce n'est pas fait, l'application est ouverte à qui a lu le dépôt.
 
-Toute évolution du schéma passe par un nouveau fichier `V15__....sql` : Flyway vérifie la somme de contrôle des scripts déjà joués, en modifier un fait échouer le démarrage suivant.
+Toute évolution du schéma passe par un nouveau fichier, à la suite du dernier appliqué (`V23__....sql` à ce jour), même pour corriger un script existant : Flyway vérifie la somme de contrôle des scripts déjà joués, en modifier un fait échouer le démarrage suivant.
 
 ### 2. Variables d'environnement
 
