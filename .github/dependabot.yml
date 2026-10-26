@@ -1,14 +1,13 @@
 # ==============================================================================
 # GESCOM - mises à jour automatiques des dépendances
 #
-# Dependabot ouvre une pull request par mise à jour ; la CI la vérifie avant
-# toute fusion. Une fois par semaine suffit pour un outil interne, et les
-# correctifs de sécurité, eux, arrivent dès leur publication quel que soit ce
-# calendrier.
+# Dependabot ouvre une pull request par écosystème et par semaine, qui regroupe
+# toutes les mises à jour disponibles ; la CI la vérifie avant toute fusion.
+# Les correctifs de sécurité, eux, arrivent dès leur publication.
 #
-# Les montées de version majeures sont écartées : elles demandent une
-# migration (Spring Boot 4, Tailwind 4…) et se décident, elles ne se fusionnent
-# pas d'un clic.
+# Les montées de version majeures sont écartées partout : elles demandent une
+# migration (Spring Boot 4, Tailwind 4, Java 25…) et se décident, elles ne se
+# fusionnent pas d'un clic.
 # ==============================================================================
 version: 2
 updates:
@@ -16,30 +15,55 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    groups:
+      maven:
+        patterns: ["*"]
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # En 0.x, une version mineure peut casser l'API : jjwt 0.13 se décide.
+      - dependency-name: "io.jsonwebtoken:*"
+        update-types: ["version-update:semver-minor"]
+      # Version de Maven fixée par le wrapper, alignée sur l'image de build.
+      - dependency-name: "org.apache.maven:apache-maven"
+        update-types: ["version-update:semver-minor"]
 
   - package-ecosystem: npm
     directory: /FRONT
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
     groups:
-      # Les outils de build bougent souvent et ensemble : une seule PR pour eux.
-      outillage:
-        dependency-type: development
+      npm:
+        patterns: ["*"]
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
+  # Images de base du Dockerfile et de docker-compose. Le numéro majeur porte ici
+  # la version de la plateforme (node:24, eclipse-temurin:17, postgres:17) : il
+  # doit rester celui de la CI, de Render et du pom, et ne change que par décision.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: monthly
+    groups:
+      docker:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # Le tag de l'image de build porte deux versions (Maven et le JDK), que
+      # Dependabot confond : il propose de passer le JDK de 17 à 26. Cette image ne
+      # sert qu'à compiler et ne part pas en production ; elle se met à jour à la main.
+      - dependency-name: "maven"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
