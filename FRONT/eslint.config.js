@@ -30,6 +30,14 @@ export default defineConfig([
       // no-unused-vars ne signale pas à tort ces imports comme inutilisés.
       'react/jsx-uses-vars': 'error',
       'no-unused-vars': 'error',
+      // Règles du React Compiler, activées en erreur par eslint-plugin-react-hooks 7.1.
+      // L'application n'utilise pas le compilateur et le code qu'elles signalent
+      // (setState dans un effet, fonction appelée avant sa déclaration) fonctionne :
+      // elles restent visibles en avertissement, à résorber au fil des écrans touchés.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/refs': 'warn',
     },
   },
   // Les scripts de vérification i18n tournent sous Node, pas dans le navigateur.
