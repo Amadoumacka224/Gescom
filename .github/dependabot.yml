@@ -9,6 +9,10 @@
 # rejoint la production avec le reste du travail en cours, lors de la fusion de
 # develop dans main, et non d'un clic isolé qui déclencherait un déploiement.
 #
+# Ses pull requests ne se fusionnent pas avec le bouton Merge : leurs changements
+# sont repris dans un commit au nom du mainteneur, poussé sur develop, puis la PR
+# est fermée. L'historique du dépôt ne garde ainsi qu'un seul auteur.
+#
 # Les montées de version majeures sont écartées partout : elles demandent une
 # migration (Spring Boot 4, Tailwind 4, Java 25…) et se décident, elles ne se
 # fusionnent pas d'un clic.
