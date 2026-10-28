@@ -22,7 +22,7 @@
 # Chaque image de base est épinglée par son empreinte (@sha256:…) : le tag seul
 # est mobile, et deux constructions du même commit à un mois d'écart
 # partiraient sinon de bases différentes. Le tag reste écrit pour la lecture ;
-# Dependabot propose les nouvelles empreintes (voir .github/dependabot.yml).
+# les nouvelles empreintes se reportent à la main.
 # ==============================================================================
 
 
