@@ -12,7 +12,7 @@ Le dépôt n'a que deux branches permanentes :
 
 | Branche | Rôle |
 |---|---|
-| `develop` | Intégration du développement en cours. Tout le travail y est committé, et les mises à jour de Dependabot y arrivent. |
+| `develop` | Intégration du développement en cours. Tout le travail y est committé. |
 | `main` | Production. Render la redéploie à chaque poussée : elle ne reçoit que des versions terminées, par fusion de `develop`. |
 
 Mettre une version en production :

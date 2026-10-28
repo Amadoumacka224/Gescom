@@ -14,6 +14,9 @@ ce que la CI vérifie. Chaque version mise en production reçoit un tag Git `vX.
 
 ## [Non publiée]
 
+### Retiré
+- Dependabot : les dépendances se mettent à jour à la main.
+
 ## [1.0.1] - 2026-10-26
 
 ### Sécurité
