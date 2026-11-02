@@ -18,8 +18,7 @@ Le dépôt n'a que deux branches permanentes :
 Mettre une version en production :
 
 ```bash
-# Sur develop : monter la version dans pom.xml et FRONT/package.json,
-# puis déplacer la section « Non publiée » de CHANGELOG.md sous ce numéro.
+# Sur develop : monter la version dans pom.xml et FRONT/package.json.
 git checkout main
 git merge --no-ff develop -m "Version X.Y.Z"
 git tag -a vX.Y.Z -m "GESCOM X.Y.Z"
@@ -27,7 +26,7 @@ git push origin main vX.Y.Z
 git checkout develop
 ```
 
-Les deux branches sont protégées sur GitHub contre le force-push et la suppression. La version suit le [versionnage sémantique](https://semver.org/lang/fr/) et chaque mise en production est consignée dans [CHANGELOG.md](CHANGELOG.md).
+Les deux branches sont protégées sur GitHub contre le force-push et la suppression. La version suit le [versionnage sémantique](https://semver.org/lang/fr/), et chaque mise en production porte un tag `vX.Y.Z`.
 
 ## Technologies
 
