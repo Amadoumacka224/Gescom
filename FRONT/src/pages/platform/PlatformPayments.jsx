@@ -13,6 +13,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Paiements des abonnements, c'est-à-dire ce que les entreprises paient à GESCOM.
@@ -47,7 +48,6 @@ const PlatformPayments = () => {
 
   const [payments, setPayments] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -58,7 +58,6 @@ const PlatformPayments = () => {
   const [form, setForm] = useState(EMPTY_FORM);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await platformService.getPayments({
         page: page - 1,
@@ -71,14 +70,10 @@ const PlatformPayments = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [page, pageSize, status, t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   // Liste des entreprises pour le formulaire : une grande page suffit, il y a au plus
   // quelques centaines d'entreprises.

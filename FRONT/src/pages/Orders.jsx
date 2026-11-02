@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -27,6 +27,8 @@ import { computeItemsTotal, computeLineTotal, orderNetAmount, orderPayableAmount
 import { extractErrorMessage } from '../utils/apiError';
 import { formatCurrency } from '../utils/format';
 import { toast } from 'react-hot-toast';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 // Les étapes gérées depuis cet écran, dans l'ordre (CANCELED n'en fait pas partie, c'est une
 // sortie). La livraison est gérée ailleurs, mais le paiement fait partie du processus et c'est
@@ -282,6 +284,11 @@ const IconAction = ({ icon: Icon, title, color = 'neutral', onClick, disabled = 
   </button>
 );
 
+// Une commande est concernée par le paiement dès qu'elle est facturée : c'est ce qui
+// déclenche le chargement de la facture et l'affichage de la partie paiement dans le détail
+// (qui peut afficher « réglée » ou un reste à payer).
+const canPayOrder = (order) => ['INVOICED', 'DELIVERED'].includes(order?.status);
+
 const Orders = () => {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -290,14 +297,12 @@ const Orders = () => {
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false);
   // Tous les filtres dans un seul objet : il y en a quinze, et avec un `useState` par filtre
   // on ne pouvait pas tout réinitialiser ou compter les filtres actifs facilement.
   const [filters, setFilters] = useState(EMPTY_ORDER_FILTERS);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   // Tri du tableau. `dir` passe de asc à desc si on reclique sur la même colonne.
   const [sort, setSort] = useState({ key: 'createdAt', dir: 'desc' });
-  const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(ORDERS_PER_PAGE);
   // Par défaut on n'affiche que les dernières commandes. La liste complète s'affiche avec le
   // bouton de bascule, ou automatiquement dès qu'un filtre est actif.
@@ -327,8 +332,9 @@ const Orders = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   // Facture de la commande ouverte dans le détail : sert à n'afficher le bouton de paiement
   // que s'il reste vraiment quelque chose à payer (sinon on affiche « réglée »).
-  const [detailInvoice, setDetailInvoice] = useState(null);
-  const [detailInvoiceLoading, setDetailInvoiceLoading] = useState(false);
+  // `forOrder` est l'objet commande pour lequel la facture a été chargée : une autre commande,
+  // ou la même rechargée après une action (paiement…), fait relire la facture.
+  const [detailInvoiceState, setDetailInvoiceState] = useState({ forOrder: null, invoice: null });
   // Commande dont le PDF est en cours de génération (évite le double clic et affiche un
   // chargement : le PDF est généré dans le navigateur après un ou deux appels réseau).
   const [downloadingOrderId, setDownloadingOrderId] = useState(null);
@@ -387,63 +393,121 @@ const Orders = () => {
     fetchProducts();
   };
 
-  // Données de référence et compteurs : chargés une fois, ils ne dépendent pas de la page.
-  // Le chargement de la page est plus bas, après `queryParams` dont il dépend (si on
-  // l'utilisait ici, il ne serait pas encore initialisé).
-  useEffect(() => {
-    fetchProducts();
-    fetchClients();
-    fetchCategories();
-    fetchSummary();
-    fetchFilterOptions();
-  }, []);
+  const hasActiveFilters = useMemo(
+    () => Object.keys(EMPTY_ORDER_FILTERS).some((key) => filters[key] !== EMPTY_ORDER_FILTERS[key]),
+    [filters],
+  );
+  const showFullList = hasActiveFilters || viewMode === 'all';
 
+  // Debounce sur les deux champs texte, sinon chaque caractère partirait au serveur. Les
+  // autres filtres sont des listes ou des dates, choisis en une fois.
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [debouncedNotes, setDebouncedNotes] = useState('');
   useEffect(() => {
-    // Commande à ouvrir au chargement : soit ?orderId= dans l'URL (caisse, suivi des caisses ;
-    // le lien peut être partagé ou ouvert dans un nouvel onglet), soit l'ancien passage par
-    // localStorage encore utilisé par la page Rapports.
-    const selectedOrderId = searchParams.get('orderId') || localStorage.getItem('selectedOrderId');
-    if (selectedOrderId && orders.length > 0) {
-      const order = orders.find(o => o.id === parseInt(selectedOrderId));
-      if (order) {
-        setSelectedOrder(order);
-        setShowDetailsModal(true);
-        // Scroll jusqu'à la commande dans la liste
-        setTimeout(() => {
-          const element = document.getElementById(`order-${selectedOrderId}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 100);
-      }
-      // Une fois utilisé, on nettoie les deux pour ne pas rouvrir le détail au rechargement.
-      localStorage.removeItem('selectedOrderId');
-      if (searchParams.has('orderId')) {
-        setSearchParams({}, { replace: true });
-      }
+    const timer = setTimeout(() => {
+      setDebouncedQ(filters.q.trim());
+      setDebouncedNotes(filters.notes.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.q, filters.notes]);
+
+  // Dès que les filtres changent on revient à la page 1 : rester en page 5 alors qu'il n'y en
+  // a plus que 2 afficherait un tableau vide.
+  const [page, setPage] = useResettablePage(
+    JSON.stringify([debouncedQ, debouncedNotes, filters, sort, perPage, viewMode]),
+  );
+
+  /**
+   * Paramètres envoyés au serveur.
+   *
+   * La vue « dernières commandes » est maintenant une vraie requête : la première page triée
+   * par date décroissante.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'createdAt,desc' };
     }
-  }, [orders, searchParams, setSearchParams]);
+    const params = {
+      page: page - 1,
+      size: perPage,
+      sort: `${SORT_FIELDS[sort.key] ?? 'createdAt'},${sort.dir}`,
+    };
+    if (debouncedQ) params.q = debouncedQ;
+    if (debouncedNotes) params.notes = debouncedNotes;
+    if (filters.status !== 'ALL') params.status = filters.status;
+    // « Pas encore facturée » veut dire pas de facture active, ce n'est pas un statut de facture.
+    if (filters.payment === 'NONE') params.notInvoiced = true;
+    else if (filters.payment !== 'ALL') params.payment = filters.payment;
+    if (filters.clientId) params.clientId = filters.clientId;
+    if (filters.clientType !== 'ALL') params.clientType = filters.clientType;
+    if (filters.city) params.city = filters.city;
+    if (filters.productId) params.productId = filters.productId;
+    if (filters.categoryId) params.categoryId = filters.categoryId;
+    if (filters.createdById) params.createdById = filters.createdById;
+    if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+    if (filters.dateTo) params.dateTo = filters.dateTo;
+    if (filters.amountMin !== '') params.amountMin = filters.amountMin;
+    if (filters.amountMax !== '') params.amountMax = filters.amountMax;
+    if (filters.onlyDiscounted) params.onlyDiscounted = true;
+    return params;
+  }, [showFullList, page, perPage, sort, debouncedQ, debouncedNotes, filters]);
+
+  // Commande à ouvrir au chargement : soit ?orderId= dans l'URL (caisse, suivi des caisses ;
+  // le lien peut être partagé ou ouvert dans un nouvel onglet), soit l'ancien passage par
+  // localStorage encore utilisé par la page Rapports. Le détail est ouvert pendant le rendu,
+  // dès que la liste est là ; les effets qui suivent font le reste (nettoyage, défilement).
+  const requestedOrderId = searchParams.get('orderId') || localStorage.getItem('selectedOrderId');
+  const [openedFromLink, setOpenedFromLink] = useState(null);
+  if (requestedOrderId && orders.length > 0 && openedFromLink !== requestedOrderId) {
+    setOpenedFromLink(requestedOrderId);
+    const order = orders.find((o) => o.id === parseInt(requestedOrderId));
+    if (order) {
+      setSelectedOrder(order);
+      setShowDetailsModal(true);
+    }
+  }
+
+  // Une fois utilisé, on nettoie les deux pour ne pas rouvrir le détail au rechargement.
+  useEffect(() => {
+    if (!openedFromLink) return;
+    localStorage.removeItem('selectedOrderId');
+    setSearchParams((params) => {
+      params.delete('orderId');
+      return params;
+    }, { replace: true });
+  }, [openedFromLink, setSearchParams]);
+
+  // Défilement jusqu'à la commande dans la liste.
+  useEffect(() => {
+    if (!openedFromLink) return undefined;
+    const timer = setTimeout(() => {
+      document.getElementById(`order-${openedFromLink}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [openedFromLink]);
 
   // Quand on ouvre le détail d'une commande facturée, on charge sa facture pour connaître
   // l'état du paiement (payée / reste à payer / annulée) et proposer le bon bouton. Un 404
   // (pas encore de facture) est ignoré : la partie paiement reste cachée.
-  useEffect(() => {
-    if (!showDetailsModal || !selectedOrder || !canPayOrder(selectedOrder)) {
-      setDetailInvoice(null);
-      setDetailInvoiceLoading(false);
-      return;
-    }
-    let active = true;
-    setDetailInvoice(null);
-    setDetailInvoiceLoading(true);
-    api.get(`/invoices/order/${selectedOrder.id}`)
-      .then(({ data }) => { if (active) setDetailInvoice(data); })
-      .catch(() => { if (active) setDetailInvoice(null); })
-      .finally(() => { if (active) setDetailInvoiceLoading(false); });
-    return () => { active = false; };
-  }, [showDetailsModal, selectedOrder]);
+  const wantsDetailInvoice = showDetailsModal && !!selectedOrder && canPayOrder(selectedOrder);
+  const detailInvoiceLoading = wantsDetailInvoice && detailInvoiceState.forOrder !== selectedOrder;
+  const detailInvoice = wantsDetailInvoice && !detailInvoiceLoading ? detailInvoiceState.invoice : null;
+  // Détail fermé : on oublie la facture, pour la relire à la prochaine ouverture.
+  if (!showDetailsModal && detailInvoiceState.forOrder) {
+    setDetailInvoiceState({ forOrder: null, invoice: null });
+  }
 
-  const fetchProducts = async () => {
+  useEffect(() => {
+    if (!detailInvoiceLoading) return undefined;
+    let active = true;
+    const forOrder = selectedOrder;
+    api.get(`/invoices/order/${forOrder.id}`)
+      .then(({ data }) => { if (active) setDetailInvoiceState({ forOrder, invoice: data }); })
+      .catch(() => { if (active) setDetailInvoiceState({ forOrder, invoice: null }); });
+    return () => { active = false; };
+  }, [detailInvoiceLoading, selectedOrder]);
+
+  const fetchProducts = useCallback(async () => {
     try {
       const response = await api.get('/products/active');
       setProducts(response.data);
@@ -451,12 +515,14 @@ const Orders = () => {
       console.error('Error fetching products:', error);
       setProducts([]);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchProducts);
 
   // Catégories : on charge toute la liste (pas seulement celles des produits) pour que la
   // colonne de gauche affiche aussi les catégories vides, où on ajoutera peut-être des produits
   // plus tard. Les catégories désactivées (active === false) sont cachées.
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await api.get('/categories');
       setCategories(response.data);
@@ -464,9 +530,11 @@ const Orders = () => {
       console.error('Error fetching categories:', error);
       setCategories([]);
     }
-  };
+  }, []);
 
-  const fetchClients = async () => {
+  useAutoLoad(fetchCategories);
+
+  const fetchClients = useCallback(async () => {
     try {
       const response = await clientService.getActiveClients();
       setClients(response.data);
@@ -474,11 +542,12 @@ const Orders = () => {
       console.error('Error fetching clients:', error);
       setClients([]);
     }
-  };
+  }, []);
 
-  const fetchOrders = async () => {
+  useAutoLoad(fetchClients);
+
+  const fetchOrders = useCallback(async () => {
     try {
-      setLoading(true);
       const { data } = await api.get('/orders/search', { params: queryParams });
       setOrders(data.content || []);
       setPageMeta({
@@ -492,30 +561,34 @@ const Orders = () => {
       console.error('Error fetching orders:', error);
       toast.error(t('orders.loadError'));
       setOrders([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [queryParams, t]);
+
+  const { loading, reload } = useAutoLoad(fetchOrders);
 
   /** Compteurs des cartes : à recharger après chaque modif, un changement de statut les fait bouger. */
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const { data } = await api.get('/orders/summary');
       setSummary(data);
     } catch (error) {
       console.error('Error fetching order summary:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchSummary);
 
   /** Options des filtres. Endpoint à part car /users est réservé à l'ADMIN. */
-  const fetchFilterOptions = async () => {
+  const fetchFilterOptions = useCallback(async () => {
     try {
       const { data } = await api.get('/orders/filter-options');
       setFilterOptions(data);
     } catch (error) {
       console.error('Error fetching order filter options:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchFilterOptions);
 
   /** Recharge la page, les cartes et les options. À appeler après chaque modif d'une commande. */
   const refreshOrders = async () => {
@@ -734,10 +807,6 @@ const Orders = () => {
     if (order?.status !== 'INVOICED') return true;
     return (invoice?.status ?? order?.invoiceStatus) === 'CANCELED';
   };
-  // Une commande est concernée par le paiement dès qu'elle est facturée : c'est ce qui
-  // déclenche le chargement de la facture et l'affichage de la partie paiement dans le détail
-  // (qui peut afficher « réglée » ou un reste à payer).
-  const canPayOrder = (order) => ['INVOICED', 'DELIVERED'].includes(order?.status);
 
   // Le statut de paiement est sur la facture. La liste /orders en renvoie une copie
   // (`order.invoiceStatus`), ce qui permet de cacher le bouton sans attendre de chargement.
@@ -1182,77 +1251,12 @@ const Orders = () => {
 
   // Si un filtre est actif on affiche toute la liste : filtrer seulement les six premières
   // n'aurait pas de sens (et les cartes de stats sont elles-mêmes des filtres de statut).
-  const hasActiveFilters = useMemo(
-    () => Object.keys(EMPTY_ORDER_FILTERS).some((key) => filters[key] !== EMPTY_ORDER_FILTERS[key]),
-    [filters],
-  );
-  const showFullList = hasActiveFilters || viewMode === 'all';
-
-  // Debounce sur les deux champs texte, sinon chaque caractère partirait au serveur. Les
-  // autres filtres sont des listes ou des dates, choisis en une fois.
-  const [debouncedQ, setDebouncedQ] = useState('');
-  const [debouncedNotes, setDebouncedNotes] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQ(filters.q.trim());
-      setDebouncedNotes(filters.notes.trim());
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [filters.q, filters.notes]);
-
-  /**
-   * Paramètres envoyés au serveur.
-   *
-   * La vue « dernières commandes » est maintenant une vraie requête : la première page triée
-   * par date décroissante.
-   */
-  const queryParams = useMemo(() => {
-    if (!showFullList) {
-      return { page: 0, size: RECENT_COUNT, sort: 'createdAt,desc' };
-    }
-    const params = {
-      page: page - 1,
-      size: perPage,
-      sort: `${SORT_FIELDS[sort.key] ?? 'createdAt'},${sort.dir}`,
-    };
-    if (debouncedQ) params.q = debouncedQ;
-    if (debouncedNotes) params.notes = debouncedNotes;
-    if (filters.status !== 'ALL') params.status = filters.status;
-    // « Pas encore facturée » veut dire pas de facture active, ce n'est pas un statut de facture.
-    if (filters.payment === 'NONE') params.notInvoiced = true;
-    else if (filters.payment !== 'ALL') params.payment = filters.payment;
-    if (filters.clientId) params.clientId = filters.clientId;
-    if (filters.clientType !== 'ALL') params.clientType = filters.clientType;
-    if (filters.city) params.city = filters.city;
-    if (filters.productId) params.productId = filters.productId;
-    if (filters.categoryId) params.categoryId = filters.categoryId;
-    if (filters.createdById) params.createdById = filters.createdById;
-    if (filters.dateFrom) params.dateFrom = filters.dateFrom;
-    if (filters.dateTo) params.dateTo = filters.dateTo;
-    if (filters.amountMin !== '') params.amountMin = filters.amountMin;
-    if (filters.amountMax !== '') params.amountMax = filters.amountMax;
-    if (filters.onlyDiscounted) params.onlyDiscounted = true;
-    return params;
-  }, [showFullList, page, perPage, sort, debouncedQ, debouncedNotes, filters]);
-
   // Le filtrage, le tri et la pagination sont faits en base : `orders` contient déjà la bonne
   // page dans le bon ordre. Refiltrer ou retrier ici ne porterait que sur les lignes reçues
   // et donnerait un faux tri.
   const displayedOrders = orders;
   const totalPages = pageMeta.totalPages;
   const currentPage = page;
-
-  // Recharge la page quand un filtre, le tri ou le numéro de page change.
-  useEffect(() => {
-    fetchOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParams]);
-
-  // Dès que les filtres changent on revient à la page 1 : rester en page 5 alors qu'il n'y en
-  // a plus que 2 afficherait un tableau vide.
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedQ, debouncedNotes, filters, sort, perPage, viewMode]);
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
@@ -1322,7 +1326,7 @@ const Orders = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={fetchOrders} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={reload} loading={loading}>
             {t('common.refresh')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={() => openWorkspace()}>

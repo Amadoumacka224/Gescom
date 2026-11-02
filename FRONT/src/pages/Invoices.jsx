@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -27,6 +27,8 @@ import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatDate, safeRatio } from '../utils/format';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 import { INVOICE_STATUS_TONE, badgeClass, metricBarClass } from '../constants/statusBadges';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 /** Garde le mode d'affichage d'une visite à l'autre, comme sur les autres écrans. */
 const VIEW_MODE_KEY = 'invoicesViewMode';
@@ -117,7 +119,6 @@ const Invoices = () => {
 
   const [invoices, setInvoices] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -130,7 +131,6 @@ const Invoices = () => {
   const [advanced, setAdvanced] = useState(EMPTY_ADVANCED);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'invoiceDate', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   // Nombre total de résultats, renvoyé par le serveur.
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
@@ -200,38 +200,55 @@ const Invoices = () => {
     }
   };
 
-  // Compteurs et options : chargés une fois, ils ne dépendent pas de la page affichée. Le
-  // chargement de la page est plus bas, après `queryParams` dont il dépend.
-  useEffect(() => {
-    fetchSummary();
-    fetchFilterOptions();
-  }, []);
+  const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
+    .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
+  const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
+  const showFullList = hasActiveFilters || viewMode === 'all';
 
+  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
-    // Si on vient d'une livraison : on ouvre directement le détail de sa facture.
-    if (location.state?.invoiceId) {
-      const invoice = invoices.find(inv => inv.id === location.state.invoiceId);
-      if (invoice) {
-        handleViewDetails(invoice);
-        navigate(location.pathname, { replace: true, state: {} });
-      }
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Retour à la page 1 dès que la recherche, un filtre, le tri ou la vue change : rester en
+  // page 4 alors qu'il n'y en a plus que 2 afficherait un tableau vide.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    JSON.stringify([searchTerm, advanced, sortConfig, itemsPerPage, viewMode]),
+  );
+
+  /**
+   * Paramètres envoyés au serveur.
+   *
+   * « En retard » n'est pas un statut : c'est une facture ni payée ni annulée dont l'échéance
+   * est passée. À l'écran il est dans la même liste que les statuts, mais pour le serveur
+   * c'est un paramètre à part.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'invoiceDate,desc' };
     }
-  }, [location.state, invoices]);
+    const params = {
+      page: currentPage - 1,
+      size: itemsPerPage,
+      sort: `${SORT_FIELDS[sortConfig.key] ?? 'invoiceDate'},${sortConfig.direction}`,
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (advanced.status === 'OVERDUE') params.overdue = true;
+    else if (advanced.status !== 'ALL') params.status = advanced.status;
+    if (advanced.clientId) params.clientId = advanced.clientId;
+    if (advanced.paymentMethod) params.paymentMethod = advanced.paymentMethod;
+    if (advanced.issuedFrom) params.issuedFrom = advanced.issuedFrom;
+    if (advanced.issuedTo) params.issuedTo = advanced.issuedTo;
+    if (advanced.amountMin !== '') params.amountMin = advanced.amountMin;
+    if (advanced.amountMax !== '') params.amountMax = advanced.amountMax;
+    if (advanced.onlyRemaining) params.onlyRemaining = true;
+    return params;
+  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
 
-  useEffect(() => {
-    // Si on vient de la page Commandes : on ouvre le formulaire de facture avec la commande
-    // déjà choisie (CONFIRMED → facturer).
-    if (location.state?.createForOrderId) {
-      const orderId = location.state.createForOrderId;
-      handleOpenCreateModal();
-      handleOrderSelect(String(orderId));
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state]);
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
-      setLoading(true);
       const { data } = await api.get('/invoices/search', { params: queryParams });
       setInvoices(data.content || []);
       setPageMeta({
@@ -242,37 +259,43 @@ const Invoices = () => {
       console.error('Error fetching invoices:', error);
       toast.error(t('invoices.loadError'));
       setInvoices([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [queryParams, t]);
+
+  const { loading, reload } = useAutoLoad(fetchInvoices);
 
   /** Compteurs en haut de page : sur toutes les factures, pas juste la page. */
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const { data } = await api.get('/invoices/summary');
       setSummary(data);
     } catch (error) {
       console.error('Error fetching invoice summary:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchSummary);
 
   /** Clients proposés dans le filtre : seulement ceux qui ont une facture. */
-  const fetchFilterOptions = async () => {
+  const fetchFilterOptions = useCallback(async () => {
     try {
       const { data } = await api.get('/invoices/filter-options');
       setFilterOptions(data);
     } catch (error) {
       console.error('Error fetching invoice filter options:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchFilterOptions);
 
   /** Recharge la page, les compteurs et les options. À appeler après chaque modif d'une facture. */
   const refreshInvoices = async () => {
     await Promise.all([fetchInvoices(), fetchSummary(), fetchFilterOptions()]);
   };
 
-  const fetchOrders = async () => {
+  /** Commandes facturables, chargées à l'ouverture du formulaire de création. */
+  const fetchOrders = useCallback(async () => {
+    if (!showCreateModal) return;
     try {
       const response = await api.get('/orders');
       // On ne peut livrer qu'après avoir facturé : seules les commandes CONFIRMED (pas encore
@@ -284,10 +307,32 @@ const Invoices = () => {
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
-  };
+  }, [showCreateModal, invoices]);
+
+  useAutoLoad(fetchOrders);
+
+  // Détail de la commande choisie (client et lignes) pour l'aperçu de la facture.
+  const fetchSelectedOrder = useCallback(async () => {
+    const orderId = createForm.orderId;
+    if (!showCreateModal || !orderId) return;
+    try {
+      const response = await api.get(`/orders/${orderId}`);
+      setSelectedOrder(response.data);
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      setSelectedOrder(null);
+    }
+  }, [showCreateModal, createForm.orderId]);
+
+  useAutoLoad(fetchSelectedOrder);
+
+  // Commande montrée dans l'aperçu : son détail une fois chargé, et en attendant (ou s'il n'a
+  // pas pu être chargé) sa ligne dans la liste des commandes facturables.
+  const previewOrder = createForm.orderId && selectedOrder?.id === parseInt(createForm.orderId)
+    ? selectedOrder
+    : orders.find((o) => o.id === parseInt(createForm.orderId)) || null;
 
   const handleOpenCreateModal = () => {
-    fetchOrders();
     // Les paramètres arrivent après le premier rendu : on recrée le formulaire à l'ouverture
     // pour avoir le bon taux et pas la valeur de secours.
     setCreateForm(blankCreateForm());
@@ -300,23 +345,9 @@ const Invoices = () => {
     setCreateForm(blankCreateForm());
   };
 
-  const handleOrderSelect = async (orderId) => {
-    if (!orderId) {
-      setSelectedOrder(null);
-      setCreateForm((prev) => ({ ...prev, orderId: '' }));
-      return;
-    }
-
-    try {
-      // Détail de la commande (client et lignes) pour l'aperçu de la facture.
-      const response = await api.get(`/orders/${orderId}`);
-      setSelectedOrder(response.data);
-    } catch (error) {
-      console.error('Error fetching order details:', error);
-      setSelectedOrder(orders.find(o => o.id === parseInt(orderId)) || null);
-    } finally {
-      setCreateForm((prev) => ({ ...prev, orderId }));
-    }
+  // Le détail de la commande est chargé par fetchSelectedOrder.
+  const handleOrderSelect = (orderId) => {
+    setCreateForm((prev) => ({ ...prev, orderId: orderId || '' }));
   };
 
   const handleCreateInvoice = () => {
@@ -359,7 +390,7 @@ const Invoices = () => {
     }
   };
 
-  const handleViewDetails = async (invoice) => {
+  const handleViewDetails = useCallback(async (invoice) => {
     try {
       const response = await api.get(`/invoices/${invoice.id}`);
       setSelectedInvoice(response.data);
@@ -368,7 +399,40 @@ const Invoices = () => {
       console.error('Error fetching invoice details:', error);
       toast.error(t('invoices.loadDetailsError'));
     }
-  };
+  }, [t]);
+
+  // Ouverture directe depuis un autre écran (`location.state`), une seule fois par navigation :
+  //   - `invoiceId` (depuis une livraison) : détail de cette facture ;
+  //   - `createForOrderId` (depuis Commandes, CONFIRMED → facturer) : formulaire de facture
+  //     avec la commande déjà choisie.
+  // Le formulaire est ouvert pendant le rendu ; le détail de la facture est chargé à part, et
+  // l'effet efface ensuite la demande de l'historique, pour qu'un rechargement ne la rejoue pas.
+  const routeInvoiceId = location.state?.invoiceId;
+  const routeOrderId = location.state?.createForOrderId;
+  const [handledNavigation, setHandledNavigation] = useState(null);
+  const [pendingDetailsId, setPendingDetailsId] = useState(null);
+  if ((routeInvoiceId || routeOrderId) && handledNavigation !== location.key) {
+    setHandledNavigation(location.key);
+    if (routeInvoiceId) setPendingDetailsId(routeInvoiceId);
+    if (routeOrderId) {
+      setCreateForm({ ...blankCreateForm(), orderId: String(routeOrderId) });
+      setShowCreateModal(true);
+    }
+  }
+
+  useEffect(() => {
+    if ((routeInvoiceId || routeOrderId) && handledNavigation === location.key) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [routeInvoiceId, routeOrderId, handledNavigation, location.key, location.pathname, navigate]);
+
+  const openPendingDetails = useCallback(async () => {
+    if (!pendingDetailsId) return;
+    await handleViewDetails({ id: pendingDetailsId });
+    setPendingDetailsId(null);
+  }, [pendingDetailsId, handleViewDetails]);
+
+  useAutoLoad(openPendingDetails);
 
   const handleOpenPaymentModal = (invoice) => {
     // Contrôles sur le statut (comme côté backend) : pas de paiement sur une facture déjà
@@ -528,60 +592,10 @@ const Invoices = () => {
     8
   );
 
-  const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
-    .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
-  const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
-  const showFullList = hasActiveFilters || viewMode === 'all';
-
-  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  /**
-   * Paramètres envoyés au serveur.
-   *
-   * « En retard » n'est pas un statut : c'est une facture ni payée ni annulée dont l'échéance
-   * est passée. À l'écran il est dans la même liste que les statuts, mais pour le serveur
-   * c'est un paramètre à part.
-   */
-  const queryParams = useMemo(() => {
-    if (!showFullList) {
-      return { page: 0, size: RECENT_COUNT, sort: 'invoiceDate,desc' };
-    }
-    const params = {
-      page: currentPage - 1,
-      size: itemsPerPage,
-      sort: `${SORT_FIELDS[sortConfig.key] ?? 'invoiceDate'},${sortConfig.direction}`,
-    };
-    if (debouncedSearch) params.search = debouncedSearch;
-    if (advanced.status === 'OVERDUE') params.overdue = true;
-    else if (advanced.status !== 'ALL') params.status = advanced.status;
-    if (advanced.clientId) params.clientId = advanced.clientId;
-    if (advanced.paymentMethod) params.paymentMethod = advanced.paymentMethod;
-    if (advanced.issuedFrom) params.issuedFrom = advanced.issuedFrom;
-    if (advanced.issuedTo) params.issuedTo = advanced.issuedTo;
-    if (advanced.amountMin !== '') params.amountMin = advanced.amountMin;
-    if (advanced.amountMax !== '') params.amountMax = advanced.amountMax;
-    if (advanced.onlyRemaining) params.onlyRemaining = true;
-    return params;
-  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
-
   // Le filtrage, le tri et la pagination sont faits en base : `invoices` contient déjà la
   // bonne page dans le bon ordre.
   const displayedInvoices = invoices;
   const totalPages = pageMeta.totalPages;
-
-  useEffect(() => {
-    fetchInvoices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParams]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, advanced, sortConfig, itemsPerPage, viewMode]);
 
   const handleSort = (key) => {
     setSortConfig((prev) => {
@@ -757,7 +771,7 @@ const Invoices = () => {
   );
 
   // Aperçu des montants dans le formulaire de création : la TVA s'applique au total de la commande.
-  const previewSubtotal = num(selectedOrder?.totalAmount);
+  const previewSubtotal = num(previewOrder?.totalAmount);
   const previewTax = previewSubtotal * (parseFloat(createForm.taxRate) || 0) / 100;
 
   return (
@@ -774,7 +788,7 @@ const Invoices = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={fetchInvoices} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={reload} loading={loading}>
             {t('common.refresh')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={handleOpenCreateModal}>
@@ -1260,15 +1274,15 @@ const Invoices = () => {
               }))}
             />
 
-            {selectedOrder && (
+            {previewOrder && (
               <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
-                <InfoRow icon={User} label={t('invoices.nameLabel')} value={selectedOrder.client?.name} />
+                <InfoRow icon={User} label={t('invoices.nameLabel')} value={previewOrder.client?.name} />
                 <InfoRow
                   icon={Package}
                   label={t('invoices.itemsTitle')}
-                  value={t('invoices.itemsCount', { count: selectedOrder.items?.length || 0 })}
+                  value={t('invoices.itemsCount', { count: previewOrder.items?.length || 0 })}
                 />
-                <InfoRow icon={Euro} label={t('invoices.totalWithoutTax')} value={formatCurrency(selectedOrder.totalAmount)} />
+                <InfoRow icon={Euro} label={t('invoices.totalWithoutTax')} value={formatCurrency(previewOrder.totalAmount)} />
               </dl>
             )}
           </section>
@@ -1332,7 +1346,7 @@ const Invoices = () => {
             </div>
           </section>
 
-          {selectedOrder && (
+          {previewOrder && (
             <section className="space-y-3">
               <h3 className="subsection-title">{t('invoices.previewTitle')}</h3>
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -1477,7 +1491,7 @@ const Invoices = () => {
         onClose={() => setShowConfirmModal(false)}
         onConfirm={confirmCreateInvoice}
         title={t('invoices.createNewTitle')}
-        message={`Voulez-vous vraiment créer cette facture${selectedOrder ? ` pour la commande ${selectedOrder.orderNumber}` : ''} ?`}
+        message={`Voulez-vous vraiment créer cette facture${previewOrder ? ` pour la commande ${previewOrder.orderNumber}` : ''} ?`}
         type="info"
         confirmLabel={t('invoices.createButton')}
         cancelLabel={t('common.cancel')}

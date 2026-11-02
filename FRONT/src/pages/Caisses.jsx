@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -43,6 +43,7 @@ import {
   safeRatio,
   todayISO,
 } from '../utils/format';
+import { useAutoLoad } from '../hooks/useAutoLoad';
 
 /**
  * Suivi des caisses (admin).
@@ -109,29 +110,23 @@ const Caisses = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [data, setData] = useState(EMPTY_SUPERVISION);
   const [expandedCashier, setExpandedCashier] = useState(null);
   const [scope, setScope] = useState('all');
   const [sortKey, setSortKey] = useState('sales');
 
-  const fetchSupervision = useCallback(async (date) => {
+  const fetchSupervision = useCallback(async () => {
     try {
-      setLoading(true);
-      const response = await api.get('/dashboard/cashiers', { params: { date } });
+      const response = await api.get('/dashboard/cashiers', { params: { date: selectedDate } });
       setData({ ...EMPTY_SUPERVISION, ...response.data });
     } catch (error) {
       console.error('Error fetching cashiers dashboard:', error);
       toast.error(t('caisse.loadError'));
-    } finally {
-      setLoading(false);
     }
-  }, [t]);
+  }, [selectedDate, t]);
 
-  useEffect(() => {
-    fetchSupervision(selectedDate);
-  }, [selectedDate, fetchSupervision]);
+  const { loading, reload } = useAutoLoad(fetchSupervision);
 
   const today = todayISO();
   const isToday = selectedDate === today;
@@ -269,7 +264,7 @@ const Caisses = () => {
 
           <button
             type="button"
-            onClick={() => fetchSupervision(selectedDate)}
+            onClick={reload}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
           >

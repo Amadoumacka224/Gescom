@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { Plus, Pencil, EyeOff, Eye, Trash2 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatCurrency } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Liste des formules (offres).
@@ -39,7 +40,6 @@ const PlatformPlans = () => {
   const { t } = useTranslation();
 
   const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -47,20 +47,15 @@ const PlatformPlans = () => {
   const [confirm, setConfirm] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await platformService.getPlans();
       setPlans(response.data ?? []);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   const openCreate = () => {
     setEditing(null);

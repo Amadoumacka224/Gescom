@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/useAuth';
@@ -30,6 +30,7 @@ import api from '../services/api';
 import StatCard from '../components/StatCard';
 import OrderStatusBadge from '../components/OrderStatusBadge';
 import { formatCurrency, formatCompactCurrency, formatTime, formatDate, todayISO } from '../utils/format';
+import { useAutoLoad } from '../hooks/useAutoLoad';
 
 const EMPTY_DASHBOARD = {
   selectedDate: '',
@@ -63,26 +64,20 @@ const Caisse = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(todayISO);
   const [data, setData] = useState(EMPTY_DASHBOARD);
 
-  const fetchDashboard = useCallback(async (date) => {
+  const fetchDashboard = useCallback(async () => {
     try {
-      setLoading(true);
-      const response = await api.get('/dashboard/cashier', { params: { date } });
+      const response = await api.get('/dashboard/cashier', { params: { date: selectedDate } });
       setData(response.data);
     } catch (error) {
       console.error('Error fetching cashier dashboard:', error);
       toast.error(t('caisse.loadError'));
-    } finally {
-      setLoading(false);
     }
-  }, [t]);
+  }, [selectedDate, t]);
 
-  useEffect(() => {
-    fetchDashboard(selectedDate);
-  }, [selectedDate, fetchDashboard]);
+  const { loading, reload } = useAutoLoad(fetchDashboard);
 
   const today = todayISO();
   const isToday = selectedDate === today;
@@ -136,7 +131,7 @@ const Caisse = () => {
 
           <button
             type="button"
-            onClick={() => fetchDashboard(selectedDate)}
+            onClick={reload}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
             disabled={loading}
           >

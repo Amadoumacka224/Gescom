@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Plus,
@@ -34,6 +34,8 @@ import { ACTIVITY_TONE, badgeClass } from '../constants/statusBadges';
 import { actionLabelKey } from '../constants/activityActions';
 import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatDate, formatTime, formatPercent, safeRatio } from '../utils/format';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 const EMPTY_FORM = {
   username: '',
@@ -58,14 +60,17 @@ const Users = () => {
   const { user: currentUser } = useAuth();
 
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  // Retour à la page 1 quand la liste change : rester en page 3 alors qu'il n'y a plus
+  // qu'une page afficherait un tableau vide.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    `${searchTerm}|${roleFilter}|${statusFilter}|${itemsPerPage}`,
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -76,28 +81,17 @@ const Users = () => {
   const [activities, setActivities] = useState([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Retour à la page 1 quand la liste change : rester en page 3 alors qu'il n'y a plus
-  // qu'une page afficherait un tableau vide.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, roleFilter, statusFilter, itemsPerPage]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
-      setLoading(true);
       const response = await api.get('/users');
       setUsers(response.data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error(t('users.loadError'));
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [t]);
+
+  const { loading, reload } = useAutoLoad(fetchUsers);
 
   const isSelf = (user) => user.id === currentUser?.id;
 
@@ -432,7 +426,7 @@ const Users = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={fetchUsers} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={reload} loading={loading}>
             {t('common.refresh')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={() => handleOpenModal()}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
 import {
@@ -30,6 +30,8 @@ import Button from '../components/Button';
 import KeyFact from '../components/KeyFact';
 import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatDate, formatPercent, safeRatio } from '../utils/format';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 const EMPTY_FORM = { name: '', code: '', description: '', active: true };
 
@@ -49,13 +51,14 @@ const Categories = () => {
   // donc c'est ce regroupement qui dit si une catégorie est vide (et peut être supprimée) et
   // qui donne les produits pour la fiche, sans nouvel appel.
   const [productsByCategory, setProductsByCategory] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  // Retour à la page 1 quand la liste change : rester en page 4 alors qu'il n'y a plus
+  // qu'une page afficherait un tableau vide.
+  const [currentPage, setCurrentPage] = useResettablePage(`${searchTerm}|${statusFilter}|${itemsPerPage}`);
 
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -68,18 +71,7 @@ const Categories = () => {
   // d'afficher l'ancien état. Et si la catégorie est supprimée, la fiche se ferme.
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  // Retour à la page 1 quand la liste change : rester en page 4 alors qu'il n'y a plus
-  // qu'une page afficherait un tableau vide.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter, itemsPerPage]);
-
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = useCallback(async () => {
     // Le nombre de produits n'est pas indispensable : si ça échoue, on affiche quand même
     // les catégories.
     const [categoriesResult, productsResult] = await Promise.allSettled([
@@ -110,9 +102,9 @@ const Categories = () => {
       console.error('Error fetching products:', productsResult.reason);
       setProductsByCategory(null);
     }
+  }, [t]);
 
-    setLoading(false);
-  };
+  const { loading, reload } = useAutoLoad(fetchData);
 
   const productsFor = (category) => productsByCategory?.[category?.id] ?? [];
   const countFor = (category) => productsFor(category).length;
@@ -426,7 +418,7 @@ const Categories = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={fetchData} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={reload} loading={loading}>
             {t('common.refresh')}
           </Button>
           {isAdmin && (

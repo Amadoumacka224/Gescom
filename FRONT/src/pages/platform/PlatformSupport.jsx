@@ -14,6 +14,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatDate, formatTime } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Tickets de support.
@@ -53,7 +54,6 @@ const PlatformSupport = () => {
 
   const [tickets, setTickets] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
@@ -69,7 +69,6 @@ const PlatformSupport = () => {
   const [replyInternal, setReplyInternal] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const { data } = await platformService.getTickets({
         page: page - 1,
@@ -82,14 +81,10 @@ const PlatformSupport = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [page, pageSize, status, search, t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   useEffect(() => {
     platformService

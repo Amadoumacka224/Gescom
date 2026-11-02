@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { SlidersHorizontal, KeyRound } from 'lucide-react';
@@ -6,6 +6,7 @@ import Button from '../../components/Button';
 import FormInput from '../../components/FormInput';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Paramètres du back-office plateforme.
@@ -47,12 +48,10 @@ const PlatformSettings = () => {
   const [thresholds, setThresholds] = useState(null);
   const [account, setAccount] = useState(EMPTY_ACCOUNT);
   const [identity, setIdentity] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [savingThresholds, setSavingThresholds] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const { data } = await platformService.getSettings();
       setThresholds({
@@ -66,14 +65,10 @@ const PlatformSettings = () => {
       setAccount({ ...EMPTY_ACCOUNT, email: data.account?.email ?? '' });
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   const setThreshold = (field) => (event) =>
     setThresholds((current) => ({ ...current, [field]: event.target.value }));

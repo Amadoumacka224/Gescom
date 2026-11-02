@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -26,6 +26,7 @@ import InfoRow from '../components/InfoRow';
 import { extractErrorMessage } from '../utils/apiError';
 import { badgeClass } from '../constants/statusBadges';
 import i18n from '../i18n';
+import { useAutoLoad } from '../hooks/useAutoLoad';
 
 /**
  * Compte de l'utilisateur connecté : ses coordonnées et son mot de passe.
@@ -146,7 +147,6 @@ const Profile = () => {
   const { user: authUser, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState('info');
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
@@ -158,16 +158,10 @@ const Profile = () => {
   const [passwordData, setPasswordData] = useState(EMPTY_PASSWORD);
   const [showPasswords, setShowPasswords] = useState({ current: false, next: false, confirm: false });
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  const authUserId = authUser?.id;
 
-  const fetchProfile = async () => {
-    if (!authUser?.id) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+  const fetchProfile = useCallback(async () => {
+    if (!authUserId) return;
     try {
       const response = await api.get('/users/me');
       const data = { ...EMPTY_PROFILE, ...response.data, phone: response.data.phone || '' };
@@ -179,10 +173,10 @@ const Profile = () => {
       if (error.response?.status !== 401) {
         toast.error(extractErrorMessage(error));
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [authUserId]);
+
+  const { loading } = useAutoLoad(fetchProfile);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -24,6 +24,8 @@ import AdvancedFilters from '../components/AdvancedFilters';
 import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatPercent, safeRatio } from '../utils/format';
 import { DELIVERY_STATUS_TONE, badgeClass } from '../constants/statusBadges';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 // Une livraison n'a que deux états : planifiée puis livrée. DELIVERED est final (reprendre
 // une marchandise livrée, c'est un retour, ça ne passe pas par ici).
@@ -185,7 +187,6 @@ const Deliveries = () => {
 
   const [deliveries, setDeliveries] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
@@ -199,7 +200,6 @@ const Deliveries = () => {
   const [advanced, setAdvanced] = useState(EMPTY_ADVANCED);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'scheduledDate', direction: 'asc' });
-  const [currentPage, setCurrentPage] = useState(1);
   // Nombre total de résultats, renvoyé par le serveur.
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
   // Compteurs en haut de page, calculés en base. `late` fait partie de `pending`, il ne
@@ -221,28 +221,61 @@ const Deliveries = () => {
   const [serverErrors, setServerErrors] = useState({});
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
+  const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
+    .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
+  const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
+  const showFullList = hasActiveFilters || viewMode === 'all';
+
+  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Retour à la page 1 dès que la recherche, un filtre, le tri ou la vue change : rester en
+  // page 4 alors qu'il n'y en a plus que 2 afficherait un tableau vide.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    JSON.stringify([searchTerm, advanced, sortConfig, itemsPerPage, viewMode]),
+  );
+
+  /**
+   * Paramètres envoyés au serveur.
+   *
+   * « En retard » n'est pas un statut : c'est une livraison ENCORE EN ATTENTE dont la date
+   * prévue est passée (une livraison faite en retard n'est plus en retard). À l'écran il est
+   * dans la même liste que les statuts, mais pour le serveur c'est un paramètre à part.
+   */
+  const queryParams = useMemo(() => {
+    if (!showFullList) {
+      return { page: 0, size: RECENT_COUNT, sort: 'scheduledDate,desc' };
+    }
+    const params = {
+      page: currentPage - 1,
+      size: itemsPerPage,
+      sort: `${SORT_FIELDS[sortConfig.key] ?? 'scheduledDate'},${sortConfig.direction}`,
+    };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (advanced.status === 'LATE') params.late = true;
+    else if (advanced.status !== 'ALL') params.status = advanced.status;
+    if (advanced.clientId) params.clientId = advanced.clientId;
+    if (advanced.city) params.city = advanced.city;
+    if (advanced.country) params.country = advanced.country;
+    if (advanced.contact.trim()) params.contact = advanced.contact.trim();
+    if (advanced.scheduledFrom) params.scheduledFrom = advanced.scheduledFrom;
+    if (advanced.scheduledTo) params.scheduledTo = advanced.scheduledTo;
+    return params;
+  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
+
   // Date du jour, recalculée à chaque rendu : sert à détecter les retards.
   const today = new Date().toISOString().slice(0, 10);
   const todayISO = today;
 
-  // Données de référence et compteurs : chargés une fois. La page elle-même est rechargée
-  // par l'effet plus bas, après `queryParams` dont il dépend.
-  useEffect(() => {
-    fetchOrders();
-    fetchSummary();
-    fetchFilterOptions();
-  }, []);
-
   /**
-   * Charge une page de livraisons.
-   *
-   * C'est ici qu'on gère `loading`, et plus dans `refresh` : la page est maintenant rechargée
-   * par un effet sur les filtres, qui ne passe pas par `refresh`. Quand `loading` était géré
-   * dans `refresh`, l'écran restait bloqué sur le squelette au premier affichage (il démarre
-   * à `true` et rien ne le remettait à false).
+   * Charge une page de livraisons. Relancée par useAutoLoad dès que `queryParams` change ;
+   * `loading` en est déduit.
    */
-  const fetchDeliveries = async () => {
-    setLoading(true);
+  const fetchDeliveries = useCallback(async () => {
     try {
       const { data } = await api.get('/deliveries/search', { params: queryParams });
       setDeliveries(data.content || []);
@@ -256,30 +289,34 @@ const Deliveries = () => {
       toast.error(t('deliveries.loadError'));
       setDeliveries([]);
       return [];
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [queryParams, t]);
+
+  const { loading, reload } = useAutoLoad(fetchDeliveries);
 
   /** Compteurs en haut de page : sur toutes les livraisons, pas juste la page. */
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const { data } = await api.get('/deliveries/summary');
       setSummary(data);
     } catch (error) {
       console.error('Error fetching delivery summary:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchSummary);
 
   /** Clients, villes et pays proposés dans les filtres. */
-  const fetchFilterOptions = async () => {
+  const fetchFilterOptions = useCallback(async () => {
     try {
       const { data } = await api.get('/deliveries/filter-options');
       setFilterOptions(data);
     } catch (error) {
       console.error('Error fetching delivery filter options:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchFilterOptions);
 
 
   /**
@@ -290,7 +327,7 @@ const Deliveries = () => {
    * verrait que la page affichée et on pourrait proposer une commande déjà livrée. C'est donc
    * le serveur qui renvoie la bonne liste.
    */
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const { data } = await api.get('/orders/deliverable');
       setOrders(data);
@@ -298,7 +335,9 @@ const Deliveries = () => {
       console.error('Error fetching deliverable orders:', error);
       setOrders([]);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchOrders);
 
   /**
    * Rechargement après une modif. On recharge aussi les compteurs et les options : une
@@ -307,6 +346,14 @@ const Deliveries = () => {
    */
   const refresh = async () => {
     await Promise.all([fetchDeliveries(), fetchOrders(), fetchSummary(), fetchFilterOptions()]);
+  };
+
+  /** Bouton Actualiser : même rechargement, avec l'indicateur de chargement sur la liste. */
+  const handleRefresh = () => {
+    reload();
+    fetchOrders();
+    fetchSummary();
+    fetchFilterOptions();
   };
 
   const buildClientDefaults = (client) => {
@@ -321,25 +368,6 @@ const Deliveries = () => {
       deliveryCountry: client.country || 'Belgique',
     };
   };
-
-  useEffect(() => {
-    // Si on vient de la page Commandes : on ouvre le formulaire avec la commande déjà choisie
-    // (INVOICED → livrer). On attend que la liste des commandes livrables soit chargée pour
-    // pouvoir remplir les coordonnées du client.
-    if (location.state?.createForOrderId && orders.length > 0) {
-      const id = location.state.createForOrderId;
-      const selectedOrder = orders.find(o => o.id === parseInt(id));
-      if (selectedOrder) {
-        // Le formulaire s'ouvre vide puis on remplit la commande et les coordonnées du client.
-        // `initialForm` reste EMPTY_FORM, donc ce remplissage compte comme une saisie et la
-        // fermeture demandera confirmation. C'est voulu.
-        const defaults = buildClientDefaults(selectedOrder.client);
-        openForm(null);
-        setFormData(prev => ({ ...prev, orderId: String(id), ...defaults }));
-      }
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, orders]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -521,6 +549,34 @@ const Deliveries = () => {
 
   const handleEdit = (delivery) => openForm(delivery);
 
+  // Si on vient de la page Commandes : on ouvre le formulaire avec la commande déjà choisie
+  // (INVOICED → livrer). On attend que la liste des commandes livrables soit chargée pour
+  // pouvoir remplir les coordonnées du client.
+  //
+  // Fait pendant le rendu, une seule fois par navigation (`location.key`). L'effet qui suit
+  // efface ensuite la demande de l'historique, pour qu'un rechargement de la page ne rouvre
+  // pas le formulaire.
+  const createForOrderId = location.state?.createForOrderId;
+  const [handledNavigation, setHandledNavigation] = useState(null);
+  if (createForOrderId && orders.length > 0 && handledNavigation !== location.key) {
+    setHandledNavigation(location.key);
+    const selectedOrder = orders.find((o) => o.id === parseInt(createForOrderId));
+    if (selectedOrder) {
+      // Le formulaire s'ouvre vide puis on remplit la commande et les coordonnées du client.
+      // `initialForm` reste EMPTY_FORM, donc ce remplissage compte comme une saisie et la
+      // fermeture demandera confirmation. C'est voulu.
+      const defaults = buildClientDefaults(selectedOrder.client);
+      openForm(null);
+      setFormData((prev) => ({ ...prev, orderId: String(createForOrderId), ...defaults }));
+    }
+  }
+
+  useEffect(() => {
+    if (createForOrderId && handledNavigation === location.key) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [createForOrderId, handledNavigation, location.key, location.pathname, navigate]);
+
   const confirmDelete = async () => {
     if (!deliveryToDelete) return;
     const toastId = 'delivery-delete';
@@ -656,59 +712,10 @@ const Deliveries = () => {
     8
   );
 
-  const hasAdvancedFilters = Object.keys(EMPTY_ADVANCED)
-    .some((key) => advanced[key] !== EMPTY_ADVANCED[key]);
-  const hasActiveFilters = searchTerm.trim() !== '' || hasAdvancedFilters;
-  const showFullList = hasActiveFilters || viewMode === 'all';
-
-  // Debounce sur la saisie, sinon chaque caractère lancerait une requête.
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  /**
-   * Paramètres envoyés au serveur.
-   *
-   * « En retard » n'est pas un statut : c'est une livraison ENCORE EN ATTENTE dont la date
-   * prévue est passée (une livraison faite en retard n'est plus en retard). À l'écran il est
-   * dans la même liste que les statuts, mais pour le serveur c'est un paramètre à part.
-   */
-  const queryParams = useMemo(() => {
-    if (!showFullList) {
-      return { page: 0, size: RECENT_COUNT, sort: 'scheduledDate,desc' };
-    }
-    const params = {
-      page: currentPage - 1,
-      size: itemsPerPage,
-      sort: `${SORT_FIELDS[sortConfig.key] ?? 'scheduledDate'},${sortConfig.direction}`,
-    };
-    if (debouncedSearch) params.search = debouncedSearch;
-    if (advanced.status === 'LATE') params.late = true;
-    else if (advanced.status !== 'ALL') params.status = advanced.status;
-    if (advanced.clientId) params.clientId = advanced.clientId;
-    if (advanced.city) params.city = advanced.city;
-    if (advanced.country) params.country = advanced.country;
-    if (advanced.contact.trim()) params.contact = advanced.contact.trim();
-    if (advanced.scheduledFrom) params.scheduledFrom = advanced.scheduledFrom;
-    if (advanced.scheduledTo) params.scheduledTo = advanced.scheduledTo;
-    return params;
-  }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
-
   // Le filtrage, le tri et la pagination sont faits en base : `deliveries` contient déjà la
   // bonne page dans le bon ordre.
   const displayedDeliveries = deliveries;
   const totalPages = pageMeta.totalPages;
-
-  useEffect(() => {
-    fetchDeliveries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParams]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, advanced, sortConfig, itemsPerPage, viewMode]);
 
   const handleSort = (key) => {
     setSortConfig((prev) => (
@@ -899,7 +906,7 @@ const Deliveries = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={refresh} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={handleRefresh} loading={loading}>
             {t('common.refresh')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={() => openForm(null)}>

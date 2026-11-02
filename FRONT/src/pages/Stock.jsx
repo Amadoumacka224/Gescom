@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Warehouse,
@@ -36,6 +36,8 @@ import ReturnDetails from '../components/ReturnDetails';
 import { normalizeText, rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatDate, formatTime } from '../utils/format';
 import { STOCK_MOVEMENT_TONE, badgeClass } from '../constants/statusBadges';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 /* Types de mouvement, dans l'ordre du métier. Les libellés passent par i18n,
  * la couleur vient de `STOCK_MOVEMENT_TONE` (commune aux autres écrans). */
@@ -118,12 +120,9 @@ const Stock = () => {
   // `movements` ne contient que la page en cours des mouvements.
   const [movements, setMovements] = useState([]);
   const [movementsMeta, setMovementsMeta] = useState({ totalElements: 0, totalPages: 1 });
-  const [movementsLoading, setMovementsLoading] = useState(true);
   // Pareil pour les retours : on ne fait qu'ajouter, et c'est paginé côté serveur.
   const [returns, setReturns] = useState([]);
   const [returnsMeta, setReturnsMeta] = useState({ totalElements: 0, totalPages: 1 });
-  const [returnsLoading, setReturnsLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -132,7 +131,6 @@ const Stock = () => {
   const [productSort, setProductSort] = useState({ key: 'name', direction: 'asc' });
   const [movementSort, setMovementSort] = useState({ key: 'createdAt', direction: 'desc' });
   const [returnSort, setReturnSort] = useState({ key: 'createdAt', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Saisie d'un retour client et consultation d'un retour enregistré.
@@ -151,22 +149,15 @@ const Stock = () => {
   const [productMovements, setProductMovements] = useState([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // Les mouvements sont paginés côté serveur (on ne fait qu'en ajouter) : le filtre, la
-  // recherche et le tri sont faits par le serveur, sinon ils ne porteraient que sur la page.
-  // La liste des produits, elle, a une taille limitée et reste gérée côté client.
-  useEffect(() => {
-    if (isAdmin) fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
-
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, stockFilter, typeFilter, activeTab, itemsPerPage]);
+  // Retour à la page 1 dès que la recherche, un filtre ou l'onglet change.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    `${debouncedSearch}|${stockFilter}|${typeFilter}|${activeTab}|${itemsPerPage}`,
+  );
 
   const movementParams = useMemo(() => {
     const params = {};
@@ -178,34 +169,25 @@ const Stock = () => {
   const movementSortParam = `${MOVEMENT_SORT_FIELDS[movementSort.key] ?? 'createdAt'},${movementSort.direction}`;
   const returnSortParam = `${RETURN_SORT_FIELDS[returnSort.key] ?? 'createdAt'},${returnSort.direction}`;
 
-  useEffect(() => {
+  // Les mouvements sont paginés côté serveur (on ne fait qu'en ajouter) : le filtre, la
+  // recherche et le tri sont faits par le serveur, sinon ils ne porteraient que sur la page.
+  // La liste des produits, elle, a une taille limitée et reste gérée côté client.
+  const fetchProducts = useCallback(async () => {
     if (!isAdmin) return;
-    fetchMovements();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, movementParams, movementSortParam, currentPage, itemsPerPage]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    fetchReturns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, debouncedSearch, returnSortParam, currentPage, itemsPerPage]);
-
-  const fetchProducts = async () => {
     try {
-      setLoading(true);
       const { data } = await api.get('/products');
       setProducts(data || []);
     } catch (error) {
       console.error('Error fetching stock data:', error);
       toast.error(t('stock.loadError'));
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isAdmin, t]);
 
-  const fetchMovements = async () => {
+  const { loading, reload: reloadProducts } = useAutoLoad(fetchProducts);
+
+  const fetchMovements = useCallback(async () => {
+    if (!isAdmin) return;
     try {
-      setMovementsLoading(true);
       const { data } = await api.get('/stock/movements', {
         params: {
           ...movementParams,
@@ -222,14 +204,14 @@ const Stock = () => {
     } catch (error) {
       console.error('Error fetching stock movements:', error);
       toast.error(t('stock.loadError'));
-    } finally {
-      setMovementsLoading(false);
     }
-  };
+  }, [isAdmin, movementParams, movementSortParam, currentPage, itemsPerPage, t]);
 
-  const fetchReturns = async () => {
+  const { loading: movementsLoading, reload: reloadMovements } = useAutoLoad(fetchMovements);
+
+  const fetchReturns = useCallback(async () => {
+    if (!isAdmin) return;
     try {
-      setReturnsLoading(true);
       const { data } = await api.get('/stock/returns', {
         params: {
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
@@ -246,10 +228,10 @@ const Stock = () => {
     } catch (error) {
       console.error('Error fetching stock returns:', error);
       toast.error(t('stock.loadError'));
-    } finally {
-      setReturnsLoading(false);
     }
-  };
+  }, [isAdmin, debouncedSearch, returnSortParam, currentPage, itemsPerPage, t]);
+
+  const { loading: returnsLoading } = useAutoLoad(fetchReturns);
 
   // Après une opération de stock, le produit ET les mouvements ont changé.
   const fetchData = async () => {
@@ -845,7 +827,7 @@ const Stock = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={fetchData} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={() => { reloadProducts(); reloadMovements(); }} loading={loading}>
             {t('common.refresh')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={() => openOperation('add')}>

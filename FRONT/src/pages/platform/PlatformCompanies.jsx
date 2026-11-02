@@ -13,6 +13,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatDate } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Liste des entreprises clientes.
@@ -57,7 +58,6 @@ const PlatformCompanies = () => {
 
   const [companies, setCompanies] = useState([]);
   const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [page, setPage] = useState(1); // 1-based côté UI, converti pour l'API
@@ -71,7 +71,6 @@ const PlatformCompanies = () => {
   const [confirm, setConfirm] = useState(null);
 
   const loadCompanies = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await platformService.getCompanies({ page: page - 1, size: pageSize });
       const data = response.data;
@@ -80,14 +79,10 @@ const PlatformCompanies = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [page, pageSize, t]);
 
-  useEffect(() => {
-    loadCompanies();
-  }, [loadCompanies]);
+  const { loading } = useAutoLoad(loadCompanies);
 
   useEffect(() => {
     platformService

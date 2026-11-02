@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -72,7 +72,6 @@ const OrderWorkspace = ({
   // Id de la commande dont on a déjà cherché la facture (même si elle n'en a pas).
   // Sans ça, le chargement se relancerait à chaque nouvel objet `invoice`, en boucle.
   const [invoiceLoadedFor, setInvoiceLoadedFor] = useState(null);
-  const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [busy, setBusy] = useState(null);
 
   // Paramètres de l'entreprise : TVA et délai de paiement par défaut, plus les coordonnées
@@ -125,42 +124,43 @@ const OrderWorkspace = ({
   // À l'ouverture : soit on reprend une commande existante, soit on part d'un panier vide.
   // On dépend de l'id et pas de l'objet : la liste parente se recharge après chaque action
   // et renverrait un nouvel objet, ce qui effacerait la saisie en cours.
-  const initialOrderId = initialOrder?.id ?? null;
-  const initialOrderRef = useRef(initialOrder);
-  initialOrderRef.current = initialOrder;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const source = initialOrderRef.current;
-    if (source) {
-      setOrder(source);
+  //
+  // Fait pendant le rendu et pas dans un effet : la fenêtre ne s'affiche pas d'abord avec le
+  // panier précédent. `openedFor` retient pour quelle ouverture le panier a été préparé.
+  const openKey = isOpen ? `open:${initialOrder?.id ?? 'new'}` : null;
+  const [openedFor, setOpenedFor] = useState(null);
+  if (openedFor !== openKey) {
+    setOpenedFor(openKey);
+    if (isOpen && initialOrder) {
+      setOrder(initialOrder);
       setInvoice(null);
       setInvoiceLoadedFor(null);
       setCart({
-        clientMode: source.client ? 'registered' : 'guest',
-        clientId: source.client?.id ? String(source.client.id) : '',
-        items: itemsFromOrder(source),
-        notes: source.notes || '',
+        clientMode: initialOrder.client ? 'registered' : 'guest',
+        clientId: initialOrder.client?.id ? String(initialOrder.client.id) : '',
+        items: itemsFromOrder(initialOrder),
+        notes: initialOrder.notes || '',
       });
-    } else {
+    } else if (isOpen) {
       resetDraft();
     }
-  }, [isOpen, initialOrderId, resetDraft]);
+  }
 
   // Charge la facture dès que la commande est facturée (c'est elle qui porte le paiement).
+  // « En cours » se déduit : la commande attend une facture qui n'a pas encore été cherchée.
+  const needsInvoice = !!order && ['INVOICED', 'DELIVERED'].includes(order.status);
+  const invoiceLoading = needsInvoice && invoiceLoadedFor !== order.id;
+
   useEffect(() => {
-    if (!order || !['INVOICED', 'DELIVERED'].includes(order.status)) return undefined;
-    if (invoiceLoadedFor === order.id) return undefined;
+    if (!invoiceLoading) return undefined;
     let active = true;
-    setInvoiceLoading(true);
     api.get(`/invoices/order/${order.id}`)
       .then(({ data }) => { if (active) applyInvoice(data, order.id); })
       // Un 404 est normal (commande livrée sans facture accessible). On le mémorise quand
       // même pour ne pas relancer l'appel en boucle.
-      .catch(() => { if (active) applyInvoice(null, order.id); })
-      .finally(() => { if (active) setInvoiceLoading(false); });
+      .catch(() => { if (active) applyInvoice(null, order.id); });
     return () => { active = false; };
-  }, [order, invoiceLoadedFor]);
+  }, [order, invoiceLoading]);
 
   const refreshOrder = useCallback(async (orderId) => {
     try {
