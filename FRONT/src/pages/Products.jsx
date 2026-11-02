@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
 import { Plus, Edit, Trash2, Package, AlertTriangle, RefreshCw, FolderTree, Upload, Download, TrendingUp, TrendingDown, Euro, Grid3x3, List, Image as ImageIcon, X, Eye, Barcode, Tag, Calendar, Hash } from 'lucide-react';
@@ -18,6 +18,8 @@ import StatCard from '../components/StatCard';
 import { rankSuggestions } from '../utils/searchSuggestions';
 import { formatCurrency, formatPercent, productShortName } from '../utils/format';
 import i18n from '../i18n';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 const EMPTY_FORM = {
   name: '',
@@ -121,7 +123,6 @@ const Products = () => {
   const isAdmin = user?.role === 'ADMIN';
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -135,7 +136,6 @@ const Products = () => {
   });
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const [currentPage, setCurrentPage] = useState(1);
   // Par défaut on affiche le plus de produits possible par page (100, le max du sélecteur).
   const [itemsPerPage, setItemsPerPage] = useState(100);
   const [formData, setFormData] = useState(EMPTY_FORM);
@@ -166,6 +166,12 @@ const Products = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Si la recherche ou le tri change, on revient à la page 1 : rester en page 7 alors qu'il
+  // n'y en a plus que 2 afficherait un tableau vide.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    JSON.stringify([debouncedSearch, sortConfig, itemsPerPage]),
+  );
+
   // Paramètres envoyés au serveur. `page` commence à 1 dans l'interface mais à 0 dans
   // Spring Data.
   const queryParams = useMemo(() => {
@@ -175,23 +181,7 @@ const Products = () => {
     return params;
   }, [currentPage, itemsPerPage, debouncedSearch, sortConfig]);
 
-  useEffect(() => {
-    fetchCategories();
-    fetchSummary();
-  }, []);
-
-  useEffect(() => {
-    fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParams]);
-
-  // Si la recherche ou le tri change, on revient à la page 1 : rester en page 7 alors qu'il
-  // n'y en a plus que 2 afficherait un tableau vide.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, sortConfig, itemsPerPage]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       console.log('Fetching categories from API...');
       const categoriesData = await productService.getCategories();
@@ -201,10 +191,11 @@ const Products = () => {
       console.error('Error fetching categories:', error);
       setCategories([]);
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
-    setLoading(true);
+  useAutoLoad(fetchCategories);
+
+  const fetchProducts = useCallback(async () => {
     try {
       const { data } = await productService.searchProducts(queryParams);
       setProducts(data.content || []);
@@ -216,20 +207,22 @@ const Products = () => {
       console.error('Error fetching products:', error);
       toast.error(t('products.loadError'));
       setProducts([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [queryParams, t]);
+
+  const { loading, reload } = useAutoLoad(fetchProducts);
 
   /** Compteurs en haut de page : à recharger après chaque modif (une création change le total). */
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const { data } = await productService.getCatalogSummary();
       setSummary(data);
     } catch (error) {
       console.error('Error fetching product summary:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchSummary);
 
   /** Recharge la page en cours ET les compteurs. À appeler après création, modif ou suppression. */
   const refresh = async () => {
@@ -670,7 +663,7 @@ const Products = () => {
           <Button
             variant="outline"
             icon={RefreshCw}
-            onClick={fetchProducts}
+            onClick={reload}
             loading={loading}
           >
             {t('common.refresh')}

@@ -30,6 +30,8 @@ import {
   isClientFormDirty,
   validateClient,
 } from '../utils/clientForm';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 /** Garde le mode d'affichage d'une visite à l'autre, comme sur la page Produits. */
 const VIEW_MODE_KEY = 'clientsViewMode';
@@ -159,7 +161,6 @@ const Clients = () => {
   const isAdmin = user?.role === 'ADMIN';
 
   const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,7 +174,6 @@ const Clients = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientToDelete, setClientToDelete] = useState(null);
 
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   // Par défaut on n'affiche que le dernier client ajouté. La liste complète s'affiche avec
   // le bouton de bascule, ou dès qu'une recherche ou un filtre est actif.
@@ -194,7 +194,9 @@ const Clients = () => {
   // Activité du client : chargée quand on ouvre sa fiche, pas avec la liste.
   // La liste n'a pas besoin des commandes, et tout charger pour un seul client ferait une
   // requête énorme à chaque affichage.
-  const [activity, setActivity] = useState({ loading: false, error: false, orders: [] });
+  // `clientId` dit pour quel client la réponse est arrivée : tant qu'elle ne correspond pas à
+  // la fiche ouverte, l'activité est en chargement.
+  const [activityState, setActivityState] = useState({ clientId: null, error: false, orders: [] });
 
   // Nombre total de résultats, renvoyé par le serveur (on ne peut plus le déduire de
   // `clients`, qui ne contient que la page affichée).
@@ -218,6 +220,12 @@ const Clients = () => {
   // Si un filtre est actif on affiche toute la liste : filtrer seulement les cinq derniers
   // n'aurait pas de sens.
   const showFullList = hasActiveFilters || viewMode === 'all';
+
+  // Dès que les filtres changent on revient à la page 1 : rester en page 4 alors qu'il n'y en
+  // a plus que 2 afficherait un tableau vide.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    JSON.stringify([debouncedSearch, advanced, sortConfig, itemsPerPage, viewMode]),
+  );
 
   /**
    * Paramètres envoyés au serveur.
@@ -246,18 +254,7 @@ const Clients = () => {
     return params;
   }, [showFullList, currentPage, itemsPerPage, sortConfig, debouncedSearch, advanced]);
 
-  useEffect(() => {
-    fetchSummary();
-    fetchFilterOptions();
-  }, []);
-
-  useEffect(() => {
-    fetchClients();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParams]);
-
-  const fetchClients = async () => {
-    setLoading(true);
+  const fetchClients = useCallback(async () => {
     try {
       const { data } = await clientService.searchClients(queryParams);
       setClients(data.content || []);
@@ -269,29 +266,33 @@ const Clients = () => {
       console.error('Error fetching clients:', error);
       toast.error(t('clients.loadError'));
       setClients([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [queryParams, t]);
 
-  const fetchSummary = async () => {
+  const { loading, reload } = useAutoLoad(fetchClients);
+
+  const fetchSummary = useCallback(async () => {
     try {
       const { data } = await clientService.getSummary();
       setSummary(data);
     } catch (error) {
       console.error('Error fetching client summary:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchSummary);
 
   /** Rechargées après une modif : un client dans une nouvelle ville ajoute un choix. */
-  const fetchFilterOptions = async () => {
+  const fetchFilterOptions = useCallback(async () => {
     try {
       const { data } = await clientService.getFilterOptions();
       setFilterOptions(data);
     } catch (error) {
       console.error('Error fetching client filter options:', error);
     }
-  };
+  }, []);
+
+  useAutoLoad(fetchFilterOptions);
 
   /** Recharge la page, les compteurs et les options. À appeler après création, modif ou suppression. */
   const refresh = async () => {
@@ -458,15 +459,24 @@ const Clients = () => {
   // ---- Activité commerciale ----
 
   const loadActivity = useCallback(async (clientId) => {
-    setActivity({ loading: true, error: false, orders: [] });
     try {
       const { data } = await api.get(`/orders/client/${clientId}`);
-      return { loading: false, error: false, orders: data };
+      return { clientId, error: false, orders: data };
     } catch (error) {
       console.error('Error fetching client orders:', error);
-      return { loading: false, error: true, orders: [] };
+      return { clientId, error: true, orders: [] };
     }
   }, []);
+
+  const activity = activityState.clientId === selectedClient?.id
+    ? { ...activityState, loading: false }
+    : { loading: true, error: false, orders: [] };
+
+  const retryActivity = async () => {
+    const clientId = selectedClient.id;
+    setActivityState({ clientId: null, error: false, orders: [] });
+    setActivityState(await loadActivity(clientId));
+  };
 
   useEffect(() => {
     const clientId = selectedClient?.id;
@@ -476,7 +486,7 @@ const Clients = () => {
     // l'activité du client précédent sous le nom du nouveau.
     let abandoned = false;
     loadActivity(clientId).then((result) => {
-      if (!abandoned) setActivity(result);
+      if (!abandoned) setActivityState(result);
     });
     return () => { abandoned = true; };
   }, [selectedClient?.id, loadActivity]);
@@ -525,7 +535,7 @@ const Clients = () => {
             variant="secondary"
             size="sm"
             icon={RefreshCw}
-            onClick={async () => setActivity(await loadActivity(selectedClient.id))}
+            onClick={retryActivity}
           >
             {t('clients.activityRetry')}
           </Button>
@@ -729,12 +739,6 @@ const Clients = () => {
   const displayedClients = clients;
   const totalPages = pageMeta.totalPages;
 
-  // Dès que les filtres changent on revient à la page 1 : rester en page 4 alors qu'il n'y en
-  // a plus que 2 afficherait un tableau vide.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, advanced, sortConfig, itemsPerPage, viewMode]);
-
   const handleSort = (key) => {
     setSortConfig((prev) => {
       if (prev.key === key) {
@@ -907,7 +911,7 @@ const Clients = () => {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" icon={RefreshCw} onClick={fetchClients} loading={loading}>
+          <Button variant="outline" icon={RefreshCw} onClick={reload} loading={loading}>
             {t('common.refresh')}
           </Button>
           {isAdmin && (

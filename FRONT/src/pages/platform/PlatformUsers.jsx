@@ -12,6 +12,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatDate } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Utilisateurs de toutes les entreprises.
@@ -43,7 +44,6 @@ const PlatformUsers = () => {
 
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [companyId, setCompanyId] = useState('');
   const [role, setRole] = useState('');
@@ -55,7 +55,6 @@ const PlatformUsers = () => {
   const [confirm, setConfirm] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await platformService.getUsers({
         page: page - 1,
@@ -71,14 +70,10 @@ const PlatformUsers = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [page, pageSize, search, companyId, role, active, t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   useEffect(() => {
     platformService

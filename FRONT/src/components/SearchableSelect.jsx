@@ -89,10 +89,11 @@ const SearchableSelect = ({
     isOpen && (minChars === 0 ? true : meetsMinChars && query !== selectedLabel);
 
   // Remet le texte du champ à jour avec la sélection quand la liste est fermée
-  // (sélection venant de l'extérieur, reset du formulaire, etc.).
-  useEffect(() => {
-    if (!isOpen) setQuery(selectedLabel);
-  }, [value, selectedLabel, isOpen]);
+  // (sélection venant de l'extérieur, reset du formulaire, etc.). Fait pendant le rendu et
+  // pas dans un effet, pour ne pas afficher un instant l'ancien texte.
+  if (!isOpen && query !== selectedLabel) {
+    setQuery(selectedLabel);
+  }
 
   // Ferme quand on clique en dehors (du champ ou de la liste).
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/api';
+import { useAutoLoad } from './useAutoLoad';
 
 // Pas de backend pour l'état « lu », on le garde dans le navigateur.
 const SEEN_KEY = 'gescom:notifications:seen';
@@ -38,7 +39,6 @@ export const useNotifications = (user, { pollMs = 60000 } = {}) => {
   const isAdmin = user?.role === 'ADMIN';
   const [notifications, setNotifications] = useState([]);
   const [seen, setSeen] = useState(loadSeen);
-  const [loading, setLoading] = useState(false);
 
   const build = useCallback((orders, products) => {
     const list = [];
@@ -91,12 +91,8 @@ export const useNotifications = (user, { pollMs = 60000 } = {}) => {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!user) {
-      setNotifications([]);
-      return;
-    }
+    if (!user) return;
     try {
-      setLoading(true);
       const requests = [api.get('/orders')];
       if (isAdmin) requests.push(api.get('/products'));
       const [ordersRes, productsRes] = await Promise.all(requests);
@@ -104,36 +100,39 @@ export const useNotifications = (user, { pollMs = 60000 } = {}) => {
     } catch (error) {
       // Si les notifications échouent, on log juste l'erreur sans afficher de toast.
       console.error('Notifications: échec du chargement', error);
-    } finally {
-      setLoading(false);
     }
   }, [user, isAdmin, build]);
 
+  // Premier chargement, puis à chaque changement d'utilisateur ; l'intervalle prend le relais.
+  useAutoLoad(refresh);
+
   useEffect(() => {
-    refresh();
     if (!pollMs) return undefined;
     const id = setInterval(refresh, pollMs);
     return () => clearInterval(id);
   }, [refresh, pollMs]);
 
+  // Sans utilisateur connecté, aucune notification, même s'il en reste du compte précédent.
+  const visible = useMemo(() => (user ? notifications : []), [user, notifications]);
+
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !seen.includes(n.id)).length,
-    [notifications, seen]
+    () => visible.filter((n) => !seen.includes(n.id)).length,
+    [visible, seen]
   );
 
   // Ouvrir le panneau = tout marquer comme lu. On enregistre les ids présents
   // (les notifications traitées disparaissent toutes seules, donc ça ne grossit pas).
   const markAllRead = useCallback(() => {
-    const ids = notifications.map((n) => n.id);
+    const ids = visible.map((n) => n.id);
     setSeen(ids);
     try {
       localStorage.setItem(SEEN_KEY, JSON.stringify(ids));
     } catch {
       /* localStorage indisponible : tant pis, l'état « lu » ne sera pas sauvegardé */
     }
-  }, [notifications]);
+  }, [visible]);
 
-  return { notifications, unreadCount, loading, markAllRead, refresh };
+  return { notifications: visible, unreadCount, markAllRead, refresh };
 };
 
 export default useNotifications;

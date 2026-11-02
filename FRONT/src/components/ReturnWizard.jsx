@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
@@ -57,16 +57,20 @@ const ReturnWizard = ({ isOpen, products = [], onSuccess, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
 
   // On remet le formulaire à zéro à chaque ouverture, pour ne pas retrouver le dernier
-  // retour saisi.
-  useEffect(() => {
-    if (!isOpen) return;
-    setReference('');
-    setSale(null);
-    setLines({});
-    setNotes('');
-    setLookupError('');
-    setFormError('');
-  }, [isOpen]);
+  // retour saisi. Fait pendant le rendu et pas dans un effet : sinon la fenêtre s'affichait
+  // un instant avec l'ancienne saisie.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setReference('');
+      setSale(null);
+      setLines({});
+      setNotes('');
+      setLookupError('');
+      setFormError('');
+    }
+  }
 
   const apiMessage = (error, fallback) => {
     const raw = error.response?.data;

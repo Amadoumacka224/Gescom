@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -36,6 +36,7 @@ import { invalidateSettingsCache } from '../hooks/useSettings';
 import Modal from '../components/Modal';
 import Button from '../components/Button';
 import { extractErrorMessage } from '../utils/apiError';
+import { useAutoLoad } from '../hooks/useAutoLoad';
 
 /**
  * Paramètres de l'application. Côté serveur il n'y a qu'une ligne de paramètres (voir
@@ -268,7 +269,6 @@ const Settings = () => {
   const navigate = useNavigate();
 
   const [activeSection, setActiveSection] = useState('company');
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   // Dernier état enregistré, pour savoir s'il faut afficher « modifications non enregistrées ».
@@ -278,12 +278,7 @@ const Settings = () => {
   const [importing, setImporting] = useState(false);
   const importInputRef = useRef(null);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    setLoading(true);
+  const fetchSettings = useCallback(async () => {
     try {
       const { data } = await api.get('/settings');
       const loaded = { ...EMPTY_SETTINGS, ...data };
@@ -297,10 +292,10 @@ const Settings = () => {
       if (error.response?.status !== 401) {
         toast.error(extractErrorMessage(error));
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [i18n]);
+
+  const { loading } = useAutoLoad(fetchSettings);
 
   const setValue = (key, value) => setSettings((prev) => ({ ...prev, [key]: value }));
 

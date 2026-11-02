@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -19,11 +19,11 @@ import OrderStatusBadge from '../components/OrderStatusBadge';
 import StatCard from '../components/StatCard';
 import SummaryPanel from '../components/SummaryPanel';
 import { formatCurrency, safeRatio } from '../utils/format';
+import { useAutoLoad } from '../hooks/useAutoLoad';
 
 const Dashboard = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalSales: 0,
     totalOrders: 0,
@@ -51,13 +51,8 @@ const Dashboard = () => {
   const [topStockProducts, setTopStockProducts] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      setLoading(true);
       const response = await api.get('/dashboard/overview');
       const data = response.data;
 
@@ -90,10 +85,10 @@ const Dashboard = () => {
       setLowStockProducts(data.lowStockProducts || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
+
+  const { loading } = useAutoLoad(fetchDashboardData);
 
   const getStatusBadge = (order) => <OrderStatusBadge order={order} />;
 

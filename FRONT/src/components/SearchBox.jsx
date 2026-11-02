@@ -26,6 +26,7 @@ const SearchBox = ({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [highlightFor, setHighlightFor] = useState(value);
   const containerRef = useRef(null);
   const listRef = useRef(null);
 
@@ -40,8 +41,12 @@ const SearchBox = ({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Remet la sélection à zéro quand la recherche change.
-  useEffect(() => setHighlight(0), [value]);
+  // Remet la sélection à zéro quand la recherche change. Fait pendant le rendu et pas dans un
+  // effet, pour ne pas afficher d'abord la liste avec l'ancienne sélection.
+  if (highlightFor !== value) {
+    setHighlightFor(value);
+    setHighlight(0);
+  }
 
   // Garde l'élément sélectionné visible.
   useEffect(() => {

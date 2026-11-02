@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatDate, formatTime } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Historique des événements de la plateforme.
@@ -30,7 +31,6 @@ const PlatformNotifications = () => {
   const { t } = useTranslation();
 
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [unreadOnly, setUnreadOnly] = useState('false');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -39,7 +39,6 @@ const PlatformNotifications = () => {
   const [detail, setDetail] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const { data } = await platformService.getNotifications({
         page: page - 1,
@@ -51,14 +50,10 @@ const PlatformNotifications = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [page, pageSize, unreadOnly, t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   const markRead = async (notification) => {
     if (notification.readAt) return;

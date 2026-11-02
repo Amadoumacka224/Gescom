@@ -73,7 +73,7 @@ L'API a 122 tests JUnit :
 - des tests unitaires Mockito sur les règles métier (paiements, remises, annulation de commande, retours clients, suppression de facture, mise à jour de produit, export CSV) ;
 - des tests d'intégration Spring sur base H2 pour le cloisonnement entre entreprises, le périmètre des caissiers, la cohérence du tableau de bord et les règles d'accès HTTP avec de vrais jetons JWT.
 
-Le client React a 36 tests Vitest (jsdom et Testing Library) :
+Le client React a 71 tests Vitest (jsdom et Testing Library) :
 
 - les calculs de montants, qui doivent donner le même résultat que le backend ;
 - la validation du formulaire client ;
@@ -81,9 +81,13 @@ Le client React a 36 tests Vitest (jsdom et Testing Library) :
 - le statut affiché d'une commande ;
 - la lecture des erreurs de l'API ;
 - le client HTTP : jeton joint à chaque requête, session effacée sur un 401 ;
-- la redirection des routes protégées.
+- la redirection des routes protégées ;
+- les hooks de chargement et de pagination (`useAutoLoad`, `useResettablePage`) ;
+- l'affichage de chaque écran avec une API simulée, y compris les ouvertures par lien (`?orderId=`, commande à facturer ou à livrer).
 
-Les écrans eux-mêmes ne sont pas testés.
+Ces derniers tests vérifient que les écrans s'affichent sans erreur, pas chaque interaction.
+
+Le lint est strict (`--max-warnings 0`), et les règles du React Compiler sont en erreur.
 
 Chaque poussée sur `main` ou `develop` lance l'intégration continue, en quatre tâches indépendantes :
 
@@ -95,7 +99,7 @@ Chaque poussée sur `main` ou `develop` lance l'intégration continue, en quatre
 ## Limites connues
 
 - La couverture de tests de l'API reste partielle (environ 24 % des instructions). Les zones les plus sensibles sont couvertes : cloisonnement, stock, paiements, retours.
-- Côté client, seuls la logique partagée et quelques composants sont testés. Les écrans ne le sont pas, et le lint signale encore 78 avertissements.
+- Côté client, les interactions des écrans (formulaires, modales, parcours de vente) ne sont pas testées. Seuls leur affichage et la logique partagée le sont.
 - Le jeton JWT est conservé dans le `localStorage`. La politique CSP stricte (`script-src 'self'`) limite le risque XSS, mais un cookie `HttpOnly` serait plus sûr.
 - La déconnexion ne révoque pas le jeton : il reste valide jusqu'à son expiration (24 h par défaut).
 - Seuls le journal d'activité et les mouvements de stock sont paginés côté API. Les autres listes sont renvoyées en entier.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { RefreshCw, XCircle } from 'lucide-react';
@@ -10,6 +10,7 @@ import { badgeClass } from '../../constants/statusBadges';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { extractErrorMessage } from '../../utils/apiError';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Abonnements des entreprises.
@@ -34,7 +35,6 @@ const PlatformSubscriptions = () => {
   const { t } = useTranslation();
 
   const [subscriptions, setSubscriptions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -43,7 +43,6 @@ const PlatformSubscriptions = () => {
   const [confirm, setConfirm] = useState(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await platformService.getSubscriptions({
         page: page - 1,
@@ -56,14 +55,10 @@ const PlatformSubscriptions = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [page, pageSize, status, t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   const runAction = async () => {
     if (!confirm) return;

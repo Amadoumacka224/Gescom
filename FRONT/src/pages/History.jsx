@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   History as HistoryIcon,
   RefreshCw,
@@ -34,6 +34,8 @@ import { formatPercent, safeRatio } from '../utils/format';
 import i18n from '../i18n';
 import { ACTIVITY_TONE, badgeClass } from '../constants/statusBadges';
 import { ACTION_TYPES, actionLabelKey } from '../constants/activityActions';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 /**
  * Journal d'activité, en lecture seule : on ne peut rien y ajouter depuis l'appli
@@ -165,7 +167,7 @@ const History = () => {
   const [pageMeta, setPageMeta] = useState({ totalElements: 0, totalPages: 1 });
   const [summary, setSummary] = useState(null);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,8 +175,11 @@ const History = () => {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  // Retour à la page 1 dès que la recherche, un filtre ou le tri change.
+  const [currentPage, setCurrentPage] = useResettablePage(
+    JSON.stringify([debouncedSearch, filters, sortConfig, itemsPerPage]),
+  );
   const [selectedActivity, setSelectedActivity] = useState(null);
 
   const today = toDateInput(shiftedDay(0));
@@ -210,16 +215,8 @@ const History = () => {
     sort: sortParam,
   }), [filterParams, currentPage, itemsPerPage, sortParam]);
 
-  useEffect(() => {
-    fetchReference();
-  }, []);
-
-  useEffect(() => {
-    fetchPage();
-  }, [queryParams]);
-
   // Utilisateurs (pour le filtre) et stats : ne dépendent pas de la page affichée.
-  const fetchReference = async () => {
+  const fetchReference = useCallback(async () => {
     try {
       const [usersRes, summaryRes] = await Promise.all([
         api.get('/users'),
@@ -231,10 +228,11 @@ const History = () => {
       console.error('Error fetching reference data:', error);
       toast.error(t('history.loadError'));
     }
-  };
+  }, [t]);
 
-  const fetchPage = async () => {
-    setLoading(true);
+  useAutoLoad(fetchReference);
+
+  const fetchPage = useCallback(async () => {
     try {
       const { data } = await activityService.getActivities(queryParams);
       setActivities(data.content || []);
@@ -245,13 +243,19 @@ const History = () => {
     } catch (error) {
       console.error('Error fetching activities:', error);
       toast.error(t('history.loadError'));
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [queryParams, t]);
+
+  const { loading: pageLoading } = useAutoLoad(fetchPage);
+  const loading = pageLoading || refreshing;
 
   const handleRefresh = async () => {
-    await Promise.all([fetchPage(), fetchReference()]);
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchPage(), fetchReference()]);
+    } finally {
+      setRefreshing(false);
+    }
     toast.success(t('history.refreshed'));
   };
 
@@ -361,10 +365,6 @@ const History = () => {
   const matchingCount = pageMeta.totalElements;
   const totalPages = pageMeta.totalPages;
   const safePage = Math.min(currentPage, totalPages);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, filters, sortConfig, itemsPerPage]);
 
   const handleSort = (key) => {
     setSortConfig((prev) => (

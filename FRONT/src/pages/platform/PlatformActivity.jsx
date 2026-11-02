@@ -12,6 +12,7 @@ import { extractErrorMessage } from '../../utils/apiError';
 import { ACTION_TYPES, actionLabelKey } from '../../constants/activityActions';
 import { ACTIVITY_TONE, badgeClass } from '../../constants/statusBadges';
 import platformService from '../../services/platformService';
+import { useAutoLoad } from '../../hooks/useAutoLoad';
 
 /**
  * Journal d'activité de toutes les entreprises.
@@ -44,7 +45,6 @@ const PlatformActivity = () => {
   const [entries, setEntries] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [options, setOptions] = useState({ actionTypes: [], entities: [] });
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -80,7 +80,6 @@ const PlatformActivity = () => {
   }, [filters, debouncedSearch]);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await platformService.getActivity({
         ...filterParams,
@@ -93,14 +92,10 @@ const PlatformActivity = () => {
       setTotalPages(data.totalPages ?? 0);
     } catch (error) {
       toast.error(t('common.errorPrefixed', { message: extractErrorMessage(error) }));
-    } finally {
-      setLoading(false);
     }
   }, [filterParams, page, pageSize, t]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { loading } = useAutoLoad(load);
 
   // Listes des filtres : les entreprises, et les valeurs qui existent dans le journal.
   // Il y a au plus quelques centaines d'entreprises, une grande page suffit.

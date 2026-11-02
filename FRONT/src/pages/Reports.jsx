@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -50,6 +50,8 @@ import {
   safeRatio,
   todayISO,
 } from '../utils/format';
+import { useAutoLoad } from '../hooks/useAutoLoad';
+import { useResettablePage } from '../hooks/useResettablePage';
 
 /**
  * Rapports des ventes.
@@ -213,7 +215,6 @@ const Reports = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [clients, setClients] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -221,11 +222,12 @@ const Reports = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [granularity, setGranularity] = useState('day');
   const [sort, setSort] = useState({ key: 'date', direction: 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ROWS_PER_PAGE);
+  // Quand un filtre change on revient à la page 1 : rester en page 7 alors qu'il n'y en a
+  // plus que 2 affichait un tableau vide sans explication.
+  const [currentPage, setCurrentPage] = useResettablePage(JSON.stringify([filters, itemsPerPage]));
 
   const fetchAll = useCallback(async () => {
-    setLoading(true);
     try {
       // Les trois appels sont indépendants, on les lance en même temps (en série ça prenait trois fois plus de temps).
       const [ordersRes, usersRes, clientsRes] = await Promise.all([
@@ -239,24 +241,14 @@ const Reports = () => {
     } catch (error) {
       console.error('Error loading reports data:', error);
       toast.error(t('reports.loadError'));
-    } finally {
-      setLoading(false);
     }
   }, [t]);
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  const { loading, reload } = useAutoLoad(fetchAll);
 
   const setFilter = (name, value) => setFilters((prev) => ({ ...prev, [name]: value }));
 
   const resetFilters = () => setFilters(EMPTY_FILTERS);
-
-  // Quand un filtre change on revient à la page 1 : rester en page 7 alors qu'il n'y en a
-  // plus que 2 affichait un tableau vide sans explication.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, itemsPerPage]);
 
   /**
    * Périodes prédéfinies. Chacune a ses deux dates : on peut donc les appliquer et retrouver
@@ -650,7 +642,7 @@ const Reports = () => {
         <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button"
-            onClick={fetchAll}
+            onClick={reload}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-60"
           >
