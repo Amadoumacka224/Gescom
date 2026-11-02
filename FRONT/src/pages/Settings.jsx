@@ -702,7 +702,7 @@ const Settings = () => {
           </button>
 
           {/* Le paramètre est bien enregistré côté serveur, mais rien ne l'applique encore
-              (le hook `useTheme` n'est utilisé nulle part) : si on le proposait, on pourrait
+              (aucun code ne pose la classe `dark` sur la page) : si on le proposait, on pourrait
               choisir « sombre » sans que rien ne change. */}
           <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 opacity-70">
             <Moon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
