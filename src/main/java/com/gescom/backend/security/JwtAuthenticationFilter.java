@@ -14,7 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,8 +24,11 @@ import java.io.IOException;
  * sans session : il lit le token dans l'en-tête Authorization, le vérifie et met
  * l'utilisateur dans le SecurityContext pour la durée de la requête.
  * Il est placé avant le filtre d'authentification standard de Spring (voir SecurityConfig).
+ *
+ * Pas de @Component : le bean est déclaré dans SecurityConfig. Annoté en plus, il existait en
+ * deux exemplaires, chacun enregistré comme filtre de servlet, et chaque requête validait le
+ * jeton et chargeait l'utilisateur deux fois.
  */
-@Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
