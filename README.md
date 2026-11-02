@@ -1,10 +1,94 @@
-# GESCOM - Backend API
+# GESCOM
 
 [![CI](https://github.com/Amadoumacka224/Gescom/actions/workflows/ci.yml/badge.svg)](https://github.com/Amadoumacka224/Gescom/actions/workflows/ci.yml)
 
-Application de gestion commerciale développée avec Spring Boot.
+Application SaaS de gestion commerciale et de stock pour les TPE et PME : une API REST Spring Boot et un client React, dans le même dépôt.
 
-Chaque poussée sur `main` ou `develop` déclenche l'intégration continue : `mvn clean install` pour l'API - compilation, 113 tests, rapport de couverture -, rejeu des migrations Flyway sur PostgreSQL, contrôle des versions, puis lint, contrôle des traductions et build du SPA.
+## Le problème
+
+Une petite entreprise qui vend des produits suit souvent ses ventes, son stock et ses factures dans plusieurs outils qui ne se parlent pas. Le stock n'est pas à jour, on facture une commande déjà annulée, on ne sait plus qui a fait quoi. GESCOM rassemble ce parcours dans une seule application : de la commande à la livraison, chaque étape met à jour le stock et laisse une trace.
+
+L'application est multi-entreprises. Plusieurs sociétés clientes partagent la même installation, chacune ne voit que ses propres données, et un back-office permet à l'opérateur de la plateforme de gérer les entreprises, les formules et les abonnements.
+
+## Fonctionnalités
+
+**Espace entreprise** (rôles `ADMIN` et `CAISSIER`)
+
+- Clients, catégories et produits, avec import en lot et export CSV.
+- Commandes avec un cycle de vie strict : `PENDING → CONFIRMED → INVOICED → DELIVERED`, annulation possible avant la livraison.
+- Factures (remises, TVA, paiements partiels, retards) et livraisons. Une livraison n'est possible qu'après la facture.
+- Stock : le stock est décrémenté à la confirmation de la commande, sous verrou pessimiste, et rendu à l'annulation. Chaque mouvement est historisé, et on peut saisir des entrées, sorties, ajustements et casses.
+- Retours clients : à partir du numéro de commande ou de facture, avec contrôle des quantités encore retournables et remboursement calculé sur le prix réellement payé.
+- Écran de caisse avec lecture de codes-barres par la caméra.
+- Paiement par carte via Stripe, en mode test uniquement (simulé par défaut).
+- Tableau de bord, rapports, export PDF des documents.
+- Journal d'activité des utilisateurs.
+- Interface et messages d'erreur en français, anglais et néerlandais.
+
+**Back-office de la plateforme** (rôle `SUPER_ADMIN`)
+
+- Entreprises clientes : création, suspension (qui coupe l'accès de tous leurs utilisateurs), réactivation.
+- Formules, abonnements et paiements, avec un tableau de bord (MRR, résiliations).
+- Notifications, support et journal d'activité de la plateforme.
+
+## Choix techniques
+
+- **Cloisonnement des données** : base partagée, une colonne `company_id` sur chaque table métier. L'isolation est assurée par l'infrastructure, pas par chaque service : un filtre Hibernate sur les requêtes, un dépôt qui refuse le chargement par id d'une ligne étrangère, un écouteur qui renseigne l'entreprise à l'enregistrement. L'entreprise vient de l'utilisateur chargé en base, jamais d'une valeur envoyée par le client.
+- **Sécurité** : JWT sans session, mots de passe BCrypt (coût 12), limitation des tentatives de connexion, autorisations par rôle sur chaque méthode (`@PreAuthorize`) et par préfixe d'URL.
+- **Règles métier** : le cycle de vie des commandes est une machine à états (`ALLOWED_TRANSITIONS`). Les opérations de stock concurrentes passent par un verrou pessimiste.
+- **Schéma** : Flyway est seul propriétaire du schéma. Hibernate ne fait que le valider au démarrage.
+- **Architecture** : `Controller → Mapper → Service → Repository`. Les contrôleurs ne renvoient jamais d'entités, et les erreurs sont traduites en réponses HTTP par un gestionnaire global.
+
+## Démarrage rapide
+
+Prérequis : Java 17+, Node 24+, PostgreSQL avec une base `GESCOM_2` (voir [Configuration](#configuration)).
+
+```bash
+# API, sur http://localhost:8085
+./mvnw spring-boot:run
+
+# Client, sur http://localhost:5173 (relaie /api vers l'API)
+cd FRONT
+npm ci
+npm run dev
+```
+
+Sans PostgreSQL ni Java installés, `docker compose up -d --build` démarre l'ensemble (voir [Déploiement](#déploiement)).
+
+## Tests et qualité
+
+```bash
+./mvnw clean install          # compilation, tests, rapport de couverture (target/site/jacoco)
+./mvnw test -Dtest=SecurityRulesTest
+
+cd FRONT
+npm run lint
+npm run check:i18n            # parité des traductions fr/en/nl et clés utilisées
+npm run build
+```
+
+L'API a 122 tests JUnit :
+
+- des tests unitaires Mockito sur les règles métier (paiements, remises, annulation de commande, retours clients, suppression de facture, mise à jour de produit, export CSV) ;
+- des tests d'intégration Spring sur base H2 pour le cloisonnement entre entreprises, le périmètre des caissiers, la cohérence du tableau de bord et les règles d'accès HTTP avec de vrais jetons JWT.
+
+Le client React n'a pas de tests automatisés. Il est vérifié par le lint, le contrôle des traductions et le build.
+
+Chaque poussée sur `main` ou `develop` lance l'intégration continue, en quatre tâches indépendantes :
+
+- `mvn clean install` pour l'API (compilation, tests, rapport de couverture) ;
+- rejeu des migrations Flyway sur un PostgreSQL 17 vierge ;
+- contrôle de la cohérence des versions entre l'API et le client ;
+- lint, contrôle des traductions et build du SPA.
+
+## Limites connues
+
+- La couverture de tests de l'API reste partielle (environ 24 % des instructions). Les zones les plus sensibles sont couvertes : cloisonnement, stock, paiements, retours.
+- Le client React n'a aucun test automatisé.
+- Le jeton JWT est conservé dans le `localStorage`. La politique CSP stricte (`script-src 'self'`) limite le risque XSS, mais un cookie `HttpOnly` serait plus sûr.
+- La déconnexion ne révoque pas le jeton : il reste valide jusqu'à son expiration (24 h par défaut).
+- Seuls le journal d'activité et les mouvements de stock sont paginés côté API. Les autres listes sont renvoyées en entier.
+- Stripe n'est intégré qu'en mode test : aucun vrai paiement n'est possible.
 
 ## Branches et versions
 
@@ -30,22 +114,21 @@ Les deux branches sont protégées sur GitHub contre le force-push et la suppres
 
 ## Technologies
 
-- **Spring Boot 3.5.16**
-- **Java 17**
-- **PostgreSQL**
-- **Spring Security + JWT** (jjwt 0.12.3)
-- **Spring Data JPA / Hibernate**
-- **Spring Validation**
-- **Lombok**
-- **Maven**
+| Couche | Technologies |
+|---|---|
+| API | Java 17, Spring Boot 3.5, Spring Security, JWT (jjwt), Spring Data JPA / Hibernate, Bean Validation, Lombok, springdoc-openapi |
+| Base de données | PostgreSQL 17, migrations Flyway |
+| Client | React 19, Vite, Tailwind CSS, React Router, i18next, Recharts, jsPDF, ZXing (codes-barres) |
+| Tests | JUnit 5, Mockito, AssertJ, Spring Boot Test, H2, JaCoCo |
+| Livraison | Docker (build multi-étapes), Docker Compose, Caddy (TLS automatique), GitHub Actions, Render |
 
 ## Prérequis
 
 Pour le développement :
 
-- Java 17 ou supérieur
+- Java 17 ou supérieur (Maven est fourni par le wrapper `./mvnw`)
 - PostgreSQL 12 ou supérieur
-- Maven 3.6 ou supérieur
+- Node 24 ou supérieur, pour le client
 
 Pour un déploiement, Docker suffit - voir [Déploiement](#déploiement).
 
@@ -160,18 +243,18 @@ Caddy obtient et renouvelle seul le certificat Let's Encrypt : aucune clé TLS �
 
 ### Mise en service
 
-Remplacer `gescom.example.com` par le domaine réel dans `Caddyfile` (bloc de site) et dans
-`docker-compose.yml` (variable `CORS_ORIGINS`).
+Le domaine n'est écrit dans aucun fichier versionné : il vient de `APP_DOMAIN` dans `.env`,
+qui alimente à la fois le bloc de site du `Caddyfile` et l'origine CORS de l'API.
 
-L'adresse `email` du bloc global du `Caddyfile` doit être réelle et relevée : c'est là que
-Let's Encrypt signale les expirations, et une adresse en `example.com` fait carrément rejeter
-la création du compte (`invalidContact - contact email has forbidden domain`), après quoi Caddy
-bascule sans le dire sur l'émetteur de repli.
+L'adresse `ACME_EMAIL` doit être réelle et relevée : c'est là que Let's Encrypt signale les
+expirations, et une adresse en `example.com` fait carrément rejeter la création du compte
+(`invalidContact - contact email has forbidden domain`), après quoi Caddy bascule sans le dire
+sur l'émetteur de repli.
 
 ```bash
 cp .env.example .env
 chmod 600 .env          # le fichier porte les secrets de production
-$EDITOR .env            # renseigner DB_PASSWORD et JWT_SECRET
+$EDITOR .env            # renseigner APP_DOMAIN, ACME_EMAIL, DB_PASSWORD et JWT_SECRET
 
 docker compose up -d --build
 docker compose logs -f api
@@ -196,9 +279,10 @@ sont fournies par le fichier `.env`, décrit dans `.env.example`. Deux rappels :
   d'administrateur sans mot de passe. Le générer (`openssl rand -hex 64`), jamais l'inventer.
   Le changer révoque toutes les sessions en cours, ce qui en fait le geste d'urgence en cas de
   doute.
-- Les valeurs par défaut d'`application.properties` **ne font pas échouer le démarrage** si une
-  variable manque : l'application démarre avec la valeur de développement. L'absence d'erreur au
-  boot ne prouve donc pas que la configuration est complète.
+- `docker compose up` refuse de démarrer si `DB_PASSWORD` ou `JWT_SECRET` est vide, et l'API
+  refuse un secret JWT de moins de 32 octets. Les autres valeurs par défaut
+  d'`application.properties` ne font pas échouer le démarrage : l'absence d'erreur au boot ne
+  prouve donc pas que toute la configuration est renseignée.
 
 ### À faire une fois en ligne
 
@@ -384,6 +468,27 @@ s'applique aussi.
 - `GET /` - Lire les paramètres applicatifs
 - `PUT /` - Mettre à jour les paramètres
 
+### Retours clients (`/api/stock/returns`)
+- `GET /lookup` - Retrouver une vente par numéro de commande ou de facture
+- `GET /` - Liste des retours
+- `GET /{id}` - Détails d'un retour
+- `POST /` - Enregistrer un retour
+
+### Paiement par carte (`/api/payments`) - Stripe, mode test
+- `POST /stripe/intents` - Créer une intention de paiement
+- `POST /stripe/intents/{id}/confirm` - Confirmer
+- `POST /stripe/intents/{id}/cancel` - Annuler
+- `GET /stripe/intents/{id}` - État d'une intention
+- `GET /invoice/{invoiceId}` - Paiements d'une facture
+
+### Back-office de la plateforme (`/api/platform`) - SUPER_ADMIN
+- Entreprises : `/companies` (liste, création, modification, `suspend`, `reactivate`, `cancel`)
+- Comptes : `/users` (liste, activation)
+- Formules, abonnements et paiements : `/plans`, `/subscriptions`, `/payments`
+- Exploitation : `/dashboard`, `/activity`, `/notifications`, `/settings`, `/support`
+
+Le détail de ces routes est dans Swagger UI.
+
 ## Authentification JWT
 
 Toutes les requêtes (sauf `/api/auth/**`) nécessitent un token JWT dans l'en-tête :
@@ -394,8 +499,9 @@ Authorization: Bearer <votre_token_jwt>
 
 ## Rôles utilisateurs
 
-- **ADMIN** - Accès complet à toutes les fonctionnalités
+- **ADMIN** - Accès complet aux fonctionnalités de son entreprise
 - **CAISSIER** - Accès aux opérations courantes (clients, produits, commandes, livraisons, factures)
+- **SUPER_ADMIN** - Opérateur de la plateforme : accès au seul back-office `/api/platform/**`, rattaché à aucune entreprise et sans accès aux écrans métier
 
 ## Support multi-langue
 
