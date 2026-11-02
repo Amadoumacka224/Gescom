@@ -3,6 +3,7 @@ package com.gescom.backend.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,29 @@ public class JwtUtils {
     // Durée de validité d'un token, en millisecondes.
     @Value("${jwt.expiration}")
     private long jwtExpirationMs;
+
+    // HMAC-SHA256 exige une clé d'au moins 256 bits (RFC 7518, §3.2).
+    private static final int MIN_SECRET_BYTES = 32;
+
+    /**
+     * Refuse de démarrer avec un secret inutilisable.
+     *
+     * Sans ce contrôle, un JWT_SECRET vide (une ligne {@code JWT_SECRET=} oubliée dans .env)
+     * laissait l'application démarrer normalement, et l'erreur n'apparaissait qu'à la première
+     * connexion, sous la forme d'un 500. Mieux vaut planter au démarrage, comme le fait déjà
+     * StripeProperties pour une clé live.
+     */
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "jwt.secret doit faire au moins " + MIN_SECRET_BYTES + " octets (JWT_SECRET, voir .env.example)");
+        }
+        if (jwtSecret.startsWith("dev-only-")) {
+            log.warn("Secret JWT de développement en service : il est public dans le dépôt, "
+                    + "ne jamais l'utiliser hors d'un poste local (définir JWT_SECRET).");
+        }
+    }
 
     /** Crée la clé de signature HMAC à partir du secret. */
     private SecretKey getSigningKey() {

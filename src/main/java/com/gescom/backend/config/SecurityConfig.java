@@ -5,6 +5,7 @@ import com.gescom.backend.security.JwtSecurityErrorHandler;
 import com.gescom.backend.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -58,6 +59,18 @@ public class SecurityConfig {
     public JwtAuthenticationFilter authenticationJwtTokenFilter() {
 
         return new JwtAuthenticationFilter();
+    }
+
+    /**
+     * Spring Boot enregistre tout bean Filter comme filtre de servlet. Celui-ci ne doit tourner
+     * que dans la chaîne de Spring Security (addFilterBefore ci-dessous), pas une seconde fois
+     * autour d'elle.
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterServletRegistration(JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     /**
