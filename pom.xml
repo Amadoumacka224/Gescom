@@ -15,7 +15,7 @@
     <groupId>com.gescom</groupId>
     <artifactId>gescom-backend</artifactId>
     <!-- Version unique de l'application (SemVer) : reprise par FRONT/package.json, par le
-         document OpenAPI via build-info, et verifiee par la CI. Voir CHANGELOG.md. -->
+         document OpenAPI via build-info, et verifiee par la CI. -->
     <version>1.0.1</version>
     <name>GESCOM - Backend</name>
     <description>Gestion Commerciale - Application Backend</description>
