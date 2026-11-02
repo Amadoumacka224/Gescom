@@ -40,6 +40,7 @@ backend est joignable à une autre origine.
 | `npm run build` | Build de production dans `dist/` |
 | `npm run preview` | Sert le build localement, avec le même relais `/api` |
 | `npm run lint` | ESLint sur l'ensemble des sources |
+| `npm test` | Tests Vitest (`src/**/*.test.{js,jsx}`, environnement jsdom) ; `npm run test:watch` les relance à chaque modification |
 | `npm run check:i18n` | Contrôle des traductions - **à lancer après toute retouche d'un catalogue** |
 
 `check:i18n` enchaîne deux vérifications complémentaires : `check-i18n.js` compare les trois

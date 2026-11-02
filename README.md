@@ -63,6 +63,7 @@ Sans PostgreSQL ni Java installés, `docker compose up -d --build` démarre l'en
 
 cd FRONT
 npm run lint
+npm test                      # tests Vitest
 npm run check:i18n            # parité des traductions fr/en/nl et clés utilisées
 npm run build
 ```
@@ -72,19 +73,29 @@ L'API a 122 tests JUnit :
 - des tests unitaires Mockito sur les règles métier (paiements, remises, annulation de commande, retours clients, suppression de facture, mise à jour de produit, export CSV) ;
 - des tests d'intégration Spring sur base H2 pour le cloisonnement entre entreprises, le périmètre des caissiers, la cohérence du tableau de bord et les règles d'accès HTTP avec de vrais jetons JWT.
 
-Le client React n'a pas de tests automatisés. Il est vérifié par le lint, le contrôle des traductions et le build.
+Le client React a 36 tests Vitest (jsdom et Testing Library) :
+
+- les calculs de montants, qui doivent donner le même résultat que le backend ;
+- la validation du formulaire client ;
+- le formatage selon la langue ;
+- le statut affiché d'une commande ;
+- la lecture des erreurs de l'API ;
+- le client HTTP : jeton joint à chaque requête, session effacée sur un 401 ;
+- la redirection des routes protégées.
+
+Les écrans eux-mêmes ne sont pas testés.
 
 Chaque poussée sur `main` ou `develop` lance l'intégration continue, en quatre tâches indépendantes :
 
 - `mvn clean install` pour l'API (compilation, tests, rapport de couverture) ;
 - rejeu des migrations Flyway sur un PostgreSQL 17 vierge ;
 - contrôle de la cohérence des versions entre l'API et le client ;
-- lint, contrôle des traductions et build du SPA.
+- lint, tests, contrôle des traductions et build du SPA.
 
 ## Limites connues
 
 - La couverture de tests de l'API reste partielle (environ 24 % des instructions). Les zones les plus sensibles sont couvertes : cloisonnement, stock, paiements, retours.
-- Le client React n'a aucun test automatisé.
+- Côté client, seuls la logique partagée et quelques composants sont testés. Les écrans ne le sont pas, et le lint signale encore 78 avertissements.
 - Le jeton JWT est conservé dans le `localStorage`. La politique CSP stricte (`script-src 'self'`) limite le risque XSS, mais un cookie `HttpOnly` serait plus sûr.
 - La déconnexion ne révoque pas le jeton : il reste valide jusqu'à son expiration (24 h par défaut).
 - Seuls le journal d'activité et les mouvements de stock sont paginés côté API. Les autres listes sont renvoyées en entier.

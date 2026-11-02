@@ -147,7 +147,7 @@ jobs:
           [ "$POM" = "$FRONT" ] || { echo "Versions divergentes"; exit 1; }
 
   frontend:
-    name: SPA - lint, i18n et build
+    name: SPA - lint, tests, i18n et build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -173,6 +173,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Tests (Vitest)
+        run: npm test
 
       # Le contrôle i18n mérite sa propre étape : une clé manquante dans une des
       # trois langues casse l'écran pour ses seuls utilisateurs, ce qu'un build

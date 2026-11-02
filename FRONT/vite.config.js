@@ -52,4 +52,10 @@ export default defineConfig({
       '/api': 'http://127.0.0.1:8085',
     },
   },
+  // Tests Vitest (`npm test`). jsdom fournit localStorage et le DOM, dont ont besoin
+  // l'initialisation d'i18n et les composants testés.
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.{js,jsx}'],
+  },
 })
