@@ -41,7 +41,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans .env}
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -77,8 +77,10 @@ services:
       # propre pile réseau.
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
       DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD manquant dans .env}
+      # `:?` fait refuser `docker compose up` si la valeur est absente ou vide, au
+      # lieu de démarrer une API qui échouerait à la première connexion.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant dans .env (openssl rand -hex 64)}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       # Compte propriétaire du SaaS, créé au premier démarrage puis jamais
       # réécrit. Sans ces variables, aucun compte n'est créé.
